@@ -5,8 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-
-dotenv.config();
+import galleryRouter from './src/gallery';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
@@ -34,6 +33,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: '50mb' }));
+  app.use('/gallery', galleryRouter);
 
   // In-memory fallback for the last 100 messages
   let inMemoryMessages: any[] = [];
