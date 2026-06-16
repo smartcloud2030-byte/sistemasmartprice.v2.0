@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────
-// gallery.ts v2.0 — Galeria com Categorias
+// gallery.ts v2.1 — Galeria com Categorias
+// Fix: nome original + preview de imagem
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
 import * as Minio from 'minio';
@@ -23,7 +24,7 @@ const GALLERY_PASSWORD = process.env.GALLERY_PASSWORD || 'smartprice@admin2026';
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp|svg/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
@@ -39,15 +40,36 @@ function authGallery(req: Request, res: Response, next: Function) {
   res.status(401).json({ error: 'Acesso negado' });
 }
 
-// ── Listar categorias (pastas no MinIO) ──
+function sanitizeName(original: string): string {
+  const ext = path.extname(original).toLowerCase();
+  const base = path.basename(original, ext)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s_-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase()
+    .substring(0, 80);
+  const hash = crypto.randomBytes(4).toString('hex');
+  return `${base}-${hash}${ext}`;
+}
+
+function displayName(filename: string): string {
+  const ext = path.extname(filename);
+  return filename
+    .replace(ext, '')
+    .replace(/-[a-f0-9]{8}$/, '')
+    .replace(/-/g, ' ')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Listar categorias ─────────────────────
 router.get('/categories', authGallery, async (_req: Request, res: Response) => {
   try {
     const categories = new Set<string>();
     const stream = minioClient.listObjectsV2(BUCKET, '', true);
     stream.on('data', (obj) => {
-      if (obj.name && obj.name.includes('/')) {
-        categories.add(obj.name.split('/')[0]);
-      }
+      if (obj.name && obj.name.includes('/')) categories.add(obj.name.split('/')[0]);
     });
     stream.on('end', () => res.json([...categories].sort()));
     stream.on('error', (err) => res.status(500).json({ error: err.message }));
@@ -60,18 +82,12 @@ router.get('/categories', authGallery, async (_req: Request, res: Response) => {
 router.post('/categories', authGallery, async (req: Request, res: Response) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
-
   const safeName = name.trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-');
-
+    .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
   if (!safeName) return res.status(400).json({ error: 'Nome inválido' });
-
   try {
-    // Cria um objeto placeholder para "criar" a pasta
-    const placeholder = Buffer.from('');
-    await minioClient.putObject(BUCKET, `${safeName}/.keep`, placeholder, 0);
+    await minioClient.putObject(BUCKET, `${safeName}/.keep`, Buffer.from(''), 0);
     res.json({ name: safeName, created: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -86,10 +102,8 @@ router.delete('/categories/:name', authGallery, async (req: Request, res: Respon
     const stream = minioClient.listObjectsV2(BUCKET, `${category}/`, true);
     stream.on('data', (obj) => { if (obj.name) objects.push(obj.name); });
     stream.on('end', async () => {
-      for (const obj of objects) {
-        await minioClient.removeObject(BUCKET, obj);
-      }
-      res.json({ success: true, deleted: objects.length });
+      for (const obj of objects) await minioClient.removeObject(BUCKET, obj);
+      res.json({ success: true });
     });
     stream.on('error', (err) => res.status(500).json({ error: err.message }));
   } catch (err: any) {
@@ -97,7 +111,7 @@ router.delete('/categories/:name', authGallery, async (req: Request, res: Respon
   }
 });
 
-// ── Listar imagens de uma categoria ──────
+// ── Listar imagens da categoria ───────────
 router.get('/list/:category', authGallery, async (req: Request, res: Response) => {
   const prefix = req.params.category + '/';
   try {
@@ -105,8 +119,10 @@ router.get('/list/:category', authGallery, async (req: Request, res: Response) =
     const stream = minioClient.listObjectsV2(BUCKET, prefix, true);
     stream.on('data', (obj) => {
       if (obj.name && !obj.name.endsWith('.keep')) {
+        const filename = obj.name.replace(prefix, '');
         images.push({
-          filename: obj.name.replace(prefix, ''),
+          filename,
+          displayName: displayName(filename),
           fullPath: obj.name,
           url: `${PUBLIC_URL}/${BUCKET}/${obj.name}`,
           size: obj.size,
@@ -124,17 +140,15 @@ router.get('/list/:category', authGallery, async (req: Request, res: Response) =
   }
 });
 
-// ── Upload para uma categoria ─────────────
+// ── Upload para categoria ─────────────────
 router.post('/upload/:category', authGallery, upload.single('image'), async (req: Request, res: Response) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
   const category = req.params.category;
   try {
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    const hash = crypto.randomBytes(8).toString('hex');
-    const filename = `${category}/${Date.now()}-${hash}${ext}`;
-    await minioClient.putObject(BUCKET, filename, req.file.buffer, req.file.size, { 'Content-Type': req.file.mimetype });
-    const url = `${PUBLIC_URL}/${BUCKET}/${filename}`;
-    res.json({ url, filename, size: req.file.size });
+    const filename = sanitizeName(req.file.originalname);
+    const fullPath = `${category}/${filename}`;
+    await minioClient.putObject(BUCKET, fullPath, req.file.buffer, req.file.size, { 'Content-Type': req.file.mimetype });
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, filename, size: req.file.size });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -170,7 +184,7 @@ function galleryHTML() {
     --bg: #0a0a0f; --surface: #13131a; --surface2: #1a1a24;
     --border: #1e1e2e; --accent: #3b82f6; --accent-h: #2563eb;
     --text: #e2e8f0; --muted: #64748b;
-    --success: #22c55e; --danger: #ef4444; --warn: #f59e0b;
+    --success: #22c55e; --danger: #ef4444;
     --radius: 10px;
   }
   body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -186,8 +200,6 @@ function galleryHTML() {
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:11px 18px; background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-size:14px; font-weight:600; cursor:pointer; transition:background .2s; font-family:inherit; width:100%; margin-top:10px; }
   .btn:hover { background:var(--accent-h); }
   .btn-sm { width:auto; padding:8px 14px; font-size:13px; margin-top:0; }
-  .btn-danger { background:transparent; border:1px solid var(--danger); color:var(--danger); }
-  .btn-danger:hover { background:var(--danger); color:#fff; }
   .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
   .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
   .error-msg { color:var(--danger); font-size:13px; margin-top:10px; display:none; }
@@ -197,36 +209,37 @@ function galleryHTML() {
   header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
   .header-logo { font-size:16px; font-weight:700; }
   .header-logo span { color:var(--accent); }
-  .header-actions { display:flex; gap:8px; align-items:center; }
 
   /* LAYOUT */
   .layout { display:flex; min-height:calc(100vh - 60px); }
 
   /* SIDEBAR */
-  .sidebar { width:240px; min-width:240px; background:var(--surface); border-right:1px solid var(--border); padding:16px; display:flex; flex-direction:column; gap:8px; }
+  .sidebar { width:240px; min-width:240px; background:var(--surface); border-right:1px solid var(--border); padding:16px; display:flex; flex-direction:column; gap:6px; }
   .sidebar-title { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; padding:4px 8px; margin-bottom:4px; }
   .cat-item { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:8px; cursor:pointer; transition:background .15s; border:1px solid transparent; }
   .cat-item:hover { background:var(--surface2); }
   .cat-item.active { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.3); }
   .cat-name { font-size:13px; font-weight:500; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cat-item.active .cat-name { color:var(--accent); }
-  .cat-count { font-size:11px; color:var(--muted); background:var(--surface2); padding:2px 7px; border-radius:99px; }
-  .cat-del { opacity:0; font-size:12px; color:var(--danger); border:none; background:none; cursor:pointer; padding:2px 4px; }
+  .cat-del { opacity:0; font-size:12px; color:var(--danger); border:none; background:none; cursor:pointer; padding:2px 6px; border-radius:4px; }
   .cat-item:hover .cat-del { opacity:1; }
-  .add-cat-btn { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; font-weight:500; border:1px dashed var(--border); transition:all .15s; background:none; font-family:inherit; width:100%; margin-top:4px; }
+  .add-cat-btn { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; font-weight:500; border:1px dashed var(--border); transition:all .15s; background:none; font-family:inherit; width:100%; margin-top:6px; }
   .add-cat-btn:hover { border-color:var(--accent); color:var(--accent); }
 
   /* MAIN */
   .main { flex:1; padding:24px; overflow:auto; }
+  .no-cat { display:flex; flex:1; align-items:center; justify-content:center; color:var(--muted); flex-direction:column; gap:12px; padding:80px; text-align:center; }
+  .no-cat .icon { font-size:40px; }
 
-  /* EMPTY STATE */
-  .empty-cats { text-align:center; padding:80px 20px; color:var(--muted); }
-  .empty-cats .icon { font-size:48px; margin-bottom:16px; }
-  .empty-cats h3 { font-size:16px; font-weight:600; color:var(--text); margin-bottom:8px; }
-  .empty-cats p { font-size:14px; margin-bottom:20px; }
+  /* TOPBAR */
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+  .topbar h2 { font-size:18px; font-weight:700; }
+  .topbar p { font-size:13px; color:var(--muted); margin-top:2px; }
+  .search-input { padding:9px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:13px; outline:none; width:220px; transition:border-color .2s; font-family:inherit; }
+  .search-input:focus { border-color:var(--accent); }
 
   /* UPLOAD ZONE */
-  .upload-zone { border:2px dashed var(--border); border-radius:16px; padding:32px; text-align:center; cursor:pointer; transition:border-color .2s, background .2s; margin-bottom:24px; position:relative; }
+  .upload-zone { border:2px dashed var(--border); border-radius:14px; padding:28px; text-align:center; cursor:pointer; transition:border-color .2s, background .2s; margin-bottom:24px; position:relative; }
   .upload-zone:hover, .upload-zone.drag-over { border-color:var(--accent); background:rgba(59,130,246,.04); }
   .upload-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
   .upload-zone h3 { font-size:14px; font-weight:600; margin-bottom:4px; }
@@ -234,28 +247,23 @@ function galleryHTML() {
   .progress-bar { height:4px; background:var(--border); border-radius:99px; margin-top:12px; display:none; overflow:hidden; }
   .progress-fill { height:100%; background:var(--accent); border-radius:99px; width:0%; transition:width .3s; }
 
-  /* TOPBAR */
-  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
-  .topbar-left h2 { font-size:18px; font-weight:700; }
-  .topbar-left p { font-size:13px; color:var(--muted); margin-top:2px; }
-  .search-input { padding:9px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:13px; outline:none; width:220px; transition:border-color .2s; font-family:inherit; }
-  .search-input:focus { border-color:var(--accent); }
-
   /* GRID */
-  .gallery-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; }
+  .gallery-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:14px; }
   .img-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:border-color .2s, transform .15s; }
   .img-card:hover { border-color:var(--accent); transform:translateY(-2px); }
-  .img-card img { width:100%; height:130px; object-fit:cover; display:block; background:var(--bg); }
-  .card-body { padding:9px; }
-  .filename { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:7px; }
+  .img-thumb { width:100%; height:140px; object-fit:cover; display:block; background:var(--surface2); cursor:pointer; transition:opacity .2s; }
+  .img-thumb:hover { opacity:.88; }
+  .card-body { padding:10px; }
+  .img-label { font-size:12px; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+  .img-meta { font-size:10px; color:var(--muted); margin-bottom:8px; }
   .card-actions { display:flex; gap:5px; }
-  .card-actions button { flex:1; padding:5px; font-size:11px; font-weight:600; border-radius:6px; border:none; cursor:pointer; transition:opacity .2s; font-family:inherit; }
+  .card-actions button { flex:1; padding:6px; font-size:11px; font-weight:600; border-radius:6px; border:none; cursor:pointer; font-family:inherit; transition:opacity .2s; }
   .btn-copy { background:var(--accent); color:#fff; }
   .btn-del { background:transparent; border:1px solid var(--danger) !important; color:var(--danger); }
   .btn-copy:hover, .btn-del:hover { opacity:.82; }
 
-  /* MODAL */
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; display:none; }
+  /* MODAL CRIAR */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
   .modal-overlay.show { display:flex; }
   .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px; width:100%; max-width:400px; }
   .modal h3 { font-size:16px; font-weight:700; margin-bottom:6px; }
@@ -263,18 +271,23 @@ function galleryHTML() {
   .modal-actions { display:flex; gap:8px; margin-top:16px; }
   .modal-actions .btn { margin-top:0; }
 
-  /* EMPTY */
-  .empty { text-align:center; padding:50px 20px; color:var(--muted); display:none; }
-  .empty p { margin-top:8px; font-size:13px; }
+  /* PREVIEW MODAL */
+  #preview-modal { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:300; display:none; align-items:center; justify-content:center; flex-direction:column; padding:20px; }
+  #preview-modal.show { display:flex; }
+  #preview-modal img { max-width:90vw; max-height:75vh; object-fit:contain; border-radius:8px; box-shadow:0 0 60px rgba(0,0,0,.5); }
+  .preview-info { margin-top:16px; text-align:center; }
+  .preview-info h3 { font-size:15px; font-weight:600; margin-bottom:4px; }
+  .preview-info p { font-size:12px; color:var(--muted); }
+  .preview-actions { display:flex; gap:10px; margin-top:14px; }
+  .preview-close { position:absolute; top:20px; right:24px; background:rgba(255,255,255,.1); border:none; color:#fff; font-size:20px; cursor:pointer; border-radius:8px; padding:6px 12px; transition:background .2s; }
+  .preview-close:hover { background:rgba(255,255,255,.2); }
 
   /* TOAST */
   .toast { position:fixed; bottom:24px; right:24px; background:var(--success); color:#fff; padding:11px 18px; border-radius:var(--radius); font-size:13px; font-weight:600; z-index:999; transform:translateY(80px); opacity:0; transition:all .3s; }
   .toast.show { transform:translateY(0); opacity:1; }
   .toast.error { background:var(--danger); }
 
-  .loading { text-align:center; padding:40px; color:var(--muted); }
-  .no-cat { display:flex; flex:1; align-items:center; justify-content:center; color:var(--muted); flex-direction:column; gap:12px; padding:60px; text-align:center; }
-  .no-cat .icon { font-size:40px; }
+  .loading { text-align:center; padding:40px; color:var(--muted); font-size:14px; }
 </style>
 </head>
 <body>
@@ -294,20 +307,15 @@ function galleryHTML() {
 <div id="app">
   <header>
     <div class="header-logo">SMART<span>PRICE</span> <span style="color:var(--muted);font-weight:400;font-size:13px">/ Galeria</span></div>
-    <div class="header-actions">
-      <span id="header-info" style="font-size:13px;color:var(--muted)"></span>
-    </div>
+    <div style="font-size:13px;color:var(--muted)" id="header-info"></div>
   </header>
 
   <div class="layout">
-    <!-- SIDEBAR -->
     <div class="sidebar">
       <div class="sidebar-title">Galerias</div>
       <div id="cat-list"></div>
       <button class="add-cat-btn" onclick="showCreateModal()">＋ Nova galeria</button>
     </div>
-
-    <!-- MAIN -->
     <div class="main" id="main-content">
       <div class="no-cat">
         <div class="icon">🗂️</div>
@@ -317,20 +325,35 @@ function galleryHTML() {
   </div>
 </div>
 
-<!-- MODAL CRIAR GALERIA -->
+<!-- MODAL CRIAR -->
 <div class="modal-overlay" id="create-modal">
   <div class="modal">
     <h3>Nova Galeria</h3>
-    <p>Dê um nome para a galeria. Ex: Dermocosméticos, Medicamentos, Promoções</p>
+    <p>Ex: Dermocosméticos, Medicamentos, Promoções, Layout Farma Center</p>
     <input type="text" id="cat-name-input" placeholder="Nome da galeria" onkeydown="if(event.key==='Enter')createCategory()">
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideCreateModal()">Cancelar</button>
-      <button class="btn btn-sm" onclick="createCategory()" style="flex:1">Criar Galeria</button>
+      <button class="btn btn-sm" onclick="createCategory()" style="flex:1;margin-top:0">Criar Galeria</button>
     </div>
   </div>
 </div>
 
-<!-- TOAST -->
+<!-- PREVIEW MODAL -->
+<div id="preview-modal">
+  <button class="preview-close" onclick="closePreview()">✕</button>
+  <img id="preview-img" src="" alt="">
+  <div class="preview-info">
+    <h3 id="preview-name"></h3>
+    <p id="preview-meta"></p>
+  </div>
+  <div class="preview-actions">
+    <button class="btn btn-sm" onclick="copyUrl(currentPreviewUrl)">📋 Copiar URL</button>
+    <a id="preview-download" href="" download target="_blank">
+      <button class="btn btn-sm btn-ghost" style="margin-top:0">⬇️ Abrir original</button>
+    </a>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -338,8 +361,8 @@ function galleryHTML() {
   let categories = [];
   let currentCat = null;
   let allImages = [];
+  let currentPreviewUrl = '';
 
-  // ── LOGIN ──────────────────────────────
   function doLogin() {
     token = document.getElementById('pwd-input').value;
     fetch('/gallery/categories', { headers: { 'x-gallery-token': token } })
@@ -356,7 +379,6 @@ function galleryHTML() {
       });
   }
 
-  // ── SIDEBAR ────────────────────────────
   function renderSidebar() {
     const list = document.getElementById('cat-list');
     if (categories.length === 0) {
@@ -365,20 +387,22 @@ function galleryHTML() {
     }
     list.innerHTML = categories.map(cat => \`
       <div class="cat-item \${currentCat === cat ? 'active' : ''}" onclick="selectCategory('\${cat}')">
-        <span class="cat-name">📁 \${cat}</span>
-        <button class="cat-del" onclick="event.stopPropagation();deleteCategory('\${cat}')" title="Deletar galeria">✕</button>
+        <span class="cat-name">📁 \${formatCatName(cat)}</span>
+        <button class="cat-del" onclick="event.stopPropagation();deleteCategory('\${cat}')" title="Deletar">✕</button>
       </div>
     \`).join('');
   }
 
-  // ── SELECIONAR CATEGORIA ───────────────
+  function formatCatName(cat) {
+    return cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
   function selectCategory(cat) {
     currentCat = cat;
     renderSidebar();
     loadImages(cat);
   }
 
-  // ── CRIAR CATEGORIA ────────────────────
   function showCreateModal() {
     document.getElementById('create-modal').classList.add('show');
     setTimeout(() => document.getElementById('cat-name-input').focus(), 100);
@@ -402,75 +426,69 @@ function galleryHTML() {
       if (data.created) {
         hideCreateModal();
         loadCategories(() => selectCategory(data.name));
-        showToast('✅ Galeria "' + data.name + '" criada!');
+        showToast('✅ Galeria criada!');
       }
     });
   }
 
-  // ── DELETAR CATEGORIA ──────────────────
   function deleteCategory(cat) {
-    if (!confirm(\`Deletar a galeria "\${cat}" e todas as imagens?\`)) return;
-    fetch(\`/gallery/categories/\${cat}\`, {
-      method: 'DELETE',
-      headers: { 'x-gallery-token': token }
-    })
-    .then(r => r.json())
-    .then(() => {
-      if (currentCat === cat) {
-        currentCat = null;
-        document.getElementById('main-content').innerHTML = \`
-          <div class="no-cat">
-            <div class="icon">🗂️</div>
-            <p>Selecione ou crie uma galeria<br>para começar</p>
-          </div>\`;
-      }
-      loadCategories();
-      showToast('🗑️ Galeria deletada');
-    });
+    if (!confirm(\`Deletar a galeria "\${formatCatName(cat)}" e todas as imagens dentro dela?\`)) return;
+    fetch(\`/gallery/categories/\${cat}\`, { method:'DELETE', headers:{'x-gallery-token':token} })
+      .then(r => r.json())
+      .then(() => {
+        if (currentCat === cat) {
+          currentCat = null;
+          document.getElementById('main-content').innerHTML = \`<div class="no-cat"><div class="icon">🗂️</div><p>Selecione ou crie uma galeria<br>para começar</p></div>\`;
+        }
+        loadCategories();
+        showToast('🗑️ Galeria deletada');
+      });
   }
 
-  // ── CARREGAR CATEGORIAS ────────────────
   function loadCategories(cb) {
     fetch('/gallery/categories', { headers: { 'x-gallery-token': token } })
       .then(r => r.json())
       .then(cats => { categories = cats; renderSidebar(); if (cb) cb(); });
   }
 
-  // ── CARREGAR IMAGENS ───────────────────
   function loadImages(cat) {
-    document.getElementById('main-content').innerHTML = '<div class="loading">Carregando imagens...</div>';
+    document.getElementById('main-content').innerHTML = '<div class="loading">⏳ Carregando imagens...</div>';
     fetch(\`/gallery/list/\${cat}\`, { headers: { 'x-gallery-token': token } })
       .then(r => r.json())
       .then(images => { allImages = images; renderMain(cat, images); });
   }
 
-  // ── RENDERIZAR MAIN ────────────────────
+  function formatSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
   function renderMain(cat, images) {
     document.getElementById('header-info').textContent = images.length + ' imagens';
     document.getElementById('main-content').innerHTML = \`
       <div class="topbar">
-        <div class="topbar-left">
-          <h2>📁 \${cat}</h2>
+        <div>
+          <h2>📁 \${formatCatName(cat)}</h2>
           <p>\${images.length} imagem(ns)</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <input class="search-input" type="text" placeholder="Buscar..." oninput="filterImages(this.value)">
-          <button class="btn btn-sm" onclick="document.getElementById('file-input-\${cat}').click()">+ Upload</button>
+          <input class="search-input" type="text" placeholder="Buscar pelo nome..." oninput="filterImages(this.value)">
+          <button class="btn btn-sm" onclick="document.getElementById('file-input').click()">+ Upload</button>
         </div>
       </div>
 
       <div class="upload-zone" id="drop-zone">
-        <input type="file" id="file-input-\${cat}" accept="image/*" multiple onchange="handleFiles(this.files, '\${cat}')">
+        <input type="file" id="file-input" accept="image/*" multiple onchange="handleFiles(this.files, '\${cat}')">
         <h3>🖼️ Arraste imagens aqui ou clique para selecionar</h3>
-        <p>PNG, JPG, WEBP, GIF, SVG — até 100MB por arquivo</p>
-        <div class="progress-bar" id="progress-bar">
-          <div class="progress-fill" id="progress-fill"></div>
-        </div>
+        <p>PNG, JPG, WEBP, GIF — até 100MB por arquivo</p>
+        <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
       </div>
 
       <div class="gallery-grid" id="gallery-grid">
         \${images.length === 0
-          ? '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">📭 Nenhuma imagem nesta galeria. Faça upload acima!</div>'
+          ? '<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--muted)">📭 Nenhuma imagem ainda. Faça upload acima!</div>'
           : images.map(img => imgCard(img)).join('')}
       </div>
     \`;
@@ -478,92 +496,95 @@ function galleryHTML() {
   }
 
   function imgCard(img) {
-    const safePath = img.fullPath.replace(/'/g, "\\\\'");
+    const safe = encodeURIComponent(img.fullPath);
+    const safeName = img.displayName.replace(/'/g, "\\\\'");
+    const safeMeta = formatSize(img.size);
     return \`
       <div class="img-card">
-        <img src="\${img.url}" alt="\${img.filename}" loading="lazy"
-          onerror="this.src='data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"200\\" height=\\"130\\"><rect fill=\\"%231e1e2e\\" width=\\"200\\" height=\\"130\\"/><text fill=\\"%2364748b\\" x=\\"50%\\" y=\\"50%\\" text-anchor=\\"middle\\" dy=\\".3em\\" font-size=\\"11\\">Erro</text></svg>'">
+        <img class="img-thumb" src="\${img.url}" alt="\${img.displayName}" loading="lazy"
+          onclick="openPreview('\${img.url}', '\${safeName}', '\${safeMeta}')"
+          onerror="this.style.height='80px';this.style.background='var(--surface2)'">
         <div class="card-body">
-          <div class="filename">\${img.filename}</div>
+          <div class="img-label" title="\${img.displayName}">\${img.displayName}</div>
+          <div class="img-meta">\${safeMeta}</div>
           <div class="card-actions">
             <button class="btn-copy" onclick="copyUrl('\${img.url}')">📋 Copiar URL</button>
-            <button class="btn-del" onclick="deleteImage('\${safePath}')">🗑️</button>
+            <button class="btn-del" onclick="deleteImage('\${img.fullPath}')">🗑️</button>
           </div>
         </div>
       </div>\`;
   }
 
-  // ── FILTRAR IMAGENS ────────────────────
   function filterImages(q) {
     const grid = document.getElementById('gallery-grid');
     if (!grid) return;
-    const filtered = allImages.filter(img => img.filename.toLowerCase().includes(q.toLowerCase()));
+    const filtered = allImages.filter(img => img.displayName.toLowerCase().includes(q.toLowerCase()) || img.filename.toLowerCase().includes(q.toLowerCase()));
     grid.innerHTML = filtered.length === 0
       ? '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Nenhuma imagem encontrada</div>'
       : filtered.map(img => imgCard(img)).join('');
   }
 
-  // ── UPLOAD ─────────────────────────────
+  // PREVIEW
+  function openPreview(url, name, meta) {
+    currentPreviewUrl = url;
+    document.getElementById('preview-img').src = url;
+    document.getElementById('preview-name').textContent = name;
+    document.getElementById('preview-meta').textContent = meta;
+    document.getElementById('preview-download').href = url;
+    document.getElementById('preview-modal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closePreview() {
+    document.getElementById('preview-modal').classList.remove('show');
+    document.getElementById('preview-img').src = '';
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
+
+  // UPLOAD
   async function handleFiles(files, cat) {
     if (!files.length) return;
     const bar = document.getElementById('progress-bar');
     const fill = document.getElementById('progress-fill');
     if (bar) bar.style.display = 'block';
-
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
       if (fill) fill.style.width = Math.round((i / files.length) * 100) + '%';
       const fd = new FormData();
-      fd.append('image', file);
+      fd.append('image', files[i]);
       try {
-        const res = await fetch(\`/gallery/upload/\${cat}\`, {
-          method: 'POST',
-          headers: { 'x-gallery-token': token },
-          body: fd
-        });
+        const res = await fetch(\`/gallery/upload/\${cat}\`, { method:'POST', headers:{'x-gallery-token':token}, body:fd });
         const data = await res.json();
-        if (data.url) showToast('✅ ' + file.name + ' enviada!');
-        else showToast('❌ ' + (data.error || 'Erro no upload'), true);
+        if (data.url) showToast('✅ ' + files[i].name + ' enviada!');
+        else showToast('❌ ' + (data.error || 'Erro'), true);
       } catch { showToast('❌ Erro no upload', true); }
     }
-
     if (fill) fill.style.width = '100%';
-    setTimeout(() => { if (bar) bar.style.display = 'none'; if (fill) fill.style.width = '0%'; }, 800);
+    setTimeout(() => { if (bar) bar.style.display='none'; if (fill) fill.style.width='0%'; }, 800);
     loadImages(cat);
+    document.getElementById('file-input').value = '';
   }
 
-  // ── DRAG & DROP ────────────────────────
   function setupDrop(cat) {
     const zone = document.getElementById('drop-zone');
     if (!zone) return;
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
-      e.preventDefault();
-      zone.classList.remove('drag-over');
-      handleFiles(e.dataTransfer.files, cat);
-    });
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files, cat); });
   }
 
-  // ── COPIAR URL ─────────────────────────
   function copyUrl(url) {
     navigator.clipboard.writeText(url).then(() => showToast('📋 URL copiada!'));
   }
 
-  // ── DELETAR IMAGEM ─────────────────────
   function deleteImage(fullPath) {
     if (!confirm('Deletar esta imagem?')) return;
-    fetch('/gallery/delete/' + encodeURIComponent(fullPath), {
-      method: 'DELETE',
-      headers: { 'x-gallery-token': token }
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success) { loadImages(currentCat); showToast('🗑️ Imagem deletada'); }
-    });
+    fetch('/gallery/delete/' + encodeURIComponent(fullPath), { method:'DELETE', headers:{'x-gallery-token':token} })
+      .then(r => r.json())
+      .then(data => { if (data.success) { loadImages(currentCat); showToast('🗑️ Imagem deletada'); } });
   }
 
-  // ── TOAST ──────────────────────────────
   function showToast(msg, error = false) {
     const t = document.getElementById('toast');
     t.textContent = msg;
