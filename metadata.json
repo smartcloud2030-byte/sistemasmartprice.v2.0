@@ -1,0 +1,5 @@
+{
+  "name": "smartprice",
+  "description": "Gerador de plaquinhas promocionais A4 com preview em tempo real e exportação para PDF.",
+  "requestFramePermissions": ["camera"]
+}
