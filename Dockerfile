@@ -29,6 +29,8 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.ts ./server.ts
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/api.ts ./api.ts
 COPY tsconfig.json ./
 
 # Instalar tsx para rodar TypeScript em produção
