@@ -47,7 +47,7 @@ router.get('/products', async (req: Request, res: Response) => {
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
-    res.json({ data: result.rows, count: result.rowCount });
+    res.json(result.rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -68,7 +68,7 @@ router.get('/products/:id', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
-    res.json({ data: result.rows[0] });
+    res.json({ value: result.rows[0].value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -132,7 +132,7 @@ router.put('/products/:id', apiAuth, async (req: Request, res: Response) => {
       [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, category || '', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
-    res.json({ data: result.rows[0] });
+    res.json({ value: result.rows[0].value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -156,8 +156,8 @@ router.delete('/products/:id', apiAuth, async (req: Request, res: Response) => {
 router.get('/settings/:id', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM settings WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.json({ data: null });
-    res.json({ data: result.rows[0] });
+    if (result.rows.length === 0) return res.json({ value: null });
+    res.json({ value: result.rows[0].value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -172,7 +172,7 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
        ON CONFLICT (id) DO UPDATE SET value = $2, updated_at = NOW() RETURNING *`,
       [req.params.id, JSON.stringify(value)]
     );
-    res.json({ data: result.rows[0] });
+    res.json({ value: result.rows[0].value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
