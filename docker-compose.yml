@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ─────────────────────────────────────────
   # App SmartPrice (React + Express + Socket.io)
@@ -15,7 +13,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://smartprice:${DB_PASSWORD}@postgres:5432/smartprice
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: smartprice
+      DB_USER: smartprice
+      DB_PASSWORD: ${DB_PASSWORD}
       VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
       MINIO_ENDPOINT: minio
@@ -24,6 +26,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: smartprice-images
       MINIO_PUBLIC_URL: https://imagens.${DOMAIN}
+      GALLERY_PASSWORD: ${GALLERY_PASSWORD}
+      API_SECRET: ${API_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +39,7 @@ services:
       - app_uploads:/app/uploads
 
   # ─────────────────────────────────────────
-  # PostgreSQL (substitui Supabase DB)
+  # PostgreSQL
   # ─────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
@@ -57,7 +61,7 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────
-  # MinIO (armazenamento de imagens S3-compatible)
+  # MinIO
   # ─────────────────────────────────────────
   minio:
     image: minio/minio:latest
@@ -82,7 +86,7 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────
-  # MinIO setup (cria bucket automaticamente)
+  # MinIO setup
   # ─────────────────────────────────────────
   minio_setup:
     image: minio/mc:latest
