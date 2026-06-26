@@ -6,13 +6,15 @@ import { Server } from "socket.io";
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import galleryRouter from './src/gallery';
+import apiRouter from './api';
+
+dotenv.config();
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Initialize Supabase only if credentials are provided
-const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
 async function startServer() {
@@ -27,13 +29,16 @@ async function startServer() {
     },
     transports: ['polling', 'websocket'],
     allowEIO3: true,
-    maxHttpBufferSize: 1e8 // 100mb for attachments
+    maxHttpBufferSize: 1e8
   });
 
   const PORT = 3000;
 
   app.use(express.json({ limit: '50mb' }));
+
+  // ── Rotas da API (ANTES do static) ────────
   app.use('/gallery', galleryRouter);
+  app.use('/api', apiRouter);
 
   // In-memory fallback for the last 100 messages
   let inMemoryMessages: any[] = [];
@@ -41,19 +46,15 @@ async function startServer() {
   // Cleanup old messages every 10 minutes
   setInterval(async () => {
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-    
-    // Cleanup in-memory
     inMemoryMessages = inMemoryMessages.filter(m => new Date(m.timestamp) > sixHoursAgo);
 
-    // Cleanup Supabase
     if (supabase) {
       try {
         let { error } = await supabase
           .from('chat_messages')
           .delete()
           .lt('created_at', sixHoursAgo.toISOString());
-        
-        // Fallback to 'chat_messagens'
+
         if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
           const { error: retryError } = await supabase
             .from('chat_messagens')
@@ -88,7 +89,7 @@ async function startServer() {
 
       console.log(`[CHAT] User joined: ${username} (${cnpj}) as ${role}`);
       activeUsers.set(socket.id, { ...userData, cnpj, username, role });
-      
+
       if (cnpj) {
         socket.join(`user_${cnpj}`);
         console.log(`[CHAT] Socket ${socket.id} joined room: user_${cnpj}`);
@@ -101,7 +102,6 @@ async function startServer() {
 
       let history: any[] = [];
 
-      // Try to load from Supabase first
       if (supabase) {
         try {
           let { data, error } = await supabase
@@ -109,7 +109,6 @@ async function startServer() {
             .select('*')
             .order('created_at', { ascending: true });
 
-          // Fallback to 'chat_messagens'
           if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
             const { data: retryData, error: retryError } = await supabase
               .from('chat_messagens')
@@ -142,13 +141,11 @@ async function startServer() {
         }
       }
 
-      // Merge with in-memory (and remove duplicates)
       const combinedHistory = [...history, ...inMemoryMessages];
       const uniqueHistory = Array.from(new Map(combinedHistory.map(m => [m.id, m])).values())
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-      // Filter for the specific user
-      const filteredHistory = uniqueHistory.filter(m => 
+      const filteredHistory = uniqueHistory.filter(m =>
         userData.role === 'admin' || m.from.cnpj === userData.cnpj || m.to?.cnpj === userData.cnpj
       );
 
@@ -164,11 +161,9 @@ async function startServer() {
 
       console.log(`Message from ${messageData.from.username} (${messageData.from.role}) to ${messageData.to?.cnpj || 'All'}`);
 
-      // Store in-memory
       inMemoryMessages.push(fullMessage);
       if (inMemoryMessages.length > 500) inMemoryMessages.shift();
 
-      // Store in Supabase
       if (supabase) {
         try {
           let { error } = await supabase
@@ -186,7 +181,6 @@ async function startServer() {
               created_at: fullMessage.timestamp
             }]);
 
-          // Fallback to 'chat_messagens'
           if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
             const { error: retryError } = await supabase
               .from('chat_messagens')
@@ -211,24 +205,17 @@ async function startServer() {
         }
       }
 
-      // Route message
       const targetCnpj = messageData.to?.cnpj ? String(messageData.to.cnpj) : null;
       const fromCnpj = String(messageData.from.cnpj || '');
 
       if (messageData.from.role === 'admin') {
         if (targetCnpj) {
-          // Send to user and all admins
-          console.log(`[CHAT] Admin message to user_${targetCnpj}`);
           io.to(`user_${targetCnpj}`).emit("message:receive", fullMessage);
           io.to("admin_room").emit("message:receive", fullMessage);
         } else {
-          // Broadcast to everyone if no target
-          console.log(`[CHAT] Admin broadcast message`);
           io.emit("message:receive", fullMessage);
         }
       } else {
-        // Send to all admins and back to the user's rooms
-        console.log(`[CHAT] User message from user_${fromCnpj} to admin_room`);
         io.to("admin_room").emit("message:receive", fullMessage);
         io.to(`user_${fromCnpj}`).emit("message:receive", fullMessage);
       }
@@ -238,20 +225,17 @@ async function startServer() {
       const { cnpj, role } = data;
       console.log(`Clearing messages for CNPJ: ${cnpj} (Requested by ${role})`);
 
-      // Clear in-memory
-      inMemoryMessages = inMemoryMessages.filter(m => 
+      inMemoryMessages = inMemoryMessages.filter(m =>
         m.from.cnpj !== cnpj && m.to?.cnpj !== cnpj
       );
 
-      // Clear Supabase
       if (supabase) {
         try {
           let { error } = await supabase
             .from('chat_messages')
             .delete()
             .or(`from_cnpj.eq.${cnpj},to_cnpj.eq.${cnpj}`);
-          
-          // Fallback to 'chat_messagens'
+
           if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
             const { error: retryError } = await supabase
               .from('chat_messagens')
@@ -266,16 +250,8 @@ async function startServer() {
         }
       }
 
-      // Notify relevant rooms to refresh history
       if (role === 'admin') {
         io.to(`user_${cnpj}`).emit("message:history", []);
-        io.to("admin_room").emit("message:history", inMemoryMessages.filter(m => 
-          // Re-filter history for admins based on their current view if needed, 
-          // but usually they just need to know it's cleared.
-          // For simplicity, we just send empty to the specific user room.
-          false 
-        ));
-        // Admins need to refresh their own view
         io.to("admin_room").emit("message:cleared", { cnpj });
       } else {
         socket.emit("message:history", []);
@@ -288,7 +264,7 @@ async function startServer() {
     });
   });
 
-  // Vite middleware for development
+  // ── Frontend ───────────────────────────────
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -297,7 +273,8 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(process.cwd(), "dist")));
-    app.get("*", (req, res) => {
+    // SPA fallback — exclui rotas da API
+    app.get(/^(?!\/api|\/gallery|\/socket\.io).*/, (req, res) => {
       res.sendFile(path.join(process.cwd(), "dist", "index.html"));
     });
   }
