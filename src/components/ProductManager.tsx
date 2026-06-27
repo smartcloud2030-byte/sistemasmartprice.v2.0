@@ -64,7 +64,9 @@ const ProductManager = () => {
     try {
       const res = await fetch('/gallery/categories', { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
       const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
+      const excluded = ['layout farma center', 'layout hiper erika', 'layout t z c f', 'layout tiago pi'];
+      const filtered = Array.isArray(data) ? data.filter((c: string) => !excluded.some(ex => c.toLowerCase().includes(ex.toLowerCase()) || c.toLowerCase().startsWith('layout'))) : [];
+      setCategories(filtered);
     } catch { }
   };
 
