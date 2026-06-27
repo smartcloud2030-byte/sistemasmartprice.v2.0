@@ -56,6 +56,17 @@ const ProductManager = () => {
     name: '', description: '', price: '', image: null, category: '',
   });
   const [isUploading, setIsUploading] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState('');
+  const [showNewCategory, setShowNewCategory] = useState(false);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/gallery/categories', { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      const data = await res.json();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch { }
+  };
 
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isMultiRegisterModalOpen, setIsMultiRegisterModalOpen] = useState(false);
@@ -114,6 +125,7 @@ const ProductManager = () => {
       try {
         await fetchProducts();
         await fetchProductCount();
+        await fetchCategories();
       } catch {
         toast.error('Falha ao carregar produtos.');
       } finally {
@@ -344,9 +356,55 @@ const ProductManager = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1 opacity-60">Categoria</label>
-                  <input type="text"
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-black dark:text-white"
-                    value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+                  {showNewCategory ? (
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Nome da nova categoria"
+                        className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-black dark:text-white"
+                        value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+                      <button type="button"
+                        className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700"
+                        onClick={async () => {
+                          if (!newCategory.trim()) return;
+                          const folder = newCategory.trim().toLowerCase().replace(/\s+/g, '-');
+                          try {
+                            await fetch(`/gallery/categories`, {
+                              method: 'POST',
+                              headers: { 'x-gallery-token': GALLERY_PASSWORD, 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ name: folder })
+                            });
+                          } catch {}
+                          await fetchCategories();
+                          setFormData({ ...formData, category: folder });
+                          setNewCategory('');
+                          setShowNewCategory(false);
+                          toast.success(`Categoria "${folder}" criada!`);
+                        }}>
+                        Criar
+                      </button>
+                      <button type="button"
+                        className="px-3 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        onClick={() => { setShowNewCategory(false); setNewCategory(''); }}>
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-black dark:text-white"
+                        value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                        <option value="">Selecione...</option>
+                        {categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      <button type="button"
+                        className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                        title="Nova categoria"
+                        onClick={() => setShowNewCategory(true)}>
+                        +
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1 opacity-60">Descrição</label>
