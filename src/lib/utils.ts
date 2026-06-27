@@ -59,6 +59,8 @@ export const isValidImageUrl = (url: string): boolean => {
  * Suporta uma opção de miniatura para carregamento mais rápido.
  */
 export const getProxyUrl = (url: string | undefined | null, options?: { thumbnail?: boolean }) => {
+  // URLs do MinIO próprio não precisam de proxy
+  if (url && url.includes('imagens.sistemasmartprice.com.br')) return url;
   if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) {
     return url || '';
   }
