@@ -1,6 +1,5 @@
 // ─────────────────────────────────────────
 // api.ts — API própria SmartPrice
-// Substitui todas as chamadas ao Supabase
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
@@ -15,7 +14,7 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || '',
 });
 
-// ── Middleware de autenticação da API ─────
+// ── Auth ──────────────────────────────────
 function apiAuth(req: Request, res: Response, next: Function) {
   const token = req.headers['x-api-token'];
   if (token === process.env.API_SECRET) return next();
@@ -26,7 +25,7 @@ function apiAuth(req: Request, res: Response, next: Function) {
 // PRODUCTS
 // ═══════════════════════════════════════════
 
-// Listar produtos
+// Listar produtos — retorna array direto (compatível com store.ts)
 router.get('/products', async (req: Request, res: Response) => {
   try {
     const { search, category, limit = 1000, offset = 0 } = req.query;
@@ -47,7 +46,8 @@ router.get('/products', async (req: Request, res: Response) => {
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
-    res.json({ data: result.rows, count: result.rowCount });
+    // Retorna array direto — store.ts faz: const data: Product[] = await apiGet(...)
+    res.json(result.rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -68,7 +68,7 @@ router.get('/products/:id', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
-    res.json({ data: result.rows[0] });
+    res.json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -79,13 +79,12 @@ router.post('/products', apiAuth, async (req: Request, res: Response) => {
   try {
     const { name, description, price, image, category, subtitle } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
-
     const result = await pool.query(
       `INSERT INTO products (name, description, subtitle, price, image, category, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
       [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, category || '']
     );
-    res.status(201).json({ data: result.rows[0] });
+    res.status(201).json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -96,7 +95,6 @@ router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) return res.status(400).json({ error: 'Formato inválido' });
-
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -110,7 +108,7 @@ router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
         inserted.push(result.rows[0]);
       }
       await client.query('COMMIT');
-      res.status(201).json({ data: inserted, count: inserted.length });
+      res.status(201).json(inserted);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -132,7 +130,7 @@ router.put('/products/:id', apiAuth, async (req: Request, res: Response) => {
       [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, category || '', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
-    res.json({ data: result.rows[0] });
+    res.json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -152,12 +150,13 @@ router.delete('/products/:id', apiAuth, async (req: Request, res: Response) => {
 // SETTINGS
 // ═══════════════════════════════════════════
 
-// Buscar setting por ID
+// Buscar setting por ID — retorna { value } direto
 router.get('/settings/:id', async (req: Request, res: Response) => {
   try {
-    const result = await pool.query('SELECT * FROM settings WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.json({ data: null });
-    res.json({ data: result.rows[0] });
+    const result = await pool.query('SELECT value FROM settings WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.json({ value: null });
+    // value já vem como objeto (jsonb do postgres)
+    res.json({ value: result.rows[0].value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -167,12 +166,12 @@ router.get('/settings/:id', async (req: Request, res: Response) => {
 router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
   try {
     const { value } = req.body;
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO settings (id, value, updated_at) VALUES ($1, $2, NOW())
-       ON CONFLICT (id) DO UPDATE SET value = $2, updated_at = NOW() RETURNING *`,
+       ON CONFLICT (id) DO UPDATE SET value = $2, updated_at = NOW()`,
       [req.params.id, JSON.stringify(value)]
     );
-    res.json({ data: result.rows[0] });
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -182,19 +181,19 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
 // ACTIVITY STATUS
 // ═══════════════════════════════════════════
 
-// Atualizar status online
+// Atualizar status online de um CNPJ
 router.post('/activity/:cnpj', async (req: Request, res: Response) => {
   try {
     const { cnpj } = req.params;
-    const { isOnline, username } = req.body;
+    const { isOnline, lastAccess, lastUsername } = req.body;
 
     const current = await pool.query('SELECT value FROM settings WHERE id = $1', ['activity_status']);
     const activity = current.rows[0]?.value || {};
 
     activity[cnpj] = {
-      isOnline,
-      lastAccess: new Date().toISOString(),
-      lastUsername: username
+      isOnline: isOnline ?? false,
+      lastAccess: lastAccess || new Date().toISOString(),
+      lastUsername: lastUsername || ''
     };
 
     await pool.query(
