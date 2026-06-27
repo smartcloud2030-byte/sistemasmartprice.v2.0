@@ -33,12 +33,12 @@ function getFolder(category: string): string {
 async function uploadImageToMinio(file: File, category: string): Promise<string> {
   const folder = getFolder(category);
   const formData = new FormData();
-  formData.append('file', file);
-  formData.append('category', folder);
-  formData.append('password', GALLERY_PASSWORD);
+  formData.append('image', file);
+  
+  
 
-  const res = await fetch('/gallery/upload', {
-    method: 'POST',
+  const res = await fetch(`/gallery/upload-nobg3/${folder}`, {
+    method: 'POST', headers: { 'x-gallery-token': GALLERY_PASSWORD },
     body: formData,
   });
 

@@ -7,6 +7,11 @@ import * as Minio from 'minio';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import os from 'os';
+const execAsync = promisify(exec);
 
 const router = Router();
 
@@ -595,3 +600,85 @@ function galleryHTML() {
 </body>
 </html>`;
 }
+
+
+
+router.post('/upload-nobg/:category', authGallery, upload.single('image'), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+  const category = req.params.category;
+
+  const tmpIn = path.join(os.tmpdir(), `rembg_in_${Date.now()}.png`);
+  const tmpOut = path.join(os.tmpdir(), `rembg_out_${Date.now()}.png`);
+
+  try {
+    // Salva arquivo temporário
+    fs.writeFileSync(tmpIn, req.file.buffer);
+
+    // Remove fundo com rembg
+    await execAsync(`python3 -c "from rembg import remove; import sys; open(sys.argv[2],'wb').write(remove(open(sys.argv[1],'rb').read()))" ${tmpIn} ${tmpOut}`);
+
+    // Lê resultado
+    const outputBuffer = fs.readFileSync(tmpOut);
+    const filename = sanitizeName(req.file.originalname.replace(/\.[^.]+$/, '.png'));
+    const fullPath = `${category}/${filename}`;
+
+    // Sobe para MinIO
+    await minioClient.putObject(BUCKET, fullPath, outputBuffer, outputBuffer.length, { 'Content-Type': 'image/png' });
+
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, filename, size: outputBuffer.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn);
+    if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut);
+  }
+});
+
+// ── Upload com remoção de fundo v2 (via microserviço) ─────────────────────────
+router.post('/upload-nobg2/:category', authGallery, upload.single('image'), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+  const category = req.params.category;
+
+  try {
+    // Envia para o microserviço rembg
+    const FormData = (await import('form-data')).default;
+    const fetch2 = (await import('node-fetch')).default;
+
+    const form = new FormData();
+    form.append('image', req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
+
+    const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
+    if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
+
+    const outputBuffer = Buffer.from(await rembgRes.arrayBuffer());
+    const filename = sanitizeName(req.file.originalname.replace(/\.[^.]+$/, '.png'));
+    const fullPath = `${category}/${filename}`;
+
+    await minioClient.putObject(BUCKET, fullPath, outputBuffer, outputBuffer.length, { 'Content-Type': 'image/png' });
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, filename, size: outputBuffer.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Upload com remoção de fundo v3 (python interno) ──────────────────────────
+router.post('/upload-nobg3/:category', authGallery, upload.single('image'), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+  const category = req.params.category;
+  const tmpIn = path.join(os.tmpdir(), `in_${Date.now()}.png`);
+  const tmpOut = path.join(os.tmpdir(), `out_${Date.now()}.png`);
+  try {
+    fs.writeFileSync(tmpIn, req.file.buffer);
+    await execAsync(`python3 -c "from rembg import remove; open('${tmpOut}','wb').write(remove(open('${tmpIn}','rb').read()))"`);
+    const outputBuffer = fs.readFileSync(tmpOut);
+    const filename = sanitizeName(req.file.originalname.replace(/\.[^.]+$/, '.png'));
+    const fullPath = `${category}/${filename}`;
+    await minioClient.putObject(BUCKET, fullPath, outputBuffer, outputBuffer.length, { 'Content-Type': 'image/png' });
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, filename, size: outputBuffer.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn);
+    if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut);
+  }
+});

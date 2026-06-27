@@ -17,11 +17,12 @@ RUN npm run build
 # ─────────────────────────────────────────
 # Stage 2: Production
 # ─────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 WORKDIR /app
 
-RUN apk add --no-cache sqlite-libs
+RUN apt-get update && apt-get install -y python3 python3-pip libsqlite3-0 --no-install-recommends && rm -rf /var/lib/apt/lists/*
+RUN pip3 install rembg flask pillow numpy onnxruntime --break-system-packages --ignore-installed
 
 # Copiar apenas o necessário
 COPY package*.json ./
