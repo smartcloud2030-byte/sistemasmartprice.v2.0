@@ -27,7 +27,16 @@ const CATEGORY_FOLDER: Record<string, string> = {
 };
 
 function getFolder(category: string): string {
-  return CATEGORY_FOLDER[category?.trim().toUpperCase()] || 'padrao';
+  if (!category) return 'padrao';
+  const upper = category.trim().toUpperCase();
+  // Tenta o mapeamento pelo nome em maiúsculo
+  if (CATEGORY_FOLDER[upper]) return CATEGORY_FOLDER[upper];
+  // Se já for um nome de pasta minúsculo válido, usa direto
+  const lower = category.trim().toLowerCase();
+  const validFolders = ['medicamento','perfumaria','infantil','suplementos-maromba','conveniencia','eletronicos','padrao','dermo','leite'];
+  if (validFolders.includes(lower)) return lower;
+  // Fallback: converte para slug
+  return lower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 }
 
 async function uploadImageToMinio(file: File, category: string): Promise<string> {
@@ -56,6 +65,8 @@ const ProductManager = () => {
     name: '', description: '', price: '', image: null, category: '',
   });
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStep, setUploadStep] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -219,7 +230,28 @@ const ProductManager = () => {
   // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string | number) => {
     try {
+      // Pega a imagem do produto antes de deletar
+      const product = products.find(p => p.id == id);
+      
       await apiCall('DELETE', `/products/${id}`);
+
+      // Se a imagem for do MinIO, deleta da galeria também
+      if (product?.image && product.image.includes('imagens.sistemasmartprice.com.br')) {
+        try {
+          const url = new URL(product.image);
+          // Ex: /smartprice-images/medicamento/nome-produto-abc123.png
+          const pathParts = url.pathname.split('/').filter(Boolean);
+          // Remove o bucket e junta o resto: medicamento/nome-produto-abc123.png
+          const objectPath = pathParts.slice(1).join('/');
+          await fetch(`/gallery/delete/${objectPath}`, {
+            method: 'DELETE',
+            headers: { 'x-gallery-token': GALLERY_PASSWORD }
+          });
+        } catch {
+          // Silencioso — produto já foi deletado do banco
+        }
+      }
+
       toast.success('Produto excluído com sucesso!');
       await fetchProducts();
       await fetchProductCount();
@@ -424,7 +456,13 @@ const ProductManager = () => {
                       <input type="file" accept="image/*" className="hidden"
                         onChange={e => {
                           const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, formData.category, url => setFormData(f => ({ ...f, image: url })));
+                          if (file) {
+                            if (!formData.category) {
+                              toast.error('Selecione uma categoria antes de fazer o upload!');
+                              return;
+                            }
+                            handleImageUpload(file, formData.category, url => setFormData(f => ({ ...f, image: url })));
+                          }
                         }} />
                     </label>
 
