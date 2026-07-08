@@ -34,8 +34,15 @@ router.get('/products', async (req: Request, res: Response) => {
     const params: any[] = [];
 
     if (search) {
-      params.push(`%${search}%`);
-      query += ` AND (name ILIKE $${params.length} OR description ILIKE $${params.length} OR category ILIKE $${params.length})`;
+      const terms = search.trim().split(/\s+/);
+      const conditions = [];
+      for (let i = 0; i < terms.length; i++) {
+        conditions.push(`(name ILIKE $${params.length + i + 1} OR description ILIKE $${params.length + i + 1} OR category ILIKE $${params.length + i + 1} OR barcode ILIKE $${params.length + i + 1} OR barcode2 ILIKE $${params.length + i + 1})`);
+        params.push(`%${terms[i]}%`);
+      }
+      if (conditions.length > 0) {
+        query += ` AND (${conditions.join(' AND ')})`;
+      }
     }
 
     if (category) {
@@ -77,13 +84,13 @@ router.get('/products/:id', async (req: Request, res: Response) => {
 // Criar produto
 router.post('/products', apiAuth, async (req: Request, res: Response) => {
   try {
-    const { name, description, price, image, category, subtitle } = req.body;
+    const { name, description, price, image, thumb_image, category, subtitle, barcode, barcode2 } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
 
     const result = await pool.query(
-      `INSERT INTO products (name, description, subtitle, price, image, category, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
-      [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, category || '']
+      `INSERT INTO products (name, description, subtitle, price, image, thumb_image, category, barcode, barcode2, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()) RETURNING *`,
+      [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, thumb_image || null, category || '', barcode || null, barcode2 || null]
     );
     res.status(201).json({ data: result.rows[0] });
   } catch (err: any) {
@@ -103,9 +110,9 @@ router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
       const inserted = [];
       for (const p of products) {
         const result = await client.query(
-          `INSERT INTO products (name, description, subtitle, price, image, category, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
-          [p.name || 'Sem nome', p.description || '', p.subtitle || '', p.price || 'R$ 0,00', p.image || null, p.category || '']
+          `INSERT INTO products (name, description, subtitle, price, image, thumb_image, category, barcode, barcode2, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()) RETURNING *`,
+          [p.name || 'Sem nome', p.description || '', p.subtitle || '', p.price || 'R$ 0,00', p.image || null, p.thumb_image || null, p.category || '', p.barcode || null, p.barcode2 || null]
         );
         inserted.push(result.rows[0]);
       }
@@ -125,11 +132,11 @@ router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
 // Atualizar produto
 router.put('/products/:id', apiAuth, async (req: Request, res: Response) => {
   try {
-    const { name, description, subtitle, price, image, category } = req.body;
+    const { name, description, subtitle, price, image, thumb_image, category, barcode, barcode2 } = req.body;
     const result = await pool.query(
-      `UPDATE products SET name=$1, description=$2, subtitle=$3, price=$4, image=$5, category=$6
-       WHERE id=$7 RETURNING *`,
-      [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, category || '', req.params.id]
+      `UPDATE products SET name=$1, description=$2, subtitle=$3, price=$4, image=$5, thumb_image=$6, category=$7, barcode=$8, barcode2=$9
+       WHERE id=$10 RETURNING *`,
+      [name, description || '', subtitle || '', price || 'R$ 0,00', image || null, thumb_image || null, category || '', barcode || null, barcode2 || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
     res.json({ value: result.rows[0].value });

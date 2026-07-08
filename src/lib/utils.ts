@@ -86,5 +86,5 @@ export const getProxyUrl = (url: string | undefined | null, options?: { thumbnai
     params.append('output', 'webp');
   }
   
-  return `https://images.weserv.nl/?${params.toString()}`;
+  return url; // Sem proxy — carrega direto
 };

@@ -3,6 +3,7 @@
 // Fix: nome original + preview de imagem
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
+import sharp from 'sharp';
 import * as Minio from 'minio';
 import multer from 'multer';
 import path from 'path';
@@ -611,8 +612,14 @@ router.post('/upload-nobg/:category', authGallery, upload.single('image'), async
   const tmpOut = path.join(os.tmpdir(), `rembg_out_${Date.now()}.png`);
 
   try {
+    // Otimiza imagem (redimensiona + comprime)
+    const optimized = await sharp(req.file.buffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .png({ quality: 80, progressive: true })
+      .toBuffer();
+    
     // Salva arquivo temporário
-    fs.writeFileSync(tmpIn, req.file.buffer);
+    fs.writeFileSync(tmpIn, optimized);
 
     // Remove fundo com rembg
     await execAsync(`python3 -c "from rembg import remove; import sys; open(sys.argv[2],'wb').write(remove(open(sys.argv[1],'rb').read()))" ${tmpIn} ${tmpOut}`);
@@ -670,11 +677,18 @@ router.post('/upload-nobg3/:category', authGallery, upload.single('image'), asyn
   try {
     fs.writeFileSync(tmpIn, req.file.buffer);
     await execAsync(`python3 -c "from rembg import remove; open('${tmpOut}','wb').write(remove(open('${tmpIn}','rb').read()))"`);
-    const outputBuffer = fs.readFileSync(tmpOut);
-    const filename = sanitizeName(req.file.originalname.replace(/\.[^.]+$/, '.png'));
+    const rembgBuffer = fs.readFileSync(tmpOut);
+    const rawName = (req.body && req.body.name && req.body.name.trim()) ? req.body.name.trim() : req.file.originalname.replace(/\.[^.]+$/, '');
+    const cleanName = rawName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
+    const mainBuffer = await sharp(rembgBuffer).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+    const thumbBuffer = await sharp(rembgBuffer).resize(200, 200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+    const filename = `${cleanName}.webp`;
+    const thumbFilename = `${cleanName}-thumb.webp`;
     const fullPath = `${category}/${filename}`;
-    await minioClient.putObject(BUCKET, fullPath, outputBuffer, outputBuffer.length, { 'Content-Type': 'image/png' });
-    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, filename, size: outputBuffer.length });
+    const thumbPath = `${category}/${thumbFilename}`;
+    await minioClient.putObject(BUCKET, fullPath, mainBuffer, mainBuffer.length, { 'Content-Type': 'image/webp' });
+    await minioClient.putObject(BUCKET, thumbPath, thumbBuffer, thumbBuffer.length, { 'Content-Type': 'image/webp' });
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, thumbUrl: `${PUBLIC_URL}/${BUCKET}/${thumbPath}`, filename, size: mainBuffer.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   } finally {

@@ -43,7 +43,7 @@ const ProductSelector: React.FC<{ onSelect?: (product: Product) => void }> = ({ 
     const tokens = lowerTerm.split(/\s+/).filter(t => t.length > 0);
     
     return products.filter(p => {
-      const searchContent = `${p.name || ''} ${p.category || ''} ${p.description || ''}`.toLowerCase();
+      const searchContent = `${p.name || ''} ${p.category || ''} ${p.description || ''} ${p.barcode || ''} ${p.barcode2 || ''}`.toLowerCase();
       return tokens.every(token => searchContent.includes(token));
     });
   };

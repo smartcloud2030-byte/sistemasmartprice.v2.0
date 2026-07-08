@@ -25,10 +25,24 @@ function getFolder(category: string): string {
   return lower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'padrao';
 }
 
-async function uploadToMinio(file: File, category: string, productName: string): Promise<string> {
+const CATEGORY_COLORS: Record<string, string> = {
+  medicamento: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  perfumaria: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300',
+  infantil: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  conveniencia: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  eletronicos: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  padrao: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+};
+function getCategoryColor(category: string) {
+  const folder = getFolder(category);
+  return CATEGORY_COLORS[folder] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+}
+
+async function uploadToMinio(file: File, category: string, productName: string): Promise<{ url: string; thumbUrl: string }> {
   const folder = getFolder(category);
   const formData = new FormData();
   formData.append('image', file);
+  formData.append('name', productName || '');
   const res = await fetch(`/gallery/upload-nobg3/${folder}`, {
     method: 'POST',
     headers: { 'x-gallery-token': GALLERY_PASSWORD },
@@ -39,12 +53,13 @@ async function uploadToMinio(file: File, category: string, productName: string):
     throw new Error(err.error || 'Falha no upload');
   }
   const data = await res.json();
-  return data.url || '';
+  return { url: data.url || '', thumbUrl: data.thumbUrl || data.url || '' };
 }
 
 const ProductManager = () => {
   const { products, fetchProducts } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<Omit<Product, 'id'>>({ name: '', description: '', price: '', image: null, category: '' });
@@ -65,8 +80,42 @@ const ProductManager = () => {
   const [newCategory, setNewCategory] = useState('');
   const [showNewCategory, setShowNewCategory] = useState(false);
 
-  const initialMultiFormData = Array(20).fill(null).map(() => ({ name: '', description: '', price: '', image: '', category: '' }));
+  const initialMultiFormData = Array(20).fill(null).map(() => ({ name: '', description: '', price: '', image: '', category: '', barcode: '', barcode2: '' }));
   const [multiFormData, setMultiFormData] = useState(initialMultiFormData);
+  const [bulkDefaultCategory, setBulkDefaultCategory] = useState('');
+  const [bulkPendingFiles, setBulkPendingFiles] = useState<Record<number, File>>({});
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [bulkUploadStatus, setBulkUploadStatus] = useState('');
+
+  const filenameToName = (filename: string) => {
+    const noExt = filename.replace(/\.[^.]+$/, '');
+    const cleaned = noExt.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return cleaned.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  };
+
+  const handleBulkMultiFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (!bulkDefaultCategory) { toast.error('Selecione a categoria padrão primeiro!'); return; }
+    const fileArr = Array.from(files);
+    let current = [...multiFormData];
+    const pending = { ...bulkPendingFiles };
+    let rowIndex = current.findIndex(r => !r.name.trim());
+    for (let i = 0; i < fileArr.length; i++) {
+      const file = fileArr[i];
+      const name = filenameToName(file.name);
+      if (rowIndex === -1 || rowIndex >= current.length) {
+        current = [...current, { name: '', description: '', price: '', image: '', category: '' }];
+        rowIndex = current.length - 1;
+      }
+      current[rowIndex] = { ...current[rowIndex], name, category: bulkDefaultCategory, image: URL.createObjectURL(file) };
+      pending[rowIndex] = file;
+      rowIndex = current.findIndex((r, idx) => idx > rowIndex && !r.name.trim());
+      if (rowIndex === -1) rowIndex = current.length;
+    }
+    setMultiFormData(current);
+    setBulkPendingFiles(pending);
+    toast.success(fileArr.length + ' imagens selecionadas! Serão enviadas ao clicar em Cadastrar.');
+  };
 
   const apiCall = async (method: string, path: string, body?: unknown) => {
     const res = await fetch(`/api${path}`, {
@@ -112,7 +161,7 @@ const ProductManager = () => {
     setFormData(f => ({ ...f, image: URL.createObjectURL(file) }));
   };
 
-  const doUpload = async (file: File, category: string, name: string): Promise<string | null> => {
+  const doUpload = async (file: File, category: string, name: string): Promise<{ url: string; thumbUrl: string } | null> => {
     setIsUploading(true);
     setUploadProgress(5);
     setUploadStep('Enviando imagem...');
@@ -127,11 +176,11 @@ const ProductManager = () => {
       if (i < steps.length) { setUploadProgress(steps[i].p); setUploadStep(steps[i].l); i++; }
     }, 2000);
     try {
-      const url = await uploadToMinio(file, category, name);
+      const result = await uploadToMinio(file, category, name);
       clearInterval(iv);
       setUploadProgress(100); setUploadStep('Concluído!');
       await new Promise(r => setTimeout(r, 700));
-      return url;
+      return result;
     } catch (e: any) {
       clearInterval(iv);
       toast.error('Erro no upload: ' + (e.message || 'tente novamente'));
@@ -146,14 +195,16 @@ const ProductManager = () => {
     if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
 
     let finalImage = formData.image;
+    let finalThumb = formData.thumb_image;
 
     if (pendingFile) {
-      const url = await doUpload(pendingFile, formData.category, formData.name);
-      if (!url) return;
-      finalImage = url;
+      const result = await doUpload(pendingFile, formData.category, formData.name);
+      if (!result) return;
+      finalImage = result.url;
+      finalThumb = result.thumbUrl;
     }
 
-    const dataToSave = { ...formData, image: finalImage?.startsWith('blob:') ? null : finalImage };
+    const dataToSave = { ...formData, image: finalImage?.startsWith('blob:') ? null : finalImage, thumb_image: finalThumb?.startsWith('blob:') ? null : finalThumb };
 
     try {
       if (editingProduct?.id) {
@@ -203,20 +254,22 @@ const ProductManager = () => {
         } catch {}
       }
       toast.success('Produto excluído!');
-      await fetchProducts(); await fetchProductCount();
-    } catch { toast.error('Erro ao excluir produto.'); } finally { setConfirmDelete(null); }
+      setConfirmDelete(null);
+      fetchProducts(); fetchProductCount();
+    } catch { toast.error('Erro ao excluir produto.'); setConfirmDelete(null); }
   };
 
   const filteredProducts = products.filter(p => {
     const term = searchTerm.toLowerCase().trim();
-    if (!term) return true;
-    return (p.name || '').toLowerCase().includes(term) || (p.category || '').toLowerCase().includes(term) || (p.description || '').toLowerCase().includes(term);
+    const matchesTerm = !term || (p.name || '').toLowerCase().includes(term) || (p.category || '').toLowerCase().includes(term) || (p.description || '').toLowerCase().includes(term) || (p.barcode || '').toLowerCase().includes(term) || (p.barcode2 || '').toLowerCase().includes(term);
+    const matchesCategory = !categoryFilter || p.category === categoryFilter;
+    return matchesTerm && matchesCategory;
   });
 
   const openModal = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
-      setFormData({ name: product.name, description: product.description, price: product.price, image: product.image, category: product.category });
+      setFormData({ name: product.name, description: product.description, price: product.price, image: product.image, thumb_image: product.thumb_image || null, category: product.category, barcode: product.barcode || '', barcode2: product.barcode2 || '' });
     } else {
       setEditingProduct(null);
       setFormData({ name: '', description: '', price: '', image: null, category: '' });
@@ -226,81 +279,93 @@ const ProductManager = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-5">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2 text-black dark:text-white">
-            <Package className="w-6 h-6 text-blue-600" />
-            Gerenciar Produtos
-            <span className="text-sm font-normal opacity-60 ml-2 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-              {productCount ?? products.length} {(productCount ?? products.length) === 1 ? 'produto' : 'produtos'}
-            </span>
+          <h2 className="text-xl font-semibold flex items-center gap-2 text-black dark:text-white">
+            <Package className="w-5 h-5 text-blue-600" />
+            Gerenciar produtos
           </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+            {productCount ?? products.length} {(productCount ?? products.length) === 1 ? 'produto cadastrado' : 'produtos cadastrados'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleSync} disabled={isSyncing} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} /> {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+          <button onClick={() => { setMultiFormData(initialMultiFormData); setBulkPendingFiles({}); setBulkDefaultCategory(''); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
+            <Upload className="w-4 h-4" /> Cadastrar em massa
           </button>
-          <button onClick={() => setIsBulkModalOpen(true)} className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 px-4 py-2 rounded-lg text-sm font-bold">Importar JSON</button>
-          <button onClick={() => { setMultiFormData(initialMultiFormData); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-lg" title="Cadastrar Vários">
-            <Plus className="w-5 h-5" />
-          </button>
-          <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold">
-            <Plus className="w-4 h-4" /> Novo Produto
+          <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
+            <Plus className="w-4 h-4" /> Novo produto
           </button>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
-        <input type="text" placeholder="Buscar produtos..." className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none text-black dark:text-white"
-          value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+      {/* Search + filtro */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+          <input type="text" placeholder="Buscar por nome, categoria ou código de barras" className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none text-sm text-black dark:text-white focus:ring-2 focus:ring-blue-500"
+            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </div>
+        <select className="sm:w-52 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none text-sm text-black dark:text-white"
+          value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+          <option value="">Todas categorias</option>
+          {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+        </select>
       </div>
 
-      {/* Lista */}
-      <div className="grid grid-cols-1 gap-4">
-        {isLoading ? (
-          <div className="py-20 flex flex-col items-center gap-4 opacity-60">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-            <p className="font-medium text-black dark:text-white">Carregando produtos...</p>
-          </div>
-        ) : filteredProducts.length > 0 ? filteredProducts.map((product, index) => (
-          <div key={product.id || index} className="bg-white dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center gap-4 hover:shadow-md transition-shadow group">
-            <span className="text-zinc-400 font-mono text-sm font-bold min-w-[28px]">{index + 1}.</span>
-            <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-700 rounded-lg overflow-hidden flex-shrink-0">
-              {product.image ? (
-                <img src={product.image.startsWith('blob:') ? product.image : getProxyUrl(product.image)} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
-              ) : <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-zinc-400" /></div>}
-            </div>
-            <div className="flex-grow min-w-0">
-              <h3 className="font-bold text-lg uppercase text-black dark:text-white truncate">{product.name}</h3>
-              <p className="text-sm opacity-60 line-clamp-1 text-black dark:text-white">{product.description}</p>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-blue-600 font-bold">{product.price}</span>
-                {product.category && <span className="text-xs bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 rounded opacity-60 text-black dark:text-white">{product.category}</span>}
+      {/* Lista em cards */}
+      {isLoading ? (
+        <div className="py-20 flex flex-col items-center gap-4 opacity-60">
+          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+          <p className="font-medium text-black dark:text-white">Carregando produtos...</p>
+        </div>
+      ) : filteredProducts.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {filteredProducts.map((product, index) => (
+            <div key={product.id || index} className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
+              <div className="h-28 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+                {product.image ? (
+                  <img src={(product.thumb_image || product.image).startsWith('blob:') ? (product.thumb_image || product.image) : getProxyUrl(product.thumb_image || product.image)} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                ) : <Package className="w-8 h-8 text-zinc-300 dark:text-zinc-600" />}
+              </div>
+              <div className="p-3 flex flex-col gap-1.5 flex-1">
+                <h3 className="font-medium text-sm text-black dark:text-white leading-snug line-clamp-2">{product.name}</h3>
+                <div className="flex items-center gap-2 flex-wrap mt-auto">
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold text-sm">{product.price}</span>
+                  {product.category && (
+                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${getCategoryColor(product.category)}`}>{product.category}</span>
+                  )}
+                </div>
+                <div className="flex gap-1.5 mt-1.5">
+                  <button onClick={() => openModal(product)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    <Edit2 className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  <button onClick={() => product.id !== undefined && setConfirmDelete({ id: product.id })} className="px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => openModal(product)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg text-zinc-600 dark:text-zinc-400"><Edit2 className="w-4 h-4" /></button>
-              <button onClick={() => product.id !== undefined && setConfirmDelete({ id: product.id })} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-600"><Trash2 className="w-4 h-4" /></button>
-            </div>
-          </div>
-        )) : (
-          <div className="py-20 text-center opacity-40 bg-white dark:bg-zinc-800 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
-            <Package className="w-12 h-12 mx-auto mb-4 opacity-20 text-black dark:text-white" />
-            <p className="font-medium text-black dark:text-white">Nenhum produto encontrado.</p>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-20 text-center opacity-40 bg-white dark:bg-zinc-800 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
+          <Package className="w-12 h-12 mx-auto mb-4 opacity-20 text-black dark:text-white" />
+          <p className="font-medium text-black dark:text-white">Nenhum produto encontrado.</p>
+        </div>
+      )}
 
       {/* Modal Novo/Editar */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[95vh]">
             <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center shrink-0">
-              <h3 className="text-lg font-bold text-black dark:text-white">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h3>
+              <div>
+                <h3 className="text-base font-semibold text-black dark:text-white">{editingProduct ? 'Editar produto' : 'Novo produto'}</h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Preencha os dados abaixo.</p>
+              </div>
               <button onClick={() => setIsModalOpen(false)} className="text-black dark:text-white opacity-60 hover:opacity-100 text-2xl leading-none">&times;</button>
             </div>
 
@@ -321,61 +386,67 @@ const ProductManager = () => {
               )}
 
               <form id="product-form" onSubmit={handleSubmit} className="space-y-3 text-black dark:text-white">
-                <div>
-                  <label className="block text-xs font-semibold mb-1 opacity-60 uppercase tracking-wide">Nome do Produto</label>
-                  <input required type="text" className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+
+                <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Identificação</p>
+                  <input required type="text" placeholder="Nome do produto" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                     value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text" placeholder="Código de barras" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                      value={formData.barcode || ''} onChange={e => setFormData({ ...formData, barcode: e.target.value })} />
+                    <input type="text" placeholder="2º código de barras" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                      value={formData.barcode2 || ''} onChange={e => setFormData({ ...formData, barcode2: e.target.value })} />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1 opacity-60 uppercase tracking-wide">Preço</label>
-                    <input required type="text" placeholder="0,00" className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Preço e categoria</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input required type="text" placeholder="0,00" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                       value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold mb-1 opacity-60 uppercase tracking-wide">Categoria</label>
-                    {showNewCategory ? (
-                      <div className="flex gap-1">
-                        <input type="text" placeholder="Nova categoria" className="flex-1 min-w-0 px-2 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 outline-none text-black dark:text-white"
-                          value={newCategory} onChange={e => setNewCategory(e.target.value)} />
-                        <button type="button" className="shrink-0 px-2 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700"
-                          onClick={async () => {
-                            if (!newCategory.trim()) return;
-                            const folder = newCategory.trim().toLowerCase().replace(/\s+/g, '-');
-                            try { await fetch('/gallery/categories', { method: 'POST', headers: { 'x-gallery-token': GALLERY_PASSWORD, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: folder }) }); } catch {}
-                            await fetchCategories();
-                            setFormData({ ...formData, category: folder });
-                            setNewCategory(''); setShowNewCategory(false);
-                            toast.success('Categoria criada!');
-                          }}>OK</button>
-                        <button type="button" className="shrink-0 px-2 py-1 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 text-black dark:text-white"
-                          onClick={() => { setShowNewCategory(false); setNewCategory(''); }}>✕</button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-1">
-                        <select className="flex-1 min-w-0 px-2 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
-                          value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-                          <option value="">Selecione...</option>
-                          {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                        </select>
-                        <button type="button" className="shrink-0 w-9 h-9 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-lg font-bold hover:bg-zinc-200 flex items-center justify-center text-black dark:text-white"
-                          onClick={() => setShowNewCategory(true)}>+</button>
-                      </div>
-                    )}
+                    <div>
+                      {showNewCategory ? (
+                        <div className="flex gap-1">
+                          <input type="text" placeholder="Nova categoria" className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 outline-none text-black dark:text-white"
+                            value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+                          <button type="button" className="shrink-0 px-2 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700"
+                            onClick={async () => {
+                              if (!newCategory.trim()) return;
+                              const folder = newCategory.trim().toLowerCase().replace(/\s+/g, '-');
+                              try { await fetch('/gallery/categories', { method: 'POST', headers: { 'x-gallery-token': GALLERY_PASSWORD, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: folder }) }); } catch {}
+                              await fetchCategories();
+                              setFormData({ ...formData, category: folder });
+                              setNewCategory(''); setShowNewCategory(false);
+                              toast.success('Categoria criada!');
+                            }}>OK</button>
+                          <button type="button" className="shrink-0 px-2 py-1 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 text-black dark:text-white"
+                            onClick={() => { setShowNewCategory(false); setNewCategory(''); }}>✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-1">
+                          <select className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                            value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                            <option value="">Selecione...</option>
+                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                          </select>
+                          <button type="button" className="shrink-0 w-9 h-9 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-lg font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-center text-black dark:text-white"
+                            onClick={() => setShowNewCategory(true)}>+</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold mb-1 opacity-60 uppercase tracking-wide">Descrição</label>
-                  <textarea rows={2} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-black dark:text-white"
+                <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Descrição</p>
+                  <textarea rows={2} className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-black dark:text-white"
                     value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold mb-1 opacity-60 uppercase tracking-wide">Imagem</label>
+                <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Imagem</p>
                   <div className="flex gap-3 items-start">
-                    <div className="shrink-0 w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center relative">
+                    <div className="shrink-0 w-20 h-20 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center relative">
                       {formData.image ? (
                         <>
                           <img src={formData.image.startsWith('blob:') ? formData.image : getProxyUrl(formData.image)} alt="Preview" className="w-full h-full object-cover" />
@@ -395,7 +466,7 @@ const ProductManager = () => {
                         <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) selectFile(f); }} />
                       </label>
                       <input type="text" placeholder="ou cole a URL aqui"
-                        className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                        className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                         value={formData.image?.startsWith('blob:') ? '' : (formData.image || '')}
                         onChange={e => { setPendingFile(null); setFormData({ ...formData, image: e.target.value }); }} />
                     </div>
@@ -407,7 +478,7 @@ const ProductManager = () => {
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex gap-3 shrink-0">
               <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-medium text-black dark:text-white">Cancelar</button>
               <button type="submit" form="product-form" disabled={isUploading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold disabled:opacity-50">
-                {isUploading ? uploadStep : (editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto')}
+                {isUploading ? uploadStep : (editingProduct ? 'Salvar alterações' : 'Cadastrar produto')}
               </button>
             </div>
           </div>
@@ -445,38 +516,55 @@ const ProductManager = () => {
               </div>
               <button onClick={() => setIsMultiRegisterModalOpen(false)} className="hover:bg-white/20 p-2 rounded-full"><Plus className="w-6 h-6 rotate-45" /></button>
             </div>
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Categoria padrão do lote:</label>
+                <select className="px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-black dark:text-white"
+                  value={bulkDefaultCategory} onChange={e => setBulkDefaultCategory(e.target.value)}>
+                  <option value="">Selecione...</option>
+                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+              <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold cursor-pointer ${bulkDefaultCategory ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-zinc-300 text-zinc-500 cursor-not-allowed'}`}>
+                <Upload className="w-4 h-4" />
+                Selecionar várias imagens (remove fundo com IA)
+                <input type="file" accept="image/*" multiple disabled={!bulkDefaultCategory || isBulkUploading} className="hidden"
+                  onChange={e => handleBulkMultiFileSelect(e.target.files)} />
+              </label>
+              {isBulkUploading && (
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {bulkUploadStatus}
+                </span>
+              )}
+            </div>
             <div className="flex-1 overflow-auto p-6 bg-zinc-50 dark:bg-zinc-950">
-              <div className="grid grid-cols-[40px_1fr_100px_130px_1fr_1fr_80px_60px] gap-3 mb-4 text-xs font-bold uppercase tracking-wider text-zinc-500 px-2">
-                <span>#</span><span>Nome</span><span>Preço</span><span>Categoria</span><span>Descrição</span><span>URL da Imagem</span><span>Upload</span><span>Preview</span>
+              <div className="grid grid-cols-[40px_1fr_100px_100px_120px_120px_1fr_1fr_60px] gap-3 mb-4 text-xs font-bold uppercase tracking-wider text-zinc-500 px-2">
+                <span>#</span><span>Nome</span><span>Preço</span><span>Categoria</span><span>Cód. Barras 1</span><span>Cód. Barras 2</span><span>Descrição</span><span>URL da Imagem</span><span>Preview</span>
               </div>
               <div className="space-y-2">
                 {multiFormData.map((item, index) => (
-                  <div key={index} className="grid grid-cols-[40px_1fr_100px_130px_1fr_1fr_80px_60px] gap-3 items-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                  <div key={index} className="grid grid-cols-[40px_1fr_100px_100px_120px_120px_1fr_1fr_60px] gap-3 items-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-zinc-200 dark:border-zinc-700">
                     <span className="text-xs font-bold text-center text-zinc-400">{index + 1}</span>
                     <input type="text" placeholder="Nome" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.name} onChange={e => { const d = [...multiFormData]; d[index].name = e.target.value; setMultiFormData(d); }} />
                     <input type="text" placeholder="R$ 0,00" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.price} onChange={e => { const d = [...multiFormData]; d[index].price = e.target.value; setMultiFormData(d); }} />
-                    <input type="text" placeholder="Categoria" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
-                      value={item.category} onChange={e => { const d = [...multiFormData]; d[index].category = e.target.value; setMultiFormData(d); }} />
+                    <select className="w-full px-2 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
+                      value={item.category} onChange={e => { const d = [...multiFormData]; d[index].category = e.target.value; setMultiFormData(d); }}>
+                      <option value="">Categoria...</option>
+                      {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                    <input type="text" placeholder="Cód. barras 1" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
+                      value={item.barcode || ''} onChange={e => { const d = [...multiFormData]; d[index].barcode = e.target.value; setMultiFormData(d); }} />
+                    <input type="text" placeholder="Cód. barras 2" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
+                      value={item.barcode2 || ''} onChange={e => { const d = [...multiFormData]; d[index].barcode2 = e.target.value; setMultiFormData(d); }} />
                     <input type="text" placeholder="Descrição" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.description} onChange={e => { const d = [...multiFormData]; d[index].description = e.target.value; setMultiFormData(d); }} />
                     <input type="text" placeholder="https://..." className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.image} onChange={e => { const d = [...multiFormData]; d[index].image = e.target.value; setMultiFormData(d); }} />
-                    <label className="flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-md cursor-pointer hover:bg-blue-100">
-                      <Upload className="w-3 h-3 text-blue-500" />
-                      <span className="text-xs text-blue-600">Upload</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (!item.category) { toast.error('Preencha a categoria primeiro!'); return; }
-                        const url = await doUpload(file, item.category, item.name);
-                        if (url) { const d = [...multiFormData]; d[index].image = url; setMultiFormData(d); }
-                      }} />
-                    </label>
                     <div className="flex justify-center">
                       <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded border overflow-hidden flex items-center justify-center">
-                        {item.image ? <img src={getProxyUrl(item.image)} alt="Preview" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = 'https://placehold.co/40x40?text=Err'; }} />
+                        {item.image ? <img src={item.image.startsWith('blob:') ? item.image : getProxyUrl(item.image)} alt="Preview" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = 'https://placehold.co/40x40?text=Err'; }} />
                           : <Package className="w-4 h-4 text-zinc-300" />}
                       </div>
                     </div>
@@ -486,18 +574,40 @@ const ProductManager = () => {
             </div>
             <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex justify-end gap-3">
               <button onClick={() => setIsMultiRegisterModalOpen(false)} className="px-6 py-2.5 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-black dark:text-white">Cancelar</button>
-              <button disabled={isLoading} onClick={async () => {
-                const valid = multiFormData.filter(p => p.name.trim());
+              <button disabled={isLoading || isBulkUploading} onClick={async () => {
+                const rows = [...multiFormData];
+                const pendingEntries = Object.entries(bulkPendingFiles);
+                if (pendingEntries.length > 0) {
+                  setIsBulkUploading(true);
+                  for (let i = 0; i < pendingEntries.length; i++) {
+                    const [idxStr, file] = pendingEntries[i];
+                    const idx = Number(idxStr);
+                    const row = rows[idx];
+                    if (!row) continue;
+                    setBulkUploadStatus(`Removendo fundo ${i + 1}/${pendingEntries.length}: ${row.name}`);
+                    try {
+                      const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name);
+                      rows[idx] = { ...row, image: result.url, thumb_image: result.thumbUrl };
+                    } catch (e: any) {
+                      toast.error(`Falha em ${row.name}: ${e.message || 'erro no upload'}`);
+                    }
+                  }
+                  setMultiFormData(rows);
+                  setBulkPendingFiles({});
+                  setIsBulkUploading(false);
+                  setBulkUploadStatus('');
+                }
+                const valid = rows.filter(p => p.name.trim());
                 if (!valid.length) { toast.error('Preencha ao menos um produto.'); return; }
                 setIsLoading(true);
                 try {
-                  await apiCall('POST', '/products/bulk', valid.map(p => ({ name: p.name, description: p.description, price: p.price || 'R$ 0,00', image: p.image || null, category: p.category })));
+                  await apiCall('POST', '/products/bulk', valid.map(p => ({ name: p.name, description: p.description, price: p.price || 'R$ 0,00', image: p.image || null, thumb_image: p.thumb_image || null, category: p.category, barcode: p.barcode || null, barcode2: p.barcode2 || null })));
                   setIsMultiRegisterModalOpen(false);
                   await fetchProducts(); await fetchProductCount();
                   toast.success(`${valid.length} produtos cadastrados!`);
                 } catch { toast.error('Erro ao cadastrar produtos.'); } finally { setIsLoading(false); }
               }} className="px-8 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold disabled:opacity-50">
-                {isLoading ? 'Cadastrando...' : `Cadastrar ${multiFormData.filter(p => p.name.trim()).length} Produtos`}
+                {isBulkUploading ? bulkUploadStatus : isLoading ? 'Cadastrando...' : `Cadastrar ${multiFormData.filter(p => p.name.trim()).length} Produtos`}
               </button>
             </div>
           </div>
