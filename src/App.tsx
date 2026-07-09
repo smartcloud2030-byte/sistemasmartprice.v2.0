@@ -6,6 +6,7 @@ import ProductSelector from './components/ProductSelector';
 import Adjustments from './components/Adjustments';
 import PrintQueue from './components/PrintQueue';
 import UserManagement from './components/UserManagement';
+import LayoutNamesModal from './components/LayoutNamesModal';
 import AnnouncementManager from './components/AnnouncementManager';
 import UserAnnouncementModal from './components/UserAnnouncementModal';
 import SupportChat from './components/SupportChat';
@@ -13,18 +14,21 @@ import LayoutSelectorModal from './components/LayoutSelectorModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
 import EncarteCreator from './components/EncarteCreator';
-import { 
-  Printer, FileDown, 
-  LayoutDashboard, Package, Settings as SettingsIcon,
+import AdminDashboard from './components/AdminDashboard';
+import {
+  Printer, FileDown,
+  Settings as SettingsIcon,
   ShoppingBag, Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
-  RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon
+  RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
+  ChevronDown, Info, LayoutDashboard, Star
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
 import { cn, getProxyUrl } from './lib/utils';
 import { useSupportSocket } from './hooks/useSupportSocket';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { HeaderDropdown, DropdownItem, DropdownDivider, DropdownLabel } from './components/ui/HeaderDropdown';
 
 import { toast } from 'sonner';
 
@@ -38,6 +42,7 @@ export default function App() {
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
     currentUser, allowedStores, lastLoginTimestamp,
+    favoriteLayouts, toggleFavoriteLayout,
     saveUsersAndFlags, saveLayout, loadUsersAndFlags, saveAll,
     updateOnlineStatus, isChatEnabled,
     announcements, seenAnnouncements, setSeenAnnouncements,
@@ -45,6 +50,14 @@ export default function App() {
     orientation
   } = useStore();
   const [activeTab, setActiveTab] = useState<'select' | 'adjustments'>('select');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // Safety net: if the last favorite gets removed while the filter is active, turn it off automatically
+  useEffect(() => {
+    if (showFavoritesOnly && favoriteLayouts.length === 0) {
+      setShowFavoritesOnly(false);
+    }
+  }, [showFavoritesOnly, favoriteLayouts]);
   const [pendingAnnouncements, setPendingAnnouncements] = useState<any[]>([]);
   const [isLayoutModalOpen, setLayoutModalOpen] = useState(false);
 
@@ -420,6 +433,10 @@ export default function App() {
       }
     }
 
+    if (currentView === 'dashboard' && userRole === 'admin') {
+      return <AdminDashboard />;
+    }
+
     if (currentView === 'queue') {
       return <PrintQueue />;
     }
@@ -430,8 +447,8 @@ export default function App() {
 
     return (
       <div className={cn(
-        "min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col",
-        isPrinting && "bg-white p-0 m-0 overflow-visible"
+        "bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col",
+        isPrinting ? "min-h-screen bg-white p-0 m-0 overflow-visible" : "h-screen overflow-hidden"
       )}>
         {/* Dedicated Print Area for Single Tag */}
         {isPrinting && currentView === 'editor' && (
@@ -486,182 +503,119 @@ export default function App() {
 
         {/* Header */}
         {!isPrinting && (
-          <header className="h-14 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-3 sticky top-0 z-40 no-print">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+          <header className="h-16 flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-4 sticky top-0 z-40 no-print">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
                 <ShoppingBag className="w-5 h-5" />
               </div>
               <h1 className="text-lg font-black tracking-tighter">
-                SMART<span className="text-blue-600">PRICE</span>
+                SISTEMASMART<span className="text-blue-600">PRICE</span>
               </h1>
-              
-              {/* User Info Badge */}
-              <div className="hidden lg:flex flex-col items-start ml-2 pl-2 border-l border-zinc-200 dark:border-zinc-800">
-                <span className="text-[9px] font-black uppercase tracking-widest text-black dark:text-white opacity-40 leading-none mb-1">Acesso Identificado</span>
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-black dark:text-white leading-none">{currentUser?.username}</span>
-                    <span className="text-[10px] text-black dark:text-white opacity-60 font-medium leading-none mt-1">{currentUser?.bandeira}</span>
-                  </div>
-                  <div className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                    <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">{currentUser?.cnpj}</span>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
-                <button 
-                  type="button"
-                  onClick={handlePrint}
-                  className="flex items-center gap-1 px-2 py-1 hover:bg-white dark:hover:bg-zinc-700 rounded-md transition-all text-[10px] font-bold"
+            <div className="flex items-center gap-1.5">
+              {/* Dashboard */}
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => setView('dashboard')}
+                  className="h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+                  title="Painel Administrativo"
                 >
-                  <Printer className="w-4 h-4" />
-                  Imprimir
+                  <LayoutDashboard className="w-4 h-4" />
+                  Painel
                 </button>
-                <button 
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-md shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all text-[10px] font-bold"
-                >
-                  <FileDown className="w-4 h-4" />
-                  PDF
-                </button>
-                <button 
-                  onClick={handleDownloadPNG}
-                  className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded-md shadow-md shadow-emerald-500/20 hover:bg-emerald-700 transition-all text-[10px] font-bold"
-                >
-                  <ImageIcon className="w-4 h-4" />
-                  PNG
-                </button>
-                <button 
-                  onClick={handleAddToQueue}
-                  className="flex items-center gap-1 px-2 py-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md shadow-md hover:scale-105 transition-all text-[10px] font-bold"
-                  title="Adicionar à Fila Silenciosamente"
-                >
-                  <ListPlus className="w-4 h-4" />
-                  Fila
-                </button>
-                <button 
-                  onClick={() => setView('queue')}
-                  className="flex items-center gap-1 px-2 py-1 bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-md shadow-md hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all text-[10px] font-bold"
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  Ir para a Fila
-                  {printQueue.length > 0 && (
-                    <span className="bg-red-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-sm ml-1">
-                      {printQueue.length}
-                    </span>
-                  )}
-                </button>
-              </div>
+              )}
 
-              {/* Encarte Online Button */}
+              {/* Export */}
+              <HeaderDropdown
+                trigger={
+                  <button
+                    type="button"
+                    className="h-10 flex items-center gap-1.5 pl-3.5 pr-2.5 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all text-sm font-semibold"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Exportar
+                    <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                  </button>
+                }
+              >
+                <DropdownItem icon={<Printer className="w-4 h-4" />} label="Imprimir" onClick={handlePrint} />
+                <DropdownItem icon={<FileDown className="w-4 h-4" />} label="Baixar PDF" onClick={handleDownloadPDF} />
+                <DropdownItem icon={<ImageIcon className="w-4 h-4" />} label="Baixar PNG" onClick={handleDownloadPNG} />
+                <DropdownDivider />
+                <DropdownItem
+                  icon={<ListPlus className="w-4 h-4" />}
+                  label="Adicionar à Fila"
+                  description="Salva sem sair da tela atual"
+                  onClick={handleAddToQueue}
+                />
+              </HeaderDropdown>
+
+              {/* Queue */}
+              <button
+                onClick={() => setView('queue')}
+                className="relative h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Fila
+                {printQueue.length > 0 && (
+                  <span className="bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    {printQueue.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Encarte Online */}
               {(userRole === 'admin' || allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, ''))?.hasEncarteAccess) && (
-                <button 
+                <button
                   onClick={() => setView('encarte')}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1.5 rounded-xl transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95",
+                    'h-10 flex items-center gap-1.5 px-3.5 rounded-xl transition-all text-sm font-semibold',
                     (currentView as string) === 'encarte'
-                      ? "bg-emerald-600 text-white"
-                      : "bg-white dark:bg-zinc-800 text-emerald-600 border border-emerald-600/20"
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                      : 'bg-white dark:bg-zinc-800 text-emerald-600 border border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-900/10'
                   )}
                 >
                   <Layout className="w-4 h-4" />
-                  Encarte Online
+                  Encarte
                 </button>
               )}
 
-              <div className="h-6 w-px bg-zinc-200 dark:border-zinc-800 mx-2" />
-              
-              {userRole === 'admin' && (
-                <button 
+              {/* Product Management (non-admin with permission) */}
+              {userRole !== 'admin' && allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, ''))?.hasProductManagementAccess && (
+                <button
                   onClick={() => setProductModalOpen(true)}
-                  className="flex items-center gap-1 px-2 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95"
+                  className="h-10 flex items-center gap-1.5 px-3.5 bg-white dark:bg-zinc-800 text-blue-600 border border-blue-600/30 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all text-sm font-semibold"
                 >
                   <Database className="w-4 h-4" />
-                  Gerenciador de Produtos
+                  Produtos
                 </button>
               )}
 
+              {/* Admin */}
               {userRole === 'admin' && (
-                <button 
-                  onClick={() => setAnnouncementModalOpen(true)}
-                  className="flex items-center justify-center w-8 h-8 bg-amber-500 text-white rounded-xl transition-all shadow-lg hover:bg-amber-600 hover:scale-105 active:scale-95"
-                  title="Comunicados"
+                <HeaderDropdown
+                  trigger={
+                    <button
+                      type="button"
+                      className="h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+                    >
+                      <SettingsIcon className="w-4 h-4" />
+                      Administração
+                      <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                    </button>
+                  }
                 >
-                  <Megaphone className="w-4 h-4" />
-                </button>
-              )}
-
-              {userRole === 'admin' && (
-                <button 
-                  onClick={() => setUserModalOpen(true)}
-                  className="flex items-center gap-1 px-2 py-1.5 bg-blue-600 text-white rounded-xl transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95"
-                >
-                  <Users className="w-4 h-4" />
-                  Gerenciar Usuários
-                </button>
-              )}
-
-              {(userRole === 'admin' || isChatEnabled) && (
-                <button 
-                  onClick={() => {
-                    setSupportChatOpen(true);
-                    if ("Notification" in window && Notification.permission === "default") {
-                      Notification.requestPermission();
-                    }
-                  }}
-                  className={cn(
-                    "relative flex items-center gap-1 px-2 py-1.5 rounded-xl transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95",
-                    userRole === 'admin' 
-                      ? "bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900" 
-                      : "bg-blue-600 text-white"
-                  )}
-                  title={userRole === 'admin' ? "Central de Suporte" : "Enviar mensagem para o suporte (adicionar produto que está faltando)"}
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  {userRole === 'admin' ? "Central de Suporte" : "Suporte"}
-                  {unreadSupportCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black px-1.5 min-w-[22px] h-[22px] rounded-full flex items-center justify-center animate-bounce shadow-lg border-2 border-white dark:border-zinc-900 ring-4 ring-red-600/20">
-                      {unreadSupportCount}
-                    </span>
-                  )}
-                </button>
-              )}
-
-              <button 
-                onClick={toggleTheme}
-                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400"
-                title={theme === 'dark' ? "Ativar Modo Claro" : "Ativar Modo Escuro"}
-              >
-                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-
-              {userRole === 'admin' && (
-                <button 
-                  onClick={() => {
-                    toast.info('O app agora está configurado para usar o Supabase (PostgreSQL na nuvem). Certifique-se de criar as tabelas "products" e "settings" no seu painel do Supabase.');
-                  }}
-                  className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-zinc-400"
-                  title="Info sobre Supabase"
-                >
-                  <Database className="w-5 h-5" />
-                </button>
-              )}
-
-              <div className="flex flex-col items-center gap-1">
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="flex items-center gap-1 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all text-zinc-600 dark:text-zinc-400 text-[10px] font-black uppercase tracking-tighter"
-                  title="Atualizar Página (F5)"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Atualizar
-                </button>
-                
-                {userRole === 'admin' && (
-                  <button 
+                  <DropdownLabel>Gestão</DropdownLabel>
+                  <DropdownItem icon={<Database className="w-4 h-4" />} label="Gerenciador de Produtos" onClick={() => setProductModalOpen(true)} />
+                  <DropdownItem icon={<Users className="w-4 h-4" />} label="Gerenciar Usuários" onClick={() => setUserModalOpen(true)} />
+                  <DropdownItem icon={<Megaphone className="w-4 h-4" />} label="Comunicados" onClick={() => setAnnouncementModalOpen(true)} />
+                  <DropdownDivider />
+                  <DropdownItem
+                    icon={<Database className="w-4 h-4" />}
+                    label="Enviar Modificações"
+                    description="Sincroniza alterações com o banco"
+                    variant="accent"
                     onClick={async () => {
                       const toastId = toast.loading('Enviando modificações...');
                       try {
@@ -671,31 +625,86 @@ export default function App() {
                         toast.error('Erro ao enviar modificações.', { id: toastId });
                       }
                     }}
-                    className="flex items-center gap-1 px-2 py-0.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-all text-[9px] font-black uppercase tracking-tighter shadow-sm"
-                    title="Enviar modificações para a base de dados"
-                  >
-                    <Database className="w-3 h-3" />
-                    ENVIAR MOD
-                  </button>
-                )}
-              </div>
+                  />
+                  <DropdownItem
+                    icon={<Info className="w-4 h-4" />}
+                    label="Info sobre Supabase"
+                    onClick={() => {
+                      toast.info('O app agora está configurado para usar o Supabase (PostgreSQL na nuvem). Certifique-se de criar as tabelas "products" e "settings" no seu painel do Supabase.');
+                    }}
+                  />
+                </HeaderDropdown>
+              )}
 
-              <div className="h-6 w-px bg-zinc-200 dark:border-zinc-800 mx-2" />
+              {/* Support */}
+              {(userRole === 'admin' || isChatEnabled) && (
+                <button
+                  onClick={() => {
+                    setSupportChatOpen(true);
+                    if ("Notification" in window && Notification.permission === "default") {
+                      Notification.requestPermission();
+                    }
+                  }}
+                  className={cn(
+                    'relative h-10 flex items-center gap-1.5 px-3.5 rounded-xl transition-all text-sm font-semibold',
+                    userRole === 'admin'
+                      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      : 'bg-blue-600 text-white shadow-md shadow-blue-500/20 hover:bg-blue-700'
+                  )}
+                  title={userRole === 'admin' ? 'Central de Suporte' : 'Enviar mensagem para o suporte (adicionar produto que está faltando)'}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  {userRole === 'admin' ? 'Suporte' : 'Suporte'}
+                  {unreadSupportCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold px-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center animate-bounce shadow-lg border-2 border-white dark:border-zinc-900">
+                      {unreadSupportCount}
+                    </span>
+                  )}
+                </button>
+              )}
 
-              <button 
-                onClick={logout}
-                className="flex items-center gap-1 px-2 py-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all text-[10px] font-black uppercase tracking-tighter"
-                title="Sair do Sistema"
+              <button
+                onClick={toggleTheme}
+                className="h-10 w-10 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400"
+                title={theme === 'dark' ? 'Ativar Modo Claro' : 'Ativar Modo Escuro'}
               >
-                <LogOut className="w-4 h-4" />
-                Sair
+                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
+
+              <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800 mx-1" />
+
+              {/* User menu */}
+              <HeaderDropdown
+                align="right"
+                trigger={
+                  <button
+                    type="button"
+                    className="h-10 flex items-center gap-2 pl-1 pr-2.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                  >
+                    <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-full flex items-center justify-center text-xs font-bold text-zinc-700 dark:text-zinc-200 uppercase">
+                      {currentUser?.username?.slice(0, 2) || '??'}
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60 hidden sm:block" />
+                  </button>
+                }
+              >
+                <div className="px-3 py-2">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{currentUser?.username}</p>
+                  <p className="text-xs text-zinc-500 truncate">{currentUser?.bandeira}</p>
+                  {currentUser?.cnpj && (
+                    <p className="text-[11px] font-mono text-blue-600 dark:text-blue-400 mt-1">{currentUser.cnpj}</p>
+                  )}
+                </div>
+                <DropdownDivider />
+                <DropdownItem icon={<RefreshCw className="w-4 h-4" />} label="Atualizar Página" onClick={() => window.location.reload()} />
+                <DropdownItem icon={<LogOut className="w-4 h-4" />} label="Sair do Sistema" variant="danger" onClick={logout} />
+              </HeaderDropdown>
             </div>
           </header>
         )}
 
         {/* Main Content */}
-        <main className={cn("flex-grow flex overflow-hidden", isPrinting && "overflow-visible")}>
+        <main className={cn("flex-grow flex overflow-hidden min-h-0", isPrinting && "overflow-visible")}>
           {/* Left: Preview */}
           <div className={cn(
             "flex-grow relative border-r border-zinc-200 dark:border-zinc-800 print-area overflow-hidden",
@@ -734,43 +743,72 @@ export default function App() {
             )}
           </div>
 
-          {/* Right: Editor Panel */}
-          {!isPrinting && (
-            <aside className="w-[400px] flex-shrink-0 bg-white dark:bg-zinc-900 flex flex-col no-print">
-              {/* Tabs */}
-              <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-                <button 
-                  onClick={() => setActiveTab('select')}
-                  className={cn(
-                    "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all",
-                    activeTab === 'select' 
-                      ? "border-blue-600 text-blue-600 bg-blue-50/50 dark:bg-blue-900/10" 
-                      : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
-                  )}
-                >
-                  <Search className="w-4 h-4" />
-                  SELECIONAR
-                </button>
-                <button 
-                  onClick={() => setActiveTab('adjustments')}
-                  className={cn(
-                    "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all",
-                    activeTab === 'adjustments' 
-                      ? "border-blue-600 text-blue-600 bg-blue-50/50 dark:bg-blue-900/10" 
-                      : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
-                  )}
-                >
-                  <SettingsIcon className="w-4 h-4" />
-                  AJUSTES
-                </button>
-              </div>
-
-              {/* Layout Switcher Buttons */}
+          {/* Middle: Layout/Bandeira Switcher (admin only) */}
+          {!isPrinting && userRole === 'admin' && (
+            <div className="w-[400px] flex-shrink-0 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col no-print">
               <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
-                {userRole === 'admin' ? (
-                  <div className="max-h-80 overflow-y-auto pr-1 custom-scrollbar space-y-4">
-                    {Object.entries(
-                      filteredLayouts.reduce((acc, layout) => {
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">
+                  <Layout className="w-3.5 h-3.5" />
+                  Modelos por Bandeira
+                </span>
+              </div>
+              <div className="p-3 space-y-2 flex-grow overflow-y-auto min-h-0">
+                <button
+                  onClick={() => setShowFavoritesOnly(v => !v)}
+                  disabled={favoriteLayouts.length === 0 && !showFavoritesOnly}
+                  className={cn(
+                    "w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all disabled:opacity-30 disabled:cursor-not-allowed",
+                    showFavoritesOnly
+                      ? "bg-amber-400 border-amber-400 text-white"
+                      : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-amber-600 hover:border-amber-300"
+                  )}
+                >
+                  <Star className="w-3 h-3" fill={showFavoritesOnly ? "currentColor" : "none"} />
+                  {showFavoritesOnly ? 'Mostrando só favoritos' : 'Só favoritos'}
+                </button>
+                <div className="custom-scrollbar space-y-4">
+                  {(() => {
+                    const source = showFavoritesOnly
+                      ? filteredLayouts.filter((l) => favoriteLayouts.includes(l.originalIndex))
+                      : filteredLayouts;
+
+                    const renderLayoutChip = (layout: typeof filteredLayouts[number]) => (
+                      <div key={`${layout.name}-${layout.originalIndex}`} className="relative group/chip">
+                        <button
+                          onMouseEnter={() => {
+                            if (layout.background.url) {
+                              const img = new Image();
+                              img.src = getProxyUrl(layout.background.url);
+                            }
+                          }}
+                          onClick={() => handleLayoutSelect(layout.originalIndex)}
+                          className={cn(
+                            "w-full py-2 px-0.5 text-[8px] font-black uppercase tracking-tighter rounded-lg border transition-all truncate",
+                            activeLayoutIndex === layout.originalIndex
+                              ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
+                              : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-black dark:text-white opacity-60 hover:border-zinc-400"
+                          )}
+                          title={layout.name}
+                        >
+                          {layout.name.replace('Modelo ', '')}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleFavoriteLayout(layout.originalIndex); }}
+                          className={cn(
+                            "absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center transition-all shadow-sm",
+                            favoriteLayouts.includes(layout.originalIndex)
+                              ? "bg-amber-400 text-white opacity-100"
+                              : "bg-zinc-200 dark:bg-zinc-700 text-zinc-400 opacity-0 group-hover/chip:opacity-100"
+                          )}
+                          title={favoriteLayouts.includes(layout.originalIndex) ? "Remover dos favoritos" : "Marcar como favorito"}
+                        >
+                          <Star className="w-2.5 h-2.5" fill={favoriteLayouts.includes(layout.originalIndex) ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                    );
+
+                    return Object.entries(
+                      source.reduce((acc, layout) => {
                         const key = layout.bandeira || 'Sem Bandeira';
                         if (!acc[key]) acc[key] = {};
                         const subKey = layout.localidade || 'Geral';
@@ -784,7 +822,7 @@ export default function App() {
                           <Flag className="w-3 h-3 text-blue-600" />
                           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{bandeira}</span>
                         </div>
-                        
+
                         {Object.entries(localidades).map(([localidade, layouts]) => (
                           <div key={localidade} className="pl-2 space-y-1">
                             <div className="flex items-center gap-1 px-1">
@@ -792,52 +830,70 @@ export default function App() {
                               <span className="text-[8px] font-bold uppercase text-zinc-400">{localidade}</span>
                             </div>
                             <div className="grid grid-cols-4 gap-1.5">
-                              {layouts.map((layout) => (
-                                <button
-                                  key={`${layout.name}-${layout.originalIndex}`}
-                                  onMouseEnter={() => {
-                                    if (layout.background.url) {
-                                      const img = new Image();
-                                      img.src = getProxyUrl(layout.background.url);
-                                    }
-                                  }}
-                                  onClick={() => handleLayoutSelect(layout.originalIndex)}
-                                  className={cn(
-                                    "py-2 px-0.5 text-[8px] font-black uppercase tracking-tighter rounded-lg border transition-all truncate",
-                                    activeLayoutIndex === layout.originalIndex
-                                      ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
-                                      : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-black dark:text-white opacity-60 hover:border-zinc-400"
-                                  )}
-                                  title={layout.name}
-                                >
-                                  {layout.name.replace('Modelo ', '')}
-                                </button>
-                              ))}
+                              {layouts.map(renderLayoutChip)}
                             </div>
                           </div>
                         ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <button 
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Right: Editor Panel */}
+          {!isPrinting && (
+            <aside className="w-[400px] flex-shrink-0 bg-white dark:bg-zinc-900 flex flex-col no-print">
+              {/* Tabs */}
+              <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+                <button
+                  onClick={() => setActiveTab('select')}
+                  className={cn(
+                    "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all",
+                    activeTab === 'select'
+                      ? "border-blue-600 text-blue-600 bg-blue-50/50 dark:bg-blue-900/10"
+                      : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
+                  )}
+                >
+                  <Search className="w-4 h-4" />
+                  SELECIONAR
+                </button>
+                <button
+                  onClick={() => setActiveTab('adjustments')}
+                  className={cn(
+                    "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all",
+                    activeTab === 'adjustments'
+                      ? "border-blue-600 text-blue-600 bg-blue-50/50 dark:bg-blue-900/10"
+                      : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
+                  )}
+                >
+                  <SettingsIcon className="w-4 h-4" />
+                  AJUSTES
+                </button>
+              </div>
+
+              {/* Layout picker (non-admin only; admin has its own column) */}
+              {userRole !== 'admin' && (
+                <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
+                  <button
                     onClick={() => setLayoutModalOpen(true)}
                     className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-3"
                   >
                     <Layout className="w-5 h-5" />
                     Modelos Disponíveis
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Tab Content */}
-              <div className="flex-grow overflow-y-auto">
+              <div className="flex-grow overflow-y-auto min-h-0">
                 {activeTab === 'select' ? <ProductSelector /> : <Adjustments />}
               </div>
 
               {/* Footer Info */}
               <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 text-[10px] text-black dark:text-white opacity-40 text-center uppercase tracking-widest font-bold">
-                SmartPrice v1.1 • Pronto para Impressão A4
+                SistemaSmartPrice v2.0 • Pronto para Impressão A4
               </div>
             </aside>
           )}
@@ -904,10 +960,12 @@ export default function App() {
           </div>
         </div>
       )}
+      <LayoutNamesModal />
+
       <ErrorBoundary>
         <SupportChat />
       </ErrorBoundary>
-      
+
       {/* User Announcement Modal */}
       {pendingAnnouncements.length > 0 && (
         <UserAnnouncementModal 

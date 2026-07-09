@@ -1,6 +1,7 @@
 import React from 'react';
-import { useStore, TextSettings, createDefaultLayout, Layout as LayoutType, isThreeProduct } from '../store';
-import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertTriangle, ChevronUp, ChevronDown, Flag, MapPin, AlertCircle } from 'lucide-react';
+import { useStore, TextSettings, Layout as LayoutType, isThreeProduct } from '../store';
+import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight } from 'lucide-react';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
 import { cn, isValidImageUrl } from '../lib/utils';
 
@@ -25,11 +26,16 @@ const TextControl = ({ slot, label, elementKey, textElements }: {
           {label}
         </h4>
         {userRole === 'admin' && (
-          <button 
+          <button
             onClick={() => setElement(slot, elementKey, { visible: !el.visible })}
-            className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wide transition-colors ${
+              el.visible
+                ? 'text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                : 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40'
+            }`}
           >
-            {el.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-zinc-400" />}
+            {el.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            {el.visible ? 'Não exibir' : 'Exibir'}
           </button>
         )}
       </div>
@@ -129,7 +135,7 @@ const ProductImageControl = ({ slot, productImage }: { slot: 1 | 2 | 3, productI
       <div className="flex justify-between items-center">
         <span className="text-xs font-bold flex items-center gap-2">
           <ImageIcon className="w-3.5 h-3.5 text-blue-500" />
-          Imagem do Produto {slot === 1 ? 'Superior' : slot === 2 ? 'Inferior' : 'Central'}
+          Imagem do Produto {slot === 1 ? 'Superior' : slot === 2 ? 'Central' : 'Inferior'}
         </span>
         <div className="flex gap-2">
           <button 
@@ -196,7 +202,7 @@ const Adjustments = () => {
     textElements1, textElements2, textElements3,
     productImage1, productImage2, productImage3,
     background, setElement, setProductImage, setBackground,
-    userRole, layouts, setLayoutName, setLayoutBandeira, setLayoutLocalidade, reorderLayouts, setLayoutHasThirdProduct, setLayoutOrientation, activeLayoutIndex,
+    userRole, layouts, setLayoutOrientation, activeLayoutIndex,
     setSlotVisibility,
     isSingleProduct, setSingleProduct,
     orientation,
@@ -204,34 +210,14 @@ const Adjustments = () => {
     showOptionalTextControl, setShowOptionalTextControl,
     showSingleProductControl, setShowSingleProductControl,
     optionalText1, setOptionalText,
-    toggleHasThirdProduct
+    toggleHasThirdProduct,
+    setLayoutNamesModalOpen
   } = useStore();
-
-  const [showResetConfirm, setShowResetConfirm] = React.useState(false);
 
   const currentLayout = layouts[activeLayoutIndex];
   const currentLayoutName = currentLayout?.name || '';
   const canHaveThirdProduct = currentLayout?.hasThirdProduct || isThreeProduct(currentLayoutName, activeLayoutIndex);
   const showThirdProduct = productImage3.visible;
-
-  const handleReset = () => {
-    useStore.setState((state) => ({
-      layouts: Array.from({ length: 150 }, (_, i) => {
-        const defaultNames: Record<number, string> = {
-          0: 'QUARTA FRALDA PL',
-          1: 'SABADÃO PL',
-          2: 'QUI KIDS PL',
-          3: 'DERMO PL',
-          4: 'MARONBA',
-          20: 'Padrão Ultra'
-        };
-        return createDefaultLayout(defaultNames[i] || `Modelo ${i + 1}`, i);
-      })
-    }));
-    useStore.getState().saveLayout();
-    toast.success('Modelos resetados com sucesso!');
-    setShowResetConfirm(false);
-  };
 
   const handleBackgroundUrlChange = (url: string) => {
     setBackground({ url });
@@ -259,14 +245,29 @@ const Adjustments = () => {
         Ajustes e Estilos
       </h2>
 
+      {/* Admin: Rename Layouts */}
+      {userRole === 'admin' && (
+        <button
+          onClick={() => setLayoutNamesModalOpen(true)}
+          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 hover:shadow-md transition-all text-left"
+        >
+          <span className="flex items-center gap-3">
+            <span className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
+              <Layout className="w-5 h-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Nomes dos Modelos</span>
+              <span className="block text-xs text-zinc-400">{layouts.length} modelos • editar nome, bandeira e localidade</span>
+            </span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
+        </button>
+      )}
+
       {/* Editor Settings Section */}
       {userRole === 'admin' && (
-        <section className="space-y-3">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-40 flex items-center gap-2">
-            <Settings className="w-3.5 h-3.5" />
-            Configurações do Editor
-          </h3>
-          <div className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-6">
+        <CollapsibleSection title="Configurações do Editor" icon={Settings}>
+          <div className="space-y-6">
             {/* Optional Text Controls */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -370,116 +371,13 @@ const Adjustments = () => {
               </div>
             </div>
           </div>
-        </section>
-      ) as any}
-
-      {/* Admin: Rename Layouts */}
-      {userRole === 'admin' && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black uppercase tracking-widest text-black dark:text-white opacity-60 flex items-center gap-2">
-              <Layout className="w-4 h-4" />
-              Nomes dos Modelos
-            </h3>
-            <button 
-              onClick={() => setShowResetConfirm(true)}
-              className="text-[10px] font-bold text-black dark:text-white opacity-40 hover:opacity-100 uppercase tracking-widest transition-colors"
-            >
-              Resetar Modelos
-            </button>
-          </div>
-          <div className="max-h-64 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-            <div className="grid grid-cols-2 gap-3">
-              {layouts.map((layout, index) => (
-                <div key={index} className={cn(
-                  "space-y-1 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border transition-all",
-                  index === activeLayoutIndex 
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500" 
-                    : "border-zinc-200 dark:border-zinc-700"
-                )}>
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] font-black uppercase tracking-tighter text-black dark:text-white opacity-60">Modelo {index + 1}</label>
-                      <div className="flex items-center gap-0.5">
-                        <button
-                          onClick={() => reorderLayouts(index, index - 1)}
-                          disabled={index === 0}
-                          className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-20"
-                          title="Mover para cima"
-                        >
-                          <ChevronUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => reorderLayouts(index, index + 1)}
-                          disabled={index === layouts.length - 1}
-                          className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-20"
-                          title="Mover para baixo"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setLayoutHasThirdProduct(index, !layout.hasThirdProduct)}
-                      className={cn(
-                        "p-1 rounded transition-colors",
-                        layout.hasThirdProduct ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800"
-                      )}
-                      title={layout.hasThirdProduct ? "Desativar 3º Produto" : "Ativar 3º Produto"}
-                    >
-                      <Layout className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-[8px] font-bold text-zinc-500 uppercase block mb-0.5">Nome</label>
-                      <input 
-                        type="text"
-                        value={layout.name}
-                        onChange={(e) => setLayoutName(index, e.target.value)}
-                        className="w-full px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-bold outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[8px] font-bold text-zinc-500 uppercase flex items-center gap-1 mb-0.5">
-                          <Flag className="w-2 h-2" /> Bandeira
-                        </label>
-                        <input 
-                          type="text"
-                          value={layout.bandeira || ''}
-                          onChange={(e) => setLayoutBandeira(index, e.target.value)}
-                          className="w-full px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-bold outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[8px] font-bold text-zinc-500 uppercase flex items-center gap-1 mb-0.5">
-                          <MapPin className="w-2 h-2" /> Localidade
-                        </label>
-                        <input 
-                          type="text"
-                          value={layout.localidade || ''}
-                          onChange={(e) => setLayoutLocalidade(index, e.target.value)}
-                          className="w-full px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-bold outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        </CollapsibleSection>
       )}
 
       {/* Background Section */}
       {userRole === 'admin' && (
-        <section className="space-y-4">
-          <h3 className="text-sm font-black uppercase tracking-widest text-black dark:text-white opacity-60 flex items-center gap-2">
-            <Layout className="w-4 h-4" />
-            Fundo Geral
-          </h3>
-          <div className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-4">
+        <CollapsibleSection title="Fundo Geral" icon={Layout}>
+          <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex-grow">
                 <label className="block text-xs font-medium mb-1">URL da Imagem de Fundo (A4)</label>
@@ -543,108 +441,58 @@ const Adjustments = () => {
               </button>
             </div>
           </div>
-        </section>
+        </CollapsibleSection>
       )}
 
       {/* Product 1 Section */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
-            Produto Superior
-          </h3>
-        </div>
-        <div className="space-y-4">
-          {userRole === 'admin' && <ProductImageControl slot={1} productImage={productImage1} />}
-          <TextControl slot={1} label="Nome" elementKey="name" textElements={textElements1} />
-          <TextControl slot={1} label="Subtítulo" elementKey="subtitle" textElements={textElements1} />
-          <TextControl slot={1} label="Descrição" elementKey="description" textElements={textElements1} />
-          <TextControl slot={1} label="Preço" elementKey="price" textElements={textElements1} />
-        </div>
-      </section>
+      <CollapsibleSection title="Produto Superior" titleClassName="text-blue-600">
+        {userRole === 'admin' && <ProductImageControl slot={1} productImage={productImage1} />}
+        <TextControl slot={1} label="Nome" elementKey="name" textElements={textElements1} />
+        <TextControl slot={1} label="Subtítulo" elementKey="subtitle" textElements={textElements1} />
+        <TextControl slot={1} label="Descrição" elementKey="description" textElements={textElements1} />
+        <TextControl slot={1} label="Preço" elementKey="price" textElements={textElements1} />
+      </CollapsibleSection>
 
       {!isSingleProduct && (
-        <>
-          <div className="h-px bg-zinc-200 dark:bg-zinc-800" />
-
-          {/* Product 2 Section */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
-                Produto Inferior
-              </h3>
-            </div>
-            <div className="space-y-4">
-              {userRole === 'admin' && <ProductImageControl slot={2} productImage={productImage2} />}
-              <TextControl slot={2} label="Nome" elementKey="name" textElements={textElements2} />
-              <TextControl slot={2} label="Subtítulo" elementKey="subtitle" textElements={textElements2} />
-              <TextControl slot={2} label="Descrição" elementKey="description" textElements={textElements2} />
-              <TextControl slot={2} label="Preço" elementKey="price" textElements={textElements2} />
-            </div>
-          </section>
-        </>
+        <CollapsibleSection title="Produto Central" titleClassName="text-blue-600">
+          {userRole === 'admin' && <ProductImageControl slot={2} productImage={productImage2} />}
+          <TextControl slot={2} label="Nome" elementKey="name" textElements={textElements2} />
+          <TextControl slot={2} label="Subtítulo" elementKey="subtitle" textElements={textElements2} />
+          <TextControl slot={2} label="Descrição" elementKey="description" textElements={textElements2} />
+          <TextControl slot={2} label="Preço" elementKey="price" textElements={textElements2} />
+        </CollapsibleSection>
       )}
 
       {(canHaveThirdProduct && !isSingleProduct) && (
-        <>
-          <div className="h-px bg-zinc-200 dark:bg-zinc-800" />
-
-          {/* Product 3 Section */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
-                Produto Central (Opcional)
-              </h3>
-              {userRole === 'admin' && (
-                <button 
-                  onClick={() => setSlotVisibility(3, !showThirdProduct)}
-                  className={`p-1.5 rounded-lg transition-colors ${showThirdProduct ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-400 bg-zinc-100 dark:bg-zinc-800'}`}
-                  title={showThirdProduct ? "Ocultar Produto Central" : "Mostrar Produto Central"}
-                >
-                  {showThirdProduct ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </button>
-              )}
-            </div>
-            
-            {showThirdProduct && (
-              <div className="space-y-4">
-                {userRole === 'admin' && <ProductImageControl slot={3} productImage={productImage3} />}
-                <TextControl slot={3} label="Nome" elementKey="name" textElements={textElements3} />
-                <TextControl slot={3} label="Subtítulo" elementKey="subtitle" textElements={textElements3} />
-                <TextControl slot={3} label="Descrição" elementKey="description" textElements={textElements3} />
-                <TextControl slot={3} label="Preço" elementKey="price" textElements={textElements3} />
-              </div>
-            )}
-          </section>
-        </>
+        <CollapsibleSection
+          title="Produto Inferior (Opcional)"
+          titleClassName="text-blue-600"
+          headerExtra={
+            userRole === 'admin' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setSlotVisibility(3, !showThirdProduct); }}
+                className={`p-1.5 rounded-lg transition-colors ${showThirdProduct ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-400 bg-zinc-100 dark:bg-zinc-800'}`}
+                title={showThirdProduct ? "Ocultar Produto Inferior" : "Mostrar Produto Inferior"}
+              >
+                {showThirdProduct ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
+            )
+          }
+        >
+          {showThirdProduct ? (
+            <>
+              {userRole === 'admin' && <ProductImageControl slot={3} productImage={productImage3} />}
+              <TextControl slot={3} label="Nome" elementKey="name" textElements={textElements3} />
+              <TextControl slot={3} label="Subtítulo" elementKey="subtitle" textElements={textElements3} />
+              <TextControl slot={3} label="Descrição" elementKey="description" textElements={textElements3} />
+              <TextControl slot={3} label="Preço" elementKey="price" textElements={textElements3} />
+            </>
+          ) : (
+            <p className="text-xs text-zinc-400 text-center py-2">Produto inferior está oculto neste modelo.</p>
+          )}
+        </CollapsibleSection>
       )}
 
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center gap-3 text-red-600">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Resetar Modelos</h3>
-            </div>
-            <p className="text-sm text-black dark:text-white opacity-60">
-              Deseja resetar todos os modelos para o padrão? Isso apagará permanentemente as customizações de nomes e posições.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button 
-                onClick={() => setShowResetConfirm(false)}
-                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={handleReset}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold"
-              >
-                Resetar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

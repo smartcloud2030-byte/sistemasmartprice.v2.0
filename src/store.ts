@@ -54,9 +54,13 @@ export interface Product {
   id?: string | number;
   name: string;
   description: string;
+  subtitle?: string;
   price: string;
   image: string | null;
+  thumb_image?: string | null;
   category: string;
+  barcode?: string | null;
+  barcode2?: string | null;
 }
 
 export interface Layout {
@@ -126,7 +130,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'encarte';
+export type View = 'editor' | 'queue' | 'encarte' | 'dashboard';
 
 export interface SelectedProduct extends Product {
   id: string;
@@ -241,6 +245,8 @@ interface AppState {
   activeLayoutIndex: number;
   layouts: Layout[];
   orientation: 'portrait' | 'landscape';
+  favoriteLayouts: number[];
+  toggleFavoriteLayout: (index: number) => void;
   setActiveLayout: (index: number) => void;
   setLayoutOrientation: (index: number, orientation: 'portrait' | 'landscape') => void;
   setLayoutName: (index: number, name: string) => void;
@@ -258,6 +264,12 @@ interface AppState {
   setProductModalOpen: (open: boolean) => void;
   isUserModalOpen: boolean;
   setUserModalOpen: (open: boolean) => void;
+  userManagementTab: 'stores' | 'flags' | 'groups' | 'access';
+  setUserManagementTab: (tab: 'stores' | 'flags' | 'groups' | 'access') => void;
+  userManagementSuspendedFilter: boolean;
+  setUserManagementSuspendedFilter: (v: boolean) => void;
+  isLayoutNamesModalOpen: boolean;
+  setLayoutNamesModalOpen: (open: boolean) => void;
   fetchProducts: () => Promise<void>;
   selectProduct: (slot: 1 | 2 | 3, product: Product) => void;
 
@@ -308,6 +320,7 @@ interface AppState {
     bandeira: string;
     allowedLayouts?: number[];
     hasEncarteAccess?: boolean;
+    hasProductManagementAccess?: boolean;
     groupId?: string;
     isSuspended?: boolean;
     isOnline?: boolean;
@@ -319,6 +332,7 @@ interface AppState {
     bandeira: string;
     allowedLayouts?: number[];
     hasEncarteAccess?: boolean;
+    hasProductManagementAccess?: boolean;
     groupId?: string;
     isSuspended?: boolean;
     isOnline?: boolean;
@@ -327,6 +341,7 @@ interface AppState {
   }) => void;
   removeAllowedStore: (cnpj: string) => void;
   toggleSuspension: (cnpj: string) => void;
+  toggleProductManagementAccess: (cnpj: string) => void;
   updateOnlineStatus: () => Promise<void>;
   saveUsersAndFlags: () => Promise<void>;
   saveUsersAndFlagsDebounced: () => void;
@@ -494,6 +509,12 @@ export const useStore = create<AppState>()(
 
       activeLayoutIndex: 0,
       orientation: 'portrait',
+      favoriteLayouts: [],
+      toggleFavoriteLayout: (index) => set((state) => ({
+        favoriteLayouts: state.favoriteLayouts.includes(index)
+          ? state.favoriteLayouts.filter((i) => i !== index)
+          : [...state.favoriteLayouts, index]
+      })),
       optionalText1: { text: '', active: false, x: 50, y: 50, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
       optionalText2: { text: '', active: false, x: 50, y: 350, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
       optionalText3: { text: '', active: false, x: 50, y: 650, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
@@ -702,6 +723,12 @@ export const useStore = create<AppState>()(
       setProductModalOpen: (open) => set({ isProductModalOpen: open }),
       isUserModalOpen: false,
       setUserModalOpen: (open) => set({ isUserModalOpen: open }),
+      userManagementTab: 'stores',
+      setUserManagementTab: (tab) => set({ userManagementTab: tab }),
+      userManagementSuspendedFilter: false,
+      setUserManagementSuspendedFilter: (v) => set({ userManagementSuspendedFilter: v }),
+      isLayoutNamesModalOpen: false,
+      setLayoutNamesModalOpen: (open) => set({ isLayoutNamesModalOpen: open }),
       isAnnouncementModalOpen: false,
       setAnnouncementModalOpen: (open) => set({ isAnnouncementModalOpen: open }),
       announcements: [],
@@ -930,7 +957,7 @@ export const useStore = create<AppState>()(
       addAllowedStore: (store) => set((state) => {
         const nc = store.cnpj?.replace(/[^\d]/g, '') || '';
         const existingIndex = state.allowedStores.findIndex(s => s.cnpj?.replace(/[^\d]/g, '') === nc);
-        const updatedStore = { ...store, cnpj: store.cnpj.trim(), allowedLayouts: store.allowedLayouts !== undefined ? store.allowedLayouts : (existingIndex !== -1 ? state.allowedStores[existingIndex].allowedLayouts : undefined), hasEncarteAccess: store.hasEncarteAccess !== undefined ? store.hasEncarteAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasEncarteAccess : false) };
+        const updatedStore = { ...store, cnpj: store.cnpj.trim(), allowedLayouts: store.allowedLayouts !== undefined ? store.allowedLayouts : (existingIndex !== -1 ? state.allowedStores[existingIndex].allowedLayouts : undefined), hasEncarteAccess: store.hasEncarteAccess !== undefined ? store.hasEncarteAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasEncarteAccess : false), hasProductManagementAccess: store.hasProductManagementAccess !== undefined ? store.hasProductManagementAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasProductManagementAccess : false) };
         let newAllowedStores;
         if (existingIndex !== -1) { newAllowedStores = [...state.allowedStores]; newAllowedStores[existingIndex] = updatedStore; } else { newAllowedStores = [...state.allowedStores, updatedStore]; }
         setTimeout(() => get().saveUsersAndFlags(), 0);
@@ -938,6 +965,7 @@ export const useStore = create<AppState>()(
       }),
       removeAllowedStore: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newState = { allowedStores: state.allowedStores.filter(s => s.cnpj?.replace(/[^\d]/g, '') !== nc) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       toggleEncarteAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasEncarteAccess: !s.hasEncarteAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
+      toggleProductManagementAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasProductManagementAccess: !s.hasProductManagementAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleSuspension: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isSuspended: !s.isSuspended } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       bulkUpdateStoreLayouts: (groupId, bandeira, allowedLayouts) => set((state) => { const newAllowedStores = state.allowedStores.map(s => s.groupId === groupId && s.bandeira === bandeira ? { ...s, allowedLayouts } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
 
@@ -1076,7 +1104,7 @@ export const useStore = create<AppState>()(
       // ── login ───────────────────────────────────────────────────────────────
       login: async (role, user) => {
         await get().loadUsersAndFlags();
-        set({ isAuthenticated: true, userRole: role, currentUser: user, lastLoginTimestamp: Date.now() });
+        set({ isAuthenticated: true, userRole: role, currentUser: user, lastLoginTimestamp: Date.now(), currentView: role === 'admin' ? 'dashboard' : 'editor' });
         if (role === 'user' && user.cnpj) {
           const nc = user.cnpj.replace(/[^\d]/g, '');
           set((state) => ({ allowedStores: state.allowedStores.map(s => s.cnpj.replace(/[^\d]/g, '') === nc ? { ...s, isOnline: true, lastAccess: new Date().toISOString(), lastUsername: user.username } : s) }));
@@ -1117,6 +1145,7 @@ export const useStore = create<AppState>()(
         textElements3: state.textElements3,
         activeLayoutIndex: state.activeLayoutIndex,
         layouts: state.layouts,
+        favoriteLayouts: state.favoriteLayouts,
         zoom: state.zoom,
         allowedStores: state.allowedStores,
         flags: state.flags,

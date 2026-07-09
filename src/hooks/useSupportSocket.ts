@@ -27,7 +27,7 @@ export function useSupportSocket() {
     setIsLoading(false);
   }, []);
 
-  const sendMessage = async (_text: string) => {};
+  const sendMessage = async (_text: string, _targetCnpj?: string) => {};
   const clearMessages = async (_cnpj: string) => {};
   const markMessagesAsRead = async (_conversationId: string) => {};
 

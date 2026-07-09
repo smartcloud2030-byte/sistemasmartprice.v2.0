@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
 export default function UserManagement() {
-  const { allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, loadUsersAndFlags, layouts, toggleEncarteAccess, toggleSuspension, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup } = useStore();
-  const [activeTab, setActiveTab] = useState<'stores' | 'flags' | 'groups' | 'access'>('stores');
+  const {
+    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, loadUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
+    userManagementTab: activeTab, setUserManagementTab: setActiveTab,
+    userManagementSuspendedFilter, setUserManagementSuspendedFilter,
+  } = useStore();
 
   // Auto-refresh access status when tab is active
   React.useEffect(() => {
@@ -14,10 +17,11 @@ export default function UserManagement() {
       const interval = setInterval(() => {
         loadUsersAndFlags();
       }, 10000); // Every 10 seconds while tab is open
-      
+
       return () => clearInterval(interval);
     }
   }, [activeTab, loadUsersAndFlags]);
+
   const [newCnpj, setNewCnpj] = useState('');
   const [newBandeira, setNewBandeira] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
@@ -27,12 +31,23 @@ export default function UserManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedLayouts, setSelectedLayouts] = useState<number[]>([]);
   const [editingStoreLayouts, setEditingStoreLayouts] = useState<string | null>(null);
+  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
+  const toggleStoreExpanded = (cnpj: string) => {
+    setExpandedStores(prev => {
+      const next = new Set(prev);
+      if (next.has(cnpj)) next.delete(cnpj); else next.add(cnpj);
+      return next;
+    });
+  };
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState('');
   const [bulkGroupId, setBulkGroupId] = useState('');
   const [bulkFlag, setBulkFlag] = useState('');
   const [isBulkApplyOpen, setIsBulkApplyOpen] = useState(false);
   const [bulkApplySource, setBulkApplySource] = useState<'new' | string | null>(null);
+  const [showNewStoreForm, setShowNewStoreForm] = useState(false);
+  const [newStoreLayoutSearch, setNewStoreLayoutSearch] = useState('');
+  const [storeLayoutSearch, setStoreLayoutSearch] = useState('');
 
   // Fix: Ensure newBandeira is set when flags are loaded
   React.useEffect(() => {
@@ -188,9 +203,10 @@ export default function UserManagement() {
   };
 
   const filteredStores = allowedStores.filter(store => {
+    if (userManagementSuspendedFilter && !store.isSuspended) return false;
     const normalizedSearch = searchTerm?.replace(/[^\d]/g, '') || '';
     const normalizedCnpj = store.cnpj?.replace(/[^\d]/g, '') || '';
-    return normalizedCnpj.includes(normalizedSearch) || 
+    return normalizedCnpj.includes(normalizedSearch) ||
            store.cnpj.includes(searchTerm) ||
            store.bandeira.toLowerCase().includes(searchTerm.toLowerCase());
   });
@@ -214,6 +230,21 @@ export default function UserManagement() {
     acc[bandeira][localidade].push({ layout, index });
     return acc;
   }, {} as Record<string, Record<string, { layout: any; index: number }[]>>);
+
+  const filterGroupedLayouts = (term: string) => {
+    if (!term.trim()) return groupedLayouts;
+    const lower = term.toLowerCase();
+    const result: Record<string, Record<string, { layout: any; index: number }[]>> = {};
+    Object.entries(groupedLayouts).forEach(([bandeira, localidades]) => {
+      const filteredLocalidades: Record<string, { layout: any; index: number }[]> = {};
+      Object.entries(localidades).forEach(([localidade, items]) => {
+        const filteredItems = items.filter(({ layout }) => layout.name.toLowerCase().includes(lower));
+        if (filteredItems.length > 0) filteredLocalidades[localidade] = filteredItems;
+      });
+      if (Object.keys(filteredLocalidades).length > 0) result[bandeira] = filteredLocalidades;
+    });
+    return result;
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -288,13 +319,24 @@ export default function UserManagement() {
         {activeTab === 'stores' ? (
           <>
             {/* Add New Store Form */}
-            <div className="bg-zinc-50 dark:bg-zinc-800/50 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-lg text-black dark:text-white">Autorizar Novo Acesso</h3>
-              </div>
-              
-              <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setShowNewStoreForm(v => !v)}
+                className="w-full flex items-center justify-between p-6"
+              >
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-bold text-lg text-black dark:text-white">Autorizar Novo Acesso</h3>
+                </div>
+                <span className="flex items-center gap-1.5 text-blue-600 font-black text-xs uppercase tracking-widest">
+                  {showNewStoreForm ? 'Fechar' : '+ Nova Loja'}
+                  <ChevronDown className={cn("w-4 h-4 transition-transform", showNewStoreForm && "rotate-180")} />
+                </span>
+              </button>
+
+              {showNewStoreForm && (
+              <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 gap-4 px-6 pb-6">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60 ml-1">CNPJ da Loja</label>
                   <input
@@ -425,8 +467,18 @@ export default function UserManagement() {
                     </div>
                   )}
 
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+                    <input
+                      type="text"
+                      value={newStoreLayoutSearch}
+                      onChange={(e) => setNewStoreLayoutSearch(e.target.value)}
+                      placeholder="Buscar modelo..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[11px] font-bold outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                    />
+                  </div>
                   <div className="space-y-4 p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl max-h-64 overflow-y-auto custom-scrollbar">
-                    {Object.entries(groupedLayouts).map(([bandeira, localidades]) => (
+                    {Object.entries(filterGroupedLayouts(newStoreLayoutSearch)).map(([bandeira, localidades]) => (
                       <div key={bandeira} className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Flag className="w-3 h-3 text-blue-600" />
@@ -478,6 +530,7 @@ export default function UserManagement() {
                   </button>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Allowed Stores List */}
@@ -489,8 +542,18 @@ export default function UserManagement() {
                   <span className="bg-zinc-100 dark:bg-zinc-800 text-black dark:text-white opacity-60 text-[10px] px-2 py-0.5 rounded-full font-black">
                     {allowedStores.length}
                   </span>
+                  {userManagementSuspendedFilter && (
+                    <button
+                      onClick={() => setUserManagementSuspendedFilter(false)}
+                      className="flex items-center gap-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      Só suspensas
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
                 </div>
-                
+
                 <div className="relative w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                   <input
@@ -509,17 +572,23 @@ export default function UserManagement() {
                     <p className="text-black dark:text-white opacity-40 font-bold uppercase tracking-widest text-xs">Nenhuma loja encontrada</p>
                   </div>
                 ) : (
-                  filteredStores.map((store) => (
-                    <div 
+                  filteredStores.map((store) => {
+                    const isExpanded = expandedStores.has(store.cnpj);
+                    return (
+                    <div
                       key={store.cnpj}
                       className="group flex flex-col p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 transition-all shadow-sm"
                     >
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => toggleStoreExpanded(store.cnpj)}
+                        className="flex items-center justify-between gap-4 text-left"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors flex-shrink-0">
                             <Store className="w-6 h-6" />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-mono font-bold text-zinc-900 dark:text-zinc-100">{store.cnpj}</p>
                             {store.groupId && (
                               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 -mt-1 mb-0.5">
@@ -537,44 +606,67 @@ export default function UserManagement() {
                             </div>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={store.groupId || ''}
-                            onChange={(e) => setUserGroup(store.cnpj, e.target.value || undefined)}
-                            className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500 transition-all text-black dark:text-white"
-                          >
-                            <option value="">Sem Grupo</option>
-                            {userGroups.map(group => (
-                              <option key={group.id} value={group.id}>{group.name}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => setEditingStoreLayouts(editingStoreLayouts === store.cnpj ? null : store.cnpj)}
-                            className={cn(
-                              "p-2 rounded-lg transition-all",
-                              editingStoreLayouts === store.cnpj 
-                                ? "bg-blue-600 text-white" 
-                                : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                            )}
-                            title="Gerenciar Modelos Permitidos"
-                          >
-                            <SettingsIcon className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => removeAllowedStore(store.cnpj)}
-                            className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all"
-                            title="Remover Autorização"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
+
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {store.allowedLayouts === undefined || store.allowedLayouts.length === 0 ? (
+                            <span className="text-[8px] font-bold text-red-500 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded uppercase whitespace-nowrap">
+                              Nenhum modelo
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-bold text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded uppercase whitespace-nowrap">
+                              {store.allowedLayouts.length} modelo{store.allowedLayouts.length === 1 ? '' : 's'}
+                            </span>
+                          )}
+                          <ChevronDown className={cn("w-4 h-4 text-zinc-400 transition-transform", isExpanded && "rotate-180")} />
                         </div>
+                      </button>
+
+                      {isExpanded && (
+                      <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 space-y-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <select
+                          value={store.groupId || ''}
+                          onChange={(e) => setUserGroup(store.cnpj, e.target.value || undefined)}
+                          className="px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500 transition-all text-black dark:text-white"
+                        >
+                          <option value="">Sem Grupo</option>
+                          {userGroups.map(group => (
+                            <option key={group.id} value={group.id}>{group.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => removeAllowedStore(store.cnpj)}
+                          className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all"
+                          title="Remover Autorização"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
                       </div>
 
                       {/* Layouts Selection for this store */}
+                      <div>
+                        <button
+                          onClick={() => {
+                            setEditingStoreLayouts(editingStoreLayouts === store.cnpj ? null : store.cnpj);
+                            setStoreLayoutSearch('');
+                          }}
+                          className={cn(
+                            "w-full flex items-center justify-between p-2 rounded-lg transition-all",
+                            editingStoreLayouts === store.cnpj
+                              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
+                              : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          )}
+                        >
+                          <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                            <SettingsIcon className="w-4 h-4" />
+                            Gerenciar Modelos Permitidos
+                          </span>
+                          <ChevronDown className={cn("w-4 h-4 transition-transform", editingStoreLayouts === store.cnpj && "rotate-180")} />
+                        </button>
+                      </div>
                       <div className={cn(
                         "overflow-hidden transition-all duration-300",
-                        editingStoreLayouts === store.cnpj ? "max-h-[500px] opacity-100 mt-2" : "max-h-0 opacity-0"
+                        editingStoreLayouts === store.cnpj ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
                       )}>
                         <div className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700">
                           <div className="flex items-center justify-between mb-3">
@@ -668,8 +760,18 @@ export default function UserManagement() {
                               </div>
                             </div>
                           )}
+                          <div className="relative mb-2">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+                            <input
+                              type="text"
+                              value={storeLayoutSearch}
+                              onChange={(e) => setStoreLayoutSearch(e.target.value)}
+                              placeholder="Buscar modelo..."
+                              className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[11px] font-bold outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                            />
+                          </div>
                           <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar p-2">
-                            {Object.entries(groupedLayouts).map(([bandeira, localidades]) => (
+                            {Object.entries(filterGroupedLayouts(storeLayoutSearch)).map(([bandeira, localidades]) => (
                               <div key={bandeira} className="space-y-2">
                                 <div className="flex items-center gap-2">
                                   <Flag className="w-3 h-3 text-blue-600" />
@@ -712,7 +814,7 @@ export default function UserManagement() {
                       </div>
 
                       {/* Encarte Online Access Toggle */}
-                      <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 space-y-4">
+                      <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Layout className="w-4 h-4 text-emerald-600" />
@@ -728,6 +830,24 @@ export default function UserManagement() {
                             )}
                           >
                             {store.hasEncarteAccess ? 'Ativado' : 'Desativado'}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4 text-blue-600" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60">Gerenciar Estoque (Produtos)</h4>
+                          </div>
+                          <button
+                            onClick={() => toggleProductManagementAccess(store.cnpj)}
+                            className={cn(
+                              "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
+                              store.hasProductManagementAccess
+                                ? "bg-blue-600 border-blue-600 text-white"
+                                : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400"
+                            )}
+                          >
+                            {store.hasProductManagementAccess ? 'Ativado' : 'Desativado'}
                           </button>
                         </div>
 
@@ -749,32 +869,11 @@ export default function UserManagement() {
                           </button>
                         </div>
                       </div>
-
-                      {/* Summary of allowed layouts when not editing */}
-                      {editingStoreLayouts !== store.cnpj && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {store.allowedLayouts === undefined || store.allowedLayouts.length === 0 ? (
-                            <span className="text-[8px] font-bold text-red-500 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded uppercase">
-                              Nenhum Modelo Liberado
-                            </span>
-                          ) : (
-                            <>
-                              {store.allowedLayouts.slice(0, 5).map(idx => (
-                                <span key={idx} className="text-[8px] font-bold text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded uppercase">
-                                  {layouts[idx]?.name || `Modelo ${idx + 1}`}
-                                </span>
-                              ))}
-                              {store.allowedLayouts.length > 5 && (
-                                <span className="text-[8px] font-bold text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded uppercase">
-                                  +{store.allowedLayouts.length - 5}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
+                      </div>
                       )}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

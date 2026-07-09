@@ -80,7 +80,7 @@ const ProductManager = () => {
   const [newCategory, setNewCategory] = useState('');
   const [showNewCategory, setShowNewCategory] = useState(false);
 
-  const initialMultiFormData = Array(20).fill(null).map(() => ({ name: '', description: '', price: '', image: '', category: '', barcode: '', barcode2: '' }));
+  const initialMultiFormData = Array(20).fill(null).map(() => ({ name: '', description: '', price: '', image: '', thumb_image: '' as string | null, category: '', barcode: '', barcode2: '' }));
   const [multiFormData, setMultiFormData] = useState(initialMultiFormData);
   const [bulkDefaultCategory, setBulkDefaultCategory] = useState('');
   const [bulkPendingFiles, setBulkPendingFiles] = useState<Record<number, File>>({});
@@ -104,7 +104,7 @@ const ProductManager = () => {
       const file = fileArr[i];
       const name = filenameToName(file.name);
       if (rowIndex === -1 || rowIndex >= current.length) {
-        current = [...current, { name: '', description: '', price: '', image: '', category: '' }];
+        current = [...current, { name: '', description: '', price: '', image: '', thumb_image: '', category: '', barcode: '', barcode2: '' }];
         rowIndex = current.length - 1;
       }
       current[rowIndex] = { ...current[rowIndex], name, category: bulkDefaultCategory, image: URL.createObjectURL(file) };

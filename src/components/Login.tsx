@@ -62,10 +62,10 @@ export default function Login() {
         if (formData.cnpj && formData.bandeira && formData.username) {
           // Normalize CNPJ for comparison
           const normalizedInputCnpj = formData.cnpj.replace(/[^\d]/g, '');
-          
+
           // Check if CNPJ is allowed
           const store = allowedStores.find(store => store.cnpj?.replace(/[^\d]/g, '') === normalizedInputCnpj);
-          
+
           if (store) {
             if (store.isSuspended) {
               setError('Este CNPJ está suspenso e não pode acessar o sistema.');
@@ -75,7 +75,7 @@ export default function Login() {
 
             // Save last used CNPJ
             localStorage.setItem('smartprice_last_cnpj', formData.cnpj);
-            
+
             await login('user', {
               username: formData.username,
               cnpj: formData.cnpj,
@@ -105,7 +105,7 @@ export default function Login() {
             <ShoppingBag className="w-10 h-10" />
           </div>
           <h1 className="text-3xl font-black tracking-tighter text-zinc-900 dark:text-white">
-            SMART<span className="text-blue-600">PRICE</span>
+            SISTEMASMART<span className="text-blue-600">PRICE</span>
           </h1>
           <p className="text-zinc-500 text-sm font-medium mt-1 uppercase tracking-widest">Acesso ao Sistema</p>
         </div>
@@ -218,7 +218,7 @@ export default function Login() {
         </div>
 
         <p className="text-center mt-8 text-zinc-400 text-[10px] font-bold uppercase tracking-[0.2em]">
-          SmartPrice v1.1 • Gestão de Etiquetas Inteligentes
+          SistemaSmartPrice v2.0 • Gestão de Etiquetas Inteligentes
         </p>
       </div>
     </div>

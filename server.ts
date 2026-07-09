@@ -4,11 +4,9 @@ import path from "path";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import galleryRouter from './src/gallery';
 import apiRouter from './api';
-
-dotenv.config();
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';

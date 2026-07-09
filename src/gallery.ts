@@ -24,7 +24,9 @@ const minioClient = new Minio.Client({
   secretKey: process.env.MINIO_SECRET_KEY || '',
 });
 
+export { minioClient };
 const BUCKET = process.env.MINIO_BUCKET || 'smartprice-images';
+export { BUCKET };
 const PUBLIC_URL = process.env.MINIO_PUBLIC_URL || 'https://imagens.sistemasmartprice.com.br';
 const GALLERY_PASSWORD = process.env.GALLERY_PASSWORD || 'smartprice@admin2026';
 

@@ -1,0 +1,250 @@
+import React, { useState } from 'react';
+import { useStore } from '../store';
+import {
+  ArrowRight, Store, Users, Flag, LayoutGrid, Database,
+  Megaphone, ListPlus, ShoppingBag, AlertTriangle, Clock, LogOut, MessageCircle
+} from 'lucide-react';
+import { cn } from '../lib/utils';
+import { QuickListModal, QuickListItem } from './ui/QuickListModal';
+import SystemStats from './SystemStats';
+
+type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | null;
+
+const AdminDashboard: React.FC = () => {
+  const {
+    currentUser, allowedStores, layouts, userGroups, flags, products,
+    printQueue, setView, setProductModalOpen, setUserModalOpen, setAnnouncementModalOpen,
+    setUserManagementTab, setUserManagementSuspendedFilter,
+    logout, unreadSupportCount, setSupportChatOpen,
+  } = useStore();
+
+  const [quickList, setQuickList] = useState<QuickListKind>(null);
+
+  const totalStores = allowedStores.length;
+  const onlineStores = allowedStores.filter(s => s.isOnline).length;
+  const suspendedStores = allowedStores.filter(s => s.isSuspended).length;
+
+  const recentAccess = [...allowedStores]
+    .filter(s => s.lastAccess)
+    .sort((a, b) => new Date(b.lastAccess!).getTime() - new Date(a.lastAccess!).getTime())
+    .slice(0, 15);
+
+  const openFullManagement = (tab: 'stores' | 'flags' | 'groups' | 'access', suspendedOnly = false) => {
+    setQuickList(null);
+    setUserManagementSuspendedFilter(suspendedOnly);
+    setUserManagementTab(tab);
+    setUserModalOpen(true);
+  };
+
+  const stats: { label: string; value: number | string; icon: any; color: string; onClick?: () => void }[] = [
+    { label: 'Lojas Autorizadas', value: totalStores, icon: Store, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', onClick: () => setQuickList('stores') },
+    { label: 'Online Agora', value: onlineStores, icon: Users, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20', onClick: () => setQuickList('online') },
+    { label: 'Suspensas', value: suspendedStores, icon: AlertTriangle, color: 'text-red-600 bg-red-50 dark:bg-red-900/20', onClick: () => setQuickList('suspended') },
+    { label: 'Modelos de Etiquetas', value: layouts.length, icon: LayoutGrid, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20' },
+    { label: 'Produtos Cadastrados', value: products.length, icon: Database, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', onClick: () => setProductModalOpen(true) },
+    { label: 'Bandeiras / Grupos', value: `${flags.length} / ${userGroups.length}`, icon: Flag, color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20', onClick: () => setQuickList('flags') },
+  ];
+
+  const suspendedBadge = { text: 'Suspenso', className: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' };
+  const onlineBadge = { text: 'Online', className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' };
+
+  const quickListConfig: Record<Exclude<QuickListKind, null>, {
+    title: string;
+    icon: React.ComponentType<{ className?: string }>;
+    items: QuickListItem[];
+    emptyText: string;
+    footerAction?: { label: string; onClick: () => void };
+  }> = {
+    stores: {
+      title: 'Lojas Autorizadas',
+      icon: Store,
+      items: allowedStores.map(s => ({
+        primary: s.cnpj,
+        secondary: s.bandeira,
+        badge: s.isSuspended ? suspendedBadge : (s.isOnline ? onlineBadge : undefined),
+      })),
+      emptyText: 'Nenhuma loja autorizada.',
+      footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('stores') },
+    },
+    suspended: {
+      title: 'Lojas Suspensas',
+      icon: AlertTriangle,
+      items: allowedStores.filter(s => s.isSuspended).map(s => ({
+        primary: s.cnpj,
+        secondary: s.bandeira,
+        badge: suspendedBadge,
+      })),
+      emptyText: 'Nenhuma loja suspensa.',
+      footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('stores', true) },
+    },
+    online: {
+      title: 'Usuários Online Agora',
+      icon: Users,
+      items: allowedStores.filter(s => s.isOnline).map(s => ({
+        primary: s.cnpj,
+        secondary: [s.lastUsername, s.bandeira].filter(Boolean).join(' · '),
+        badge: onlineBadge,
+      })),
+      emptyText: 'Nenhum usuário online no momento.',
+      footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('access') },
+    },
+    flags: {
+      title: 'Bandeiras Cadastradas',
+      icon: Flag,
+      items: flags.map(f => ({ primary: f })),
+      emptyText: 'Nenhuma bandeira cadastrada.',
+      footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('flags') },
+    },
+  };
+
+  const actions = [
+    { label: 'Gerenciador de Produtos', description: 'Cadastro em massa, upload de imagens', icon: Database, onClick: () => setProductModalOpen(true) },
+    { label: 'Gerenciar Usuários', description: 'CNPJs, bandeiras, grupos e acesso', icon: Users, onClick: () => setUserModalOpen(true) },
+    { label: 'Comunicados', description: 'Avisos para os usuários', icon: Megaphone, onClick: () => setAnnouncementModalOpen(true) },
+    { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
+  ];
+
+  return (
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+              <ShoppingBag className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white">
+                Painel <span className="text-blue-600">Administrativo</span>
+              </h1>
+              <p className="text-black dark:text-white opacity-60 text-sm font-medium">
+                Bem-vindo, {currentUser?.username || 'Admin'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSupportChatOpen(true)}
+              className="relative flex items-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 hover:shadow-md transition-all"
+              title="Central de Suporte"
+            >
+              <MessageCircle className="w-5 h-5" />
+              {unreadSupportCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold px-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center animate-bounce shadow-lg border-2 border-white dark:border-zinc-900">
+                  {unreadSupportCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setView('editor')}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+            >
+              Ir para o Editor
+              <ArrowRight className="w-5 h-5" />
+            </button>
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-red-600 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition-all"
+              title="Sair do Sistema"
+            >
+              <LogOut className="w-5 h-5" />
+              Sair
+            </button>
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {stats.map(stat => {
+            const Wrapper = stat.onClick ? 'button' : 'div';
+            return (
+              <Wrapper
+                key={stat.label}
+                {...(stat.onClick ? { onClick: stat.onClick } : {})}
+                className={cn(
+                  'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-2 shadow-sm text-left w-full',
+                  stat.onClick && 'hover:border-blue-500/50 hover:shadow-md transition-all active:scale-95'
+                )}
+              >
+                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', stat.color)}>
+                  <stat.icon className="w-4.5 h-4.5" />
+                </div>
+                <p className="text-2xl font-black text-black dark:text-white tracking-tighter">{stat.value}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{stat.label}</p>
+              </Wrapper>
+            );
+          })}
+        </div>
+
+        {/* System stats */}
+        <SystemStats />
+
+        {/* Quick actions */}
+        <div className="space-y-3">
+          <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Ações Rápidas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {actions.map(action => (
+              <button
+                key={action.label}
+                onClick={action.onClick}
+                className="flex items-center gap-4 p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 hover:shadow-md transition-all text-left"
+              >
+                <div className="w-11 h-11 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-500 flex-shrink-0">
+                  <action.icon className="w-5 h-5" />
+                </div>
+                <div className="flex-grow min-w-0">
+                  <p className="font-bold text-black dark:text-white">{action.label}</p>
+                  <p className="text-xs text-zinc-400 truncate">{action.description}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent activity */}
+        <div className="space-y-3">
+          <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5" />
+            Últimos Acessos
+          </h2>
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl divide-y divide-zinc-100 dark:divide-zinc-800 max-h-72 overflow-y-auto custom-scrollbar">
+            {recentAccess.length === 0 ? (
+              <p className="p-6 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Nenhum acesso registrado</p>
+            ) : (
+              recentAccess.map(store => (
+                <div key={store.cnpj} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('w-2 h-2 rounded-full flex-shrink-0', store.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600')} />
+                    <div>
+                      <p className="text-sm font-bold text-black dark:text-white">{store.lastUsername || 'Usuário'}</p>
+                      <p className="text-[10px] font-mono text-zinc-400">{store.cnpj} · {store.bandeira}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-zinc-400 flex-shrink-0">
+                    {store.lastAccess
+                      ? new Date(store.lastAccess).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                      : ''}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {quickList && (
+        <QuickListModal
+          title={quickListConfig[quickList].title}
+          icon={quickListConfig[quickList].icon}
+          items={quickListConfig[quickList].items}
+          emptyText={quickListConfig[quickList].emptyText}
+          footerAction={quickListConfig[quickList].footerAction}
+          onClose={() => setQuickList(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default AdminDashboard;

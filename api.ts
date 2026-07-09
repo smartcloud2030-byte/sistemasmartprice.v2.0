@@ -4,6 +4,9 @@
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
+import os from 'os';
+import fs from 'fs';
+import { minioClient, BUCKET } from './src/gallery';
 
 const router = Router();
 
@@ -33,7 +36,7 @@ router.get('/products', async (req: Request, res: Response) => {
     let query = 'SELECT * FROM products WHERE 1=1';
     const params: any[] = [];
 
-    if (search) {
+    if (search && typeof search === 'string') {
       const terms = search.trim().split(/\s+/);
       const conditions = [];
       for (let i = 0; i < terms.length; i++) {
@@ -226,6 +229,64 @@ router.get('/health', async (_req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ status: 'error', database: 'disconnected' });
   }
+});
+
+// ═══════════════════════════════════════════
+// SYSTEM STATS (disco, memória, CPU, galeria)
+// ═══════════════════════════════════════════
+router.get('/system/stats', apiAuth, async (_req: Request, res: Response) => {
+  // Galeria (MinIO): soma o tamanho de todos os objetos do bucket
+  const galleryStats = await new Promise<{ usedBytes: number; fileCount: number }>((resolve) => {
+    let usedBytes = 0;
+    let fileCount = 0;
+    try {
+      const stream = minioClient.listObjectsV2(BUCKET, '', true);
+      stream.on('data', (obj: any) => {
+        if (obj.size) {
+          usedBytes += obj.size;
+          fileCount += 1;
+        }
+      });
+      stream.on('end', () => resolve({ usedBytes, fileCount }));
+      stream.on('error', () => resolve({ usedBytes: 0, fileCount: 0 }));
+    } catch {
+      resolve({ usedBytes: 0, fileCount: 0 });
+    }
+  });
+
+  // Disco (do host/container onde o servidor roda)
+  let disk = { totalBytes: 0, usedBytes: 0, freeBytes: 0, available: false };
+  try {
+    const stat = await fs.promises.statfs(process.cwd());
+    const totalBytes = stat.bsize * stat.blocks;
+    const freeBytes = stat.bsize * stat.bfree;
+    disk = { totalBytes, usedBytes: totalBytes - freeBytes, freeBytes, available: true };
+  } catch {
+    // statfs indisponível nesta plataforma (ex: alguns ambientes Windows)
+  }
+
+  // Memória
+  const memTotalBytes = os.totalmem();
+  const memFreeBytes = os.freemem();
+
+  // CPU (média de carga relativa ao número de núcleos; só é significativa em Linux)
+  const cpuCount = os.cpus().length || 1;
+  const load1min = os.loadavg()[0];
+  const cpuLoadPercent = Math.min(100, (load1min / cpuCount) * 100);
+
+  res.json({
+    gallery: galleryStats,
+    disk,
+    memory: {
+      totalBytes: memTotalBytes,
+      usedBytes: memTotalBytes - memFreeBytes,
+      freeBytes: memFreeBytes,
+    },
+    cpu: {
+      cores: cpuCount,
+      loadPercent: cpuLoadPercent,
+    },
+  });
 });
 
 export default router;

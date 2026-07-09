@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore, Layout as LayoutType } from '../store';
-import { X, Layout as LayoutIcon, Search, Flag, MapPin, ChevronRight } from 'lucide-react';
+import { X, Layout as LayoutIcon, Search, Flag, MapPin, ChevronRight, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getProxyUrl } from '../lib/utils';
 
@@ -12,24 +12,131 @@ interface LayoutSelectorModalProps {
   activeLayoutIndex: number;
 }
 
+function LayoutCard({ layout, isActive, isFavorite, onToggleFavorite, onSelect }: {
+  layout: LayoutType & { originalIndex: number };
+  isActive: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  onSelect: () => void;
+}) {
+  return (
+    <motion.button
+      whileHover={{ y: -8, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onMouseEnter={() => {
+        if (layout.background.url) {
+          const img = new Image();
+          img.src = getProxyUrl(layout.background.url);
+        }
+      }}
+      onClick={onSelect}
+      className={cn(
+        "group relative flex flex-col bg-white dark:bg-zinc-800 rounded-[2.5rem] overflow-hidden border-2 transition-all shadow-sm hover:shadow-2xl",
+        isActive
+          ? "border-blue-600 ring-8 ring-blue-600/5"
+          : "border-zinc-100 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-800"
+      )}
+    >
+      {/* Favorite toggle */}
+      <div
+        role="button"
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+        className={cn(
+          "absolute top-4 left-4 z-10 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all",
+          isFavorite ? "bg-amber-400 text-white opacity-100" : "bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60"
+        )}
+        title={isFavorite ? "Remover dos favoritos" : "Marcar como favorito"}
+      >
+        <Star className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
+      </div>
+
+      {/* Preview Image */}
+      <div className="aspect-[16/9] w-full bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden">
+        {layout.background.url ? (
+          <img
+            src={getProxyUrl(layout.background.url, { thumbnail: true })}
+            alt={layout.name}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700 p-8 text-center bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900">
+            <LayoutIcon className="w-12 h-12 mb-3 opacity-20" />
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Prévia Indisponível</span>
+          </div>
+        )}
+
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
+          <div className="flex items-center justify-between text-white">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Clique para</span>
+              <span className="text-sm font-black uppercase tracking-tighter">Usar este modelo</span>
+            </div>
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+              <ChevronRight className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
+        {isActive && (
+          <div className="absolute top-4 right-4 bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border-2 border-white/20">
+            Modelo Atual
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="p-6 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <h5 className="font-black text-base uppercase tracking-tighter text-black dark:text-white leading-tight">
+            {layout.name}
+          </h5>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {layout.localidade && (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-700 rounded-full text-zinc-500 dark:text-zinc-400">
+              <MapPin className="w-3 h-3" />
+              <span className="text-[9px] font-black uppercase tracking-widest truncate max-w-[100px]">{layout.localidade}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-full text-blue-600 dark:text-blue-400">
+            <LayoutIcon className="w-3 h-3" />
+            <span className="text-[9px] font-black uppercase tracking-widest">
+              {layout.hasThirdProduct ? '3 Produtos' : '2 Produtos'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
 export default function LayoutSelectorModal({ isOpen, onClose, layouts, onSelect, activeLayoutIndex }: LayoutSelectorModalProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [showFavoritesOnly, setShowFavoritesOnly] = React.useState(false);
+  const { favoriteLayouts, toggleFavoriteLayout } = useStore();
 
   const groupedLayouts = React.useMemo(() => {
-    return layouts.reduce((acc, layout) => {
+    const source = showFavoritesOnly ? layouts.filter((l) => favoriteLayouts.includes(l.originalIndex)) : layouts;
+    return source.reduce((acc, layout) => {
       const key = layout.bandeira || 'Outros';
       if (!acc[key]) acc[key] = [];
       acc[key].push(layout);
       return acc;
     }, {} as Record<string, typeof layouts>);
-  }, [layouts]);
+  }, [layouts, showFavoritesOnly, favoriteLayouts]);
 
   const filteredGroups = React.useMemo(() => {
     if (!searchTerm) return groupedLayouts;
 
     const filtered: Record<string, typeof layouts> = {};
     Object.entries(groupedLayouts).forEach(([group, items]) => {
-      const filteredItems = items.filter(item => 
+      const filteredItems = items.filter(item =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.localidade?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         group.toLowerCase().includes(searchTerm.toLowerCase())
@@ -80,7 +187,20 @@ export default function LayoutSelectorModal({ isOpen, onClose, layouts, onSelect
                   className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
               </div>
-              <button 
+              <button
+                onClick={() => setShowFavoritesOnly(v => !v)}
+                disabled={favoriteLayouts.length === 0 && !showFavoritesOnly}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+                  showFavoritesOnly
+                    ? "bg-amber-400 text-white"
+                    : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-amber-400"
+                )}
+              >
+                <Star className="w-3.5 h-3.5" fill={showFavoritesOnly ? "currentColor" : "none"} />
+                {showFavoritesOnly ? 'Mostrando só favoritos' : 'Só favoritos'}
+              </button>
+              <button
                 onClick={onClose}
                 className="p-3 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500"
               >
@@ -96,115 +216,43 @@ export default function LayoutSelectorModal({ isOpen, onClose, layouts, onSelect
                 <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center">
                   <Search className="w-10 h-10 text-zinc-400" />
                 </div>
-                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Nenhum modelo encontrado para "{searchTerm}"</p>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">
+                  {showFavoritesOnly ? 'Nenhum modelo favoritado ainda.' : `Nenhum modelo encontrado para "${searchTerm}"`}
+                </p>
               </div>
             ) : (
-              Object.entries(filteredGroups).map(([group, items]) => (
-                <div key={group} className="space-y-8">
-                  <div className="flex items-center justify-between border-b-2 border-zinc-100 dark:border-zinc-800 pb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-                        <Flag className="w-5 h-5 text-blue-600" />
+              <>
+                {Object.entries(filteredGroups).map(([group, items]) => (
+                  <div key={group} className="space-y-8">
+                    <div className="flex items-center justify-between border-b-2 border-zinc-100 dark:border-zinc-800 pb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+                          <Flag className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <h4 className="text-xl font-black uppercase tracking-tighter text-black dark:text-white">{group}</h4>
                       </div>
-                      <h4 className="text-xl font-black uppercase tracking-tighter text-black dark:text-white">{group}</h4>
+                      <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-black bg-blue-50 dark:bg-blue-900/30 px-4 py-1.5 rounded-full text-blue-600 uppercase tracking-widest">
+                          {items.length} {items.length === 1 ? 'Modelo' : 'Modelos'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-[10px] font-black bg-blue-50 dark:bg-blue-900/30 px-4 py-1.5 rounded-full text-blue-600 uppercase tracking-widest">
-                        {items.length} {items.length === 1 ? 'Modelo' : 'Modelos'}
-                      </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                      {items.map((layout) => (
+                        <LayoutCard
+                          key={layout.originalIndex}
+                          layout={layout}
+                          isActive={activeLayoutIndex === layout.originalIndex}
+                          isFavorite={favoriteLayouts.includes(layout.originalIndex)}
+                          onToggleFavorite={() => toggleFavoriteLayout(layout.originalIndex)}
+                          onSelect={() => { onSelect(layout.originalIndex); onClose(); }}
+                        />
+                      ))}
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {items.map((layout) => (
-                      <motion.button
-                        key={layout.originalIndex}
-                        whileHover={{ y: -8, scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onMouseEnter={() => {
-                          if (layout.background.url) {
-                            const img = new Image();
-                            img.src = getProxyUrl(layout.background.url);
-                          }
-                        }}
-                        onClick={() => {
-                          onSelect(layout.originalIndex);
-                          onClose();
-                        }}
-                        className={cn(
-                          "group relative flex flex-col bg-white dark:bg-zinc-800 rounded-[2.5rem] overflow-hidden border-2 transition-all shadow-sm hover:shadow-2xl",
-                          activeLayoutIndex === layout.originalIndex 
-                            ? "border-blue-600 ring-8 ring-blue-600/5" 
-                            : "border-zinc-100 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-800"
-                        )}
-                      >
-                        {/* Preview Image */}
-                        <div className="aspect-[16/9] w-full bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden">
-                          {layout.background.url ? (
-                            <img 
-                              src={getProxyUrl(layout.background.url, { thumbnail: true })} 
-                              alt={layout.name}
-                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                              referrerPolicy="no-referrer"
-                              crossOrigin="anonymous"
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-700 p-8 text-center bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900">
-                              <LayoutIcon className="w-12 h-12 mb-3 opacity-20" />
-                              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Prévia Indisponível</span>
-                            </div>
-                          )}
-                          
-                          {/* Overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
-                            <div className="flex items-center justify-between text-white">
-                              <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Clique para</span>
-                                <span className="text-sm font-black uppercase tracking-tighter">Usar este modelo</span>
-                              </div>
-                              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
-                                <ChevronRight className="w-6 h-6" />
-                              </div>
-                            </div>
-                          </div>
-
-                          {activeLayoutIndex === layout.originalIndex && (
-                            <div className="absolute top-4 right-4 bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border-2 border-white/20">
-                              Modelo Atual
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="p-6 space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <h5 className="font-black text-base uppercase tracking-tighter text-black dark:text-white leading-tight">
-                              {layout.name}
-                            </h5>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-2">
-                            {layout.localidade && (
-                              <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-700 rounded-full text-zinc-500 dark:text-zinc-400">
-                                <MapPin className="w-3 h-3" />
-                                <span className="text-[9px] font-black uppercase tracking-widest truncate max-w-[100px]">{layout.localidade}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-full text-blue-600 dark:text-blue-400">
-                              <LayoutIcon className="w-3 h-3" />
-                              <span className="text-[9px] font-black uppercase tracking-widest">
-                                {layout.hasThirdProduct ? '3 Produtos' : '2 Produtos'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              ))
+                ))}
+              </>
             )}
           </div>
 
