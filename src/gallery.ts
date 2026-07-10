@@ -71,8 +71,12 @@ function displayName(filename: string): string {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// Pastas internas do sistema — nunca aparecem como galeria selecionável pelo usuário
+// Pastas internas do sistema — escondidas dos seletores de categoria, mas
+// ainda visíveis na SmartGaleria com ?all=1 (ex: chat, pra poder gerenciar as fotos)
 const INTERNAL_CATEGORIES = new Set(['chat']);
+// Pastas técnicas puras (cache de miniaturas etc.) — nunca aparecem em lugar nenhum,
+// nem mesmo com ?all=1, pois não são conteúdo real, só arquivos derivados.
+const isAlwaysHiddenCategory = (name: string) => name.startsWith('_');
 
 // ── Listar categorias ─────────────────────
 // Por padrão, esconde pastas internas (ex: chat) — usado pelos seletores de
@@ -87,7 +91,8 @@ router.get('/categories', authGallery, async (req: Request, res: Response) => {
       if (obj.name && obj.name.includes('/')) categories.add(obj.name.split('/')[0]);
     });
     stream.on('end', () => {
-      const list = showAll ? [...categories] : [...categories].filter((c) => !INTERNAL_CATEGORIES.has(c));
+      const withoutTechnical = [...categories].filter((c) => !isAlwaysHiddenCategory(c));
+      const list = showAll ? withoutTechnical : withoutTechnical.filter((c) => !INTERNAL_CATEGORIES.has(c));
       res.json(list.sort());
     });
     stream.on('error', (err) => res.status(500).json({ error: err.message }));
@@ -136,7 +141,7 @@ router.get('/list/:category', authGallery, async (req: Request, res: Response) =
     const images: any[] = [];
     const stream = minioClient.listObjectsV2(BUCKET, prefix, true);
     stream.on('data', (obj) => {
-      if (obj.name && !obj.name.endsWith('.keep')) {
+      if (obj.name && !obj.name.endsWith('.keep') && !obj.name.includes('__thumb')) {
         const filename = obj.name.replace(prefix, '');
         images.push({
           filename,
@@ -222,7 +227,9 @@ router.get('/thumb/*', async (req: Request, res: Response) => {
   const width = Math.min(Math.max(parseInt(String(req.query.w || '400'), 10) || 400, 50), 800);
   if (!fullPath) return res.status(400).json({ error: 'Caminho inválido' });
 
-  const thumbPath = `${fullPath}.__thumb${width}.webp`;
+  // Guardado fora da pasta da categoria (em "_thumbs/") para não aparecer
+  // como uma "segunda imagem" na listagem da SmartGaleria.
+  const thumbPath = `_thumbs/${fullPath}.__thumb${width}.webp`;
 
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   res.setHeader('Content-Type', 'image/webp');
