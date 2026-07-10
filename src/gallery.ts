@@ -75,14 +75,21 @@ function displayName(filename: string): string {
 const INTERNAL_CATEGORIES = new Set(['chat']);
 
 // ── Listar categorias ─────────────────────
-router.get('/categories', authGallery, async (_req: Request, res: Response) => {
+// Por padrão, esconde pastas internas (ex: chat) — usado pelos seletores de
+// categoria ao cadastrar/editar produtos. Passe ?all=1 para ver todas,
+// usado pela SmartGaleria (tela de administração de imagens).
+router.get('/categories', authGallery, async (req: Request, res: Response) => {
+  const showAll = req.query.all === '1';
   try {
     const categories = new Set<string>();
     const stream = minioClient.listObjectsV2(BUCKET, '', true);
     stream.on('data', (obj) => {
       if (obj.name && obj.name.includes('/')) categories.add(obj.name.split('/')[0]);
     });
-    stream.on('end', () => res.json([...categories].filter((c) => !INTERNAL_CATEGORIES.has(c)).sort()));
+    stream.on('end', () => {
+      const list = showAll ? [...categories] : [...categories].filter((c) => !INTERNAL_CATEGORIES.has(c));
+      res.json(list.sort());
+    });
     stream.on('error', (err) => res.status(500).json({ error: err.message }));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -448,7 +455,7 @@ function galleryHTML() {
 
   function doLogin() {
     token = document.getElementById('pwd-input').value;
-    fetch('/gallery/categories', { headers: { 'x-gallery-token': token } })
+    fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': token } })
       .then(r => { if (r.status === 401) throw new Error(); return r.json(); })
       .then(cats => {
         document.getElementById('login-screen').style.display = 'none';
@@ -529,7 +536,7 @@ function galleryHTML() {
   }
 
   function loadCategories(cb) {
-    fetch('/gallery/categories', { headers: { 'x-gallery-token': token } })
+    fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': token } })
       .then(r => r.json())
       .then(cats => { categories = cats; renderSidebar(); if (cb) cb(); });
   }
