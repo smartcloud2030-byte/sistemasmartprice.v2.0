@@ -177,6 +177,33 @@ router.post('/upload/:category', authGallery, upload.single('image'), async (req
   }
 });
 
+// ── Mover imagem entre pastas/categorias ──
+router.post('/move', authGallery, async (req: Request, res: Response) => {
+  const { fullPath, targetCategory } = req.body || {};
+  if (!fullPath || !targetCategory) return res.status(400).json({ error: 'fullPath e targetCategory são obrigatórios' });
+
+  try {
+    const filename = fullPath.split('/').pop();
+    const newPath = `${targetCategory}/${filename}`;
+    if (newPath === fullPath) return res.json({ success: true, newPath, url: `${PUBLIC_URL}/${BUCKET}/${newPath}` });
+
+    const stat = await minioClient.statObject(BUCKET, fullPath);
+    const stream = await minioClient.getObject(BUCKET, fullPath);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(chunk as Buffer);
+    const buffer = Buffer.concat(chunks);
+
+    await minioClient.putObject(BUCKET, newPath, buffer, buffer.length, {
+      'Content-Type': stat.metaData?.['content-type'] || 'application/octet-stream',
+    });
+    await minioClient.removeObject(BUCKET, fullPath);
+
+    res.json({ success: true, newPath, url: `${PUBLIC_URL}/${BUCKET}/${newPath}` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Deletar imagem ────────────────────────
 router.delete('/delete/*', authGallery, async (req: Request, res: Response) => {
   const fullPath = (req.params as any)[0];
@@ -292,8 +319,9 @@ function galleryHTML() {
   .logo { font-size:22px; font-weight:700; margin-bottom:6px; }
   .logo span { color:var(--accent); }
   .login-card p { color:var(--muted); font-size:13px; margin-bottom:28px; }
-  input { width:100%; padding:11px 14px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:14px; outline:none; transition:border-color .2s; font-family:inherit; }
-  input:focus { border-color:var(--accent); }
+  input, select { width:100%; padding:11px 14px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:14px; outline:none; transition:border-color .2s; font-family:inherit; }
+  input:focus, select:focus { border-color:var(--accent); }
+  select { cursor:pointer; }
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:11px 18px; background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-size:14px; font-weight:600; cursor:pointer; transition:background .2s; font-family:inherit; width:100%; margin-top:10px; }
   .btn:hover { background:var(--accent-h); }
   .btn-sm { width:auto; padding:8px 14px; font-size:13px; margin-top:0; }
@@ -435,6 +463,19 @@ function galleryHTML() {
   </div>
 </div>
 
+<!-- MODAL MOVER -->
+<div class="modal-overlay" id="move-modal">
+  <div class="modal">
+    <h3>Mover Imagem</h3>
+    <p id="move-modal-desc">Escolha a galeria de destino</p>
+    <select id="move-target-select"></select>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideMoveModal()">Cancelar</button>
+      <button class="btn btn-sm" onclick="confirmMove()" style="flex:1;margin-top:0">Mover</button>
+    </div>
+  </div>
+</div>
+
 <!-- PREVIEW MODAL -->
 <div id="preview-modal">
   <button class="preview-close" onclick="closePreview()">✕</button>
@@ -445,9 +486,7 @@ function galleryHTML() {
   </div>
   <div class="preview-actions">
     <button class="btn btn-sm" onclick="copyUrl(currentPreviewUrl)">📋 Copiar URL</button>
-    <a id="preview-download" href="" download target="_blank">
-      <button class="btn btn-sm btn-ghost" style="margin-top:0">⬇️ Abrir original</button>
-    </a>
+    <button class="btn btn-sm btn-ghost" onclick="downloadImage(currentPreviewUrl, currentPreviewName)">⬇️ Baixar</button>
   </div>
 </div>
 
@@ -459,6 +498,8 @@ function galleryHTML() {
   let currentCat = null;
   let allImages = [];
   let currentPreviewUrl = '';
+  let currentPreviewName = '';
+  let moveTargetFullPath = null;
 
   function doLogin() {
     token = document.getElementById('pwd-input').value;
@@ -593,20 +634,23 @@ function galleryHTML() {
   }
 
   function imgCard(img) {
-    const safe = encodeURIComponent(img.fullPath);
     const safeName = img.displayName.replace(/'/g, "\\\\'");
     const safeMeta = formatSize(img.size);
+    const safeFilename = img.filename.replace(/'/g, "\\\\'");
+    const safeFullPath = img.fullPath.replace(/'/g, "\\\\'");
     return \`
       <div class="img-card">
         <img class="img-thumb" src="\${img.url}" alt="\${img.displayName}" loading="lazy"
-          onclick="openPreview('\${img.url}', '\${safeName}', '\${safeMeta}')"
+          onclick="openPreview('\${img.url}', '\${safeName}', '\${safeMeta}', '\${safeFilename}')"
           onerror="this.style.height='80px';this.style.background='var(--surface2)'">
         <div class="card-body">
           <div class="img-label" title="\${img.displayName}">\${img.displayName}</div>
           <div class="img-meta">\${safeMeta}</div>
           <div class="card-actions">
-            <button class="btn-copy" onclick="copyUrl('\${img.url}')">📋 Copiar URL</button>
-            <button class="btn-del" onclick="deleteImage('\${img.fullPath}')">🗑️</button>
+            <button class="btn-copy" onclick="copyUrl('\${img.url}')" title="Copiar URL">📋</button>
+            <button class="btn-copy" onclick="downloadImage('\${img.url}', '\${safeFilename}')" title="Baixar">⬇️</button>
+            <button class="btn-copy" onclick="openMoveModal('\${safeFullPath}')" title="Mover para outra galeria">📁</button>
+            <button class="btn-del" onclick="deleteImage('\${img.fullPath}')" title="Excluir">🗑️</button>
           </div>
         </div>
       </div>\`;
@@ -622,12 +666,12 @@ function galleryHTML() {
   }
 
   // PREVIEW
-  function openPreview(url, name, meta) {
+  function openPreview(url, name, meta, filename) {
     currentPreviewUrl = url;
+    currentPreviewName = filename || name;
     document.getElementById('preview-img').src = url;
     document.getElementById('preview-name').textContent = name;
     document.getElementById('preview-meta').textContent = meta;
-    document.getElementById('preview-download').href = url;
     document.getElementById('preview-modal').classList.add('show');
     document.body.style.overflow = 'hidden';
   }
@@ -639,6 +683,64 @@ function galleryHTML() {
   }
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
+
+  // DOWNLOAD — baixa via blob, funciona mesmo com a imagem hospedada em outro domínio
+  async function downloadImage(url, filename) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Falha ao baixar');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || 'imagem';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      showToast('❌ Erro ao baixar a imagem', true);
+    }
+  }
+
+  // MOVER ENTRE GALERIAS
+  function openMoveModal(fullPath) {
+    moveTargetFullPath = fullPath;
+    const currentCategory = fullPath.split('/')[0];
+    const select = document.getElementById('move-target-select');
+    select.innerHTML = categories
+      .filter(c => c !== currentCategory)
+      .map(c => \`<option value="\${c}">\${formatCatName(c)}</option>\`)
+      .join('');
+    document.getElementById('move-modal-desc').textContent = 'Mover de "' + formatCatName(currentCategory) + '" para:';
+    document.getElementById('move-modal').classList.add('show');
+  }
+
+  function hideMoveModal() {
+    document.getElementById('move-modal').classList.remove('show');
+    moveTargetFullPath = null;
+  }
+
+  function confirmMove() {
+    const targetCategory = document.getElementById('move-target-select').value;
+    if (!moveTargetFullPath || !targetCategory) return;
+    fetch('/gallery/move', {
+      method: 'POST',
+      headers: { 'x-gallery-token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullPath: moveTargetFullPath, targetCategory })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showToast('✅ Imagem movida!');
+          hideMoveModal();
+          if (currentCat) loadImages(currentCat);
+        } else {
+          showToast('❌ ' + (data.error || 'Erro ao mover'), true);
+        }
+      })
+      .catch(() => showToast('❌ Erro ao mover a imagem', true));
+  }
 
   // UPLOAD
   async function handleFiles(files, cat) {
