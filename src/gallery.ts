@@ -173,6 +173,49 @@ router.delete('/delete/*', authGallery, async (req: Request, res: Response) => {
   }
 });
 
+// ── Miniatura sob demanda (pública, sem token) ────
+// Redimensiona uma imagem já existente no bucket e guarda o resultado no próprio
+// MinIO, para que a próxima requisição do mesmo caminho/tamanho seja instantânea
+// (sem reprocessar). Resolve imagens grandes sendo exibidas em miniaturas pequenas
+// (ex: 300KB+ carregado para exibir em 44x44px numa lista de produtos).
+router.get('/thumb/*', async (req: Request, res: Response) => {
+  const fullPath = (req.params as any)[0];
+  const width = Math.min(Math.max(parseInt(String(req.query.w || '400'), 10) || 400, 50), 800);
+  if (!fullPath) return res.status(400).json({ error: 'Caminho inválido' });
+
+  const thumbPath = `${fullPath}.__thumb${width}.webp`;
+
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Content-Type', 'image/webp');
+
+  try {
+    // Já existe uma versão redimensionada gerada antes? serve direto do MinIO.
+    const cachedStream = await minioClient.getObject(BUCKET, thumbPath);
+    return cachedStream.pipe(res);
+  } catch {
+    // Ainda não existe — gera agora.
+  }
+
+  try {
+    const originalStream = await minioClient.getObject(BUCKET, fullPath);
+    const chunks: Buffer[] = [];
+    for await (const chunk of originalStream) chunks.push(chunk as Buffer);
+    const inputBuffer = Buffer.concat(chunks);
+
+    const resized = await sharp(inputBuffer)
+      .resize(width, width, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 75 })
+      .toBuffer();
+
+    // Salva para as próximas requisições não precisarem reprocessar.
+    minioClient.putObject(BUCKET, thumbPath, resized, resized.length, { 'Content-Type': 'image/webp' }).catch(() => {});
+
+    res.send(resized);
+  } catch (err: any) {
+    res.status(404).json({ error: 'Imagem não encontrada ou inválida' });
+  }
+});
+
 // ── Interface HTML ────────────────────────
 router.get('/', (_req: Request, res: Response) => res.send(galleryHTML()));
 

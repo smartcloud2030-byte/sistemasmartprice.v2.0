@@ -77,7 +77,7 @@ const ProductSelector: React.FC<{ onSelect?: (product: Product) => void }> = ({ 
               <div className="w-11 h-11 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
                 {product.image ? (
                   <img
-                    src={getProxyUrl(product.image)}
+                    src={getProxyUrl(product.thumb_image || product.image, { thumbnail: true })}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
@@ -420,7 +420,7 @@ const ProductSlot = ({
                 <div className="w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
                   {product.image ? (
                     <img
-                      src={getProxyUrl(product.image)}
+                      src={getProxyUrl(product.thumb_image || product.image, { thumbnail: true })}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"

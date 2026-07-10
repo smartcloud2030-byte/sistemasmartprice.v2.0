@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { useSupportSocket, Message } from '../hooks/useSupportSocket';
 import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
 
 const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
@@ -403,7 +403,7 @@ export default function SupportChat() {
                                   className="block mb-1 rounded-lg overflow-hidden max-w-[220px] border border-black/5"
                                 >
                                   <img
-                                    src={msg.attachment_url}
+                                    src={getProxyUrl(msg.attachment_url, { thumbnail: true })}
                                     alt="Imagem enviada"
                                     className="w-full h-auto object-cover"
                                     loading="lazy"

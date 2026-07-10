@@ -59,32 +59,28 @@ export const isValidImageUrl = (url: string): boolean => {
  * Suporta uma opção de miniatura para carregamento mais rápido.
  */
 export const getProxyUrl = (url: string | undefined | null, options?: { thumbnail?: boolean }) => {
-  // URLs do MinIO próprio não precisam de proxy
-  if (url && url.includes('imagens.sistemasmartprice.com.br')) return url;
   if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) {
     return url || '';
   }
-  
-  // Se já for uma URL do proxy weserv, extraímos a URL original para remontar com novos parâmetros
-  let originalUrl = url;
-  if (url.includes('weserv.nl')) {
+
+  // Imagens do nosso próprio MinIO: quando uma miniatura é pedida, redireciona para o
+  // endpoint local que redimensiona sob demanda e cacheia o resultado (evita baixar a
+  // imagem em tamanho real só para exibir em 40-400px).
+  if (options?.thumbnail && url.includes('imagens.sistemasmartprice.com.br')) {
     try {
-      const urlObj = new URL(url);
-      originalUrl = urlObj.searchParams.get('url') || url;
-    } catch (e) {
-      // Ignora erro
+      const parsed = new URL(url);
+      const segments = parsed.pathname.split('/').filter(Boolean); // [bucket, ...objectPath]
+      if (segments.length > 1) {
+        const objectPath = segments.slice(1).join('/');
+        return `/gallery/thumb/${objectPath}?w=400`;
+      }
+    } catch {
+      // URL malformada — cai para o retorno padrão abaixo
     }
   }
-  
-  const params = new URLSearchParams();
-  params.append('url', originalUrl);
-  params.append('default', originalUrl);
-  
-  if (options?.thumbnail) {
-    params.append('w', '400');
-    params.append('q', '70');
-    params.append('output', 'webp');
-  }
-  
-  return url; // Sem proxy — carrega direto
+
+  // URLs do MinIO próprio (sem miniatura pedida) não precisam de proxy
+  if (url.includes('imagens.sistemasmartprice.com.br')) return url;
+
+  return url; // URLs externas: carrega direto (sem proxy de terceiros)
 };
