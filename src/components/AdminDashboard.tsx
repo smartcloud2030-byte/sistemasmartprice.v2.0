@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
-  Megaphone, ListPlus, ShoppingBag, AlertTriangle, Clock, LogOut, MessageCircle
+  Megaphone, ListPlus, ShoppingBag, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
@@ -114,6 +114,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Gerenciar Usuários', description: 'CNPJs, bandeiras, grupos e acesso', icon: Users, onClick: () => setUserModalOpen(true) },
     { label: 'Comunicados', description: 'Avisos para os usuários', icon: Megaphone, onClick: () => setAnnouncementModalOpen(true) },
     { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
+    { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
   ];
 
   return (

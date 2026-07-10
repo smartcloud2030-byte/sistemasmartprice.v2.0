@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { useSupportSocket, Message } from '../hooks/useSupportSocket';
-import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon, Smile } from 'lucide-react';
 import { cn, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
 
 const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
+
+const EMOJI_LIST = [
+  '😀', '😂', '😊', '😍', '🥳', '😉', '😢', '😡', '😱', '🤔',
+  '👍', '👎', '🙏', '👏', '💪', '🤝', '👋', '✌️', '🤙', '✍️',
+  '❤️', '🔥', '⭐', '✅', '❌', '⚠️', '❓', '❗', '💡', '🎉',
+  '📦', '🛒', '💰', '🏷️', '📸', '📅', '⏰', '📍', '📞', '💬',
+];
 
 async function uploadChatImage(file: File): Promise<{ url: string; type: string }> {
   const formData = new FormData();
@@ -34,7 +41,9 @@ export default function SupportChat() {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
   const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,6 +74,21 @@ export default function SupportChat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   };
+
+  const insertEmoji = (emoji: string) => {
+    setInputText(prev => prev + emoji);
+  };
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -459,7 +483,7 @@ export default function SupportChat() {
                       </span>
                     </div>
                   )}
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <form onSubmit={handleSendMessage} className="flex gap-2 relative">
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -480,6 +504,38 @@ export default function SupportChat() {
                         <ImageIcon className="w-5 h-5" />
                       )}
                     </button>
+
+                    <div className="relative" ref={emojiPickerRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPicker(v => !v)}
+                        disabled={!activeConversationId}
+                        title="Emojis"
+                        className={cn(
+                          "p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center min-w-[44px] disabled:opacity-50",
+                          showEmojiPicker
+                            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600"
+                            : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-300"
+                        )}
+                      >
+                        <Smile className="w-5 h-5" />
+                      </button>
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-xl grid grid-cols-8 gap-1 w-64 z-10">
+                          {EMOJI_LIST.map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => insertEmoji(emoji)}
+                              className="text-lg p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <input
                       type="text"
                       placeholder="Digite sua mensagem..."
