@@ -367,7 +367,7 @@ interface AppState {
   activeConversationId: string | null;
   setActiveConversationId: (id: string | null) => void;
   conversations: any[];
-  setConversations: (conversations: any[]) => void;
+  setConversations: (conversations: any[] | ((prev: any[]) => any[])) => void;
   isChatLoading: boolean;
   setIsChatLoading: (loading: boolean) => void;
 
@@ -1078,7 +1078,7 @@ export const useStore = create<AppState>()(
       activeConversationId: null,
       setActiveConversationId: (id) => set({ activeConversationId: id }),
       conversations: [],
-      setConversations: (conversations) => set({ conversations }),
+      setConversations: (conversations) => set((state) => ({ conversations: typeof conversations === 'function' ? (conversations as any)(state.conversations) : conversations })),
       isChatLoading: false,
       setIsChatLoading: (loading) => set({ isChatLoading: loading }),
 

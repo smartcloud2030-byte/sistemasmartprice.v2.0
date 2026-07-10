@@ -18,6 +18,8 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || '',
 });
 
+export { pool };
+
 // ── Middleware de autenticação da API ─────
 function apiAuth(req: Request, res: Response, next: Function) {
   const token = req.headers['x-api-token'];

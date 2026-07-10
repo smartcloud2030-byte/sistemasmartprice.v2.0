@@ -1,9 +1,27 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { useSupportSocket, Message } from '../hooks/useSupportSocket';
-import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
+import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+
+const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
+
+async function uploadChatImage(file: File): Promise<{ url: string; type: string }> {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch('/gallery/upload/chat', {
+    method: 'POST',
+    headers: { 'x-gallery-token': GALLERY_PASSWORD },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha no upload da imagem');
+  }
+  const data = await res.json();
+  return { url: data.url, type: file.type };
+}
 
 export default function SupportChat() {
   const { 
@@ -11,11 +29,28 @@ export default function SupportChat() {
     setUnreadSupportCount, selectedUserCnpj, setSelectedUserCnpj,
     unreadPerUser, setUnreadPerUser, messages, allowedStores, userGroups
   } = useStore();
-  const { sendMessage, clearMessages, markMessagesAsRead, isConnected, isLoading, activeConversationId, conversations } = useSupportSocket();
+  const { sendMessage, clearMessages, markMessagesAsRead, sendTyping, typingOther, isConnected, isLoading, activeConversationId, conversations } = useSupportSocket();
   const [inputText, setInputText] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isTypingRef = useRef(false);
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputText(e.target.value);
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      sendTyping(true);
+    }
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      sendTyping(false);
+    }, 2000);
+  };
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -35,6 +70,12 @@ export default function SupportChat() {
     e.preventDefault();
     if (!inputText.trim() || isSending) return;
 
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      sendTyping(false);
+    }
+
     setIsSending(true);
     try {
       await sendMessage(inputText, selectedUserCnpj || undefined);
@@ -44,6 +85,26 @@ export default function SupportChat() {
       console.error('Failed to send message:', err);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Selecione um arquivo de imagem.'); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error('Imagem muito grande (máx. 8MB).'); return; }
+
+    setIsUploadingImage(true);
+    try {
+      const { url, type } = await uploadChatImage(file);
+      await sendMessage('', selectedUserCnpj || undefined, { url, type });
+      scrollToBottom();
+    } catch (err: any) {
+      console.error('Failed to upload chat image:', err);
+      toast.error(err.message || 'Falha ao enviar imagem.');
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -333,11 +394,29 @@ export default function SupportChat() {
                                   {msg.sender_name}
                                 </p>
                               )}
-                              
+
+                              {msg.attachment_url && (
+                                <a
+                                  href={msg.attachment_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block mb-1 rounded-lg overflow-hidden max-w-[220px] border border-black/5"
+                                >
+                                  <img
+                                    src={msg.attachment_url}
+                                    alt="Imagem enviada"
+                                    className="w-full h-auto object-cover"
+                                    loading="lazy"
+                                  />
+                                </a>
+                              )}
+
                               <div className="flex flex-wrap items-end gap-2">
-                                <p className="text-sm leading-relaxed break-words max-w-full text-black dark:text-white">
-                                  {msg.text}
-                                </p>
+                                {msg.text && (
+                                  <p className="text-sm leading-relaxed break-words max-w-full text-black dark:text-white">
+                                    {msg.text}
+                                  </p>
+                                )}
                                 <div className="flex items-center gap-1 ml-auto pt-1">
                                   <span className="text-[9px] text-black dark:text-white font-medium opacity-60">
                                     {msg.timestamp && !isNaN(new Date(msg.timestamp).getTime()) 
@@ -370,13 +449,43 @@ export default function SupportChat() {
                   "border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900",
                   userRole === 'admin' ? "p-2 md:p-3" : "p-4 md:p-6"
                 )}>
+                  {typingOther && (
+                    <div className="flex items-center gap-1.5 px-1 pb-1.5 text-[10px] text-zinc-400 italic">
+                      <span>{userRole === 'admin' ? 'Loja digitando' : 'Suporte digitando'}</span>
+                      <span className="flex gap-0.5">
+                        <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </span>
+                    </div>
+                  )}
                   <form onSubmit={handleSendMessage} className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileSelected}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage || !activeConversationId}
+                      title="Enviar imagem"
+                      className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 text-zinc-500 dark:text-zinc-300 p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center min-w-[44px]"
+                    >
+                      {isUploadingImage ? (
+                        <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5" />
+                      )}
+                    </button>
                     <input
                       type="text"
                       placeholder="Digite sua mensagem..."
                       className="flex-grow bg-zinc-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black dark:text-white"
                       value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
+                      onChange={handleInputChange}
                       disabled={isSending || !activeConversationId}
                     />
                     <button

@@ -3,17 +3,91 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 import galleryRouter from './src/gallery';
-import apiRouter from './api';
+import apiRouter, { pool } from './api';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+// ── Suporte / Chat: schema no Postgres local ──
+// Observação: se a tabela já existir (criada por uma migration.sql antiga com
+// colunas user_id/message), os ALTER TABLE abaixo apenas adicionam o que falta.
+async function ensureChatSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_conversations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id TEXT NOT NULL,
+      user_name TEXT,
+      status TEXT DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_messages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id UUID REFERENCES support_conversations(id) ON DELETE CASCADE,
+      sender_id TEXT NOT NULL,
+      sender_name TEXT NOT NULL,
+      sender_type TEXT NOT NULL,
+      message TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`ALTER TABLE support_conversations ADD COLUMN IF NOT EXISTS bandeira TEXT;`);
+  await pool.query(`ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;`);
+  await pool.query(`ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS attachment_type TEXT;`);
+  await pool.query(`ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS read BOOLEAN NOT NULL DEFAULT false;`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_support_conversations_user_id ON support_conversations(user_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_support_messages_conv_created ON support_messages(conversation_id, created_at);`);
+}
 
-const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+const conversationIdCache = new Map<string, string>();
+
+async function findOrCreateConversation(cnpj: string, username?: string, bandeira?: string) {
+  const res = await pool.query(
+    `INSERT INTO support_conversations (user_id, user_name, bandeira, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (user_id) DO UPDATE SET
+       user_name = COALESCE(EXCLUDED.user_name, support_conversations.user_name),
+       bandeira = COALESCE(EXCLUDED.bandeira, support_conversations.bandeira)
+     RETURNING *`,
+    [cnpj, username || null, bandeira || null]
+  );
+  conversationIdCache.set(cnpj, res.rows[0].id);
+  return res.rows[0];
+}
+
+async function fetchMessages(conversationId: string) {
+  const res = await pool.query(
+    'SELECT * FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC',
+    [conversationId]
+  );
+  return res.rows.map(rowToMessage);
+}
+
+function rowToMessage(row: any) {
+  return {
+    id: row.id,
+    conversation_id: row.conversation_id,
+    sender_id: row.sender_id,
+    sender_name: row.sender_name,
+    sender_type: row.sender_type,
+    text: row.message,
+    timestamp: row.created_at,
+    read: row.read,
+    attachment_url: row.attachment_url || undefined,
+    attachment_type: row.attachment_type || undefined,
+  };
+}
+
+async function fetchConversationsWithUnread() {
+  const res = await pool.query(`
+    SELECT c.id, c.user_id AS user_id, c.user_name, c.bandeira, c.updated_at,
+      (SELECT COUNT(*) FROM support_messages m WHERE m.conversation_id = c.id AND m.sender_type = 'user' AND m.read = false)::int AS unread_count
+    FROM support_conversations c
+    ORDER BY c.updated_at DESC
+  `);
+  return res.rows;
+}
 
 async function startServer() {
   const app = express();
@@ -38,39 +112,7 @@ async function startServer() {
   app.use('/gallery', galleryRouter);
   app.use('/api', apiRouter);
 
-  // In-memory fallback for the last 100 messages
-  let inMemoryMessages: any[] = [];
-
-  // Cleanup old messages every 10 minutes
-  setInterval(async () => {
-    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-    inMemoryMessages = inMemoryMessages.filter(m => new Date(m.timestamp) > sixHoursAgo);
-
-    if (supabase) {
-      try {
-        let { error } = await supabase
-          .from('chat_messages')
-          .delete()
-          .lt('created_at', sixHoursAgo.toISOString());
-
-        if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
-          const { error: retryError } = await supabase
-            .from('chat_messagens')
-            .delete()
-            .lt('created_at', sixHoursAgo.toISOString());
-          error = retryError;
-        }
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error cleaning up Supabase messages:', error);
-        }
-      } catch (err) {
-        console.error('Supabase cleanup exception:', err);
-      }
-    }
-  }, 10 * 60 * 1000);
-
-  const activeUsers = new Map();
+  await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
 
   io.on("connection", (socket) => {
     console.log("New socket connection attempt:", socket.id);
@@ -82,184 +124,130 @@ async function startServer() {
     socket.on("user:join", async (userData) => {
       if (!userData) return;
       const cnpj = String(userData.cnpj || '').replace(/[^\d]/g, '');
-      const username = String(userData.username || 'Unknown');
-      const role = String(userData.role || 'user');
+      const username = String(userData.username || 'Usuário');
+      const role = userData.role === 'admin' ? 'admin' : 'user';
+      const bandeira = userData.bandeira ? String(userData.bandeira) : undefined;
 
-      console.log(`[CHAT] User joined: ${username} (${cnpj}) as ${role}`);
-      activeUsers.set(socket.id, { ...userData, cnpj, username, role });
+      socket.data.cnpj = cnpj;
+      socket.data.username = username;
+      socket.data.role = role;
 
-      if (cnpj) {
-        socket.join(`user_${cnpj}`);
-        console.log(`[CHAT] Socket ${socket.id} joined room: user_${cnpj}`);
-      }
-
-      if (role === 'admin') {
-        socket.join("admin_room");
-        console.log(`[CHAT] Socket ${socket.id} joined room: admin_room`);
-      }
-
-      let history: any[] = [];
-
-      if (supabase) {
-        try {
-          let { data, error } = await supabase
-            .from('chat_messages')
-            .select('*')
-            .order('created_at', { ascending: true });
-
-          if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
-            const { data: retryData, error: retryError } = await supabase
-              .from('chat_messagens')
-              .select('*')
-              .order('created_at', { ascending: true });
-            data = retryData;
-            error = retryError;
-          }
-
-          if (!error && data) {
-            history = data.map(m => ({
-              id: m.id,
-              text: m.text,
-              timestamp: m.created_at,
-              from: {
-                cnpj: m.from_cnpj,
-                username: m.from_username,
-                role: m.from_role
-              },
-              to: m.to_cnpj ? {
-                cnpj: m.to_cnpj,
-                username: m.to_username
-              } : null,
-              attachment: m.attachment,
-              attachmentType: m.attachment_type
-            }));
-          }
-        } catch (err) {
-          console.error('Error fetching Supabase history:', err);
+      try {
+        if (role === 'admin') {
+          socket.join('admin_room');
+          const conversations = await fetchConversationsWithUnread();
+          socket.emit('conversation:list', { conversations });
+        } else {
+          if (!cnpj) return;
+          const conv = await findOrCreateConversation(cnpj, username, bandeira);
+          socket.join(`conv_${conv.id}`);
+          const messages = await fetchMessages(conv.id);
+          socket.emit('message:history', { conversationId: conv.id, cnpj, messages });
         }
+      } catch (err) {
+        console.error('[CHAT] Erro no user:join:', err);
       }
-
-      const combinedHistory = [...history, ...inMemoryMessages];
-      const uniqueHistory = Array.from(new Map(combinedHistory.map(m => [m.id, m])).values())
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-      const filteredHistory = uniqueHistory.filter(m =>
-        userData.role === 'admin' || m.from.cnpj === userData.cnpj || m.to?.cnpj === userData.cnpj
-      );
-
-      socket.emit("message:history", filteredHistory);
     });
 
-    socket.on("message:send", async (messageData) => {
-      const fullMessage = {
-        ...messageData,
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: new Date().toISOString()
-      };
-
-      console.log(`Message from ${messageData.from.username} (${messageData.from.role}) to ${messageData.to?.cnpj || 'All'}`);
-
-      inMemoryMessages.push(fullMessage);
-      if (inMemoryMessages.length > 500) inMemoryMessages.shift();
-
-      if (supabase) {
-        try {
-          let { error } = await supabase
-            .from('chat_messages')
-            .insert([{
-              id: fullMessage.id,
-              from_cnpj: fullMessage.from.cnpj,
-              from_username: fullMessage.from.username,
-              from_role: fullMessage.from.role,
-              to_cnpj: fullMessage.to?.cnpj || null,
-              to_username: fullMessage.to?.username || null,
-              text: fullMessage.text,
-              attachment: fullMessage.attachment || null,
-              attachment_type: fullMessage.attachmentType || null,
-              created_at: fullMessage.timestamp
-            }]);
-
-          if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
-            const { error: retryError } = await supabase
-              .from('chat_messagens')
-              .insert([{
-                id: fullMessage.id,
-                from_cnpj: fullMessage.from.cnpj,
-                from_username: fullMessage.from.username,
-                from_role: fullMessage.from.role,
-                to_cnpj: fullMessage.to?.cnpj || null,
-                to_username: fullMessage.to?.username || null,
-                text: fullMessage.text,
-                attachment: fullMessage.attachment || null,
-                attachment_type: fullMessage.attachmentType || null,
-                created_at: fullMessage.timestamp
-              }]);
-            error = retryError;
-          }
-
-          if (error) console.error('Supabase insert error:', error.message);
-        } catch (err) {
-          console.error('Supabase insert exception:', err);
-        }
+    socket.on("conversation:open", async (data) => {
+      if (socket.data.role !== 'admin') return;
+      const cnpj = String(data?.cnpj || '').replace(/[^\d]/g, '');
+      if (!cnpj) return;
+      try {
+        const conv = await findOrCreateConversation(cnpj);
+        const messages = await fetchMessages(conv.id);
+        socket.emit('message:history', { conversationId: conv.id, cnpj, messages });
+      } catch (err) {
+        console.error('[CHAT] Erro no conversation:open:', err);
       }
+    });
 
-      const targetCnpj = messageData.to?.cnpj ? String(messageData.to.cnpj) : null;
-      const fromCnpj = String(messageData.from.cnpj || '');
+    socket.on("message:send", async (data) => {
+      const senderRole = socket.data.role === 'admin' ? 'admin' : 'user';
+      const targetCnpj = senderRole === 'admin'
+        ? String(data?.cnpj || '').replace(/[^\d]/g, '')
+        : String(socket.data.cnpj || '');
+      const text = typeof data?.text === 'string' ? data.text.trim() : '';
+      const attachmentUrl = data?.attachmentUrl ? String(data.attachmentUrl) : null;
+      const attachmentType = data?.attachmentType ? String(data.attachmentType) : null;
 
-      if (messageData.from.role === 'admin') {
-        if (targetCnpj) {
-          io.to(`user_${targetCnpj}`).emit("message:receive", fullMessage);
-          io.to("admin_room").emit("message:receive", fullMessage);
-        } else {
-          io.emit("message:receive", fullMessage);
-        }
-      } else {
-        io.to("admin_room").emit("message:receive", fullMessage);
-        io.to(`user_${fromCnpj}`).emit("message:receive", fullMessage);
+      if (!targetCnpj || (!text && !attachmentUrl)) return;
+
+      try {
+        const conv = await findOrCreateConversation(targetCnpj);
+        const senderId = senderRole === 'admin' ? 'admin' : targetCnpj;
+        const senderName = socket.data.username || (senderRole === 'admin' ? 'Suporte' : 'Usuário');
+
+        const inserted = await pool.query(
+          `INSERT INTO support_messages (conversation_id, sender_id, sender_name, sender_type, message, attachment_url, attachment_type, read, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, false, now()) RETURNING *`,
+          [conv.id, senderId, senderName, senderRole, text, attachmentUrl, attachmentType]
+        );
+        await pool.query('UPDATE support_conversations SET updated_at = now() WHERE id = $1', [conv.id]);
+
+        const message = rowToMessage(inserted.rows[0]);
+
+        io.to(`conv_${conv.id}`).emit('message:receive', { cnpj: targetCnpj, message });
+        io.to('admin_room').emit('message:receive', { cnpj: targetCnpj, message });
+      } catch (err) {
+        console.error('[CHAT] Erro no message:send:', err);
+      }
+    });
+
+    socket.on("message:read", async (data) => {
+      const readerRole = socket.data.role === 'admin' ? 'admin' : 'user';
+      const targetCnpj = readerRole === 'admin'
+        ? String(data?.cnpj || '').replace(/[^\d]/g, '')
+        : String(socket.data.cnpj || '');
+      if (!targetCnpj) return;
+
+      try {
+        const conv = await findOrCreateConversation(targetCnpj);
+        const otherType = readerRole === 'admin' ? 'user' : 'admin';
+        await pool.query(
+          `UPDATE support_messages SET read = true WHERE conversation_id = $1 AND sender_type = $2 AND read = false`,
+          [conv.id, otherType]
+        );
+        io.to(`conv_${conv.id}`).emit('message:read_receipt', { cnpj: targetCnpj, readerType: readerRole });
+        io.to('admin_room').emit('message:read_receipt', { cnpj: targetCnpj, readerType: readerRole });
+      } catch (err) {
+        console.error('[CHAT] Erro no message:read:', err);
       }
     });
 
     socket.on("message:clear", async (data) => {
-      const { cnpj, role } = data;
-      console.log(`Clearing messages for CNPJ: ${cnpj} (Requested by ${role})`);
+      const requesterRole = socket.data.role === 'admin' ? 'admin' : 'user';
+      const targetCnpj = requesterRole === 'admin'
+        ? String(data?.cnpj || '').replace(/[^\d]/g, '')
+        : String(socket.data.cnpj || '');
+      if (!targetCnpj) return;
 
-      inMemoryMessages = inMemoryMessages.filter(m =>
-        m.from.cnpj !== cnpj && m.to?.cnpj !== cnpj
-      );
-
-      if (supabase) {
-        try {
-          let { error } = await supabase
-            .from('chat_messages')
-            .delete()
-            .or(`from_cnpj.eq.${cnpj},to_cnpj.eq.${cnpj}`);
-
-          if (error && (error.code === '42P01' || error.message?.includes('not found'))) {
-            const { error: retryError } = await supabase
-              .from('chat_messagens')
-              .delete()
-              .or(`from_cnpj.eq.${cnpj},to_cnpj.eq.${cnpj}`);
-            error = retryError;
-          }
-
-          if (error) console.error('Supabase delete error:', error.message);
-        } catch (err) {
-          console.error('Supabase delete exception:', err);
-        }
-      }
-
-      if (role === 'admin') {
-        io.to(`user_${cnpj}`).emit("message:history", []);
-        io.to("admin_room").emit("message:cleared", { cnpj });
-      } else {
-        socket.emit("message:history", []);
-        io.to("admin_room").emit("message:cleared", { cnpj });
+      try {
+        const conv = await findOrCreateConversation(targetCnpj);
+        await pool.query('DELETE FROM support_messages WHERE conversation_id = $1', [conv.id]);
+        io.to(`conv_${conv.id}`).emit('message:cleared', { cnpj: targetCnpj });
+        io.to('admin_room').emit('message:cleared', { cnpj: targetCnpj });
+      } catch (err) {
+        console.error('[CHAT] Erro no message:clear:', err);
       }
     });
 
-    socket.on("disconnect", () => {
-      activeUsers.delete(socket.id);
+    socket.on("typing:update", async (data) => {
+      const role = socket.data.role === 'admin' ? 'admin' : 'user';
+      const targetCnpj = role === 'admin'
+        ? String(data?.cnpj || '').replace(/[^\d]/g, '')
+        : String(socket.data.cnpj || '');
+      const isTyping = !!data?.isTyping;
+      if (!targetCnpj) return;
+
+      const cachedId = conversationIdCache.get(targetCnpj);
+      const convId = cachedId || (await findOrCreateConversation(targetCnpj)).id;
+
+      io.to(`conv_${convId}`).emit('typing:update', { cnpj: targetCnpj, role, isTyping });
+      io.to('admin_room').emit('typing:update', { cnpj: targetCnpj, role, isTyping });
     });
+
+    socket.on("disconnect", () => {});
   });
 
   // ── Frontend ───────────────────────────────
