@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore, createDefaultLayout } from '../store';
-import { X, Layout as LayoutIcon, Search, Flag, MapPin, ChevronUp, ChevronDown, AlertTriangle, Check, Plus } from 'lucide-react';
+import { X, Layout as LayoutIcon, Search, Flag, MapPin, ChevronUp, ChevronDown, AlertTriangle, Check, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -10,6 +10,7 @@ export default function LayoutNamesModal() {
     layouts, activeLayoutIndex, flags,
     setLayoutName, setLayoutBandeira, setLayoutLocalidade,
     reorderLayouts, setLayoutHasThirdProduct, addLayout,
+    setLayoutHidden, deleteLayout,
   } = useStore();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,6 +21,7 @@ export default function LayoutNamesModal() {
   const [newModelName, setNewModelName] = useState('');
   const [newModelBandeira, setNewModelBandeira] = useState('');
   const [newModelLocalidade, setNewModelLocalidade] = useState('');
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
 
   if (!isLayoutNamesModalOpen) return null;
 
@@ -70,6 +72,13 @@ export default function LayoutNamesModal() {
     setNewModelName('');
     setNewModelBandeira('');
     setNewModelLocalidade('');
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmIndex === null) return;
+    deleteLayout(deleteConfirmIndex);
+    toast.success('Modelo excluído.');
+    setDeleteConfirmIndex(null);
   };
 
   const filteredIndexed = layouts
@@ -148,7 +157,8 @@ export default function LayoutNamesModal() {
                   "space-y-2 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border transition-all",
                   index === activeLayoutIndex
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500"
-                    : "border-zinc-200 dark:border-zinc-700"
+                    : "border-zinc-200 dark:border-zinc-700",
+                  layout.hidden && "opacity-50"
                 )}>
                   <div className="flex justify-between items-center mb-1">
                     <div className="flex items-center gap-2">
@@ -172,16 +182,35 @@ export default function LayoutNamesModal() {
                         </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setLayoutHasThirdProduct(index, !layout.hasThirdProduct)}
-                      className={cn(
-                        "p-1 rounded transition-colors",
-                        layout.hasThirdProduct ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800"
-                      )}
-                      title={layout.hasThirdProduct ? "Desativar 3º Produto" : "Ativar 3º Produto"}
-                    >
-                      <LayoutIcon className="w-3 h-3" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setLayoutHasThirdProduct(index, !layout.hasThirdProduct)}
+                        className={cn(
+                          "p-1 rounded transition-colors",
+                          layout.hasThirdProduct ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800"
+                        )}
+                        title={layout.hasThirdProduct ? "Desativar 3º Produto" : "Ativar 3º Produto"}
+                      >
+                        <LayoutIcon className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => setLayoutHidden(index, !layout.hidden)}
+                        className={cn(
+                          "p-1 rounded transition-colors",
+                          layout.hidden ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20" : "text-black dark:text-white opacity-40 bg-zinc-100 dark:bg-zinc-800"
+                        )}
+                        title={layout.hidden ? "Modelo oculto — clique para reexibir" : "Ocultar modelo (some da seleção)"}
+                      >
+                        {layout.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmIndex(index)}
+                        className="p-1 rounded transition-colors text-red-500 bg-zinc-100 dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        title="Excluir modelo"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div>
@@ -343,6 +372,34 @@ export default function LayoutNamesModal() {
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold"
               >
                 Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmIndex !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="text-lg font-bold">Excluir Modelo</h3>
+            </div>
+            <p className="text-sm text-black dark:text-white opacity-60">
+              Deseja excluir permanentemente "{layouts[deleteConfirmIndex]?.name}"? Essa ação não pode ser desfeita, e o modelo será removido dos favoritos e das permissões de lojas que o usam.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setDeleteConfirmIndex(null)}
+                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold"
+              >
+                Excluir
               </button>
             </div>
           </div>

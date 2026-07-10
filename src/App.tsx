@@ -80,7 +80,7 @@ export default function App() {
     }
 
     // Sort by sortOrder
-    return baseLayouts.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    return baseLayouts.filter((l) => !l.hidden).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }, [layouts, userRole, currentUser, allowedStores]);
 
   // Map filtered index back to original index for setActiveLayout

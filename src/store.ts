@@ -65,6 +65,7 @@ export interface Product {
 
 export interface Layout {
   name: string;
+  hidden?: boolean;
   bandeira?: string;
   localidade?: string;
   sortOrder?: number;
@@ -255,6 +256,8 @@ interface AppState {
   reorderLayouts: (fromIndex: number, toIndex: number) => void;
   setLayoutHasThirdProduct: (index: number, hasThirdProduct: boolean) => void;
   addLayout: (name: string, bandeira?: string, localidade?: string) => number;
+  setLayoutHidden: (index: number, hidden: boolean) => void;
+  deleteLayout: (index: number) => void;
 
   setElement: (slot: 1 | 2 | 3, key: keyof AppState['textElements1'], settings: Partial<TextSettings>) => void;
   setProductImage: (slot: 1 | 2 | 3, settings: Partial<ImageSettings>) => void;
@@ -408,6 +411,7 @@ interface AppState {
 }
 
 let saveTimeout: NodeJS.Timeout | null = null;
+let usersAndFlagsSaveTimeout: NodeJS.Timeout | null = null;
 
 const DEFAULT_TEXT = {
   fontSize: 40,
@@ -666,6 +670,50 @@ export const useStore = create<AppState>()(
         set((state) => ({ layouts: [...state.layouts, newLayout] }));
         get().saveLayoutDebounced();
         return newIndex;
+      },
+
+      setLayoutHidden: (index, hidden) => {
+        set((state) => {
+          const newLayouts = [...state.layouts];
+          newLayouts[index] = { ...newLayouts[index], hidden };
+          return { layouts: newLayouts };
+        });
+        get().saveLayoutDebounced();
+      },
+
+      deleteLayout: (index) => {
+        set((state) => {
+          // Remove o modelo e renumera sortOrder dos que restaram
+          const newLayouts = state.layouts.filter((_, i) => i !== index).map((l, i) => ({ ...l, sortOrder: i }));
+
+          // Índices numéricos em outros lugares (favoritos, permissões por loja)
+          // apontam para a posição no array — precisam ser remapeados após a remoção.
+          const remap = (i: number): number | null => (i === index ? null : i > index ? i - 1 : i);
+
+          const newFavoriteLayouts = state.favoriteLayouts
+            .map(remap)
+            .filter((i): i is number => i !== null);
+
+          const newAllowedStores = state.allowedStores.map((s) => (
+            s.allowedLayouts
+              ? { ...s, allowedLayouts: s.allowedLayouts.map(remap).filter((i): i is number => i !== null) }
+              : s
+          ));
+
+          let newActiveIndex = state.activeLayoutIndex;
+          if (newActiveIndex === index) newActiveIndex = 0;
+          else if (newActiveIndex > index) newActiveIndex -= 1;
+          newActiveIndex = Math.min(newActiveIndex, Math.max(0, newLayouts.length - 1));
+
+          return {
+            layouts: newLayouts,
+            favoriteLayouts: newFavoriteLayouts,
+            allowedStores: newAllowedStores,
+            activeLayoutIndex: newActiveIndex,
+          };
+        });
+        get().saveLayoutDebounced();
+        get().saveUsersAndFlagsDebounced();
       },
 
       setElement: (slot, key, settings) => {
@@ -996,8 +1044,8 @@ export const useStore = create<AppState>()(
       },
 
       saveUsersAndFlagsDebounced: () => {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => get().saveUsersAndFlags(), 1000);
+        if (usersAndFlagsSaveTimeout) clearTimeout(usersAndFlagsSaveTimeout);
+        usersAndFlagsSaveTimeout = setTimeout(() => get().saveUsersAndFlags(), 1000);
       },
 
       // ── saveUsersAndFlags → /api/settings/users_and_flags ──────────────────
