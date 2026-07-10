@@ -254,6 +254,7 @@ interface AppState {
   setLayoutLocalidade: (index: number, localidade: string) => void;
   reorderLayouts: (fromIndex: number, toIndex: number) => void;
   setLayoutHasThirdProduct: (index: number, hasThirdProduct: boolean) => void;
+  addLayout: (name: string, bandeira?: string, localidade?: string) => number;
 
   setElement: (slot: 1 | 2 | 3, key: keyof AppState['textElements1'], settings: Partial<TextSettings>) => void;
   setProductImage: (slot: 1 | 2 | 3, settings: Partial<ImageSettings>) => void;
@@ -653,6 +654,18 @@ export const useStore = create<AppState>()(
           return { layouts: newLayouts };
         });
         get().saveLayoutDebounced();
+      },
+
+      addLayout: (name, bandeira, localidade) => {
+        const newIndex = get().layouts.length;
+        const newLayout: Layout = {
+          ...createDefaultLayout(name.trim() || `Modelo ${newIndex + 1}`, newIndex),
+          bandeira: bandeira || undefined,
+          localidade: localidade || undefined,
+        };
+        set((state) => ({ layouts: [...state.layouts, newLayout] }));
+        get().saveLayoutDebounced();
+        return newIndex;
       },
 
       setElement: (slot, key, settings) => {

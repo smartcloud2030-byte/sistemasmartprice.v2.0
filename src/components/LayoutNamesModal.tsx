@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore, createDefaultLayout } from '../store';
-import { X, Layout as LayoutIcon, Search, Flag, MapPin, ChevronUp, ChevronDown, AlertTriangle, Check } from 'lucide-react';
+import { X, Layout as LayoutIcon, Search, Flag, MapPin, ChevronUp, ChevronDown, AlertTriangle, Check, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -9,13 +9,17 @@ export default function LayoutNamesModal() {
     isLayoutNamesModalOpen, setLayoutNamesModalOpen,
     layouts, activeLayoutIndex, flags,
     setLayoutName, setLayoutBandeira, setLayoutLocalidade,
-    reorderLayouts, setLayoutHasThirdProduct,
+    reorderLayouts, setLayoutHasThirdProduct, addLayout,
   } = useStore();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [creatingLocalidadeFor, setCreatingLocalidadeFor] = useState<number | null>(null);
   const [newLocalidadeValue, setNewLocalidadeValue] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newModelName, setNewModelName] = useState('');
+  const [newModelBandeira, setNewModelBandeira] = useState('');
+  const [newModelLocalidade, setNewModelLocalidade] = useState('');
 
   if (!isLayoutNamesModalOpen) return null;
 
@@ -53,6 +57,19 @@ export default function LayoutNamesModal() {
     useStore.getState().saveLayout();
     toast.success('Modelos resetados com sucesso!');
     setShowResetConfirm(false);
+  };
+
+  const handleCreateModel = () => {
+    if (!newModelName.trim()) {
+      toast.error('Digite um nome para o novo modelo.');
+      return;
+    }
+    addLayout(newModelName, newModelBandeira || undefined, newModelLocalidade || undefined);
+    toast.success('Modelo criado com sucesso!');
+    setShowCreateModal(false);
+    setNewModelName('');
+    setNewModelBandeira('');
+    setNewModelLocalidade('');
   };
 
   const filteredIndexed = layouts
@@ -93,6 +110,13 @@ export default function LayoutNamesModal() {
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-black dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               />
             </div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Modelo
+            </button>
             <button
               onClick={() => setShowResetConfirm(true)}
               className="text-[10px] font-bold text-black dark:text-white opacity-40 hover:opacity-100 uppercase tracking-widest transition-colors whitespace-nowrap"
@@ -253,6 +277,77 @@ export default function LayoutNamesModal() {
           )}
         </div>
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-blue-600">
+              <Plus className="w-6 h-6" />
+              <h3 className="text-lg font-bold text-black dark:text-white">Novo Modelo</h3>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[8px] font-bold text-zinc-500 uppercase block mb-1">Nome</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newModelName}
+                  onChange={(e) => setNewModelName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateModel(); }}
+                  placeholder="Ex: Oferta Semana PL"
+                  className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm font-bold text-black dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8px] font-bold text-zinc-500 uppercase flex items-center gap-1 mb-1">
+                    <Flag className="w-2.5 h-2.5" /> Bandeira
+                  </label>
+                  <select
+                    value={newModelBandeira}
+                    onChange={(e) => setNewModelBandeira(e.target.value)}
+                    className="w-full px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[11px] font-bold text-black dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Selecionar...</option>
+                    {flags.map((flag) => (
+                      <option key={flag} value={flag}>{flag}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[8px] font-bold text-zinc-500 uppercase flex items-center gap-1 mb-1">
+                    <MapPin className="w-2.5 h-2.5" /> Localidade
+                  </label>
+                  <select
+                    value={newModelLocalidade}
+                    onChange={(e) => setNewModelLocalidade(e.target.value)}
+                    className="w-full px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[11px] font-bold text-black dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Selecionar...</option>
+                    {uniqueLocalidades.map((loc) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => { setShowCreateModal(false); setNewModelName(''); setNewModelBandeira(''); setNewModelLocalidade(''); }}
+                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateModel}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold"
+              >
+                Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showResetConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
