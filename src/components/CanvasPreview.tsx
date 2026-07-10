@@ -422,36 +422,36 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
 
   return (
     <div ref={containerRef} className="relative flex flex-col justify-center items-center bg-zinc-100 dark:bg-zinc-900 overflow-hidden h-full max-h-full">
-      {/* Zoom Controls */}
+      {/* Zoom Controls — discreto: baixa opacidade em repouso, revela no hover */}
       {!isPrinting && (
-        <div className="absolute bottom-6 right-6 z-50 flex items-center gap-3 bg-white dark:bg-zinc-800 p-2 rounded-full shadow-lg border border-zinc-200 dark:border-zinc-700 no-print">
-          <button 
+        <div className="absolute bottom-4 right-4 z-50 flex items-center gap-1.5 bg-white/70 dark:bg-zinc-800/70 backdrop-blur-sm px-1.5 py-1 rounded-full shadow-sm border border-zinc-200/60 dark:border-zinc-700/60 no-print opacity-35 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+          <button
             onClick={() => setZoom(Math.max(0.1, zoom - 0.1))}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+            className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-xs leading-none"
           >
             -
           </button>
-          <input 
-            type="range" 
-            min="0.1" 
-            max="3" 
-            step="0.1" 
-            value={zoom} 
+          <input
+            type="range"
+            min="0.1"
+            max="3"
+            step="0.1"
+            value={zoom}
             onChange={(e) => setZoom(parseFloat(e.target.value))}
-            className="w-24 accent-blue-500"
+            className="w-14 h-1 accent-blue-500"
           />
-          <button 
+          <button
             onClick={() => setZoom(Math.min(3, zoom + 0.1))}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+            className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-xs leading-none"
           >
             +
           </button>
-          <span className="text-xs font-medium text-zinc-500 w-10 text-center">
+          <span className="text-[9px] font-medium text-zinc-400 w-8 text-center">
             {Math.round(zoom * 100)}%
           </span>
-          <button 
+          <button
             onClick={() => setZoom(1)}
-            className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold bg-zinc-100 dark:bg-zinc-700 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600"
+            className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
             Reset
           </button>

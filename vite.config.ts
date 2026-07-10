@@ -20,9 +20,11 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: {
-        // .claude/ is rewritten continuously by Claude Code during a session;
-        // without this, every write triggers a full browser reload.
-        ignored: ['**/.claude/**'],
+        // .claude/, .agents/, .codex/, .github/skills, .github/hooks are agent
+        // config/skills directories (not app code) rewritten during a session;
+        // without this, every write triggers a reload or crashes the watcher
+        // (Windows EBUSY on skill files locked by the installer/other tools).
+        ignored: ['**/.claude/**', '**/.agents/**', '**/.codex/**', '**/.github/skills/**', '**/.github/hooks/**'],
       },
     },
   };
