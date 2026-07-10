@@ -663,6 +663,16 @@ export default function App() {
                 </button>
               )}
 
+              {userRole !== 'admin' && (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="h-10 w-10 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400"
+                  title="Atualizar Página"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 onClick={toggleTheme}
                 className="h-10 w-10 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400"
