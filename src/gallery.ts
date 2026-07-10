@@ -71,6 +71,9 @@ function displayName(filename: string): string {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// Pastas internas do sistema — nunca aparecem como galeria selecionável pelo usuário
+const INTERNAL_CATEGORIES = new Set(['chat']);
+
 // ── Listar categorias ─────────────────────
 router.get('/categories', authGallery, async (_req: Request, res: Response) => {
   try {
@@ -79,7 +82,7 @@ router.get('/categories', authGallery, async (_req: Request, res: Response) => {
     stream.on('data', (obj) => {
       if (obj.name && obj.name.includes('/')) categories.add(obj.name.split('/')[0]);
     });
-    stream.on('end', () => res.json([...categories].sort()));
+    stream.on('end', () => res.json([...categories].filter((c) => !INTERNAL_CATEGORIES.has(c)).sort()));
     stream.on('error', (err) => res.status(500).json({ error: err.message }));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -168,6 +171,35 @@ router.delete('/delete/*', authGallery, async (req: Request, res: Response) => {
   try {
     await minioClient.removeObject(BUCKET, fullPath);
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Limpeza automática das imagens do chat (retenção de 7 dias) ──
+// Chamada diariamente via cron (scripts/cleanup-chat-images.sh). Só apaga
+// arquivos dentro da pasta "chat/" — nenhuma outra galeria é afetada.
+router.post('/cleanup-chat', authGallery, async (_req: Request, res: Response) => {
+  const RETENTION_DAYS = 7;
+  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  try {
+    const toDelete: string[] = [];
+    await new Promise<void>((resolve, reject) => {
+      const stream = minioClient.listObjectsV2(BUCKET, 'chat/', true);
+      stream.on('data', (obj) => {
+        if (obj.name && obj.lastModified && new Date(obj.lastModified).getTime() < cutoff) {
+          toDelete.push(obj.name);
+        }
+      });
+      stream.on('end', () => resolve());
+      stream.on('error', (err) => reject(err));
+    });
+
+    for (const name of toDelete) {
+      await minioClient.removeObject(BUCKET, name);
+    }
+
+    res.json({ deleted: toDelete.length, retentionDays: RETENTION_DAYS });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
