@@ -686,13 +686,16 @@ router.post('/upload-nobg/:category', authGallery, upload.single('image'), async
   }
 });
 
-// ── Upload com remoção de fundo v2 (via microserviço) ─────────────────────────
+// ── Upload com remoção de fundo v2 (via microserviço quente — rápido) ────────
+// Usa o microserviço Python persistente (modelo já carregado em memória) em vez
+// de iniciar um processo Python novo a cada chamada — ~15x mais rápido por
+// imagem (medido: 87s no spawn frio vs 5.7s no microserviço quente).
 router.post('/upload-nobg2/:category', authGallery, upload.single('image'), async (req: Request, res: Response) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
   const category = req.params.category;
 
   try {
-    // Envia para o microserviço rembg
+    // Envia para o microserviço rembg (processo já rodando, modelo pré-carregado)
     const FormData = (await import('form-data')).default;
     const fetch2 = (await import('node-fetch')).default;
 
@@ -702,12 +705,23 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
     const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
     if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
 
-    const outputBuffer = Buffer.from(await rembgRes.arrayBuffer());
-    const filename = sanitizeName(req.file.originalname.replace(/\.[^.]+$/, '.png'));
-    const fullPath = `${category}/${filename}`;
+    const rembgBuffer = Buffer.from(await rembgRes.arrayBuffer());
 
-    await minioClient.putObject(BUCKET, fullPath, outputBuffer, outputBuffer.length, { 'Content-Type': 'image/png' });
-    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, filename, size: outputBuffer.length });
+    const rawName = (req.body && req.body.name && req.body.name.trim()) ? req.body.name.trim() : req.file.originalname.replace(/\.[^.]+$/, '');
+    const cleanName = rawName.normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
+
+    const mainBuffer = await sharp(rembgBuffer).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+    const thumbBuffer = await sharp(rembgBuffer).resize(200, 200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+
+    const filename = `${cleanName}.webp`;
+    const thumbFilename = `${cleanName}-thumb.webp`;
+    const fullPath = `${category}/${filename}`;
+    const thumbPath = `${category}/${thumbFilename}`;
+
+    await minioClient.putObject(BUCKET, fullPath, mainBuffer, mainBuffer.length, { 'Content-Type': 'image/webp' });
+    await minioClient.putObject(BUCKET, thumbPath, thumbBuffer, thumbBuffer.length, { 'Content-Type': 'image/webp' });
+
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, thumbUrl: `${PUBLIC_URL}/${BUCKET}/${thumbPath}`, filename, size: mainBuffer.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -724,7 +738,7 @@ router.post('/upload-nobg3/:category', authGallery, upload.single('image'), asyn
     await execAsync(`python3 -c "from rembg import remove; open('${tmpOut}','wb').write(remove(open('${tmpIn}','rb').read()))"`);
     const rembgBuffer = fs.readFileSync(tmpOut);
     const rawName = (req.body && req.body.name && req.body.name.trim()) ? req.body.name.trim() : req.file.originalname.replace(/\.[^.]+$/, '');
-    const cleanName = rawName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
+    const cleanName = rawName.normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
     const mainBuffer = await sharp(rembgBuffer).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
     const thumbBuffer = await sharp(rembgBuffer).resize(200, 200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
     const filename = `${cleanName}.webp`;

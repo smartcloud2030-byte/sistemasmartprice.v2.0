@@ -43,7 +43,7 @@ async function uploadToMinio(file: File, category: string, productName: string):
   const formData = new FormData();
   formData.append('image', file);
   formData.append('name', productName || '');
-  const res = await fetch(`/gallery/upload-nobg3/${folder}`, {
+  const res = await fetch(`/gallery/upload-nobg2/${folder}`, {
     method: 'POST',
     headers: { 'x-gallery-token': GALLERY_PASSWORD },
     body: formData,
@@ -86,6 +86,8 @@ const ProductManager = () => {
   const [bulkPendingFiles, setBulkPendingFiles] = useState<Record<number, File>>({});
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [bulkUploadStatus, setBulkUploadStatus] = useState('');
+  const [bulkUploadProgress, setBulkUploadProgress] = useState({ done: 0, total: 0 });
+  const [isBulkDragOver, setIsBulkDragOver] = useState(false);
 
   const filenameToName = (filename: string) => {
     const noExt = filename.replace(/\.[^.]+$/, '');
@@ -516,25 +518,56 @@ const ProductManager = () => {
               </div>
               <button onClick={() => setIsMultiRegisterModalOpen(false)} className="hover:bg-white/20 p-2 rounded-full"><Plus className="w-6 h-6 rotate-45" /></button>
             </div>
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Categoria padrão do lote:</label>
-                <select className="px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-black dark:text-white"
-                  value={bulkDefaultCategory} onChange={e => setBulkDefaultCategory(e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Categoria padrão do lote:</label>
+                  <select className="px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-black dark:text-white"
+                    value={bulkDefaultCategory} onChange={e => setBulkDefaultCategory(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </div>
               </div>
-              <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold cursor-pointer ${bulkDefaultCategory ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-zinc-300 text-zinc-500 cursor-not-allowed'}`}>
+
+              <label
+                onDragOver={e => { e.preventDefault(); if (bulkDefaultCategory && !isBulkUploading) setIsBulkDragOver(true); }}
+                onDragLeave={() => setIsBulkDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setIsBulkDragOver(false);
+                  if (!bulkDefaultCategory || isBulkUploading) return;
+                  handleBulkMultiFileSelect(e.dataTransfer.files);
+                }}
+                className={`flex items-center justify-center gap-2 px-4 py-4 rounded-xl border-2 border-dashed text-sm font-semibold transition-colors ${
+                  !bulkDefaultCategory || isBulkUploading
+                    ? 'border-zinc-300 dark:border-zinc-700 text-zinc-400 cursor-not-allowed'
+                    : isBulkDragOver
+                      ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 cursor-pointer'
+                      : 'border-emerald-400 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 cursor-pointer'
+                }`}
+              >
                 <Upload className="w-4 h-4" />
-                Selecionar várias imagens (remove fundo com IA)
+                Arraste várias imagens aqui ou clique para selecionar (remove fundo com IA)
                 <input type="file" accept="image/*" multiple disabled={!bulkDefaultCategory || isBulkUploading} className="hidden"
                   onChange={e => handleBulkMultiFileSelect(e.target.files)} />
               </label>
+
               {isBulkUploading && (
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {bulkUploadStatus}
-                </span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {bulkUploadStatus}
+                    </span>
+                    <span>{bulkUploadProgress.done}/{bulkUploadProgress.total}</span>
+                  </div>
+                  <div className="w-full h-2 bg-emerald-200 dark:bg-emerald-900/40 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                      style={{ width: `${bulkUploadProgress.total ? (bulkUploadProgress.done / bulkUploadProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
               )}
             </div>
             <div className="flex-1 overflow-auto p-6 bg-zinc-50 dark:bg-zinc-950">
@@ -579,23 +612,38 @@ const ProductManager = () => {
                 const pendingEntries = Object.entries(bulkPendingFiles);
                 if (pendingEntries.length > 0) {
                   setIsBulkUploading(true);
-                  for (let i = 0; i < pendingEntries.length; i++) {
-                    const [idxStr, file] = pendingEntries[i];
-                    const idx = Number(idxStr);
-                    const row = rows[idx];
-                    if (!row) continue;
-                    setBulkUploadStatus(`Removendo fundo ${i + 1}/${pendingEntries.length}: ${row.name}`);
-                    try {
-                      const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name);
-                      rows[idx] = { ...row, image: result.url, thumb_image: result.thumbUrl };
-                    } catch (e: any) {
-                      toast.error(`Falha em ${row.name}: ${e.message || 'erro no upload'}`);
+                  setBulkUploadProgress({ done: 0, total: pendingEntries.length });
+
+                  const CONCURRENCY = 3; // processa várias imagens ao mesmo tempo (a IA de remoção de fundo suporta chamadas simultâneas)
+                  let doneCount = 0;
+                  let cursor = 0;
+                  const advance = () => { doneCount++; setBulkUploadProgress({ done: doneCount, total: pendingEntries.length }); };
+
+                  const worker = async () => {
+                    while (cursor < pendingEntries.length) {
+                      const myIndex = cursor++;
+                      const [idxStr, file] = pendingEntries[myIndex];
+                      const idx = Number(idxStr);
+                      const row = rows[idx];
+                      if (!row) { advance(); continue; }
+                      setBulkUploadStatus(`Removendo fundo: ${row.name}`);
+                      try {
+                        const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name);
+                        rows[idx] = { ...row, image: result.url, thumb_image: result.thumbUrl };
+                      } catch (e: any) {
+                        toast.error(`Falha em ${row.name}: ${e.message || 'erro no upload'}`);
+                      }
+                      advance();
                     }
-                  }
+                  };
+
+                  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pendingEntries.length) }, worker));
+
                   setMultiFormData(rows);
                   setBulkPendingFiles({});
                   setIsBulkUploading(false);
                   setBulkUploadStatus('');
+                  setBulkUploadProgress({ done: 0, total: 0 });
                 }
                 const valid = rows.filter(p => p.name.trim());
                 if (!valid.length) { toast.error('Preencha ao menos um produto.'); return; }
