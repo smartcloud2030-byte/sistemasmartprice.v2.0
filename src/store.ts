@@ -504,7 +504,7 @@ const buildDefaultLayouts = () => {
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      theme: 'light',
+      theme: 'dark',
       toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
 
       activeLayoutIndex: 0,
