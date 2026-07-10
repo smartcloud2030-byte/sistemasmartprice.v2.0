@@ -8,6 +8,7 @@ import {
 import { cn } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
 import SystemStats from './SystemStats';
+import BackupStatus from './BackupStatus';
 
 type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | null;
 
@@ -189,8 +190,13 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         {/* System stats */}
-        <motion.div {...entrance(0.34, shouldReduceMotion)}>
+        <motion.div {...entrance(0.3, shouldReduceMotion)}>
           <SystemStats />
+        </motion.div>
+
+        {/* Backup status */}
+        <motion.div {...entrance(0.34, shouldReduceMotion)}>
+          <BackupStatus />
         </motion.div>
 
         {/* Quick actions */}
