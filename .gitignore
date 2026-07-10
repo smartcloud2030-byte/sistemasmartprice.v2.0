@@ -6,3 +6,11 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Ferramentas/skills do assistente de IA (Claude Code) — locais, não fazem parte do produto
+.claude/
+.agents/
+.codex/
+.github/skills/
+.github/hooks/
+skills-lock.json
