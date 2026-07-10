@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
@@ -10,7 +11,17 @@ import SystemStats from './SystemStats';
 
 type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | null;
 
+// Curva de ease-out forte (cubic-bezier(0.23, 1, 0.32, 1)) — a padrão do CSS é fraca demais.
+const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
+// prefers-reduced-motion: mantém o fade (ajuda a orientar), remove o deslocamento.
+const entrance = (delay: number, reduceMotion: boolean | null) => ({
+  initial: { opacity: 0, y: reduceMotion ? 0 : 14 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: reduceMotion ? 0.2 : 0.4, ease: EASE_OUT, delay: reduceMotion ? 0 : delay },
+});
+
 const AdminDashboard: React.FC = () => {
+  const shouldReduceMotion = useReducedMotion();
   const {
     currentUser, allowedStores, layouts, userGroups, flags, products,
     printQueue, setView, setProductModalOpen, setUserModalOpen, setAnnouncementModalOpen,
@@ -108,7 +119,7 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-8">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <motion.div {...entrance(0, shouldReduceMotion)} className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
               <ShoppingBag className="w-6 h-6" />
@@ -151,36 +162,39 @@ const AdminDashboard: React.FC = () => {
               Sair
             </button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {stats.map(stat => {
+          {stats.map((stat, i) => {
             const Wrapper = stat.onClick ? 'button' : 'div';
             return (
-              <Wrapper
-                key={stat.label}
-                {...(stat.onClick ? { onClick: stat.onClick } : {})}
-                className={cn(
-                  'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-2 shadow-sm text-left w-full',
-                  stat.onClick && 'hover:border-blue-500/50 hover:shadow-md transition-all active:scale-95'
-                )}
-              >
-                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', stat.color)}>
-                  <stat.icon className="w-4.5 h-4.5" />
-                </div>
-                <p className="text-2xl font-black text-black dark:text-white tracking-tighter">{stat.value}</p>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{stat.label}</p>
-              </Wrapper>
+              <motion.div key={stat.label} {...entrance(0.06 + i * 0.04, shouldReduceMotion)}>
+                <Wrapper
+                  {...(stat.onClick ? { onClick: stat.onClick } : {})}
+                  className={cn(
+                    'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-2 shadow-sm text-left w-full',
+                    stat.onClick && 'hover:border-blue-500/50 hover:shadow-md transition-all active:scale-95'
+                  )}
+                >
+                  <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', stat.color)}>
+                    <stat.icon className="w-4.5 h-4.5" />
+                  </div>
+                  <p className="text-2xl font-black text-black dark:text-white tracking-tighter">{stat.value}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{stat.label}</p>
+                </Wrapper>
+              </motion.div>
             );
           })}
         </div>
 
         {/* System stats */}
-        <SystemStats />
+        <motion.div {...entrance(0.34, shouldReduceMotion)}>
+          <SystemStats />
+        </motion.div>
 
         {/* Quick actions */}
-        <div className="space-y-3">
+        <motion.div {...entrance(0.4, shouldReduceMotion)} className="space-y-3">
           <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Ações Rápidas</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {actions.map(action => (
@@ -200,10 +214,10 @@ const AdminDashboard: React.FC = () => {
               </button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Recent activity */}
-        <div className="space-y-3">
+        <motion.div {...entrance(0.46, shouldReduceMotion)} className="space-y-3">
           <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
             <Clock className="w-3.5 h-3.5" />
             Últimos Acessos
@@ -230,7 +244,7 @@ const AdminDashboard: React.FC = () => {
               ))
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {quickList && (

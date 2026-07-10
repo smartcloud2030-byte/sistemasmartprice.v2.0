@@ -2,9 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { ShoppingBag, Building2, Flag, User, Lock, ArrowRight, Moon, Sun, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { motion, useReducedMotion } from 'motion/react';
+
+// Curva de ease-out forte (cubic-bezier(0.23, 1, 0.32, 1)) — a padrão do CSS é fraca demais.
+const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
+// prefers-reduced-motion: mantém o fade (ajuda a orientar), remove o deslocamento.
+const entrance = (delay: number, reduceMotion: boolean | null) => ({
+  initial: { opacity: 0, y: reduceMotion ? 0 : 14 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: reduceMotion ? 0.2 : 0.45, ease: EASE_OUT, delay: reduceMotion ? 0 : delay },
+});
 
 export default function Login() {
   const { login, allowedStores, flags, theme, toggleTheme } = useStore();
+  const shouldReduceMotion = useReducedMotion();
   const [formData, setFormData] = useState({
     cnpj: '',
     bandeira: '',
@@ -100,7 +111,7 @@ export default function Login() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8 relative">
+        <motion.div {...entrance(0, shouldReduceMotion)} className="flex flex-col items-center mb-8 relative">
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20 mb-4">
             <ShoppingBag className="w-10 h-10" />
           </div>
@@ -108,10 +119,10 @@ export default function Login() {
             SISTEMASMART<span className="text-blue-600">PRICE</span>
           </h1>
           <p className="text-zinc-500 text-sm font-medium mt-1 uppercase tracking-widest">Acesso ao Sistema</p>
-        </div>
+        </motion.div>
 
         {/* Card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl shadow-black/5 dark:shadow-black/20 border border-zinc-200 dark:border-zinc-800 p-8 md:p-10 transition-colors">
+        <motion.div {...entrance(0.08, shouldReduceMotion)} className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl shadow-black/5 dark:shadow-black/20 border border-zinc-200 dark:border-zinc-800 p-8 md:p-10 transition-colors">
           <form onSubmit={handleSubmit} className="space-y-6">
             {!isAdmin && (
               <>
@@ -215,11 +226,11 @@ export default function Login() {
               )}
             </button>
           </form>
-        </div>
+        </motion.div>
 
-        <p className="text-center mt-8 text-zinc-400 text-[10px] font-bold uppercase tracking-[0.2em]">
+        <motion.p {...entrance(0.16, shouldReduceMotion)} className="text-center mt-8 text-zinc-400 text-[10px] font-bold uppercase tracking-[0.2em]">
           SistemaSmartPrice v2.0 • Gestão de Etiquetas Inteligentes
-        </p>
+        </motion.p>
       </div>
     </div>
   );
