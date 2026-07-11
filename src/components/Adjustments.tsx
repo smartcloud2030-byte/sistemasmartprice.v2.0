@@ -1,9 +1,35 @@
 import React from 'react';
 import { useStore, TextSettings, Layout as LayoutType, isThreeProduct } from '../store';
-import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight } from 'lucide-react';
+import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload } from 'lucide-react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
-import { cn, isValidImageUrl } from '../lib/utils';
+import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
+
+const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
+
+function slugifyCategory(value: string): string {
+  return value
+    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+}
+
+async function uploadBackgroundImage(file: File, category: string): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch(`/gallery/upload/${category}`, {
+    method: 'POST',
+    headers: { 'x-gallery-token': GALLERY_PASSWORD },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha no upload');
+  }
+  return res.json();
+}
 
 // Component extracted to top level to prevent re-mounting when Adjustments re-renders. 
 // This fixes the issue where the native color picker would close automatically when selecting a color.
@@ -219,8 +245,26 @@ const Adjustments = () => {
   const canHaveThirdProduct = currentLayout?.hasThirdProduct || isThreeProduct(currentLayoutName, activeLayoutIndex);
   const showThirdProduct = productImage3.visible;
 
-  const handleBackgroundUrlChange = (url: string) => {
-    setBackground({ url });
+  const [isUploadingBackground, setIsUploadingBackground] = React.useState(false);
+  const backgroundFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleBackgroundFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Selecione um arquivo de imagem.'); return; }
+
+    setIsUploadingBackground(true);
+    try {
+      const category = `layout-${slugifyCategory(currentLayout?.bandeira || 'geral') || 'geral'}`;
+      const { url } = await uploadBackgroundImage(file, category);
+      setBackground({ url });
+      toast.success('Fundo A4 enviado com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Falha no upload do fundo.');
+    } finally {
+      setIsUploadingBackground(false);
+    }
   };
 
   const applyToAllModels = (type: 'single' | 'optional') => {
@@ -256,7 +300,7 @@ const Adjustments = () => {
               <Layout className="w-5 h-5" />
             </span>
             <span>
-              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Nomes dos Modelos</span>
+              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Modelos</span>
               <span className="block text-xs text-zinc-400">{layouts.length} modelos • editar nome, bandeira e localidade</span>
             </span>
           </span>
@@ -379,24 +423,40 @@ const Adjustments = () => {
         <CollapsibleSection title="Fundo Geral" icon={Layout}>
           <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="flex-grow">
-                <label className="block text-xs font-medium mb-1">URL da Imagem de Fundo (A4)</label>
-                <input 
-                  type="text" 
-                  placeholder="https://exemplo.com/fundo.jpg"
-                  value={background.url || ''}
-                  onChange={(e) => handleBackgroundUrlChange(e.target.value)}
-                  className={`w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border rounded text-xs outline-none focus:ring-1 transition-all ${
-                    background.url && !isValidImageUrl(background.url)
-                      ? 'border-red-500 focus:ring-red-500'
-                      : 'border-zinc-200 dark:border-zinc-700 focus:ring-blue-500'
-                  }`}
+              <div className="flex-grow space-y-2">
+                <label className="block text-xs font-medium mb-1">Imagem de Fundo (A4)</label>
+                <input
+                  ref={backgroundFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBackgroundFileSelected}
                 />
-                {background.url && !isValidImageUrl(background.url) && (
-                  <p className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-1">
-                    <AlertCircle className="w-3 h-3" />
-                    URL de imagem possivelmente inválida.
-                  </p>
+                <button
+                  type="button"
+                  onClick={() => backgroundFileInputRef.current?.click()}
+                  disabled={isUploadingBackground}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-widest hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
+                >
+                  {isUploadingBackground ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      {background.url ? 'Trocar Imagem de Fundo' : 'Enviar Imagem de Fundo'}
+                    </>
+                  )}
+                </button>
+                {background.url && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-12 rounded border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex-shrink-0">
+                      <img src={getProxyUrl(background.url, { thumbnail: true })} className="w-full h-full object-cover" alt="Fundo atual" />
+                    </div>
+                    <p className="text-[10px] text-zinc-400">Fundo atual deste modelo</p>
+                  </div>
                 )}
               </div>
             </div>
