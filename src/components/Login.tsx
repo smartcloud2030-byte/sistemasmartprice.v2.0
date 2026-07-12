@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
-import { ShoppingBag, Building2, Flag, User, Lock, ArrowRight, Moon, Sun, Loader2 } from 'lucide-react';
+import { Building2, Flag, User, Lock, ArrowRight, Moon, Sun, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, useReducedMotion } from 'motion/react';
 
@@ -112,12 +112,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <motion.div {...entrance(0, shouldReduceMotion)} className="flex flex-col items-center mb-8 relative">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20 mb-4">
-            <ShoppingBag className="w-10 h-10" />
-          </div>
-          <h1 className="text-3xl font-black tracking-tighter text-zinc-900 dark:text-white">
-            SISTEMASMART<span className="text-blue-600">PRICE</span>
-          </h1>
+          <img src="/logo-light.png" alt="SmartPrice" className="h-12 md:h-14 w-auto mb-3 dark:hidden" />
+          <img src="/logo-dark.png" alt="SmartPrice" className="h-12 md:h-14 w-auto mb-3 hidden dark:block" />
           <p className="text-zinc-500 text-sm font-medium mt-1 uppercase tracking-widest">Acesso ao Sistema</p>
         </motion.div>
 

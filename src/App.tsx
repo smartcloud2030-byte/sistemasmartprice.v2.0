@@ -18,7 +18,7 @@ import AdminDashboard from './components/AdminDashboard';
 import {
   Printer, FileDown,
   Settings as SettingsIcon,
-  ShoppingBag, Search, Database, X, ListPlus, LayoutGrid,
+  Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
   ChevronDown, Info, LayoutDashboard, Star
@@ -505,12 +505,8 @@ export default function App() {
         {!isPrinting && (
           <header className="h-16 flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-4 sticky top-0 z-40 no-print">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                <ShoppingBag className="w-5 h-5" />
-              </div>
-              <h1 className="text-lg font-black tracking-tighter">
-                SISTEMASMART<span className="text-blue-600">PRICE</span>
-              </h1>
+              <img src="/logo-light.png" alt="SmartPrice" className="h-8 w-auto dark:hidden" />
+              <img src="/logo-dark.png" alt="SmartPrice" className="h-8 w-auto hidden dark:block" />
             </div>
 
             <div className="flex items-center gap-1.5">

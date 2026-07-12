@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
-  Megaphone, ListPlus, ShoppingBag, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon
+  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
@@ -123,9 +123,9 @@ const AdminDashboard: React.FC = () => {
         {/* Header */}
         <motion.div {...entrance(0, shouldReduceMotion)} className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-              <ShoppingBag className="w-6 h-6" />
-            </div>
+            <img src="/logo-light.png" alt="SmartPrice" className="h-10 w-auto dark:hidden" />
+            <img src="/logo-dark.png" alt="SmartPrice" className="h-10 w-auto hidden dark:block" />
+            <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-800" />
             <div>
               <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white">
                 Painel <span className="text-blue-600">Administrativo</span>
