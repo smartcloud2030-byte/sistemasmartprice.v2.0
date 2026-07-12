@@ -123,8 +123,8 @@ const AdminDashboard: React.FC = () => {
         {/* Header */}
         <motion.div {...entrance(0, shouldReduceMotion)} className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <img src="/logo-light.png" alt="SmartPrice" className="h-10 w-auto dark:hidden" />
-            <img src="/logo-dark.png" alt="SmartPrice" className="h-10 w-auto hidden dark:block" />
+            <img src="/logo-light.png" alt="SmartPrice" className="h-7 w-auto dark:hidden" />
+            <img src="/logo-dark.png" alt="SmartPrice" className="h-7 w-auto hidden dark:block" />
             <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-800" />
             <div>
               <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white">

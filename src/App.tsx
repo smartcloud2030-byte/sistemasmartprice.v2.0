@@ -505,8 +505,8 @@ export default function App() {
         {!isPrinting && (
           <header className="h-16 flex-shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-4 sticky top-0 z-40 no-print">
             <div className="flex items-center gap-3">
-              <img src="/logo-light.png" alt="SmartPrice" className="h-8 w-auto dark:hidden" />
-              <img src="/logo-dark.png" alt="SmartPrice" className="h-8 w-auto hidden dark:block" />
+              <img src="/logo-light.png" alt="SmartPrice" className="h-5 w-auto dark:hidden" />
+              <img src="/logo-dark.png" alt="SmartPrice" className="h-5 w-auto hidden dark:block" />
             </div>
 
             <div className="flex items-center gap-1.5">

@@ -112,8 +112,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <motion.div {...entrance(0, shouldReduceMotion)} className="flex flex-col items-center mb-8 relative">
-          <img src="/logo-light.png" alt="SmartPrice" className="h-12 md:h-14 w-auto mb-3 dark:hidden" />
-          <img src="/logo-dark.png" alt="SmartPrice" className="h-12 md:h-14 w-auto mb-3 hidden dark:block" />
+          <img src="/logo-light.png" alt="SmartPrice" className="h-8 md:h-9 w-auto mb-3 dark:hidden" />
+          <img src="/logo-dark.png" alt="SmartPrice" className="h-8 md:h-9 w-auto mb-3 hidden dark:block" />
           <p className="text-zinc-500 text-sm font-medium mt-1 uppercase tracking-widest">Acesso ao Sistema</p>
         </motion.div>
 
