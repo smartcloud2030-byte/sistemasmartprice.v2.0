@@ -237,7 +237,8 @@ const Adjustments = () => {
     showSingleProductControl, setShowSingleProductControl,
     optionalText1, setOptionalText,
     toggleHasThirdProduct,
-    setLayoutNamesModalOpen
+    setLayoutNamesModalOpen,
+    setLayoutName
   } = useStore();
 
   const currentLayout = layouts[activeLayoutIndex];
@@ -422,6 +423,19 @@ const Adjustments = () => {
       {userRole === 'admin' && (
         <CollapsibleSection title="Fundo Geral" icon={Layout}>
           <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-grow space-y-2">
+                <label className="block text-xs font-medium mb-1">Nome do Modelo</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Oferta Semana PL"
+                  value={currentLayout?.name || ''}
+                  onChange={(e) => setLayoutName(activeLayoutIndex, e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                />
+              </div>
+            </div>
+
             <div className="flex items-center gap-4">
               <div className="flex-grow space-y-2">
                 <label className="block text-xs font-medium mb-1">Imagem de Fundo (A4)</label>
