@@ -662,7 +662,7 @@ export default function EncarteCreator() {
         </div>
 
         {/* Panel Content */}
-        <div className="w-96 flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto no-print">
+        <div className="w-96 flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto no-print custom-scrollbar">
           {activeEncarteTab === 'themes' && (
             <div className="p-6 space-y-8">
               <div className="flex items-center justify-between">
@@ -1448,7 +1448,7 @@ export default function EncarteCreator() {
         </div>
 
         {/* Preview Area */}
-        <div className="flex-grow bg-transparent rounded-[2.5rem] p-12 overflow-auto flex flex-col items-center no-print">
+        <div className="flex-grow bg-transparent rounded-[2.5rem] p-12 overflow-auto flex flex-col items-center no-print custom-scrollbar">
           {/* Top Bar for Format and Quantity */}
           <div className="w-full max-w-[210mm] flex items-center justify-between mb-8 no-print">
             <div className="flex items-center gap-4">
@@ -2559,7 +2559,7 @@ export default function EncarteCreator() {
               </button>
             </div>
             
-            <div className="flex-grow overflow-y-auto p-6">
+            <div className="flex-grow overflow-y-auto p-6 custom-scrollbar">
               <ProductSelector onSelect={handleAddProduct} />
             </div>
           </div>

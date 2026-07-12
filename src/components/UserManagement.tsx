@@ -315,7 +315,7 @@ export default function UserManagement() {
         </button>
       </div>
 
-      <div className="p-6 space-y-8 overflow-y-auto">
+      <div className="p-6 space-y-8 overflow-y-auto custom-scrollbar">
         {activeTab === 'stores' ? (
           <>
             {/* Add New Store Form */}

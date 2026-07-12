@@ -21,7 +21,7 @@ import {
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, Info, LayoutDashboard, Star
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -51,6 +51,7 @@ export default function App() {
   } = useStore();
   const [activeTab, setActiveTab] = useState<'select' | 'adjustments'>('select');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [isModelsColumnCollapsed, setIsModelsColumnCollapsed] = useState(false);
   const [expandedBandeiras, setExpandedBandeiras] = useState<Set<string>>(() => {
     const activeBandeira = layouts[activeLayoutIndex]?.bandeira || 'Sem Bandeira';
     return new Set([activeBandeira]);
@@ -763,13 +764,34 @@ export default function App() {
 
           {/* Middle: Layout/Bandeira Switcher (admin only) */}
           {!isPrinting && userRole === 'admin' && (
-            <div className="w-[400px] flex-shrink-0 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col no-print">
-              <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">
-                  <Layout className="w-3.5 h-3.5" />
-                  Modelos por Bandeira
-                </span>
+            <div
+              className={cn(
+                "flex-shrink-0 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col no-print transition-all duration-200",
+                isModelsColumnCollapsed ? "w-10" : "w-[400px]"
+              )}
+            >
+              <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20 flex items-center justify-between gap-2">
+                {!isModelsColumnCollapsed && (
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1.5 min-w-0">
+                    <Layout className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">Modelos por Bandeira</span>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsModelsColumnCollapsed((v) => !v)}
+                  className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex-shrink-0 ml-auto"
+                  title={isModelsColumnCollapsed ? "Mostrar modelos" : "Esconder modelos"}
+                >
+                  <ChevronLeft
+                    className={cn(
+                      "w-4 h-4 text-zinc-400 transition-transform duration-200",
+                      isModelsColumnCollapsed && "rotate-180"
+                    )}
+                  />
+                </button>
               </div>
+              {!isModelsColumnCollapsed && (
               <div className="p-3 space-y-2 flex-grow overflow-y-auto min-h-0 custom-scrollbar">
                 <button
                   onClick={() => setShowFavoritesOnly(v => !v)}
@@ -878,6 +900,7 @@ export default function App() {
                   })()}
                 </div>
               </div>
+              )}
             </div>
           )}
 
@@ -926,7 +949,7 @@ export default function App() {
               )}
 
               {/* Tab Content */}
-              <div className="flex-grow overflow-y-auto min-h-0">
+              <div className="flex-grow overflow-y-auto min-h-0 custom-scrollbar">
                 {activeTab === 'select' ? <ProductSelector /> : <Adjustments />}
               </div>
 
@@ -966,7 +989,7 @@ export default function App() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="flex-grow overflow-y-auto">
+            <div className="flex-grow overflow-y-auto custom-scrollbar">
               <ProductManager />
             </div>
           </div>
@@ -993,7 +1016,7 @@ export default function App() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="flex-grow overflow-y-auto">
+            <div className="flex-grow overflow-y-auto custom-scrollbar">
               <UserManagement />
             </div>
           </div>
@@ -1034,7 +1057,7 @@ export default function App() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="flex-grow overflow-y-auto">
+            <div className="flex-grow overflow-y-auto custom-scrollbar">
               <AnnouncementManager />
             </div>
           </div>

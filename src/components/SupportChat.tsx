@@ -249,7 +249,7 @@ export default function SupportChat() {
 
         <div className="flex-grow flex overflow-hidden">
           {userRole === 'admin' && (
-            <div className="w-48 md:w-56 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 overflow-y-auto">
+            <div className="w-48 md:w-56 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 overflow-y-auto custom-scrollbar">
               <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
                 <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Lojas</p>
                 <button 
@@ -320,7 +320,7 @@ export default function SupportChat() {
                 <div 
                   ref={scrollRef}
                   onScroll={handleScroll}
-                  className="flex-grow overflow-y-auto p-4 space-y-2 bg-[#e5ddd5] dark:bg-zinc-950 relative"
+                  className="flex-grow overflow-y-auto p-4 space-y-2 bg-[#e5ddd5] dark:bg-zinc-950 relative custom-scrollbar"
                   style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundBlendMode: 'overlay' }}
                 >
                   {isLoading ? (

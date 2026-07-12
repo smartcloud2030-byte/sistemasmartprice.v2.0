@@ -458,7 +458,7 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
         </div>
       )}
 
-      <div className={`flex-1 w-full overflow-auto flex items-center justify-center ${isPrinting ? 'p-0 m-0 bg-white' : 'p-8'}`}>
+      <div className={`flex-1 w-full overflow-auto flex items-center justify-center custom-scrollbar ${isPrinting ? 'p-0 m-0 bg-white' : 'p-8'}`}>
         <AnimatePresence mode="wait">
           <motion.div 
             key={activeLayoutIndex}

@@ -371,7 +371,7 @@ const ProductManager = () => {
               <button onClick={() => setIsModalOpen(false)} className="text-black dark:text-white opacity-60 hover:opacity-100 text-2xl leading-none">&times;</button>
             </div>
 
-            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+            <div className="overflow-y-auto flex-1 p-4 space-y-3 custom-scrollbar">
               {isUploading && (
                 <div className="rounded-lg border border-blue-300 bg-blue-50 dark:bg-blue-900/20 p-3 space-y-2">
                   <div className="flex items-center justify-between">
@@ -570,7 +570,7 @@ const ProductManager = () => {
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-auto p-6 bg-zinc-50 dark:bg-zinc-950">
+            <div className="flex-1 overflow-auto p-6 bg-zinc-50 dark:bg-zinc-950 custom-scrollbar">
               <div className="grid grid-cols-[40px_1fr_100px_100px_120px_120px_1fr_1fr_60px] gap-3 mb-4 text-xs font-bold uppercase tracking-wider text-zinc-500 px-2">
                 <span>#</span><span>Nome</span><span>Preço</span><span>Categoria</span><span>Cód. Barras 1</span><span>Cód. Barras 2</span><span>Descrição</span><span>URL da Imagem</span><span>Preview</span>
               </div>

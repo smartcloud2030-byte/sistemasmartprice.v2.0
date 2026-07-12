@@ -43,7 +43,7 @@ export default function UserAnnouncementModal({ announcements, onClose }: UserAn
         </div>
 
         {/* Content */}
-        <div className="flex-grow overflow-y-auto p-8 space-y-6">
+        <div className="flex-grow overflow-y-auto p-8 space-y-6 custom-scrollbar">
           {announcements.map((ann, index) => (
             <div 
               key={ann.id}
