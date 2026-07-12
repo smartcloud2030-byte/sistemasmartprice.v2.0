@@ -265,7 +265,7 @@ const Adjustments = () => {
     if (userRole !== 'admin') return;
     fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': GALLERY_PASSWORD } })
       .then((r) => r.json())
-      .then((list) => Array.isArray(list) && setGalleryFolders(list))
+      .then((list) => Array.isArray(list) && setGalleryFolders(list.filter((f: string) => f.toLowerCase().startsWith('layout'))))
       .catch(() => {});
   }, [userRole]);
 
