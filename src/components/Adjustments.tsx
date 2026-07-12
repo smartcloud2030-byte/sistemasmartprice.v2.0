@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore, TextSettings, Layout as LayoutType, isThreeProduct } from '../store';
-import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload } from 'lucide-react';
+import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2 } from 'lucide-react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
 import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
@@ -238,7 +238,8 @@ const Adjustments = () => {
     optionalText1, setOptionalText,
     toggleHasThirdProduct,
     setLayoutNamesModalOpen,
-    setLayoutName
+    setLayoutName,
+    flags, setLayoutBandeira, setLayoutLocalidade, saveLayout,
   } = useStore();
 
   const currentLayout = layouts[activeLayoutIndex];
@@ -248,6 +249,25 @@ const Adjustments = () => {
 
   const [isUploadingBackground, setIsUploadingBackground] = React.useState(false);
   const backgroundFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [galleryFolders, setGalleryFolders] = React.useState<string[]>([]);
+  const [selectedFolder, setSelectedFolder] = React.useState('');
+  const [formatSourceIndex, setFormatSourceIndex] = React.useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [isDeletingBackground, setIsDeletingBackground] = React.useState(false);
+
+  const autoCategory = `layout-${slugifyCategory(currentLayout?.bandeira || 'geral') || 'geral'}`;
+
+  const uniqueLocalidades = React.useMemo(() => Array.from(
+    new Set(layouts.map((l) => l.localidade).filter((v): v is string => !!v && v.trim().length > 0))
+  ).sort((a, b) => a.localeCompare(b)), [layouts]);
+
+  React.useEffect(() => {
+    if (userRole !== 'admin') return;
+    fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': GALLERY_PASSWORD } })
+      .then((r) => r.json())
+      .then((list) => Array.isArray(list) && setGalleryFolders(list))
+      .catch(() => {});
+  }, [userRole]);
 
   const handleBackgroundFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -257,7 +277,7 @@ const Adjustments = () => {
 
     setIsUploadingBackground(true);
     try {
-      const category = `layout-${slugifyCategory(currentLayout?.bandeira || 'geral') || 'geral'}`;
+      const category = selectedFolder || autoCategory;
       const { url } = await uploadBackgroundImage(file, category);
       setBackground({ url });
       toast.success('Fundo A4 enviado com sucesso!');
@@ -265,6 +285,68 @@ const Adjustments = () => {
       toast.error(err.message || 'Falha no upload do fundo.');
     } finally {
       setIsUploadingBackground(false);
+    }
+  };
+
+  const applyFormattingFrom = (sourceIndexStr: string) => {
+    const sourceIndex = parseInt(sourceIndexStr, 10);
+    const source = layouts[sourceIndex];
+    if (!source || Number.isNaN(sourceIndex)) return;
+    const fields = {
+      productImage1: source.productImage1,
+      productImage2: source.productImage2,
+      productImage3: source.productImage3,
+      textElements1: source.textElements1,
+      textElements2: source.textElements2,
+      textElements3: source.textElements3,
+      optionalText1: source.optionalText1,
+      optionalText2: source.optionalText2,
+      optionalText3: source.optionalText3,
+      hasThirdProduct: source.hasThirdProduct,
+    };
+    useStore.setState((s) => {
+      const newLayouts = [...s.layouts];
+      newLayouts[s.activeLayoutIndex] = { ...newLayouts[s.activeLayoutIndex], ...fields };
+      return { ...fields, layouts: newLayouts };
+    });
+    useStore.getState().saveLayoutDebounced();
+    toast.success(`Formatação de "${source.name}" aplicada a este modelo!`);
+  };
+
+  const extractGalleryPath = (url: string | null): string | null => {
+    if (!url || !url.includes('imagens.sistemasmartprice.com.br')) return null;
+    try {
+      const parsed = new URL(url);
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      if (segments.length > 1) return segments.slice(1).join('/');
+    } catch {
+      // URL malformada — ignora
+    }
+    return null;
+  };
+
+  const handleSaveModel = async () => {
+    await saveLayout();
+    toast.success('Modelo salvo com sucesso!');
+  };
+
+  const handleDeleteBackgroundConfig = async () => {
+    setShowDeleteConfirm(false);
+    setIsDeletingBackground(true);
+    const path = extractGalleryPath(background.url);
+    try {
+      if (path) {
+        await fetch(`/gallery/delete/${path}`, { method: 'DELETE', headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      }
+    } catch {
+      toast.error('Falha ao remover a imagem da galeria, mas as informações foram limpas.');
+    } finally {
+      setLayoutName(activeLayoutIndex, '');
+      setLayoutBandeira(activeLayoutIndex, '');
+      setLayoutLocalidade(activeLayoutIndex, '');
+      setBackground({ url: null });
+      setIsDeletingBackground(false);
+      toast.success('Informações e imagem removidas.');
     }
   };
 
@@ -436,6 +518,51 @@ const Adjustments = () => {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium mb-1 flex items-center gap-1"><Flag className="w-3 h-3" /> Bandeira</label>
+                <select
+                  value={currentLayout?.bandeira || ''}
+                  onChange={(e) => setLayoutBandeira(activeLayoutIndex, e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                >
+                  <option value="">Selecionar...</option>
+                  {flags.map((flag) => (
+                    <option key={flag} value={flag}>{flag}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> Localidade</label>
+                <select
+                  value={currentLayout?.localidade || ''}
+                  onChange={(e) => setLayoutLocalidade(activeLayoutIndex, e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                >
+                  <option value="">Selecionar...</option>
+                  {uniqueLocalidades.map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium mb-1 flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Pasta na Galeria (destino do upload)</label>
+              <select
+                value={selectedFolder || autoCategory}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+              >
+                {!galleryFolders.includes(autoCategory) && (
+                  <option value={autoCategory}>{autoCategory} (nova)</option>
+                )}
+                {galleryFolders.map((folder) => (
+                  <option key={folder} value={folder}>{folder}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center gap-4">
               <div className="flex-grow space-y-2">
                 <label className="block text-xs font-medium mb-1">Imagem de Fundo (A4)</label>
@@ -475,47 +602,110 @@ const Adjustments = () => {
               </div>
             </div>
             
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setBackground({ mode: 'cover' })}
-                  className={`px-3 py-1 text-xs rounded-full border ${background.mode === 'cover' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900'}`}
-                >
-                  Cover
-                </button>
-                <button 
-                  onClick={() => setBackground({ mode: 'contain' })}
-                  className={`px-3 py-1 text-xs rounded-full border ${background.mode === 'contain' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900'}`}
-                >
-                  Contain
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                onClick={() => setBackground({ locked: !background.locked })}
+                className={`p-1.5 rounded ${background.locked ? 'text-blue-600' : 'text-zinc-400'}`}
+              >
+                {background.locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              </button>
               <div className="flex gap-2 items-center">
-                <span className="text-[10px] font-bold uppercase opacity-60">Orientação:</span>
+                <span className="text-[10px] font-bold uppercase opacity-60 whitespace-nowrap">Orientação:</span>
                 <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-full overflow-hidden">
-                  <button 
+                  <button
                     onClick={() => setLayoutOrientation(activeLayoutIndex, 'portrait')}
-                    className={`px-3 py-1 text-[10px] font-bold uppercase ${orientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
+                    className={`px-3 py-1 text-[10px] font-bold uppercase whitespace-nowrap ${orientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
                   >
                     Retrato
                   </button>
-                  <button 
+                  <button
                     onClick={() => setLayoutOrientation(activeLayoutIndex, 'landscape')}
-                    className={`px-3 py-1 text-[10px] font-bold uppercase ${orientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
+                    className={`px-3 py-1 text-[10px] font-bold uppercase whitespace-nowrap ${orientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
                   >
                     Paisagem
                   </button>
                 </div>
               </div>
-              <button 
-                onClick={() => setBackground({ locked: !background.locked })}
-                className={`p-2 rounded ${background.locked ? 'text-blue-600' : 'text-zinc-400'}`}
+            </div>
+
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700" />
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium mb-1 flex items-center gap-1"><Wand2 className="w-3 h-3" /> Aplicar Formatação de Outro Modelo</label>
+              <p className="text-[10px] text-zinc-400 -mt-1">Copia o alinhamento de nome, descrição e preço de um modelo já pronto (ex: Padrão Ultra) para este, sem mexer no fundo ou no nome.</p>
+              <select
+                value={formatSourceIndex}
+                onChange={(e) => setFormatSourceIndex(e.target.value)}
+                className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
               >
-                {background.locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                <option value="">Selecionar modelo de referência...</option>
+                {layouts.map((l, i) => (
+                  i !== activeLayoutIndex && (
+                    <option key={i} value={i}>{l.name || `Modelo ${i + 1}`}</option>
+                  )
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => formatSourceIndex && applyFormattingFrom(formatSourceIndex)}
+                disabled={!formatSourceIndex}
+                className="w-full px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-xs font-bold uppercase tracking-widest transition-colors"
+              >
+                Aplicar Formatação
+              </button>
+            </div>
+
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700" />
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleSaveModel}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                Salvar Modelo
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDeletingBackground}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 rounded-xl text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Excluir Fundo/Dados
               </button>
             </div>
           </div>
         </CollapsibleSection>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertCircle className="w-6 h-6" />
+              <h3 className="text-lg font-bold">Excluir Fundo e Dados</h3>
+            </div>
+            <p className="text-sm text-black dark:text-white opacity-60">
+              Isso vai apagar o nome, a bandeira, a localidade e a imagem de fundo enviada deste modelo — a imagem também será removida da galeria. O modelo continua existindo, apenas ficará em branco. Deseja continuar?
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteBackgroundConfig}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Product 1 Section */}
