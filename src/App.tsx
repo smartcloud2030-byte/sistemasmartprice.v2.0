@@ -51,6 +51,18 @@ export default function App() {
   } = useStore();
   const [activeTab, setActiveTab] = useState<'select' | 'adjustments'>('select');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [expandedBandeiras, setExpandedBandeiras] = useState<Set<string>>(() => {
+    const activeBandeira = layouts[activeLayoutIndex]?.bandeira || 'Sem Bandeira';
+    return new Set([activeBandeira]);
+  });
+  const toggleBandeiraExpanded = (bandeira: string) => {
+    setExpandedBandeiras((prev) => {
+      const next = new Set(prev);
+      if (next.has(bandeira)) next.delete(bandeira);
+      else next.add(bandeira);
+      return next;
+    });
+  };
 
   // Safety net: if the last favorite gets removed while the filter is active, turn it off automatically
   useEffect(() => {
@@ -758,7 +770,7 @@ export default function App() {
                   Modelos por Bandeira
                 </span>
               </div>
-              <div className="p-3 space-y-2 flex-grow overflow-y-auto min-h-0">
+              <div className="p-3 space-y-2 flex-grow overflow-y-auto min-h-0 custom-scrollbar">
                 <button
                   onClick={() => setShowFavoritesOnly(v => !v)}
                   disabled={favoriteLayouts.length === 0 && !showFavoritesOnly}
@@ -772,7 +784,7 @@ export default function App() {
                   <Star className="w-3 h-3" fill={showFavoritesOnly ? "currentColor" : "none"} />
                   {showFavoritesOnly ? 'Mostrando só favoritos' : 'Só favoritos'}
                 </button>
-                <div className="custom-scrollbar space-y-4">
+                <div className="space-y-3">
                   {(() => {
                     const source = showFavoritesOnly
                       ? filteredLayouts.filter((l) => favoriteLayouts.includes(l.originalIndex))
@@ -822,26 +834,47 @@ export default function App() {
                         acc[key][subKey].push(layout);
                         return acc;
                       }, {} as Record<string, Record<string, typeof filteredLayouts>>)
-                    ).map(([bandeira, localidades]) => (
-                      <div key={bandeira} className="space-y-2">
-                        <div className="flex items-center gap-2 px-1">
-                          <Flag className="w-3 h-3 text-blue-600" />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{bandeira}</span>
-                        </div>
+                    ).map(([bandeira, localidades]) => {
+                      const isExpanded = expandedBandeiras.has(bandeira);
+                      const modelCount = Object.values(localidades).reduce((sum, arr) => sum + arr.length, 0);
+                      return (
+                        <div key={bandeira} className="rounded-lg border border-zinc-100 dark:border-zinc-800/60 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => toggleBandeiraExpanded(bandeira)}
+                            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-zinc-50/70 dark:bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors"
+                          >
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <Flag className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 truncate">{bandeira}</span>
+                              <span className="text-[8px] font-bold text-zinc-400 flex-shrink-0">({modelCount})</span>
+                            </span>
+                            <ChevronDown
+                              className={cn(
+                                "w-3.5 h-3.5 text-zinc-400 flex-shrink-0 transition-transform duration-200",
+                                isExpanded ? "rotate-0" : "-rotate-90"
+                              )}
+                            />
+                          </button>
 
-                        {Object.entries(localidades).map(([localidade, layouts]) => (
-                          <div key={localidade} className="pl-2 space-y-1">
-                            <div className="flex items-center gap-1 px-1">
-                              <MapPin className="w-2 h-2 text-zinc-400" />
-                              <span className="text-[8px] font-bold uppercase text-zinc-400">{localidade}</span>
+                          {isExpanded && (
+                            <div className="p-2 space-y-2">
+                              {Object.entries(localidades).map(([localidade, layouts]) => (
+                                <div key={localidade} className="pl-2 space-y-1">
+                                  <div className="flex items-center gap-1 px-1">
+                                    <MapPin className="w-2 h-2 text-zinc-400" />
+                                    <span className="text-[8px] font-bold uppercase text-zinc-400">{localidade}</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-1.5">
+                                    {layouts.map(renderLayoutChip)}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="grid grid-cols-4 gap-1.5">
-                              {layouts.map(renderLayoutChip)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ));
+                          )}
+                        </div>
+                      );
+                    });
                   })()}
                 </div>
               </div>
