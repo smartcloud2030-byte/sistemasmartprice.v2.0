@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore, TextSettings, Layout as LayoutType, isThreeProduct } from '../store';
-import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2 } from 'lucide-react';
+import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2, Plus } from 'lucide-react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
 import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
@@ -240,6 +240,7 @@ const Adjustments = () => {
     setLayoutNamesModalOpen,
     setLayoutName,
     flags, setLayoutBandeira, setLayoutLocalidade, saveLayout,
+    addLayout, setActiveLayout,
   } = useStore();
 
   const currentLayout = layouts[activeLayoutIndex];
@@ -348,6 +349,12 @@ const Adjustments = () => {
       setIsDeletingBackground(false);
       toast.success('Informações e imagem removidas.');
     }
+  };
+
+  const handleCreateBlankModel = () => {
+    const newIndex = addLayout('Novo Modelo');
+    setActiveLayout(newIndex);
+    toast.success('Novo modelo em branco criado! Configure o fundo abaixo.');
   };
 
   const applyToAllModels = (type: 'single' | 'optional') => {
@@ -505,6 +512,21 @@ const Adjustments = () => {
       {userRole === 'admin' && (
         <CollapsibleSection title="Fundo Geral" icon={Layout}>
           <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/20 rounded-xl">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Editando: {currentLayout?.name || `Modelo ${activeLayoutIndex + 1}`}</p>
+                <p className="text-[9px] text-amber-700/70 dark:text-amber-400/70">Para criar um modelo do zero (sem herdar o fundo atual), use o botão ao lado.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCreateBlankModel}
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap flex-shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Modelo
+              </button>
+            </div>
+
             <div className="flex items-center gap-4">
               <div className="flex-grow space-y-2">
                 <label className="block text-xs font-medium mb-1">Nome do Modelo</label>
