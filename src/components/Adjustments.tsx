@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore, TextSettings, Layout as LayoutType, isThreeProduct } from '../store';
-import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2, Plus } from 'lucide-react';
+import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2, Plus, Pencil } from 'lucide-react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
 import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
@@ -256,7 +256,43 @@ const Adjustments = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [isDeletingBackground, setIsDeletingBackground] = React.useState(false);
 
-  const autoCategory = `layout-${slugifyCategory(currentLayout?.bandeira || 'geral') || 'geral'}`;
+  // Fundo Geral fica bloqueado por padrão para evitar editar/sobrescrever sem querer o modelo
+  // que estiver ativo. Só desbloqueia clicando em "Novo Modelo" ou "Editar", e só grava de fato
+  // no clique em "Salvar Modelo" — até lá as mudanças ficam só neste rascunho local.
+  const [isUnlocked, setIsUnlocked] = React.useState(false);
+  const [draftName, setDraftName] = React.useState('');
+  const [draftBandeira, setDraftBandeira] = React.useState('');
+  const [draftLocalidade, setDraftLocalidade] = React.useState('');
+  const [draftBackgroundUrl, setDraftBackgroundUrl] = React.useState<string | null>(null);
+  const [draftOrientation, setDraftOrientation] = React.useState<'portrait' | 'landscape'>('portrait');
+  const skipAutoLockRef = React.useRef(false);
+
+  const displayName = isUnlocked ? draftName : (currentLayout?.name || '');
+  const displayBandeira = isUnlocked ? draftBandeira : (currentLayout?.bandeira || '');
+  const displayLocalidade = isUnlocked ? draftLocalidade : (currentLayout?.localidade || '');
+  const displayBackgroundUrl = isUnlocked ? draftBackgroundUrl : (background.url ?? null);
+  const displayOrientation = isUnlocked ? draftOrientation : orientation;
+
+  // Re-bloqueia automaticamente sempre que o modelo ativo muda (troca de modelo em outra aba),
+  // exceto logo após criar um modelo novo, que já vem desbloqueado de propósito.
+  React.useEffect(() => {
+    if (skipAutoLockRef.current) {
+      skipAutoLockRef.current = false;
+      return;
+    }
+    setIsUnlocked(false);
+  }, [activeLayoutIndex]);
+
+  const unlockForEditing = () => {
+    setDraftName(currentLayout?.name || '');
+    setDraftBandeira(currentLayout?.bandeira || '');
+    setDraftLocalidade(currentLayout?.localidade || '');
+    setDraftBackgroundUrl(background.url ?? null);
+    setDraftOrientation(orientation);
+    setIsUnlocked(true);
+  };
+
+  const autoCategory = `layout-${slugifyCategory((isUnlocked ? draftBandeira : currentLayout?.bandeira) || 'geral') || 'geral'}`;
 
   const uniqueLocalidades = React.useMemo(() => Array.from(
     new Set(layouts.map((l) => l.localidade).filter((v): v is string => !!v && v.trim().length > 0))
@@ -273,15 +309,15 @@ const Adjustments = () => {
   const handleBackgroundFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || !isUnlocked) return;
     if (!file.type.startsWith('image/')) { toast.error('Selecione um arquivo de imagem.'); return; }
 
     setIsUploadingBackground(true);
     try {
       const category = selectedFolder || autoCategory;
       const { url } = await uploadBackgroundImage(file, category);
-      setBackground({ url });
-      toast.success('Fundo A4 enviado com sucesso!');
+      setDraftBackgroundUrl(url);
+      toast.success('Fundo A4 enviado! Clique em Salvar Modelo para confirmar.');
     } catch (err: any) {
       toast.error(err.message || 'Falha no upload do fundo.');
     } finally {
@@ -327,7 +363,14 @@ const Adjustments = () => {
   };
 
   const handleSaveModel = async () => {
+    if (!isUnlocked) return;
+    setLayoutName(activeLayoutIndex, draftName);
+    setLayoutBandeira(activeLayoutIndex, draftBandeira);
+    setLayoutLocalidade(activeLayoutIndex, draftLocalidade);
+    setBackground({ url: draftBackgroundUrl });
+    setLayoutOrientation(activeLayoutIndex, draftOrientation);
     await saveLayout();
+    setIsUnlocked(false);
     toast.success('Modelo salvo com sucesso!');
   };
 
@@ -347,13 +390,21 @@ const Adjustments = () => {
       setLayoutLocalidade(activeLayoutIndex, '');
       setBackground({ url: null });
       setIsDeletingBackground(false);
+      setIsUnlocked(false);
       toast.success('Informações e imagem removidas.');
     }
   };
 
   const handleCreateBlankModel = () => {
     const newIndex = addLayout('Novo Modelo');
+    skipAutoLockRef.current = true;
     setActiveLayout(newIndex);
+    setDraftName('Novo Modelo');
+    setDraftBandeira('');
+    setDraftLocalidade('');
+    setDraftBackgroundUrl(null);
+    setDraftOrientation('portrait');
+    setIsUnlocked(true);
     toast.success('Novo modelo em branco criado! Configure o fundo abaixo.');
   };
 
@@ -379,135 +430,6 @@ const Adjustments = () => {
         Ajustes e Estilos
       </h2>
 
-      {/* Admin: Rename Layouts */}
-      {userRole === 'admin' && (
-        <button
-          onClick={() => setLayoutNamesModalOpen(true)}
-          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 hover:shadow-md transition-all text-left"
-        >
-          <span className="flex items-center gap-3">
-            <span className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
-              <Layout className="w-5 h-5" />
-            </span>
-            <span>
-              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Modelos</span>
-              <span className="block text-xs text-zinc-400">{layouts.length} modelos • editar nome, bandeira e localidade</span>
-            </span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
-        </button>
-      )}
-
-      {/* Editor Settings Section */}
-      {userRole === 'admin' && (
-        <CollapsibleSection title="Configurações do Editor" icon={Settings}>
-          <div className="space-y-6">
-            {/* Optional Text Controls */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Opção Texto Opcional</span>
-                  <span className="text-[8px] text-zinc-500 font-medium">Habilita o controle para o usuário</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => applyToAllModels('optional')}
-                    className="text-[8px] font-black uppercase tracking-widest text-blue-600 hover:underline"
-                  >
-                    Aplicar a Todos
-                  </button>
-                  <label className="relative inline-flex items-center cursor-pointer scale-90">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer"
-                      checked={showOptionalTextControl}
-                      onChange={(e) => setShowOptionalTextControl(e.target.checked)}
-                    />
-                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                <span className="text-[9px] font-black uppercase tracking-tight text-blue-600">Ativar Texto Opcional agora</span>
-                <label className="relative inline-flex items-center cursor-pointer scale-75">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer"
-                    checked={optionalText1.active}
-                    onChange={(e) => setOptionalText(1, { active: e.target.checked })}
-                  />
-                  <div className="w-9 h-5 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-
-            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mx-4" />
-
-            {/* Single Product Controls */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Opção Apenas 1 Produto</span>
-                  <span className="text-[8px] text-zinc-500 font-medium">Habilita o controle para o usuário</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => applyToAllModels('single')}
-                    className="text-[8px] font-black uppercase tracking-widest text-blue-600 hover:underline"
-                  >
-                    Aplicar a Todos
-                  </button>
-                  <label className="relative inline-flex items-center cursor-pointer scale-90">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer"
-                      checked={showSingleProductControl}
-                      onChange={(e) => setShowSingleProductControl(e.target.checked)}
-                    />
-                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                <span className="text-[9px] font-black uppercase tracking-tight text-blue-600">Ativar Apenas 1 Produto agora</span>
-                <label className="relative inline-flex items-center cursor-pointer scale-75">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer"
-                    checked={isSingleProduct}
-                    onChange={(e) => setSingleProduct(e.target.checked)}
-                  />
-                  <div className="w-9 h-5 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-
-            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mx-4" />
-
-            {/* 3rd Product Controls */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Habilitar 3º Produto</span>
-                  <span className="text-[8px] text-zinc-500 font-medium">Força este modelo a aceitar 3 produtos</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer scale-90">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer"
-                    checked={canHaveThirdProduct}
-                    onChange={() => toggleHasThirdProduct()}
-                  />
-                  <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </CollapsibleSection>
-      )}
-
       {/* Background Section */}
       {userRole === 'admin' && (
         <CollapsibleSection title="Fundo Geral" icon={Layout}>
@@ -515,16 +437,32 @@ const Adjustments = () => {
             <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/20 rounded-xl">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Editando: {currentLayout?.name || `Modelo ${activeLayoutIndex + 1}`}</p>
-                <p className="text-[9px] text-amber-700/70 dark:text-amber-400/70">Para criar um modelo do zero (sem herdar o fundo atual), use o botão ao lado.</p>
+                <p className="text-[9px] text-amber-700/70 dark:text-amber-400/70">
+                  {isUnlocked
+                    ? 'Modo edição ativo — as mudanças só valem depois de clicar em Salvar Modelo.'
+                    : 'Bloqueado para evitar editar por engano. Clique em Editar para mexer neste modelo, ou em Novo Modelo para criar um do zero.'}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={handleCreateBlankModel}
-                className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap flex-shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Novo Modelo
-              </button>
+              <div className="flex gap-2 flex-shrink-0">
+                {!isUnlocked && (
+                  <button
+                    type="button"
+                    onClick={unlockForEditing}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Editar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCreateBlankModel}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Novo Modelo
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
@@ -533,9 +471,10 @@ const Adjustments = () => {
                 <input
                   type="text"
                   placeholder="Ex: Oferta Semana PL"
-                  value={currentLayout?.name || ''}
-                  onChange={(e) => setLayoutName(activeLayoutIndex, e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                  value={displayName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  disabled={!isUnlocked}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -544,9 +483,10 @@ const Adjustments = () => {
               <div className="space-y-2">
                 <label className="text-xs font-medium mb-1 flex items-center gap-1"><Flag className="w-3 h-3" /> Bandeira</label>
                 <select
-                  value={currentLayout?.bandeira || ''}
-                  onChange={(e) => setLayoutBandeira(activeLayoutIndex, e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                  value={displayBandeira}
+                  onChange={(e) => setDraftBandeira(e.target.value)}
+                  disabled={!isUnlocked}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">Selecionar...</option>
                   {flags.map((flag) => (
@@ -557,9 +497,10 @@ const Adjustments = () => {
               <div className="space-y-2">
                 <label className="text-xs font-medium mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> Localidade</label>
                 <select
-                  value={currentLayout?.localidade || ''}
-                  onChange={(e) => setLayoutLocalidade(activeLayoutIndex, e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                  value={displayLocalidade}
+                  onChange={(e) => setDraftLocalidade(e.target.value)}
+                  disabled={!isUnlocked}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">Selecionar...</option>
                   {uniqueLocalidades.map((loc) => (
@@ -574,7 +515,8 @@ const Adjustments = () => {
               <select
                 value={selectedFolder || autoCategory}
                 onChange={(e) => setSelectedFolder(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                disabled={!isUnlocked}
+                className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {!galleryFolders.includes(autoCategory) && (
                   <option value={autoCategory}>{autoCategory} (nova)</option>
@@ -598,8 +540,8 @@ const Adjustments = () => {
                 <button
                   type="button"
                   onClick={() => backgroundFileInputRef.current?.click()}
-                  disabled={isUploadingBackground}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-widest hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
+                  disabled={isUploadingBackground || !isUnlocked}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-widest hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isUploadingBackground ? (
                     <>
@@ -609,25 +551,26 @@ const Adjustments = () => {
                   ) : (
                     <>
                       <Upload className="w-4 h-4" />
-                      {background.url ? 'Trocar Imagem de Fundo' : 'Enviar Imagem de Fundo'}
+                      {displayBackgroundUrl ? 'Trocar Imagem de Fundo' : 'Enviar Imagem de Fundo'}
                     </>
                   )}
                 </button>
-                {background.url && (
+                {displayBackgroundUrl && (
                   <div className="flex items-center gap-2">
                     <div className="w-9 h-12 rounded border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex-shrink-0">
-                      <img src={getProxyUrl(background.url, { thumbnail: true })} className="w-full h-full object-cover" alt="Fundo atual" />
+                      <img src={getProxyUrl(displayBackgroundUrl, { thumbnail: true })} className="w-full h-full object-cover" alt="Fundo atual" />
                     </div>
-                    <p className="text-[10px] text-zinc-400">Fundo atual deste modelo</p>
+                    <p className="text-[10px] text-zinc-400">{isUnlocked && draftBackgroundUrl !== background.url ? 'Novo fundo (ainda não salvo)' : 'Fundo atual deste modelo'}</p>
                   </div>
                 )}
               </div>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <button
                 onClick={() => setBackground({ locked: !background.locked })}
-                className={`p-1.5 rounded ${background.locked ? 'text-blue-600' : 'text-zinc-400'}`}
+                disabled={!isUnlocked}
+                className={`p-1.5 rounded disabled:opacity-40 disabled:cursor-not-allowed ${background.locked ? 'text-blue-600' : 'text-zinc-400'}`}
               >
                 {background.locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
               </button>
@@ -635,14 +578,16 @@ const Adjustments = () => {
                 <span className="text-[10px] font-bold uppercase opacity-60 whitespace-nowrap">Orientação:</span>
                 <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-full overflow-hidden">
                   <button
-                    onClick={() => setLayoutOrientation(activeLayoutIndex, 'portrait')}
-                    className={`px-3 py-1 text-[10px] font-bold uppercase whitespace-nowrap ${orientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
+                    onClick={() => setDraftOrientation('portrait')}
+                    disabled={!isUnlocked}
+                    className={`px-3 py-1 text-[10px] font-bold uppercase whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${displayOrientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
                   >
                     Retrato
                   </button>
                   <button
-                    onClick={() => setLayoutOrientation(activeLayoutIndex, 'landscape')}
-                    className={`px-3 py-1 text-[10px] font-bold uppercase whitespace-nowrap ${orientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
+                    onClick={() => setDraftOrientation('landscape')}
+                    disabled={!isUnlocked}
+                    className={`px-3 py-1 text-[10px] font-bold uppercase whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${displayOrientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-zinc-900 text-zinc-500'}`}
                   >
                     Paisagem
                   </button>
@@ -658,7 +603,8 @@ const Adjustments = () => {
               <select
                 value={formatSourceIndex}
                 onChange={(e) => setFormatSourceIndex(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
+                disabled={!isUnlocked}
+                className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">Selecionar modelo de referência...</option>
                 {layouts.map((l, i) => (
@@ -670,7 +616,7 @@ const Adjustments = () => {
               <button
                 type="button"
                 onClick={() => formatSourceIndex && applyFormattingFrom(formatSourceIndex)}
-                disabled={!formatSourceIndex}
+                disabled={!formatSourceIndex || !isUnlocked}
                 className="w-full px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-xs font-bold uppercase tracking-widest transition-colors"
               >
                 Aplicar Formatação
@@ -683,7 +629,8 @@ const Adjustments = () => {
               <button
                 type="button"
                 onClick={handleSaveModel}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
+                disabled={!isUnlocked}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
               >
                 <Save className="w-4 h-4" />
                 Salvar Modelo
@@ -691,8 +638,8 @@ const Adjustments = () => {
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
-                disabled={isDeletingBackground}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 rounded-xl text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-50"
+                disabled={isDeletingBackground || !isUnlocked}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 rounded-xl text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-4 h-4" />
                 Excluir Fundo/Dados
@@ -700,6 +647,135 @@ const Adjustments = () => {
             </div>
           </div>
         </CollapsibleSection>
+      )}
+
+      {/* Editor Settings Section */}
+      {userRole === 'admin' && (
+        <CollapsibleSection title="Configurações do Editor" icon={Settings}>
+          <div className="space-y-6">
+            {/* Optional Text Controls */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Opção Texto Opcional</span>
+                  <span className="text-[8px] text-zinc-500 font-medium">Habilita o controle para o usuário</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => applyToAllModels('optional')}
+                    className="text-[8px] font-black uppercase tracking-widest text-blue-600 hover:underline"
+                  >
+                    Aplicar a Todos
+                  </button>
+                  <label className="relative inline-flex items-center cursor-pointer scale-90">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={showOptionalTextControl}
+                      onChange={(e) => setShowOptionalTextControl(e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <span className="text-[9px] font-black uppercase tracking-tight text-blue-600">Ativar Texto Opcional agora</span>
+                <label className="relative inline-flex items-center cursor-pointer scale-75">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={optionalText1.active}
+                    onChange={(e) => setOptionalText(1, { active: e.target.checked })}
+                  />
+                  <div className="w-9 h-5 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
+
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mx-4" />
+
+            {/* Single Product Controls */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Opção Apenas 1 Produto</span>
+                  <span className="text-[8px] text-zinc-500 font-medium">Habilita o controle para o usuário</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => applyToAllModels('single')}
+                    className="text-[8px] font-black uppercase tracking-widest text-blue-600 hover:underline"
+                  >
+                    Aplicar a Todos
+                  </button>
+                  <label className="relative inline-flex items-center cursor-pointer scale-90">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={showSingleProductControl}
+                      onChange={(e) => setShowSingleProductControl(e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <span className="text-[9px] font-black uppercase tracking-tight text-blue-600">Ativar Apenas 1 Produto agora</span>
+                <label className="relative inline-flex items-center cursor-pointer scale-75">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={isSingleProduct}
+                    onChange={(e) => setSingleProduct(e.target.checked)}
+                  />
+                  <div className="w-9 h-5 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
+
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mx-4" />
+
+            {/* 3rd Product Controls */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Habilitar 3º Produto</span>
+                  <span className="text-[8px] text-zinc-500 font-medium">Força este modelo a aceitar 3 produtos</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer scale-90">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={canHaveThirdProduct}
+                    onChange={() => toggleHasThirdProduct()}
+                  />
+                  <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Admin: Rename Layouts */}
+      {userRole === 'admin' && (
+        <button
+          onClick={() => setLayoutNamesModalOpen(true)}
+          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 hover:shadow-md transition-all text-left"
+        >
+          <span className="flex items-center gap-3">
+            <span className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
+              <Layout className="w-5 h-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Modelos</span>
+              <span className="block text-xs text-zinc-400">{layouts.length} modelos • editar nome, bandeira e localidade</span>
+            </span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
+        </button>
       )}
 
       {showDeleteConfirm && (
