@@ -434,21 +434,27 @@ const Adjustments = () => {
       {userRole === 'admin' && (
         <CollapsibleSection title="Fundo Geral" icon={Layout}>
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/20 rounded-xl">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Editando: {currentLayout?.name || `Modelo ${activeLayoutIndex + 1}`}</p>
-                <p className="text-[9px] text-amber-700/70 dark:text-amber-400/70">
+            <div className="flex flex-col gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/20 rounded-xl">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500">Editando</p>
+                <p
+                  className="text-xs font-bold text-amber-800 dark:text-amber-300 truncate"
+                  title={currentLayout?.name || `Modelo ${activeLayoutIndex + 1}`}
+                >
+                  {currentLayout?.name || `Modelo ${activeLayoutIndex + 1}`}
+                </p>
+                <p className="text-[9px] text-amber-700/70 dark:text-amber-400/70 mt-1">
                   {isUnlocked
                     ? 'Modo edição ativo — as mudanças só valem depois de clicar em Salvar Modelo.'
                     : 'Bloqueado para evitar editar por engano. Clique em Editar para mexer neste modelo, ou em Novo Modelo para criar um do zero.'}
                 </p>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2">
                 {!isUnlocked && (
                   <button
                     type="button"
                     onClick={unlockForEditing}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap hover:bg-amber-100 dark:hover:bg-amber-900/30"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                     Editar
@@ -457,7 +463,10 @@ const Adjustments = () => {
                 <button
                   type="button"
                   onClick={handleCreateBlankModel}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap"
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap',
+                    isUnlocked ? 'w-full' : 'flex-1'
+                  )}
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Novo Modelo
