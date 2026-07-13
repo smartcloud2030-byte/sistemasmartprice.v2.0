@@ -162,7 +162,7 @@ export default function LayoutManagerModal() {
             </div>
             <div>
               <h3 className="text-xl font-black tracking-tighter uppercase text-black dark:text-white">Layout (Teste)</h3>
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Criar, editar e excluir modelos em uma só tela</p>
+              <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{layouts.length} modelos cadastrados • criar, editar e excluir em uma só tela</p>
             </div>
           </div>
           <button
@@ -307,7 +307,7 @@ export default function LayoutManagerModal() {
 
           {/* Existing models list */}
           <div className="flex-grow flex flex-col min-h-0">
-            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <input
@@ -318,6 +318,11 @@ export default function LayoutManagerModal() {
                   className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-black dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
               </div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
+                {searchTerm.trim()
+                  ? `${filteredIndexed.length} de ${layouts.length} modelos`
+                  : `${layouts.length} modelos no total`}
+              </p>
             </div>
             <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
               {filteredIndexed.length === 0 ? (
