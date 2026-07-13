@@ -38,6 +38,10 @@ function getCategoryColor(category: string) {
   return CATEGORY_COLORS[folder] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
 }
 
+function formatCatName(cat: string) {
+  return cat.replace(/-/g, ' ').toUpperCase();
+}
+
 async function uploadToMinio(file: File, category: string, productName: string): Promise<{ url: string; thumbUrl: string }> {
   const folder = getFolder(category);
   const formData = new FormData();
@@ -313,7 +317,7 @@ const ProductManager = () => {
         <select className="sm:w-52 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none text-sm text-black dark:text-white"
           value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
           <option value="">Todas categorias</option>
-          {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          {categories.map(cat => <option key={cat} value={cat}>{formatCatName(cat)}</option>)}
         </select>
       </div>
 
@@ -337,7 +341,7 @@ const ProductManager = () => {
                 <div className="flex items-center gap-2 flex-wrap mt-auto">
                   <span className="text-blue-600 dark:text-blue-400 font-semibold text-sm">{product.price}</span>
                   {product.category && (
-                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${getCategoryColor(product.category)}`}>{product.category}</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${getCategoryColor(product.category)}`}>{formatCatName(product.category)}</span>
                   )}
                 </div>
                 <div className="flex gap-1.5 mt-1.5">
@@ -429,7 +433,7 @@ const ProductManager = () => {
                           <select className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                             value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
                             <option value="">Selecione...</option>
-                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            {categories.map(cat => <option key={cat} value={cat}>{formatCatName(cat)}</option>)}
                           </select>
                           <button type="button" className="shrink-0 w-9 h-9 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-lg font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-center text-black dark:text-white"
                             onClick={() => setShowNewCategory(true)}>+</button>
@@ -525,7 +529,7 @@ const ProductManager = () => {
                   <select className="px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-black dark:text-white"
                     value={bulkDefaultCategory} onChange={e => setBulkDefaultCategory(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    {categories.map(cat => <option key={cat} value={cat}>{formatCatName(cat)}</option>)}
                   </select>
                 </div>
               </div>
@@ -585,7 +589,7 @@ const ProductManager = () => {
                     <select className="w-full px-2 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.category} onChange={e => { const d = [...multiFormData]; d[index].category = e.target.value; setMultiFormData(d); }}>
                       <option value="">Categoria...</option>
-                      {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      {categories.map(cat => <option key={cat} value={cat}>{formatCatName(cat)}</option>)}
                     </select>
                     <input type="text" placeholder="Cód. barras 1" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.barcode || ''} onChange={e => { const d = [...multiFormData]; d[index].barcode = e.target.value; setMultiFormData(d); }} />
