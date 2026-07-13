@@ -645,8 +645,8 @@ export default function App() {
                 </HeaderDropdown>
               )}
 
-              {/* Support */}
-              {(userRole === 'admin' || isChatEnabled) && (
+              {/* Support (usuário comum usa apenas o botão flutuante) */}
+              {userRole === 'admin' && (
                 <button
                   onClick={() => {
                     setSupportChatOpen(true);
@@ -654,16 +654,11 @@ export default function App() {
                       Notification.requestPermission();
                     }
                   }}
-                  className={cn(
-                    'relative h-10 flex items-center gap-1.5 px-3.5 rounded-xl transition-all text-sm font-semibold',
-                    userRole === 'admin'
-                      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                      : 'bg-blue-600 text-white shadow-md shadow-blue-500/20 hover:bg-blue-700'
-                  )}
-                  title={userRole === 'admin' ? 'Central de Suporte' : 'Enviar mensagem para o suporte (adicionar produto que está faltando)'}
+                  className="relative h-10 flex items-center gap-1.5 px-3.5 rounded-xl transition-all text-sm font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                  title="Central de Suporte"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  {userRole === 'admin' ? 'Suporte' : 'Suporte'}
+                  Suporte
                   {unreadSupportCount > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold px-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center animate-bounce shadow-lg border-2 border-white dark:border-zinc-900">
                       {unreadSupportCount}
