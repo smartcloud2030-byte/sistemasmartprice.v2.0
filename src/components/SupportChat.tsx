@@ -198,45 +198,64 @@ export default function SupportChat() {
 
   if (!isSupportChatOpen) return null;
 
+  const isAdmin = userRole === 'admin';
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-2 md:p-4 no-print">
+    <div className={cn(
+      "no-print",
+      isAdmin
+        ? "fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-2 md:p-4"
+        : "fixed bottom-20 left-5 z-[100]"
+    )}>
       <div className={cn(
-        "bg-white dark:bg-zinc-900 w-full rounded-[2rem] shadow-2xl overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800 transition-all duration-300",
-        userRole === 'admin' ? "max-w-6xl w-[95vw] h-[85vh]" : "max-w-2xl h-[70vh]"
+        "bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden flex flex-col transition-all duration-300",
+        isAdmin
+          ? "w-full max-w-6xl w-[95vw] h-[85vh] rounded-[2rem] border border-zinc-200 dark:border-zinc-800"
+          : "w-[360px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[70vh] rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.6)]"
       )}>
         {/* Header */}
         <div className={cn(
-          "border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50",
-          userRole === 'admin' ? "p-3 md:p-4" : "p-6"
+          "flex justify-between items-center flex-shrink-0",
+          isAdmin
+            ? "p-3 md:p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50"
+            : "p-4 bg-gradient-to-r from-blue-600 to-blue-700"
         )}>
           <div className="flex items-center gap-3">
             <div className={cn(
-              "bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-500/20",
-              userRole === 'admin' ? "p-1.5" : "p-2"
+              "rounded-xl shadow-lg flex-shrink-0",
+              isAdmin ? "bg-blue-600 text-white shadow-blue-500/20 p-1.5" : "bg-white/15 text-white p-2"
             )}>
-              <MessageCircle className={userRole === 'admin' ? "w-5 h-5" : "w-6 h-6"} />
+              <MessageCircle className={isAdmin ? "w-5 h-5" : "w-5 h-5"} />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className={cn(
-                  "font-black tracking-tighter uppercase text-black dark:text-white",
-                  userRole === 'admin' ? "text-base" : "text-xl"
+                  "font-black tracking-tighter uppercase",
+                  isAdmin ? "text-base text-black dark:text-white" : "text-base text-white"
                 )}>Suporte SmartPrice</h3>
                 <div className={cn(
                   "w-2 h-2 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]",
-                  isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                  isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-300"
                 )} />
               </div>
-              <p className="text-[9px] font-bold text-black dark:text-white uppercase tracking-widest">
-                {userRole === 'admin' ? 'Central de Atendimento' : 'Suporte Online'}
+              <p className={cn(
+                "text-[9px] font-bold uppercase tracking-widest",
+                isAdmin ? "text-black dark:text-white" : "text-white/80"
+              )}>
+                {isAdmin ? 'Central de Atendimento' : 'Suporte Online'}
               </p>
             </div>
           </div>
-          <button 
-            onClick={() => setSupportChatOpen(false)} 
-            className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500 dark:text-zinc-400"
+          <button
+            onClick={() => setSupportChatOpen(false)}
+            className={cn(
+              "p-2 rounded-full transition-colors flex-shrink-0",
+              isAdmin
+                ? "hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
+                : "hover:bg-white/15 text-white/90"
+            )}
           >
-            <X className="w-5 h-5 md:w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -359,9 +378,9 @@ export default function SupportChat() {
                       </div>
 
                       {showScrollButton && (
-                        <button 
+                        <button
                           onClick={scrollToBottom}
-                          className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl animate-bounce flex items-center gap-2"
+                          className="sticky bottom-2 left-1/2 -translate-x-1/2 z-10 bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200"
                         >
                           Novas Mensagens Abaixo
                         </button>
