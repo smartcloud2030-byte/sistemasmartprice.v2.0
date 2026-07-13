@@ -2,10 +2,11 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import {
   X, Layout as LayoutIcon, Search, Flag, MapPin, Wand2, Upload,
-  Trash2, AlertTriangle, Pencil, Save, Image as ImageIcon,
+  Trash2, AlertTriangle, Pencil, Save, Image as ImageIcon, FlaskConical, ArrowUpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, getProxyUrl, extractGalleryPath } from '../lib/utils';
+import CriarEstiloModal from './CriarEstiloModal';
 
 const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
 
@@ -43,6 +44,7 @@ export default function LayoutManagerModal() {
     addLayout, deleteLayout,
     setLayoutName, setLayoutBandeira, setLayoutLocalidade, setLayoutBackground,
     applyLayoutFormatting,
+    testLayouts, deleteTestLayout, promoteTestLayout,
   } = useStore();
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -55,6 +57,8 @@ export default function LayoutManagerModal() {
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCriarEstiloOpen, setIsCriarEstiloOpen] = useState(false);
+  const [deleteTestConfirmIndex, setDeleteTestConfirmIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uniqueLocalidades = useMemo(() => Array.from(
@@ -196,6 +200,16 @@ export default function LayoutManagerModal() {
               )}
             </div>
 
+            <button
+              type="button"
+              onClick={() => setIsCriarEstiloOpen(true)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-amber-400 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest hover:bg-amber-50/60 dark:hover:bg-amber-900/20 transition-colors"
+              title="Monta um estilo do zero numa folha A4 com réguas, sem espelhar nenhum modelo pronto"
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              Criar Estilo (Teste)
+            </button>
+
             <div>
               <label className="text-[8px] font-bold text-zinc-500 uppercase block mb-1">Nome do Modelo</label>
               <input
@@ -329,6 +343,41 @@ export default function LayoutManagerModal() {
               </p>
             </div>
             <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
+              {testLayouts.length > 0 && (
+                <div className="mb-5 pb-5 border-b border-dashed border-amber-300 dark:border-amber-800">
+                  <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-3">
+                    <FlaskConical className="w-3 h-3" /> Meus Estilos (Teste) • {testLayouts.length}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {testLayouts.map((layout, index) => (
+                      <div key={index} className="rounded-2xl border border-dashed border-amber-400 dark:border-amber-700 overflow-hidden bg-amber-50/50 dark:bg-amber-900/10">
+                        <div className="aspect-[210/297] bg-zinc-200 dark:bg-zinc-900 flex items-center justify-center">
+                          <ImageIcon className="w-8 h-8 text-zinc-400" />
+                        </div>
+                        <div className="p-2.5 space-y-1">
+                          <p className="text-[11px] font-bold text-black dark:text-white truncate" title={layout.name}>{layout.name}</p>
+                          <div className="flex gap-1 pt-1">
+                            <button
+                              onClick={() => { promoteTestLayout(index); toast.success('Estilo movido para os modelos oficiais!'); }}
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                              title="Tornar este estilo um modelo oficial"
+                            >
+                              <ArrowUpCircle className="w-3 h-3" /> Usar
+                            </button>
+                            <button
+                              onClick={() => setDeleteTestConfirmIndex(index)}
+                              className="p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              title="Excluir estilo de teste"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {filteredIndexed.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
                   <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center">
@@ -421,6 +470,36 @@ export default function LayoutManagerModal() {
           </div>
         </div>
       )}
+
+      {deleteTestConfirmIndex !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="text-lg font-bold">Excluir Estilo de Teste</h3>
+            </div>
+            <p className="text-sm text-black dark:text-white opacity-60">
+              Isso vai apagar permanentemente o estilo de teste "{testLayouts[deleteTestConfirmIndex]?.name}". Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setDeleteTestConfirmIndex(null)}
+                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { deleteTestLayout(deleteTestConfirmIndex); setDeleteTestConfirmIndex(null); toast.success('Estilo de teste excluído.'); }}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CriarEstiloModal isOpen={isCriarEstiloOpen} onClose={() => setIsCriarEstiloOpen(false)} />
     </div>
   );
 }

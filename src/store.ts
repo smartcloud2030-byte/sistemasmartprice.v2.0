@@ -262,6 +262,13 @@ interface AppState {
   setLayoutBackground: (index: number, url: string | null) => void;
   applyLayoutFormatting: (targetIndex: number, sourceIndex: number) => void;
 
+  // Estilos criados na tela experimental "Criar Estilo (Teste)" — ficam
+  // isolados dos modelos oficiais em `layouts` até o admin promover ou excluir.
+  testLayouts: Layout[];
+  addTestLayout: (layout: Layout) => void;
+  deleteTestLayout: (index: number) => void;
+  promoteTestLayout: (index: number) => number;
+
   setElement: (slot: 1 | 2 | 3, key: keyof AppState['textElements1'], settings: Partial<TextSettings>) => void;
   setProductImage: (slot: 1 | 2 | 3, settings: Partial<ImageSettings>) => void;
   setBackground: (settings: Partial<AppState['background']>) => void;
@@ -749,6 +756,33 @@ export const useStore = create<AppState>()(
         // esperar o debounce, para não perder o delete se a página recarregar logo em seguida.
         get().saveLayout();
         get().saveUsersAndFlags();
+      },
+
+      testLayouts: [],
+
+      addTestLayout: (layout) => {
+        set((state) => ({ testLayouts: [layout, ...state.testLayouts] }));
+      },
+
+      deleteTestLayout: (index) => {
+        set((state) => ({ testLayouts: state.testLayouts.filter((_, i) => i !== index) }));
+      },
+
+      promoteTestLayout: (index) => {
+        const layout = get().testLayouts[index];
+        if (!layout) return -1;
+        set((state) => ({
+          layouts: [layout, ...state.layouts].map((l, i) => ({ ...l, sortOrder: i })),
+          favoriteLayouts: state.favoriteLayouts.map((i) => i + 1),
+          allowedStores: state.allowedStores.map((s) => (
+            s.allowedLayouts ? { ...s, allowedLayouts: s.allowedLayouts.map((i) => i + 1) } : s
+          )),
+          activeLayoutIndex: state.activeLayoutIndex + 1,
+          testLayouts: state.testLayouts.filter((_, i) => i !== index),
+        }));
+        get().saveLayoutDebounced();
+        get().saveUsersAndFlagsDebounced();
+        return 0;
       },
 
       setLayoutBackground: (index, url) => {
@@ -1289,6 +1323,7 @@ export const useStore = create<AppState>()(
         textElements3: state.textElements3,
         activeLayoutIndex: state.activeLayoutIndex,
         layouts: state.layouts,
+        testLayouts: state.testLayouts,
         favoriteLayouts: state.favoriteLayouts,
         zoom: state.zoom,
         allowedStores: state.allowedStores,
