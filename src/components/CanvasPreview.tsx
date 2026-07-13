@@ -327,6 +327,10 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
             height={displayHeight}
             rotation={productImage.rotation}
             opacity={productImage.opacity}
+            shadowColor="black"
+            shadowBlur={16}
+            shadowOffsetY={10}
+            shadowOpacity={0.35}
             draggable={!productImage.locked}
             onClick={() => setSelectedId(`product${slot}`)}
             onTap={() => setSelectedId(`product${slot}`)}
