@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import {
   X, Layout as LayoutIcon, Search, Flag, MapPin, Wand2, Upload,
-  Trash2, AlertTriangle, Plus, Pencil, Save, Image as ImageIcon,
+  Trash2, AlertTriangle, Pencil, Save, Image as ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, getProxyUrl, extractGalleryPath } from '../lib/utils';
@@ -166,7 +166,7 @@ export default function LayoutManagerModal() {
             </div>
           </div>
           <button
-            onClick={() => setLayoutManagerModalOpen(false)}
+            onClick={() => { resetForm(); setLayoutManagerModalOpen(false); }}
             className="p-3 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500"
           >
             <X className="w-5 h-5" />
@@ -184,9 +184,10 @@ export default function LayoutManagerModal() {
               {editingIndex !== null && (
                 <button
                   onClick={resetForm}
-                  className="flex items-center gap-1 text-[10px] font-bold uppercase text-blue-600 hover:text-blue-700"
+                  className="flex items-center gap-1 text-[10px] font-bold uppercase text-red-500 hover:text-red-600"
+                  title="Cancelar edição e voltar para criar um novo modelo"
                 >
-                  <Plus className="w-3 h-3" /> Novo
+                  <X className="w-3 h-3" /> Cancelar
                 </button>
               )}
             </div>
