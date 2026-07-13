@@ -322,7 +322,7 @@ export default function SupportChat() {
           )}
 
           {/* Chat Area */}
-          <div className="flex-grow flex flex-col bg-white dark:bg-zinc-900 relative">
+          <div className="flex-grow flex flex-col bg-white dark:bg-zinc-900 relative min-w-0">
             {userRole === 'admin' && !selectedUserCnpj ? (
               <div className="flex-grow flex flex-col items-center justify-center p-12 text-center">
                 <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
@@ -558,7 +558,7 @@ export default function SupportChat() {
                     <input
                       type="text"
                       placeholder="Digite sua mensagem..."
-                      className="flex-grow bg-zinc-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black dark:text-white"
+                      className="flex-grow min-w-0 bg-zinc-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black dark:text-white"
                       value={inputText}
                       onChange={handleInputChange}
                       disabled={isSending || !activeConversationId}
