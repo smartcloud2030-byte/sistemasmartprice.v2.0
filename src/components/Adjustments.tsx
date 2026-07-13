@@ -431,8 +431,8 @@ const Adjustments = () => {
         Ajustes e Estilos
       </h2>
 
-      {/* Background Section */}
-      {userRole === 'admin' && (
+      {/* Background Section — desativado a pedido do admin; a tela "Layout" substitui esta seção (código mantido para reativação futura) */}
+      {false && userRole === 'admin' && (
         <CollapsibleSection title="Fundo Geral" icon={Layout}>
           <div className="space-y-4">
             <div className="flex flex-col gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/20 rounded-xl">
@@ -769,8 +769,8 @@ const Adjustments = () => {
         </CollapsibleSection>
       )}
 
-      {/* Admin: Rename Layouts */}
-      {userRole === 'admin' && (
+      {/* Admin: Rename Layouts — desativado a pedido do admin; a tela "Layout" substitui este botão (código mantido para reativação futura) */}
+      {false && userRole === 'admin' && (
         <button
           onClick={() => setLayoutNamesModalOpen(true)}
           className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 hover:shadow-md transition-all text-left"
@@ -788,19 +788,19 @@ const Adjustments = () => {
         </button>
       )}
 
-      {/* Admin: Layout Manager (teste) */}
+      {/* Admin: Layout Manager */}
       {userRole === 'admin' && (
         <button
           onClick={() => setLayoutManagerModalOpen(true)}
-          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-dashed border-violet-400 dark:border-violet-700 rounded-2xl hover:border-violet-500 hover:shadow-md transition-all text-left"
+          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-violet-500/50 hover:shadow-md transition-all text-left"
         >
           <span className="flex items-center gap-3">
             <span className="w-10 h-10 bg-violet-50 dark:bg-violet-900/20 rounded-xl flex items-center justify-center text-violet-600 flex-shrink-0">
               <Layout className="w-5 h-5" />
             </span>
             <span>
-              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Layout (Teste)</span>
-              <span className="block text-xs text-zinc-400">Criar/editar modelo com fundo, grupo, localização e estilo em uma tela só</span>
+              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Layout</span>
+              <span className="block text-xs text-zinc-400">{layouts.length} modelos • fundo, grupo, localização e estilo em uma tela só</span>
             </span>
           </span>
           <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />

@@ -161,7 +161,7 @@ export default function LayoutManagerModal() {
               <LayoutIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-xl font-black tracking-tighter uppercase text-black dark:text-white">Layout (Teste)</h3>
+              <h3 className="text-xl font-black tracking-tighter uppercase text-black dark:text-white">Layout</h3>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{layouts.length} modelos cadastrados • criar, editar e excluir em uma só tela</p>
             </div>
           </div>
