@@ -500,6 +500,35 @@ export const createDefaultLayout = (name: string, index?: number): Layout => {
   };
 };
 
+// Monta o estado de trabalho (o que a tela A4 realmente renderiza) a partir de
+// um modelo salvo em `layouts`. Usado ao trocar de modelo ativo e ao excluir o
+// modelo que estava ativo no momento, para a tela não continuar mostrando a
+// imagem/textos do modelo anterior.
+const buildWorkingStateFromLayout = (nextLayout: Layout | undefined, index: number) => {
+  const defaultNext = createDefaultLayout(nextLayout?.name || `Modelo ${index + 1}`, index);
+  return {
+    orientation: nextLayout?.orientation || 'portrait',
+    isSingleProduct: nextLayout?.isSingleProduct !== undefined ? nextLayout.isSingleProduct : false,
+    showSingleProductControl: nextLayout?.showSingleProductControl !== undefined ? nextLayout.showSingleProductControl : false,
+    showOptionalTextControl: nextLayout?.showOptionalTextControl !== undefined ? nextLayout.showOptionalTextControl : true,
+    background: nextLayout?.background ? { ...defaultNext.background, ...nextLayout.background } : defaultNext.background,
+    productImage1: nextLayout?.productImage1 ? { ...defaultNext.productImage1, ...nextLayout.productImage1 } : defaultNext.productImage1,
+    productImage2: nextLayout?.productImage2 ? { ...defaultNext.productImage2, ...nextLayout.productImage2 } : defaultNext.productImage2,
+    productImage3: nextLayout?.productImage3 ? { ...defaultNext.productImage3, ...nextLayout.productImage3 } : defaultNext.productImage3,
+    textElements1: nextLayout?.textElements1 ? { ...defaultNext.textElements1, ...nextLayout.textElements1 } : defaultNext.textElements1,
+    textElements2: nextLayout?.textElements2 ? { ...defaultNext.textElements2, ...nextLayout.textElements2 } : defaultNext.textElements2,
+    textElements3: nextLayout?.textElements3 ? {
+      name: { ...defaultNext.textElements3.name, ...nextLayout.textElements3.name },
+      description: { ...defaultNext.textElements3.description, ...nextLayout.textElements3.description },
+      subtitle: { ...defaultNext.textElements3.subtitle, ...nextLayout.textElements3.subtitle },
+      price: { ...defaultNext.textElements3.price, ...nextLayout.textElements3.price },
+    } : defaultNext.textElements3,
+    optionalText1: nextLayout?.optionalText1 ? { ...defaultNext.optionalText1, ...nextLayout.optionalText1 } : defaultNext.optionalText1,
+    optionalText2: nextLayout?.optionalText2 ? { ...defaultNext.optionalText2, ...nextLayout.optionalText2 } : defaultNext.optionalText2,
+    optionalText3: nextLayout?.optionalText3 ? { ...defaultNext.optionalText3, ...nextLayout.optionalText3 } : defaultNext.optionalText3,
+  };
+};
+
 const buildDefaultLayouts = () => {
   const named = [
     'QUARTA FRALDA PL', 'SABADÃO PL', 'QUI KIDS PL', 'DERMO PL', 'MARONBA',
@@ -578,29 +607,10 @@ export const useStore = create<AppState>()(
         const newLayouts = [...state.layouts];
         newLayouts[state.activeLayoutIndex] = currentLayout;
         const nextLayout = newLayouts[index];
-        const defaultNext = createDefaultLayout(nextLayout.name, index);
         set({
           activeLayoutIndex: index,
           layouts: newLayouts,
-          orientation: nextLayout.orientation || 'portrait',
-          isSingleProduct: nextLayout.isSingleProduct !== undefined ? nextLayout.isSingleProduct : false,
-          showSingleProductControl: nextLayout.showSingleProductControl !== undefined ? nextLayout.showSingleProductControl : false,
-          showOptionalTextControl: nextLayout.showOptionalTextControl !== undefined ? nextLayout.showOptionalTextControl : true,
-          background: nextLayout.background ? { ...defaultNext.background, ...nextLayout.background } : defaultNext.background,
-          productImage1: nextLayout.productImage1 ? { ...defaultNext.productImage1, ...nextLayout.productImage1 } : defaultNext.productImage1,
-          productImage2: nextLayout.productImage2 ? { ...defaultNext.productImage2, ...nextLayout.productImage2 } : defaultNext.productImage2,
-          productImage3: nextLayout.productImage3 ? { ...defaultNext.productImage3, ...nextLayout.productImage3 } : defaultNext.productImage3,
-          textElements1: nextLayout.textElements1 ? { ...defaultNext.textElements1, ...nextLayout.textElements1 } : defaultNext.textElements1,
-          textElements2: nextLayout.textElements2 ? { ...defaultNext.textElements2, ...nextLayout.textElements2 } : defaultNext.textElements2,
-          textElements3: nextLayout.textElements3 ? {
-            name: { ...defaultNext.textElements3.name, ...nextLayout.textElements3.name },
-            description: { ...defaultNext.textElements3.description, ...nextLayout.textElements3.description },
-            subtitle: { ...defaultNext.textElements3.subtitle, ...nextLayout.textElements3.subtitle },
-            price: { ...defaultNext.textElements3.price, ...nextLayout.textElements3.price },
-          } : defaultNext.textElements3,
-          optionalText1: nextLayout.optionalText1 ? { ...defaultNext.optionalText1, ...nextLayout.optionalText1 } : defaultNext.optionalText1,
-          optionalText2: nextLayout.optionalText2 ? { ...defaultNext.optionalText2, ...nextLayout.optionalText2 } : defaultNext.optionalText2,
-          optionalText3: nextLayout.optionalText3 ? { ...defaultNext.optionalText3, ...nextLayout.optionalText3 } : defaultNext.optionalText3,
+          ...buildWorkingStateFromLayout(nextLayout, index),
         });
         if (get().userRole === 'admin') get().saveLayoutDebounced();
       },
@@ -706,7 +716,8 @@ export const useStore = create<AppState>()(
           ));
 
           let newActiveIndex = state.activeLayoutIndex;
-          if (newActiveIndex === index) newActiveIndex = 0;
+          const wasActiveDeleted = newActiveIndex === index;
+          if (wasActiveDeleted) newActiveIndex = 0;
           else if (newActiveIndex > index) newActiveIndex -= 1;
           newActiveIndex = Math.min(newActiveIndex, Math.max(0, newLayouts.length - 1));
 
@@ -715,6 +726,10 @@ export const useStore = create<AppState>()(
             favoriteLayouts: newFavoriteLayouts,
             allowedStores: newAllowedStores,
             activeLayoutIndex: newActiveIndex,
+            // Se o modelo excluído era o ativo, a tela A4 estava exibindo o fundo/textos
+            // dele fora do array `layouts` — recarrega a partir do novo modelo ativo,
+            // senão a imagem antiga continua aparecendo mesmo depois de excluído.
+            ...(wasActiveDeleted ? buildWorkingStateFromLayout(newLayouts[newActiveIndex], newActiveIndex) : {}),
           };
         });
         // Exclusão é uma ação pontual e destrutiva: salva na hora em vez de
