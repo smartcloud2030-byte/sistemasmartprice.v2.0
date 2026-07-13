@@ -105,7 +105,8 @@ export default function LayoutManagerModal() {
   const handleSave = () => {
     if (!name.trim()) { toast.error('Digite um nome para o modelo.'); return; }
 
-    const index = editingIndex === null ? addLayout(name, bandeira || undefined, localidade || undefined) : editingIndex;
+    const isCreating = editingIndex === null;
+    const index = isCreating ? addLayout(name, bandeira || undefined, localidade || undefined) : editingIndex;
     if (editingIndex !== null) {
       setLayoutName(index, name);
       setLayoutBandeira(index, bandeira);
@@ -113,7 +114,10 @@ export default function LayoutManagerModal() {
     }
     setLayoutBackground(index, backgroundUrl);
     if (styleSourceIndex) {
-      applyLayoutFormatting(index, parseInt(styleSourceIndex, 10));
+      // addLayout empurra todo mundo um índice pra frente (modelo novo entra em
+      // primeiro), então o índice escolhido no dropdown antes de salvar ficou defasado.
+      const sourceIndex = parseInt(styleSourceIndex, 10) + (isCreating ? 1 : 0);
+      applyLayoutFormatting(index, sourceIndex);
     }
 
     toast.success(editingIndex === null ? 'Modelo criado com sucesso!' : 'Modelo salvo com sucesso!');

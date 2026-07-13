@@ -270,7 +270,7 @@ const ProductManager = () => {
     const matchesTerm = !term || (p.name || '').toLowerCase().includes(term) || (p.category || '').toLowerCase().includes(term) || (p.description || '').toLowerCase().includes(term) || (p.barcode || '').toLowerCase().includes(term) || (p.barcode2 || '').toLowerCase().includes(term);
     const matchesCategory = !categoryFilter || p.category === categoryFilter;
     return matchesTerm && matchesCategory;
-  });
+  }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
 
   const openModal = (product?: Product) => {
     if (product) {

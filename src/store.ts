@@ -676,15 +676,28 @@ export const useStore = create<AppState>()(
       },
 
       addLayout: (name, bandeira, localidade) => {
-        const newIndex = get().layouts.length;
+        // Modelo novo sempre entra em primeiro (topo da lista), então todo o
+        // resto empurra um índice pra frente — precisa remapear as mesmas
+        // referências por índice que o deleteLayout já remapeia.
         const newLayout: Layout = {
-          ...createDefaultLayout(name.trim() || `Modelo ${newIndex + 1}`, newIndex),
+          ...createDefaultLayout(name.trim() || `Modelo ${get().layouts.length + 1}`, 0),
           bandeira: bandeira || undefined,
           localidade: localidade || undefined,
         };
-        set((state) => ({ layouts: [...state.layouts, newLayout] }));
+        set((state) => {
+          const newLayouts = [newLayout, ...state.layouts].map((l, i) => ({ ...l, sortOrder: i }));
+          return {
+            layouts: newLayouts,
+            favoriteLayouts: state.favoriteLayouts.map((i) => i + 1),
+            allowedStores: state.allowedStores.map((s) => (
+              s.allowedLayouts ? { ...s, allowedLayouts: s.allowedLayouts.map((i) => i + 1) } : s
+            )),
+            activeLayoutIndex: state.activeLayoutIndex + 1,
+          };
+        });
         get().saveLayoutDebounced();
-        return newIndex;
+        get().saveUsersAndFlagsDebounced();
+        return 0;
       },
 
       setLayoutHidden: (index, hidden) => {
