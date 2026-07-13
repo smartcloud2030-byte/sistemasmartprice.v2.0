@@ -84,3 +84,19 @@ export const getProxyUrl = (url: string | undefined | null, options?: { thumbnai
 
   return url; // URLs externas: carrega direto (sem proxy de terceiros)
 };
+
+/**
+ * Extrai o caminho (bucket/objeto) de uma URL de imagem hospedada na nossa galeria,
+ * para permitir excluir o arquivo físico via `/gallery/delete/:path`.
+ */
+export const extractGalleryPath = (url: string | null | undefined): string | null => {
+  if (!url || !url.includes('imagens.sistemasmartprice.com.br')) return null;
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    if (segments.length > 1) return segments.slice(1).join('/');
+  } catch {
+    // URL malformada — ignora
+  }
+  return null;
+};

@@ -7,6 +7,7 @@ import Adjustments from './components/Adjustments';
 import PrintQueue from './components/PrintQueue';
 import UserManagement from './components/UserManagement';
 import LayoutNamesModal from './components/LayoutNamesModal';
+import LayoutManagerModal from './components/LayoutManagerModal';
 import AnnouncementManager from './components/AnnouncementManager';
 import UserAnnouncementModal from './components/UserAnnouncementModal';
 import SupportChat from './components/SupportChat';
@@ -1018,6 +1019,7 @@ export default function App() {
         </div>
       )}
       <LayoutNamesModal />
+      <LayoutManagerModal />
 
       {/* Botão flutuante de suporte (usuário comum) */}
       {isAuthenticated && userRole !== 'admin' && isChatEnabled && !isPrinting && (

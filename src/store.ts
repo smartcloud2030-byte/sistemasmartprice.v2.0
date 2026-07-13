@@ -258,6 +258,8 @@ interface AppState {
   addLayout: (name: string, bandeira?: string, localidade?: string) => number;
   setLayoutHidden: (index: number, hidden: boolean) => void;
   deleteLayout: (index: number) => void;
+  setLayoutBackground: (index: number, url: string | null) => void;
+  applyLayoutFormatting: (targetIndex: number, sourceIndex: number) => void;
 
   setElement: (slot: 1 | 2 | 3, key: keyof AppState['textElements1'], settings: Partial<TextSettings>) => void;
   setProductImage: (slot: 1 | 2 | 3, settings: Partial<ImageSettings>) => void;
@@ -274,6 +276,8 @@ interface AppState {
   setUserManagementSuspendedFilter: (v: boolean) => void;
   isLayoutNamesModalOpen: boolean;
   setLayoutNamesModalOpen: (open: boolean) => void;
+  isLayoutManagerModalOpen: boolean;
+  setLayoutManagerModalOpen: (open: boolean) => void;
   fetchProducts: () => Promise<void>;
   selectProduct: (slot: 1 | 2 | 3, product: Product) => void;
 
@@ -716,6 +720,50 @@ export const useStore = create<AppState>()(
         get().saveUsersAndFlagsDebounced();
       },
 
+      setLayoutBackground: (index, url) => {
+        set((state) => {
+          const newLayouts = [...state.layouts];
+          const target = newLayouts[index];
+          if (!target) return {};
+          newLayouts[index] = { ...target, background: { ...target.background, url } };
+          // Se o modelo editado é o ativo no momento, espelha no `background` de trabalho também.
+          const newBackground = index === state.activeLayoutIndex
+            ? { ...state.background, url }
+            : state.background;
+          return { layouts: newLayouts, background: newBackground };
+        });
+        get().saveLayoutDebounced();
+      },
+
+      applyLayoutFormatting: (targetIndex, sourceIndex) => {
+        set((state) => {
+          const source = state.layouts[sourceIndex];
+          const target = state.layouts[targetIndex];
+          if (!source || !target) return {};
+          const fields = {
+            productImage1: source.productImage1,
+            productImage2: source.productImage2,
+            productImage3: source.productImage3,
+            textElements1: source.textElements1,
+            textElements2: source.textElements2,
+            textElements3: source.textElements3,
+            optionalText1: source.optionalText1,
+            optionalText2: source.optionalText2,
+            optionalText3: source.optionalText3,
+            hasThirdProduct: source.hasThirdProduct,
+          };
+          const newLayouts = [...state.layouts];
+          newLayouts[targetIndex] = { ...target, ...fields };
+          // Se o modelo editado é o ativo no momento, espelha nos campos de trabalho também.
+          const isActive = targetIndex === state.activeLayoutIndex;
+          return {
+            layouts: newLayouts,
+            ...(isActive ? fields : {}),
+          };
+        });
+        get().saveLayoutDebounced();
+      },
+
       setElement: (slot, key, settings) => {
         const elementKey = slot === 1 ? 'textElements1' : slot === 2 ? 'textElements2' : 'textElements3';
         set((state) => {
@@ -790,6 +838,8 @@ export const useStore = create<AppState>()(
       setUserManagementSuspendedFilter: (v) => set({ userManagementSuspendedFilter: v }),
       isLayoutNamesModalOpen: false,
       setLayoutNamesModalOpen: (open) => set({ isLayoutNamesModalOpen: open }),
+      isLayoutManagerModalOpen: false,
+      setLayoutManagerModalOpen: (open) => set({ isLayoutManagerModalOpen: open }),
       isAnnouncementModalOpen: false,
       setAnnouncementModalOpen: (open) => set({ isAnnouncementModalOpen: open }),
       announcements: [],

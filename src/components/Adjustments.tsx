@@ -238,6 +238,7 @@ const Adjustments = () => {
     optionalText1, setOptionalText,
     toggleHasThirdProduct,
     setLayoutNamesModalOpen,
+    setLayoutManagerModalOpen,
     setLayoutName,
     flags, setLayoutBandeira, setLayoutLocalidade, saveLayout,
     addLayout, setActiveLayout,
@@ -781,6 +782,25 @@ const Adjustments = () => {
             <span>
               <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Modelos</span>
               <span className="block text-xs text-zinc-400">{layouts.length} modelos • editar nome, bandeira e localidade</span>
+            </span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
+        </button>
+      )}
+
+      {/* Admin: Layout Manager (teste) */}
+      {userRole === 'admin' && (
+        <button
+          onClick={() => setLayoutManagerModalOpen(true)}
+          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-dashed border-violet-400 dark:border-violet-700 rounded-2xl hover:border-violet-500 hover:shadow-md transition-all text-left"
+        >
+          <span className="flex items-center gap-3">
+            <span className="w-10 h-10 bg-violet-50 dark:bg-violet-900/20 rounded-xl flex items-center justify-center text-violet-600 flex-shrink-0">
+              <Layout className="w-5 h-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-black uppercase tracking-widest text-black dark:text-white">Layout (Teste)</span>
+              <span className="block text-xs text-zinc-400">Criar/editar modelo com fundo, grupo, localização e estilo em uma tela só</span>
             </span>
           </span>
           <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
