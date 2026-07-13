@@ -339,7 +339,7 @@ export default function SupportChat() {
                 <div 
                   ref={scrollRef}
                   onScroll={handleScroll}
-                  className="flex-grow overflow-y-auto p-4 space-y-2 bg-[#e5ddd5] dark:bg-zinc-950 relative custom-scrollbar"
+                  className="flex-grow overflow-y-auto p-4 space-y-3 bg-[#e5ddd5] dark:bg-zinc-950 relative custom-scrollbar"
                   style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundBlendMode: 'overlay' }}
                 >
                   {isLoading ? (
@@ -417,7 +417,7 @@ export default function SupportChat() {
                             )}
                           >
                             <div className={cn(
-                              "relative max-w-[85%] px-3 py-1.5 shadow-sm",
+                              "relative max-w-[85%] px-3 py-2 shadow-sm",
                               isMe 
                                 ? "bg-[#dcf8c6] dark:bg-emerald-900/40 text-black dark:text-white rounded-lg rounded-tr-none" 
                                 : "bg-white dark:bg-zinc-800 text-black dark:text-white rounded-lg rounded-tl-none"

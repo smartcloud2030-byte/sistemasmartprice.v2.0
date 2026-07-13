@@ -1025,20 +1025,20 @@ export default function App() {
       <LayoutNamesModal />
 
       {/* Botão flutuante de suporte (usuário comum) */}
-      {userRole !== 'admin' && isChatEnabled && !isPrinting && (
+      {isAuthenticated && userRole !== 'admin' && isChatEnabled && !isPrinting && (
         <button
           type="button"
           onClick={() => {
-            setSupportChatOpen(true);
+            setSupportChatOpen(!isSupportChatOpen);
             if ("Notification" in window && Notification.permission === "default") {
               Notification.requestPermission();
             }
           }}
           className="fixed bottom-5 left-5 z-50 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/30 flex items-center justify-center transition-all active:scale-95 no-print"
-          title="Enviar mensagem para o suporte (adicionar produto que está faltando)"
+          title={isSupportChatOpen ? "Fechar chat do suporte" : "Enviar mensagem para o suporte (adicionar produto que está faltando)"}
         >
-          <MessageCircle className="w-5 h-5" />
-          {unreadSupportCount > 0 && (
+          {isSupportChatOpen ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+          {!isSupportChatOpen && unreadSupportCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold px-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center animate-bounce shadow-lg border-2 border-white dark:border-zinc-900">
               {unreadSupportCount}
             </span>
