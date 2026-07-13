@@ -532,7 +532,7 @@ function galleryHTML() {
   }
 
   function formatCatName(cat) {
-    return cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return cat.replace(/-/g, ' ').toUpperCase();
   }
 
   function selectCategory(cat) {
