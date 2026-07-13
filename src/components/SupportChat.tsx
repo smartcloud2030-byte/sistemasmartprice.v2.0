@@ -161,6 +161,7 @@ export default function SupportChat() {
   }, [isSupportChatOpen, activeConversationId, messages.length]);
 
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmDeleteCnpj, setConfirmDeleteCnpj] = useState<string | null>(null);
 
   // For admin: get list of all authorized users based on active conversations
   const chatUsers = useMemo(() => {
@@ -285,12 +286,14 @@ export default function SupportChat() {
                 </div>
               ) : (
                 chatUsers.map(user => (
-                  <button
+                  <div
                     key={user.cnpj}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedUserCnpj(user.cnpj)}
                     className={cn(
-                      "w-full p-3 flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left border-b border-zinc-100 dark:border-zinc-800/50",
-                      selectedUserCnpj === user.cnpj && "bg-blue-50 dark:bg-blue-900/10 border-l-4 border-l-blue-600"
+                      "w-full p-3 flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer",
+                      selectedUserCnpj === user.cnpj && "bg-blue-50 dark:bg-blue-900/10"
                     )}
                   >
                     <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center flex-shrink-0">
@@ -315,7 +318,38 @@ export default function SupportChat() {
                         {unreadPerUser[user.cnpj?.replace(/[^\d]/g, '') || '']}
                       </div>
                     )}
-                  </button>
+
+                    {/* Excluir conversa inteira */}
+                    {confirmDeleteCnpj === user.cnpj ? (
+                      <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => { clearMessages(user.cnpj); setConfirmDeleteCnpj(null); }}
+                          title="Confirmar exclusão da conversa"
+                          className="px-1.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-[8px] font-black uppercase tracking-widest transition-colors"
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteCnpj(null)}
+                          title="Cancelar"
+                          className="px-1.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-[8px] font-black uppercase tracking-widest transition-colors"
+                        >
+                          Não
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteCnpj(user.cnpj); }}
+                        title="Excluir conversa inteira"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 ))
               )}
             </div>
