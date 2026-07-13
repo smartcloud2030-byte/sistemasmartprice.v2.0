@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { toast } from 'sonner';
 
 // ─── API helper ────────────────────────────────────────────────────────────────
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
@@ -716,8 +717,10 @@ export const useStore = create<AppState>()(
             activeLayoutIndex: newActiveIndex,
           };
         });
-        get().saveLayoutDebounced();
-        get().saveUsersAndFlagsDebounced();
+        // Exclusão é uma ação pontual e destrutiva: salva na hora em vez de
+        // esperar o debounce, para não perder o delete se a página recarregar logo em seguida.
+        get().saveLayout();
+        get().saveUsersAndFlags();
       },
 
       setLayoutBackground: (index, url) => {
@@ -925,6 +928,8 @@ export const useStore = create<AppState>()(
           await apiPost('/settings/current_layout', { value: layout });
         } catch (error) {
           console.error('Error saving layout:', error);
+          toast.error('Falha ao salvar no servidor. Se atualizar a página agora, a alteração pode ser perdida.');
+          throw error;
         }
       },
 
