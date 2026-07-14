@@ -1387,7 +1387,10 @@ export const useStore = create<AppState>()(
       // ── login ───────────────────────────────────────────────────────────────
       login: async (role, user) => {
         await get().loadUsersAndFlags();
-        set({ isAuthenticated: true, userRole: role, currentUser: user, lastLoginTimestamp: Date.now(), currentView: role === 'admin' ? 'dashboard' : 'editor' });
+        // A fila de impressao e por usuario: sem isso, trocar de conta no mesmo
+        // navegador herdaria a fila deixada pelo login anterior (dado persistido
+        // no localStorage compartilhado do dispositivo).
+        set({ isAuthenticated: true, userRole: role, currentUser: user, lastLoginTimestamp: Date.now(), currentView: role === 'admin' ? 'dashboard' : 'editor', printQueue: [] });
         if (role === 'user' && user.cnpj) {
           const nc = user.cnpj.replace(/[^\d]/g, '');
           set((state) => ({ allowedStores: state.allowedStores.map(s => s.cnpj.replace(/[^\d]/g, '') === nc ? { ...s, isOnline: true, lastAccess: new Date().toISOString(), lastUsername: user.username } : s) }));
@@ -1412,7 +1415,7 @@ export const useStore = create<AppState>()(
             console.error('Error during logout activity update:', error);
           }
         }
-        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null });
+        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, printQueue: [] });
       },
     }),
     {
