@@ -91,7 +91,8 @@ const PrintQueue = () => {
 
   if (isPrinting) {
     return (
-      <div className="fixed inset-0 z-[9999] bg-zinc-100 dark:bg-zinc-950 overflow-y-auto no-scrollbar">
+      <>
+      <div className="fixed inset-0 z-[9999] bg-zinc-100 dark:bg-zinc-950 overflow-y-auto no-scrollbar no-print">
         {/* UI Header - Hidden during print */}
         <div className="sticky top-0 z-[10000] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between no-print">
           <div className="flex items-center gap-4">
@@ -130,16 +131,19 @@ const PrintQueue = () => {
             </div>
           ))}
         </div>
-
-        {/* Actual Print Area - Optimized for Browser Print */}
-        <div id="print-queue-area" className="hidden print:block">
-          {printQueue.map((item, index) => (
-            <div key={index} className={`print-page ${item.isLandscape ? 'landscape' : ''}`}>
-              <img src={item.imageData} alt={`Print Tag ${index + 1}`} crossOrigin="anonymous" />
-            </div>
-          ))}
-        </div>
       </div>
+
+      {/* Actual Print Area - Optimized for Browser Print. Fica fora do container
+          fixed/overflow-y-auto acima: esse overflow recorta o conteudo pela altura
+          de uma pagina na hora de imprimir, cortando as demais paginas da fila. */}
+      <div id="print-queue-area" className="hidden print:block">
+        {printQueue.map((item, index) => (
+          <div key={index} className={`print-page ${item.isLandscape ? 'landscape' : ''}`}>
+            <img src={item.imageData} alt={`Print Tag ${index + 1}`} crossOrigin="anonymous" />
+          </div>
+        ))}
+      </div>
+      </>
     );
   }
 
