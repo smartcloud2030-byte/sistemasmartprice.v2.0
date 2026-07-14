@@ -334,10 +334,12 @@ interface AppState {
   setShowOptionalTextControl: (show: boolean) => void;
   toggleHasThirdProduct: () => void;
 
-  printQueue: { imageData: string; isLandscape: boolean }[];
+  printQueue: { imageData: string; isLandscape: boolean; selected: boolean }[];
   addToQueue: (imageData: string, isLandscape: boolean) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
+  toggleQueueSelection: (index: number) => void;
+  setAllQueueSelected: (selected: boolean) => void;
   currentView: View;
   setView: (view: View) => void;
   realtimeInitialized: boolean;
@@ -390,6 +392,11 @@ interface AppState {
   lastLoginTimestamp: number | null;
   userRole: 'user' | 'admin' | null;
   currentUser: { username: string; cnpj: string; bandeira: string } | null;
+  // Identidade do ultimo login de loja (cnpj+usuario) — sobrevive ao logout para
+  // decidir, no proximo login, se o rascunho local (fila/produto/preco) e da
+  // mesma loja (mantem) ou de outra (reseta, para nao vazar dado entre lojas
+  // que usam o mesmo navegador/dispositivo).
+  lastUserIdentity: { cnpj: string; username: string } | null;
   isSupportChatOpen: boolean;
   isChatEnabled: boolean;
   setSupportChatOpen: (open: boolean) => void;
@@ -1216,9 +1223,11 @@ export const useStore = create<AppState>()(
       },
 
       printQueue: [],
-      addToQueue: (imageData, isLandscape) => set((state) => ({ printQueue: [...state.printQueue, { imageData, isLandscape }] })),
+      addToQueue: (imageData, isLandscape) => set((state) => ({ printQueue: [...state.printQueue, { imageData, isLandscape, selected: true }] })),
       removeFromQueue: (index) => set((state) => ({ printQueue: state.printQueue.filter((_, i) => i !== index) })),
       clearQueue: () => set({ printQueue: [] }),
+      toggleQueueSelection: (index) => set((state) => ({ printQueue: state.printQueue.map((item, i) => i === index ? { ...item, selected: !item.selected } : item) })),
+      setAllQueueSelected: (selected) => set((state) => ({ printQueue: state.printQueue.map((item) => ({ ...item, selected })) })),
       currentView: 'editor',
       setView: (view) => set({ currentView: view }),
       realtimeInitialized: false,
@@ -1344,6 +1353,7 @@ export const useStore = create<AppState>()(
       lastLoginTimestamp: null,
       userRole: null,
       currentUser: null,
+      lastUserIdentity: null,
       isSupportChatOpen: false,
       isChatEnabled: true,
       setSupportChatOpen: (open) => set({ isSupportChatOpen: open }),
@@ -1387,10 +1397,30 @@ export const useStore = create<AppState>()(
       // ── login ───────────────────────────────────────────────────────────────
       login: async (role, user) => {
         await get().loadUsersAndFlags();
-        // A fila de impressao e por usuario: sem isso, trocar de conta no mesmo
-        // navegador herdaria a fila deixada pelo login anterior (dado persistido
-        // no localStorage compartilhado do dispositivo).
-        set({ isAuthenticated: true, userRole: role, currentUser: user, lastLoginTimestamp: Date.now(), currentView: role === 'admin' ? 'dashboard' : 'editor', printQueue: [] });
+        const stateBeforeLogin = get();
+        const nc = user.cnpj?.replace(/[^\d]/g, '') || '';
+        // A fila/produto/preco em edicao sao rascunho local por loja: se o login
+        // agora e de um cnpj+usuario diferente do ultimo (mesmo navegador), reseta
+        // esse rascunho para nao vazar dado de uma loja para outra. Se for a mesma
+        // loja voltando a logar, mantem a ultima alteracao dela.
+        const isSameUser = role === 'user'
+          && stateBeforeLogin.lastUserIdentity?.cnpj === nc
+          && stateBeforeLogin.lastUserIdentity?.username === user.username;
+        const draftReset = role === 'user' && !isSameUser
+          ? {
+              printQueue: [],
+              ...buildWorkingStateFromLayout(stateBeforeLogin.layouts[stateBeforeLogin.activeLayoutIndex], stateBeforeLogin.activeLayoutIndex),
+            }
+          : {};
+        set({
+          isAuthenticated: true,
+          userRole: role,
+          currentUser: user,
+          lastLoginTimestamp: Date.now(),
+          currentView: role === 'admin' ? 'dashboard' : 'editor',
+          lastUserIdentity: role === 'user' ? { cnpj: nc, username: user.username } : stateBeforeLogin.lastUserIdentity,
+          ...draftReset,
+        } as any);
         if (role === 'user' && user.cnpj) {
           const nc = user.cnpj.replace(/[^\d]/g, '');
           set((state) => ({ allowedStores: state.allowedStores.map(s => s.cnpj.replace(/[^\d]/g, '') === nc ? { ...s, isOnline: true, lastAccess: new Date().toISOString(), lastUsername: user.username } : s) }));
@@ -1415,7 +1445,9 @@ export const useStore = create<AppState>()(
             console.error('Error during logout activity update:', error);
           }
         }
-        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, printQueue: [] });
+        // Nao reseta printQueue/rascunho aqui: se a mesma loja logar de novo,
+        // o login compara lastUserIdentity e mantem o que ela deixou.
+        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null });
       },
     }),
     {
@@ -1441,6 +1473,7 @@ export const useStore = create<AppState>()(
         lastLoginTimestamp: state.lastLoginTimestamp,
         userRole: state.userRole,
         currentUser: state.currentUser,
+        lastUserIdentity: state.lastUserIdentity,
         currentView: state.currentView,
         encartes: state.encartes,
         selectedEncarteModel: state.selectedEncarteModel,

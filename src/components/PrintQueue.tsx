@@ -1,14 +1,18 @@
 import React from 'react';
 import { useStore } from '../store';
-import { Printer, FileDown, Trash2, ArrowLeft, LayoutGrid } from 'lucide-react';
+import { Printer, FileDown, Trash2, ArrowLeft, LayoutGrid, CheckSquare, Square } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
 const PrintQueue = () => {
-  const { printQueue, removeFromQueue, clearQueue, setView, setPrinting, isPrinting } = useStore();
+  const { printQueue, removeFromQueue, clearQueue, setView, setPrinting, isPrinting, toggleQueueSelection, setAllQueueSelected } = useStore();
+  // Itens salvos antes do campo `selected` existir vem sem essa propriedade —
+  // trata como selecionado por padrao (undefined !== false).
+  const selectedQueue = printQueue.filter((item) => item.selected !== false);
+  const allSelected = printQueue.length > 0 && selectedQueue.length === printQueue.length;
 
   const handlePrintAll = () => {
-    if (printQueue.length === 0) return;
+    if (selectedQueue.length === 0) return;
     setPrinting(true);
     // Give time for the print preview to render before opening the dialog
     setTimeout(() => {
@@ -19,14 +23,14 @@ const PrintQueue = () => {
   };
 
   const handleExportPDFAll = async () => {
-    if (printQueue.length === 0) return;
+    if (selectedQueue.length === 0) return;
 
     const toastId = toast.loading('Gerando PDF da fila...');
 
     try {
       // Create a temporary instance to check the first image's dimensions
       const tempPdf = new jsPDF();
-      const firstItem = printQueue[0];
+      const firstItem = selectedQueue[0];
       const firstImgData = firstItem.imageData;
       const firstIsLandscape = firstItem.isLandscape;
 
@@ -36,18 +40,18 @@ const PrintQueue = () => {
         format: 'a4'
       });
 
-      for (let i = 0; i < printQueue.length; i++) {
-        const item = printQueue[i];
+      for (let i = 0; i < selectedQueue.length; i++) {
+        const item = selectedQueue[i];
         const imgData = item.imageData;
         const isLandscape = item.isLandscape;
 
         if (i > 0) {
           pdf.addPage('a4', isLandscape ? 'landscape' : 'portrait');
         }
-        
+
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
-        
+
         // Using JPEG for better performance and smaller file size
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       }
@@ -106,9 +110,9 @@ const PrintQueue = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-black dark:text-white opacity-60 uppercase tracking-widest">
-              {printQueue.length} {printQueue.length === 1 ? 'Página' : 'Páginas'} A4
+              {selectedQueue.length} {selectedQueue.length === 1 ? 'Página' : 'Páginas'} A4
             </span>
-            <button 
+            <button
               onClick={confirmPrint}
               className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl font-black uppercase tracking-tighter shadow-lg hover:bg-blue-700 transition-all"
             >
@@ -120,7 +124,7 @@ const PrintQueue = () => {
 
         {/* Preview Area - Hidden during print */}
         <div className="flex flex-col items-center gap-8 py-12 px-4 no-print">
-          {printQueue.map((item, index) => (
+          {selectedQueue.map((item, index) => (
             <div key={index} className="relative group">
               <div className="absolute -left-12 top-0 text-black dark:text-white opacity-40 font-black text-2xl">
                 {index + 1}
@@ -137,7 +141,7 @@ const PrintQueue = () => {
           fixed/overflow-y-auto acima: esse overflow recorta o conteudo pela altura
           de uma pagina na hora de imprimir, cortando as demais paginas da fila. */}
       <div id="print-queue-area" className="hidden print:block">
-        {printQueue.map((item, index) => (
+        {selectedQueue.map((item, index) => (
           <div key={index} className={`print-page ${item.isLandscape ? 'landscape' : ''}`}>
             <img src={item.imageData} alt={`Print Tag ${index + 1}`} crossOrigin="anonymous" />
           </div>
@@ -161,30 +165,39 @@ const PrintQueue = () => {
             </button>
             <div>
               <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white">FILA DE <span className="text-blue-600">IMPRESSÃO</span></h1>
-              <p className="text-black dark:text-white opacity-60 text-sm font-medium uppercase tracking-widest">{printQueue.length} plaquinhas na fila</p>
+              <p className="text-black dark:text-white opacity-60 text-sm font-medium uppercase tracking-widest">{selectedQueue.length} de {printQueue.length} plaquinhas selecionadas</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <button 
+            {printQueue.length > 0 && (
+              <button
+                onClick={() => setAllQueueSelected(!allSelected)}
+                className="px-4 py-2 text-black dark:text-white opacity-60 hover:opacity-100 font-bold text-sm uppercase tracking-tighter flex items-center gap-2"
+              >
+                {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                {allSelected ? 'Desmarcar Tudo' : 'Selecionar Tudo'}
+              </button>
+            )}
+            <button
               onClick={clearQueue}
               className="px-4 py-2 text-black dark:text-white opacity-60 hover:text-red-500 font-bold text-sm uppercase tracking-tighter flex items-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
               Limpar Fila
             </button>
-            <button 
+            <button
               type="button"
               onClick={handlePrintAll}
-              disabled={printQueue.length === 0}
+              disabled={selectedQueue.length === 0}
               className="flex items-center gap-2 px-6 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
             >
               <Printer className="w-5 h-5" />
-              Imprimir Tudo
+              Imprimir Selecionadas
             </button>
-            <button 
+            <button
               onClick={handleExportPDFAll}
-              disabled={printQueue.length === 0}
+              disabled={selectedQueue.length === 0}
               className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase tracking-tighter shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
             >
               <FileDown className="w-5 h-5" />
@@ -195,18 +208,27 @@ const PrintQueue = () => {
 
         {/* Queue Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 no-print">
-          {printQueue.map((item, index) => (
-            <div key={index} className="group relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 transition-all hover:shadow-2xl hover:-translate-y-1">
+          {printQueue.map((item, index) => {
+            const isSelected = item.selected !== false;
+            return (
+            <div key={index} className={`group relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl overflow-hidden border-2 transition-all hover:shadow-2xl hover:-translate-y-1 ${isSelected ? 'border-blue-600' : 'border-zinc-200 dark:border-zinc-800 opacity-50'}`}>
+              <button
+                onClick={() => toggleQueueSelection(index)}
+                title={isSelected ? 'Remover da seleção de impressão' : 'Incluir na seleção de impressão'}
+                className="absolute top-3 right-3 z-10 p-1.5 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700"
+              >
+                {isSelected ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5 text-zinc-400" />}
+              </button>
               <img src={item.imageData} alt={`Tag ${index + 1}`} className="w-full h-auto" crossOrigin="anonymous" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                <button 
+                <button
                   onClick={() => handleExportSinglePDF(item, index)}
                   className="p-3 bg-blue-600 text-white rounded-full hover:scale-110 active:scale-90 transition-all shadow-lg"
                   title="Exportar PDF desta plaquinha"
                 >
                   <FileDown className="w-5 h-5" />
                 </button>
-                <button 
+                <button
                   onClick={() => removeFromQueue(index)}
                   className="p-3 bg-red-600 text-white rounded-full hover:scale-110 active:scale-90 transition-all shadow-lg"
                   title="Remover da fila"
@@ -218,7 +240,8 @@ const PrintQueue = () => {
                 #{index + 1}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {printQueue.length === 0 && (
             <div className="col-span-full py-20 flex flex-col items-center justify-center text-black dark:text-white opacity-40 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl">
