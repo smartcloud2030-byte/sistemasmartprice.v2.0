@@ -1449,6 +1449,7 @@ export const useStore = create<AppState>()(
         isSingleProduct: state.isSingleProduct,
         showSingleProductControl: state.showSingleProductControl,
         showOptionalTextControl: state.showOptionalTextControl,
+        printQueue: state.printQueue,
         unreadSupportCount: state.unreadSupportCount,
         unreadPerUser: state.unreadPerUser,
         isChatEnabled: state.isChatEnabled,
