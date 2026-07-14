@@ -52,6 +52,7 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
   const [name, setName] = useState('');
   const [boxes, setBoxes] = useState<Record<BoxKey, BoxState>>(INITIAL_BOXES);
   const [customTexts, setCustomTexts] = useState<CustomTextBox[]>([]);
+  const [hiddenBoxes, setHiddenBoxes] = useState<Set<BoxKey>>(new Set());
   const [moldUrl, setMoldUrl] = useState<string | null>(null);
   const [isUploadingMold, setIsUploadingMold] = useState(false);
   const [activeGuides, setActiveGuides] = useState({ h: false, v: false });
@@ -72,13 +73,29 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
       });
       setMoldUrl(l.moldUrl || null);
       setCustomTexts((l.customTexts || []).map((ct) => ({ id: ct.id, text: ct.text, x: ct.x, y: ct.y, width: ct.width, height: 40 })));
+      const hidden = new Set<BoxKey>();
+      if (l.textElements1.name.visible === false) hidden.add('name');
+      if (l.textElements1.subtitle.visible === false) hidden.add('subtitle');
+      if (l.textElements1.description.visible === false) hidden.add('description');
+      if (l.textElements1.price.visible === false) hidden.add('price');
+      if (l.productImage1.visible === false) hidden.add('image');
+      setHiddenBoxes(hidden);
     } else {
       setName('');
       setBoxes(INITIAL_BOXES);
       setMoldUrl(null);
       setCustomTexts([]);
+      setHiddenBoxes(new Set());
     }
   }, [isOpen, editTarget]);
+
+  const toggleBoxVisibility = (key: BoxKey) => {
+    setHiddenBoxes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const getBoxByKey = (key: string): BoxState | undefined => (
     FIXED_KEYS.has(key) ? boxes[key as BoxKey] : customTexts.find((ct) => ct.id === key)
@@ -185,6 +202,7 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
     setBoxes(INITIAL_BOXES);
     setMoldUrl(null);
     setCustomTexts([]);
+    setHiddenBoxes(new Set());
     onClose();
   };
 
@@ -201,12 +219,12 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
       moldUrl: moldUrl ?? null,
       textElements1: {
         ...base.textElements1,
-        name: { ...base.textElements1.name, x: boxes.name.x, y: boxes.name.y, width: boxes.name.width },
-        subtitle: { ...base.textElements1.subtitle, x: boxes.subtitle.x, y: boxes.subtitle.y, width: boxes.subtitle.width },
-        description: { ...base.textElements1.description, x: boxes.description.x, y: boxes.description.y, width: boxes.description.width },
-        price: { ...base.textElements1.price, x: boxes.price.x, y: boxes.price.y, width: boxes.price.width },
+        name: { ...base.textElements1.name, x: boxes.name.x, y: boxes.name.y, width: boxes.name.width, visible: !hiddenBoxes.has('name') },
+        subtitle: { ...base.textElements1.subtitle, x: boxes.subtitle.x, y: boxes.subtitle.y, width: boxes.subtitle.width, visible: !hiddenBoxes.has('subtitle') },
+        description: { ...base.textElements1.description, x: boxes.description.x, y: boxes.description.y, width: boxes.description.width, visible: !hiddenBoxes.has('description') },
+        price: { ...base.textElements1.price, x: boxes.price.x, y: boxes.price.y, width: boxes.price.width, visible: !hiddenBoxes.has('price') },
       },
-      productImage1: { ...base.productImage1, x: boxes.image.x, y: boxes.image.y, width: boxes.image.width, height: boxes.image.height },
+      productImage1: { ...base.productImage1, x: boxes.image.x, y: boxes.image.y, width: boxes.image.width, height: boxes.image.height, visible: !hiddenBoxes.has('image') },
       customTexts: customTexts.map((ct) => ({
         id: ct.id,
         text: ct.text,
@@ -298,18 +316,45 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
             </div>
 
             <div className="space-y-1.5">
-              {BOX_DEFS.map((def) => (
-                <button
-                  key={def.key}
-                  onClick={() => centerBox(def.key)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] font-bold text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  {def.label}
-                  <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                    <Crosshair className="w-3 h-3" /> Centralizar
-                  </span>
-                </button>
-              ))}
+              {BOX_DEFS.map((def) => {
+                const isHidden = hiddenBoxes.has(def.key);
+                return (
+                  <div
+                    key={def.key}
+                    className={cn(
+                      'w-full flex items-center justify-between px-3 py-2 rounded-lg border text-[10px] font-bold transition-colors',
+                      isHidden
+                        ? 'bg-zinc-100 dark:bg-zinc-900 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-400'
+                        : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-black dark:text-white'
+                    )}
+                  >
+                    <span className={cn(isHidden && 'line-through')}>{def.label}</span>
+                    <span className="flex items-center gap-2">
+                      {!isHidden && (
+                        <button
+                          type="button"
+                          onClick={() => centerBox(def.key)}
+                          title="Centralizar"
+                          className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700"
+                        >
+                          <Crosshair className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleBoxVisibility(def.key)}
+                        title={isHidden ? 'Usar novamente neste estilo' : 'Não usar neste estilo'}
+                        className={cn(
+                          'flex items-center gap-1',
+                          isHidden ? 'text-emerald-600 hover:text-emerald-700' : 'text-red-500 hover:text-red-600'
+                        )}
+                      >
+                        {isHidden ? <Plus className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="space-y-1.5">
@@ -399,6 +444,7 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
                 />
 
                 {BOX_DEFS.map((def) => {
+                  if (hiddenBoxes.has(def.key)) return null;
                   const b = boxes[def.key];
                   return (
                     <div
