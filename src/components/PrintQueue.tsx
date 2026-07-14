@@ -155,9 +155,9 @@ const PrintQueue = () => {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-8">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between no-print">
+        <div className="flex items-center flex-wrap justify-between gap-y-4 no-print">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setView('editor')}
               className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors text-black dark:text-white"
             >
@@ -169,7 +169,7 @@ const PrintQueue = () => {
             </div>
           </div>
 
-          <div className="flex items-center flex-wrap gap-3">
+          <div className="flex items-center flex-wrap justify-end gap-3">
             {printQueue.length > 0 && (
               <button
                 onClick={() => setAllQueueSelected(!allSelected)}
