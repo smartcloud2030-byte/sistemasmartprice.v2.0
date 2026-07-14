@@ -540,21 +540,20 @@ export default function App() {
               <button
                 type="button"
                 onClick={handlePrint}
-                className="h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+                className="h-10 w-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                title="Imprimir"
               >
                 <Printer className="w-4 h-4" />
-                Imprimir
               </button>
 
               {/* Add to Queue */}
               <button
                 type="button"
                 onClick={handleAddToQueue}
-                className="h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
-                title="Salva sem sair da tela atual"
+                className="h-10 w-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                title="Adicionar à Fila — salva sem sair da tela atual"
               >
                 <ListPlus className="w-4 h-4" />
-                Adicionar à Fila
               </button>
 
               {/* Export */}

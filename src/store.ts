@@ -397,6 +397,8 @@ interface AppState {
   // mesma loja (mantem) ou de outra (reseta, para nao vazar dado entre lojas
   // que usam o mesmo navegador/dispositivo).
   lastUserIdentity: { cnpj: string; username: string } | null;
+  // Rascunhos (fila/produto/preco) por loja, indexados por "cnpj::usuario".
+  userDrafts: Record<string, { printQueue: AppState['printQueue']; background: AppState['background']; productImage1: AppState['productImage1']; productImage2: AppState['productImage2']; productImage3: AppState['productImage3']; textElements1: AppState['textElements1']; textElements2: AppState['textElements2']; textElements3: AppState['textElements3']; optionalText1: AppState['optionalText1']; optionalText2: AppState['optionalText2']; optionalText3: AppState['optionalText3']; customTexts: AppState['customTexts']; isSingleProduct: AppState['isSingleProduct']; }>;
   isSupportChatOpen: boolean;
   isChatEnabled: boolean;
   setSupportChatOpen: (open: boolean) => void;
@@ -540,6 +542,29 @@ export const createDefaultLayout = (name: string, index?: number): Layout => {
     optionalText3: { text: '', active: false, x: 50, y: 650, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
   };
 };
+
+// Rascunho local (fila + canvas em edicao) de uma loja especifica, guardado por
+// identidade (cnpj+usuario) para sobreviver a troca de conta no mesmo navegador
+// sem vazar dado de uma loja para outra nem perder o que a loja tinha feito.
+type UserDraft = AppState['userDrafts'][string];
+
+const userDraftKey = (cnpj: string, username: string) => `${cnpj}::${username.trim()}`;
+
+const extractUserDraft = (state: AppState): UserDraft => ({
+  printQueue: state.printQueue,
+  background: state.background,
+  productImage1: state.productImage1,
+  productImage2: state.productImage2,
+  productImage3: state.productImage3,
+  textElements1: state.textElements1,
+  textElements2: state.textElements2,
+  textElements3: state.textElements3,
+  optionalText1: state.optionalText1,
+  optionalText2: state.optionalText2,
+  optionalText3: state.optionalText3,
+  customTexts: state.customTexts,
+  isSingleProduct: state.isSingleProduct,
+});
 
 // Monta o estado de trabalho (o que a tela A4 realmente renderiza) a partir de
 // um modelo salvo em `layouts`. Usado ao trocar de modelo ativo e ao excluir o
@@ -1354,6 +1379,7 @@ export const useStore = create<AppState>()(
       userRole: null,
       currentUser: null,
       lastUserIdentity: null,
+      userDrafts: {},
       isSupportChatOpen: false,
       isChatEnabled: true,
       setSupportChatOpen: (open) => set({ isSupportChatOpen: open }),
@@ -1399,19 +1425,29 @@ export const useStore = create<AppState>()(
         await get().loadUsersAndFlags();
         const stateBeforeLogin = get();
         const nc = user.cnpj?.replace(/[^\d]/g, '') || '';
-        // A fila/produto/preco em edicao sao rascunho local por loja: se o login
-        // agora e de um cnpj+usuario diferente do ultimo (mesmo navegador), reseta
-        // esse rascunho para nao vazar dado de uma loja para outra. Se for a mesma
-        // loja voltando a logar, mantem a ultima alteracao dela.
-        const isSameUser = role === 'user'
-          && stateBeforeLogin.lastUserIdentity?.cnpj === nc
-          && stateBeforeLogin.lastUserIdentity?.username === user.username;
-        const draftReset = role === 'user' && !isSameUser
-          ? {
+        // A fila/produto/preco em edicao sao rascunho local por loja. Ao trocar
+        // de cnpj+usuario no mesmo navegador: guarda o rascunho da loja anterior
+        // (por identidade) antes de trocar, e restaura o rascunho salvo da nova
+        // loja se existir — senao comeca do zero. Se for a mesma loja voltando a
+        // logar, nao mexe em nada (mantem o que ja esta carregado).
+        const previousIdentity = stateBeforeLogin.lastUserIdentity;
+        const previousKey = previousIdentity ? userDraftKey(previousIdentity.cnpj, previousIdentity.username) : null;
+        const newKey = role === 'user' ? userDraftKey(nc, user.username) : null;
+        const isSameUser = role === 'user' && previousKey === newKey;
+
+        let switchUpdate: Partial<AppState> = {};
+        if (role === 'user' && !isSameUser) {
+          const updatedDrafts = { ...stateBeforeLogin.userDrafts };
+          if (previousKey) updatedDrafts[previousKey] = extractUserDraft(stateBeforeLogin);
+          const savedDraft = newKey ? updatedDrafts[newKey] : undefined;
+          switchUpdate = {
+            userDrafts: updatedDrafts,
+            ...(savedDraft ?? {
               printQueue: [],
               ...buildWorkingStateFromLayout(stateBeforeLogin.layouts[stateBeforeLogin.activeLayoutIndex], stateBeforeLogin.activeLayoutIndex),
-            }
-          : {};
+            }),
+          };
+        }
         set({
           isAuthenticated: true,
           userRole: role,
@@ -1419,7 +1455,7 @@ export const useStore = create<AppState>()(
           lastLoginTimestamp: Date.now(),
           currentView: role === 'admin' ? 'dashboard' : 'editor',
           lastUserIdentity: role === 'user' ? { cnpj: nc, username: user.username } : stateBeforeLogin.lastUserIdentity,
-          ...draftReset,
+          ...switchUpdate,
         } as any);
         if (role === 'user' && user.cnpj) {
           const nc = user.cnpj.replace(/[^\d]/g, '');
@@ -1474,6 +1510,7 @@ export const useStore = create<AppState>()(
         userRole: state.userRole,
         currentUser: state.currentUser,
         lastUserIdentity: state.lastUserIdentity,
+        userDrafts: state.userDrafts,
         currentView: state.currentView,
         encartes: state.encartes,
         selectedEncarteModel: state.selectedEncarteModel,
