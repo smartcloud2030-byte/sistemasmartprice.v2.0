@@ -1,38 +1,14 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useStore } from '../store';
+import { useStore, Layout } from '../store';
 import {
   X, Layout as LayoutIcon, Search, Flag, MapPin, Wand2, Upload,
   Trash2, AlertTriangle, Pencil, Save, Image as ImageIcon, FlaskConical, ArrowUpCircle,
+  Images, FolderOpen, ArrowLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, getProxyUrl, extractGalleryPath } from '../lib/utils';
+import { cn, getProxyUrl } from '../lib/utils';
+import { GALLERY_PASSWORD, slugifyCategory, uploadBackgroundImage, deleteGalleryImage } from '../lib/gallery';
 import CriarEstiloModal from './CriarEstiloModal';
-
-const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
-
-function slugifyCategory(value: string): string {
-  return value
-    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
-    .replace(/[^a-zA-Z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .toLowerCase();
-}
-
-async function uploadBackgroundImage(file: File, category: string): Promise<{ url: string }> {
-  const formData = new FormData();
-  formData.append('image', file);
-  const res = await fetch(`/gallery/upload/${category}`, {
-    method: 'POST',
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
-    body: formData,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Falha no upload');
-  }
-  return res.json();
-}
 
 // Modal experimental ("Layout") que reúne, numa única tela: criação/edição de modelo
 // (nome, grupo, localidade, imagem A4, espelhar estilo de outro modelo) e a lista dos
@@ -43,8 +19,8 @@ export default function LayoutManagerModal() {
     layouts, flags,
     addLayout, deleteLayout,
     setLayoutName, setLayoutBandeira, setLayoutLocalidade, setLayoutBackground,
-    applyLayoutFormatting,
-    testLayouts, deleteTestLayout, promoteTestLayout,
+    applyLayoutFormatting, applyTestStyleToLayout,
+    testLayouts, deleteTestLayout, promoteTestLayout, ensureTestLayoutId,
   } = useStore();
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -57,13 +33,29 @@ export default function LayoutManagerModal() {
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isCriarEstiloOpen, setIsCriarEstiloOpen] = useState(false);
+  const [criarEstiloTarget, setCriarEstiloTarget] = useState<{ index: number; layout: Layout } | 'new' | null>(null);
   const [deleteTestConfirmIndex, setDeleteTestConfirmIndex] = useState<number | null>(null);
+  const [isDeletingTest, setIsDeletingTest] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isGalleryPickerOpen, setIsGalleryPickerOpen] = useState(false);
+  const [galleryFolders, setGalleryFolders] = useState<string[]>([]);
+  const [selectedGalleryFolder, setSelectedGalleryFolder] = useState<string | null>(null);
+  const [galleryImages, setGalleryImages] = useState<any[]>([]);
+  const [isLoadingGalleryFolders, setIsLoadingGalleryFolders] = useState(false);
+  const [isLoadingGalleryImages, setIsLoadingGalleryImages] = useState(false);
 
   const uniqueLocalidades = useMemo(() => Array.from(
     new Set(layouts.map((l) => l.localidade).filter((v): v is string => !!v && v.trim().length > 0))
   ).sort((a, b) => a.localeCompare(b)), [layouts]);
+
+  // Estilos de teste salvos antes do campo `id` existir precisam de um id
+  // estável para poderem ser espelhados/editados — garante isso ao abrir.
+  React.useEffect(() => {
+    if (!isLayoutManagerModalOpen) return;
+    testLayouts.forEach((l, i) => { if (!l.id) ensureTestLayoutId(i); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLayoutManagerModalOpen]);
 
   if (!isLayoutManagerModalOpen) return null;
 
@@ -106,6 +98,43 @@ export default function LayoutManagerModal() {
     }
   };
 
+  const openGalleryPicker = async () => {
+    setIsGalleryPickerOpen(true);
+    setSelectedGalleryFolder(null);
+    setGalleryImages([]);
+    setIsLoadingGalleryFolders(true);
+    try {
+      const res = await fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      const data = await res.json();
+      const folders = Array.isArray(data) ? data.filter((f: string) => f.toLowerCase().startsWith('layout')) : [];
+      setGalleryFolders(folders);
+    } catch {
+      toast.error('Falha ao carregar pastas da galeria.');
+    } finally {
+      setIsLoadingGalleryFolders(false);
+    }
+  };
+
+  const openGalleryFolder = async (folder: string) => {
+    setSelectedGalleryFolder(folder);
+    setIsLoadingGalleryImages(true);
+    try {
+      const res = await fetch(`/gallery/list/${folder}`, { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      const data = await res.json();
+      setGalleryImages(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Falha ao carregar imagens da pasta.');
+    } finally {
+      setIsLoadingGalleryImages(false);
+    }
+  };
+
+  const selectGalleryImage = (url: string) => {
+    setBackgroundUrl(url);
+    setIsGalleryPickerOpen(false);
+    toast.success('Imagem selecionada! Clique em Salvar Modelo para confirmar.');
+  };
+
   const handleSave = () => {
     if (!name.trim()) { toast.error('Digite um nome para o modelo.'); return; }
 
@@ -117,7 +146,9 @@ export default function LayoutManagerModal() {
       setLayoutLocalidade(index, localidade);
     }
     setLayoutBackground(index, backgroundUrl);
-    if (styleSourceIndex) {
+    if (styleSourceIndex.startsWith('test:')) {
+      applyTestStyleToLayout(index, styleSourceIndex.slice('test:'.length));
+    } else if (styleSourceIndex) {
       // addLayout empurra todo mundo um índice pra frente (modelo novo entra em
       // primeiro), então o índice escolhido no dropdown antes de salvar ficou defasado.
       const sourceIndex = parseInt(styleSourceIndex, 10) + (isCreating ? 1 : 0);
@@ -132,10 +163,7 @@ export default function LayoutManagerModal() {
     setIsDeleting(true);
     const layout = layouts[index];
     try {
-      const path = extractGalleryPath(layout?.background?.url);
-      if (path) {
-        await fetch(`/gallery/delete/${path}`, { method: 'DELETE', headers: { 'x-gallery-token': GALLERY_PASSWORD } });
-      }
+      await deleteGalleryImage(layout?.background?.url);
     } catch {
       toast.error('Falha ao remover a imagem da galeria, mas o modelo será excluído mesmo assim.');
     } finally {
@@ -202,7 +230,7 @@ export default function LayoutManagerModal() {
 
             <button
               type="button"
-              onClick={() => setIsCriarEstiloOpen(true)}
+              onClick={() => setCriarEstiloTarget('new')}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-amber-400 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest hover:bg-amber-50/60 dark:hover:bg-amber-900/20 transition-colors"
               title="Monta um estilo do zero numa folha A4 com réguas, sem espelhar nenhum modelo pronto"
             >
@@ -266,24 +294,32 @@ export default function LayoutManagerModal() {
                 className="hidden"
                 onChange={handleFileSelected}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-widest hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isUploading ? (
-                  <>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={openGalleryPicker}
+                  disabled={isUploading}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl border-2 border-dashed border-purple-400 dark:border-purple-700 text-purple-700 dark:text-purple-300 text-[10px] font-bold uppercase tracking-widest hover:bg-purple-50/60 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Escolher imagem já enviada na SmartGaleria"
+                >
+                  <Images className="w-4 h-4" />
+                  SmartGaleria
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl border-2 border-dashed border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Enviar imagem do computador"
+                >
+                  {isUploading ? (
                     <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
+                  ) : (
                     <Upload className="w-4 h-4" />
-                    {backgroundUrl ? 'Trocar Imagem' : 'Enviar Imagem'}
-                  </>
-                )}
-              </button>
+                  )}
+                  {isUploading ? 'Enviando...' : 'Do Computador'}
+                </button>
+              </div>
               {backgroundUrl && (
                 <div className="flex items-center gap-2 mt-2">
                   <div className="w-9 h-12 rounded border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex-shrink-0">
@@ -305,11 +341,22 @@ export default function LayoutManagerModal() {
                 className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all text-black dark:text-white"
               >
                 <option value="">Nenhum (manter estilo atual)</option>
-                {layouts.map((l, i) => (
-                  i !== editingIndex && (
-                    <option key={i} value={i}>{l.name || `Modelo ${i + 1}`}</option>
-                  )
-                ))}
+                {testLayouts.length > 0 && (
+                  <optgroup label="Estilos de Teste">
+                    {testLayouts.map((l, i) => (
+                      <option key={l.id || `test-${i}`} value={`test:${l.id || ''}`}>
+                        🧪 {l.name || `Estilo ${i + 1}`}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Modelos Oficiais">
+                  {layouts.map((l, i) => (
+                    i !== editingIndex && (
+                      <option key={i} value={i}>{l.name || `Modelo ${i + 1}`}</option>
+                    )
+                  ))}
+                </optgroup>
               </select>
             </div>
 
@@ -358,11 +405,21 @@ export default function LayoutManagerModal() {
                           <p className="text-[11px] font-bold text-black dark:text-white truncate" title={layout.name}>{layout.name}</p>
                           <div className="flex gap-1 pt-1">
                             <button
+                              onClick={() => {
+                                const id = layout.id || ensureTestLayoutId(index);
+                                setCriarEstiloTarget({ index, layout: { ...layout, id } });
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[9px] font-black uppercase tracking-widest text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                              title="Editar este estilo"
+                            >
+                              <Pencil className="w-3 h-3" /> Editar
+                            </button>
+                            <button
                               onClick={() => { promoteTestLayout(index); toast.success('Estilo movido para os modelos oficiais!'); }}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                              className="p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                               title="Tornar este estilo um modelo oficial"
                             >
-                              <ArrowUpCircle className="w-3 h-3" /> Usar
+                              <ArrowUpCircle className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => setDeleteTestConfirmIndex(index)}
@@ -479,7 +536,7 @@ export default function LayoutManagerModal() {
               <h3 className="text-lg font-bold">Excluir Estilo de Teste</h3>
             </div>
             <p className="text-sm text-black dark:text-white opacity-60">
-              Isso vai apagar permanentemente o estilo de teste "{testLayouts[deleteTestConfirmIndex]?.name}". Essa ação não pode ser desfeita.
+              Isso vai apagar permanentemente o estilo de teste "{testLayouts[deleteTestConfirmIndex]?.name}" (e o guia enviado na galeria, se houver). Essa ação não pode ser desfeita.
             </p>
             <div className="flex gap-3 pt-2">
               <button
@@ -489,17 +546,103 @@ export default function LayoutManagerModal() {
                 Cancelar
               </button>
               <button
-                onClick={() => { deleteTestLayout(deleteTestConfirmIndex); setDeleteTestConfirmIndex(null); toast.success('Estilo de teste excluído.'); }}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold"
+                onClick={async () => {
+                  setIsDeletingTest(true);
+                  const testLayout = testLayouts[deleteTestConfirmIndex];
+                  try {
+                    await deleteGalleryImage(testLayout?.moldUrl);
+                  } catch {
+                    toast.error('Falha ao remover o guia da galeria, mas o estilo será excluído mesmo assim.');
+                  } finally {
+                    deleteTestLayout(deleteTestConfirmIndex);
+                    setDeleteTestConfirmIndex(null);
+                    setIsDeletingTest(false);
+                    toast.success('Estilo de teste excluído por completo.');
+                  }
+                }}
+                disabled={isDeletingTest}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold disabled:opacity-50"
               >
-                Excluir
+                {isDeletingTest ? 'Excluindo...' : 'Excluir'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <CriarEstiloModal isOpen={isCriarEstiloOpen} onClose={() => setIsCriarEstiloOpen(false)} />
+      {isGalleryPickerOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl h-full max-h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                {selectedGalleryFolder && (
+                  <button
+                    onClick={() => { setSelectedGalleryFolder(null); setGalleryImages([]); }}
+                    className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-zinc-500 flex-shrink-0"
+                    title="Voltar para as pastas"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                )}
+                <h3 className="text-sm font-black uppercase tracking-widest text-black dark:text-white truncate">
+                  {selectedGalleryFolder || 'SmartGaleria • Pastas de Layout'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsGalleryPickerOpen(false)}
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-zinc-500 flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
+              {!selectedGalleryFolder ? (
+                isLoadingGalleryFolders ? (
+                  <p className="text-center text-sm text-zinc-400 py-10">Carregando pastas...</p>
+                ) : galleryFolders.length === 0 ? (
+                  <p className="text-center text-sm text-zinc-400 py-10">Nenhuma pasta de layout encontrada na galeria.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {galleryFolders.map((folder) => (
+                      <button
+                        key={folder}
+                        onClick={() => openGalleryFolder(folder)}
+                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-purple-400 hover:bg-purple-50/40 dark:hover:bg-purple-900/10 transition-colors"
+                      >
+                        <FolderOpen className="w-8 h-8 text-purple-500" />
+                        <span className="text-[11px] font-bold text-black dark:text-white truncate w-full text-center">{folder}</span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : isLoadingGalleryImages ? (
+                <p className="text-center text-sm text-zinc-400 py-10">Carregando imagens...</p>
+              ) : galleryImages.length === 0 ? (
+                <p className="text-center text-sm text-zinc-400 py-10">Nenhuma imagem nesta pasta.</p>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  {galleryImages.map((img) => (
+                    <button
+                      key={img.fullPath}
+                      onClick={() => selectGalleryImage(img.url)}
+                      className="aspect-[210/297] rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all bg-zinc-100 dark:bg-zinc-800"
+                      title={img.displayName}
+                    >
+                      <img src={getProxyUrl(img.url, { thumbnail: true })} className="w-full h-full object-cover" alt={img.displayName} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CriarEstiloModal
+        isOpen={criarEstiloTarget !== null}
+        editTarget={typeof criarEstiloTarget === 'object' ? criarEstiloTarget : null}
+        onClose={() => setCriarEstiloTarget(null)}
+      />
     </div>
   );
 }

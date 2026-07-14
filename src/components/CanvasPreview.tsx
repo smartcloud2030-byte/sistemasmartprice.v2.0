@@ -19,6 +19,7 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
     layouts, activeLayoutIndex,
     orientation,
     optionalText1, optionalText2, optionalText3, setOptionalText,
+    customTexts,
     isSingleProduct
   } = useStore();
   const activeLayout = layouts[activeLayoutIndex];
@@ -636,6 +637,22 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
                     />
                   </Group>
                 )}
+                {/* Textos extras definidos em "Criar Estilo" — conteúdo e posição
+                    fixos (não editáveis aqui), por isso sem draggable/handlers. */}
+                {customTexts?.filter((ct) => ct.visible !== false).map((ct) => (
+                  <Text
+                    key={ct.id}
+                    text={ct.text}
+                    x={ct.x}
+                    y={ct.y}
+                    fontSize={ct.fontSize}
+                    fill={ct.color}
+                    fontStyle={`${ct.isBold ? 'bold' : ''} ${ct.isItalic ? 'italic' : ''}`.trim() || 'normal'}
+                    fontFamily={ct.fontFamily || 'Inter'}
+                    align={ct.align}
+                    width={ct.width || 300}
+                  />
+                ))}
               </>
             
 

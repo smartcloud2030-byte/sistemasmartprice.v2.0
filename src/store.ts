@@ -39,6 +39,10 @@ export interface TextSettings {
   visible: boolean;
 }
 
+export interface CustomTextSettings extends TextSettings {
+  id: string;
+}
+
 export interface ImageSettings {
   url: string | null;
   x: number;
@@ -65,11 +69,19 @@ export interface Product {
 }
 
 export interface Layout {
+  id?: string;
   name: string;
   hidden?: boolean;
   bandeira?: string;
   localidade?: string;
   sortOrder?: number;
+  // Estilo de teste (testLayouts) do qual este modelo "espelhou" a formatação —
+  // permite reaplicar automaticamente quando aquele estilo é editado.
+  styleSourceTestId?: string;
+  // Imagem-guia semi-transparente usada só dentro de "Criar Estilo" para
+  // alinhar as caixas; nunca é renderizada na tela A4 real nem impressa.
+  moldUrl?: string | null;
+  customTexts?: CustomTextSettings[];
   background: {
     url: string | null;
     mode: 'cover' | 'contain';
@@ -243,6 +255,9 @@ interface AppState {
   optionalText1: OptionalTextSettings;
   optionalText2: OptionalTextSettings;
   optionalText3: OptionalTextSettings;
+  // Textos extras de conteúdo fixo definidos em "Criar Estilo" — só leitura
+  // na tela A4 (sem drag/edição em tempo de impressão).
+  customTexts: CustomTextSettings[];
 
   activeLayoutIndex: number;
   layouts: Layout[];
@@ -261,11 +276,20 @@ interface AppState {
   deleteLayout: (index: number) => void;
   setLayoutBackground: (index: number, url: string | null) => void;
   applyLayoutFormatting: (targetIndex: number, sourceIndex: number) => void;
+  // Espelha a formatação de um Estilo de Teste (testLayouts) para um modelo
+  // oficial, gravando a referência (styleSourceTestId) para sincronização futura.
+  applyTestStyleToLayout: (targetIndex: number, testLayoutId: string) => void;
 
   // Estilos criados na tela experimental "Criar Estilo (Teste)" — ficam
   // isolados dos modelos oficiais em `layouts` até o admin promover ou excluir.
   testLayouts: Layout[];
   addTestLayout: (layout: Layout) => void;
+  // Atualiza um Estilo de Teste existente (por id) e reaplica a formatação em
+  // qualquer modelo oficial que tenha espelhado esse estilo (styleSourceTestId).
+  updateTestLayout: (id: string, layout: Layout) => void;
+  // Estilos de teste salvos antes do campo `id` existir podem não ter um —
+  // garante um id estável (gerando e persistindo se faltar) e o retorna.
+  ensureTestLayoutId: (index: number) => string;
   deleteTestLayout: (index: number) => void;
   promoteTestLayout: (index: number) => number;
 
@@ -473,8 +497,11 @@ export const isThreeProduct = (name: string, index?: number) => {
 export const createDefaultLayout = (name: string, index?: number): Layout => {
   const showThird = isThreeProduct(name, index);
   return {
+    id: crypto.randomUUID(),
     name,
     sortOrder: index ?? 0,
+    moldUrl: null,
+    customTexts: [],
     hasThirdProduct: showThird,
     orientation: 'portrait',
     showSingleProductControl: false,
@@ -533,6 +560,7 @@ const buildWorkingStateFromLayout = (nextLayout: Layout | undefined, index: numb
     optionalText1: nextLayout?.optionalText1 ? { ...defaultNext.optionalText1, ...nextLayout.optionalText1 } : defaultNext.optionalText1,
     optionalText2: nextLayout?.optionalText2 ? { ...defaultNext.optionalText2, ...nextLayout.optionalText2 } : defaultNext.optionalText2,
     optionalText3: nextLayout?.optionalText3 ? { ...defaultNext.optionalText3, ...nextLayout.optionalText3 } : defaultNext.optionalText3,
+    customTexts: nextLayout?.customTexts ?? defaultNext.customTexts,
   };
 };
 
@@ -564,6 +592,7 @@ export const useStore = create<AppState>()(
       optionalText1: { text: '', active: false, x: 50, y: 50, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
       optionalText2: { text: '', active: false, x: 50, y: 350, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
       optionalText3: { text: '', active: false, x: 50, y: 650, fontSize: 30, color: '#000000', isBold: true, isItalic: false, fontFamily: 'Inter' },
+      customTexts: [],
       layouts: buildDefaultLayouts(),
 
       background: { url: null, mode: 'cover', locked: false },
@@ -607,6 +636,7 @@ export const useStore = create<AppState>()(
           optionalText1: state.optionalText1,
           optionalText2: state.optionalText2,
           optionalText3: state.optionalText3,
+          customTexts: state.customTexts,
           isSingleProduct: state.isSingleProduct,
           showSingleProductControl: state.showSingleProductControl,
           showOptionalTextControl: state.showOptionalTextControl
@@ -764,6 +794,50 @@ export const useStore = create<AppState>()(
         set((state) => ({ testLayouts: [layout, ...state.testLayouts] }));
       },
 
+      updateTestLayout: (id, layout) => {
+        set((state) => ({
+          testLayouts: state.testLayouts.map((t) => (t.id === id ? layout : t)),
+        }));
+        // Sincroniza em tempo real: todo modelo oficial que espelhou este estilo
+        // recebe a formatação atualizada, sem precisar reabrir/resalvar.
+        set((state) => {
+          const fields = {
+            productImage1: layout.productImage1,
+            productImage2: layout.productImage2,
+            productImage3: layout.productImage3,
+            textElements1: layout.textElements1,
+            textElements2: layout.textElements2,
+            textElements3: layout.textElements3,
+            optionalText1: layout.optionalText1,
+            optionalText2: layout.optionalText2,
+            optionalText3: layout.optionalText3,
+            customTexts: layout.customTexts,
+            hasThirdProduct: layout.hasThirdProduct,
+          };
+          let changedActive = false;
+          const newLayouts = state.layouts.map((l, i) => {
+            if (l.styleSourceTestId !== id) return l;
+            if (i === state.activeLayoutIndex) changedActive = true;
+            return { ...l, ...fields };
+          });
+          return {
+            layouts: newLayouts,
+            ...(changedActive ? fields : {}),
+          };
+        });
+        get().saveLayoutDebounced();
+      },
+
+      ensureTestLayoutId: (index) => {
+        const existing = get().testLayouts[index]?.id;
+        if (existing) return existing;
+        const id = crypto.randomUUID();
+        set((state) => ({
+          testLayouts: state.testLayouts.map((t, i) => (i === index ? { ...t, id } : t)),
+        }));
+        return id;
+      },
+
       deleteTestLayout: (index) => {
         set((state) => ({ testLayouts: state.testLayouts.filter((_, i) => i !== index) }));
       },
@@ -815,11 +889,41 @@ export const useStore = create<AppState>()(
             optionalText1: source.optionalText1,
             optionalText2: source.optionalText2,
             optionalText3: source.optionalText3,
+            customTexts: source.customTexts,
             hasThirdProduct: source.hasThirdProduct,
           };
           const newLayouts = [...state.layouts];
           newLayouts[targetIndex] = { ...target, ...fields };
           // Se o modelo editado é o ativo no momento, espelha nos campos de trabalho também.
+          const isActive = targetIndex === state.activeLayoutIndex;
+          return {
+            layouts: newLayouts,
+            ...(isActive ? fields : {}),
+          };
+        });
+        get().saveLayoutDebounced();
+      },
+
+      applyTestStyleToLayout: (targetIndex, testLayoutId) => {
+        set((state) => {
+          const source = state.testLayouts.find((t) => t.id === testLayoutId);
+          const target = state.layouts[targetIndex];
+          if (!source || !target) return {};
+          const fields = {
+            productImage1: source.productImage1,
+            productImage2: source.productImage2,
+            productImage3: source.productImage3,
+            textElements1: source.textElements1,
+            textElements2: source.textElements2,
+            textElements3: source.textElements3,
+            optionalText1: source.optionalText1,
+            optionalText2: source.optionalText2,
+            optionalText3: source.optionalText3,
+            customTexts: source.customTexts,
+            hasThirdProduct: source.hasThirdProduct,
+          };
+          const newLayouts = [...state.layouts];
+          newLayouts[targetIndex] = { ...target, ...fields, styleSourceTestId: testLayoutId };
           const isActive = targetIndex === state.activeLayoutIndex;
           return {
             layouts: newLayouts,
@@ -1031,7 +1135,7 @@ export const useStore = create<AppState>()(
           const loadedLayouts = rawLayouts.map((l: any, idx: number) => {
             const name = l.name || `Modelo ${idx + 1}`;
             const defaultL = createDefaultLayout(name, idx);
-            return { ...defaultL, ...l, textElements1: l.textElements1 ? { ...defaultL.textElements1, ...l.textElements1 } : defaultL.textElements1, textElements2: l.textElements2 ? { ...defaultL.textElements2, ...l.textElements2 } : defaultL.textElements2, textElements3: l.textElements3 ? { ...defaultL.textElements3, ...l.textElements3 } : defaultL.textElements3 };
+            return { ...defaultL, ...l, id: l.id || defaultL.id, textElements1: l.textElements1 ? { ...defaultL.textElements1, ...l.textElements1 } : defaultL.textElements1, textElements2: l.textElements2 ? { ...defaultL.textElements2, ...l.textElements2 } : defaultL.textElements2, textElements3: l.textElements3 ? { ...defaultL.textElements3, ...l.textElements3 } : defaultL.textElements3, customTexts: l.customTexts ?? defaultL.customTexts };
           }).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
           const activeLayoutIndexFromDB = layout.activeLayoutIndex !== undefined ? layout.activeLayoutIndex : currentState.activeLayoutIndex;
@@ -1052,6 +1156,7 @@ export const useStore = create<AppState>()(
             optionalText1: isUser ? (currentState.optionalText1 || activeLayout?.optionalText1) : (layout.optionalText1 || activeLayout?.optionalText1),
             optionalText2: isUser ? (currentState.optionalText2 || activeLayout?.optionalText2) : (layout.optionalText2 || activeLayout?.optionalText2),
             optionalText3: isUser ? (currentState.optionalText3 || activeLayout?.optionalText3) : (layout.optionalText3 || activeLayout?.optionalText3),
+            customTexts: isUser ? (currentState.customTexts || activeLayout?.customTexts || []) : (activeLayout?.customTexts || []),
             orientation: isUser ? (currentState.orientation || activeLayout?.orientation) : (layout.orientation || activeLayout?.orientation),
             isSingleProduct: isUser ? (currentState.isSingleProduct ?? activeLayout?.isSingleProduct ?? false) : (activeLayout?.isSingleProduct ?? layout.isSingleProduct ?? false),
             showSingleProductControl: activeLayout?.showSingleProductControl !== undefined ? activeLayout.showSingleProductControl : (layout.showSingleProductControl !== undefined ? layout.showSingleProductControl : currentState.showSingleProductControl),
