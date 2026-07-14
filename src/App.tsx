@@ -536,6 +536,27 @@ export default function App() {
                 </button>
               )}
 
+              {/* Print */}
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir
+              </button>
+
+              {/* Add to Queue */}
+              <button
+                type="button"
+                onClick={handleAddToQueue}
+                className="h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+                title="Salva sem sair da tela atual"
+              >
+                <ListPlus className="w-4 h-4" />
+                Adicionar à Fila
+              </button>
+
               {/* Export */}
               <HeaderDropdown
                 trigger={
@@ -543,22 +564,14 @@ export default function App() {
                     type="button"
                     className="h-10 flex items-center gap-1.5 pl-3.5 pr-2.5 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all text-sm font-semibold"
                   >
-                    <Printer className="w-4 h-4" />
+                    <FileDown className="w-4 h-4" />
                     Exportar
                     <ChevronDown className="w-3.5 h-3.5 opacity-70" />
                   </button>
                 }
               >
-                <DropdownItem icon={<Printer className="w-4 h-4" />} label="Imprimir" onClick={handlePrint} />
                 <DropdownItem icon={<FileDown className="w-4 h-4" />} label="Baixar PDF" onClick={handleDownloadPDF} />
                 <DropdownItem icon={<ImageIcon className="w-4 h-4" />} label="Baixar PNG" onClick={handleDownloadPNG} />
-                <DropdownDivider />
-                <DropdownItem
-                  icon={<ListPlus className="w-4 h-4" />}
-                  label="Adicionar à Fila"
-                  description="Salva sem sair da tela atual"
-                  onClick={handleAddToQueue}
-                />
               </HeaderDropdown>
 
               {/* Queue */}
