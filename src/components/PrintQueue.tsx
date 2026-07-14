@@ -169,11 +169,11 @@ const PrintQueue = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center flex-wrap gap-3">
             {printQueue.length > 0 && (
               <button
                 onClick={() => setAllQueueSelected(!allSelected)}
-                className="px-4 py-2 text-black dark:text-white opacity-60 hover:opacity-100 font-bold text-sm uppercase tracking-tighter flex items-center gap-2"
+                className="whitespace-nowrap px-4 py-2 text-black dark:text-white opacity-60 hover:opacity-100 font-bold text-sm uppercase tracking-tighter flex items-center gap-2"
               >
                 {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                 {allSelected ? 'Desmarcar Tudo' : 'Selecionar Tudo'}
@@ -181,7 +181,7 @@ const PrintQueue = () => {
             )}
             <button
               onClick={clearQueue}
-              className="px-4 py-2 text-black dark:text-white opacity-60 hover:text-red-500 font-bold text-sm uppercase tracking-tighter flex items-center gap-2"
+              className="whitespace-nowrap px-4 py-2 text-black dark:text-white opacity-60 hover:text-red-500 font-bold text-sm uppercase tracking-tighter flex items-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
               Limpar Fila
@@ -190,7 +190,7 @@ const PrintQueue = () => {
               type="button"
               onClick={handlePrintAll}
               disabled={selectedQueue.length === 0}
-              className="flex items-center gap-2 px-6 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
+              className="whitespace-nowrap flex items-center gap-2 px-6 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
             >
               <Printer className="w-5 h-5" />
               Imprimir Selecionadas
@@ -198,7 +198,7 @@ const PrintQueue = () => {
             <button
               onClick={handleExportPDFAll}
               disabled={selectedQueue.length === 0}
-              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase tracking-tighter shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
+              className="whitespace-nowrap flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase tracking-tighter shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
             >
               <FileDown className="w-5 h-5" />
               Exportar PDF Único
@@ -215,9 +215,9 @@ const PrintQueue = () => {
               <button
                 onClick={() => toggleQueueSelection(index)}
                 title={isSelected ? 'Remover da seleção de impressão' : 'Incluir na seleção de impressão'}
-                className="absolute top-3 right-3 z-10 p-1.5 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700"
+                className="absolute top-2.5 right-2.5 z-10 p-1 bg-white dark:bg-zinc-900 rounded-md shadow border border-zinc-200 dark:border-zinc-700"
               >
-                {isSelected ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5 text-zinc-400" />}
+                {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-blue-600" /> : <Square className="w-3.5 h-3.5 text-zinc-400" />}
               </button>
               <img src={item.imageData} alt={`Tag ${index + 1}`} className="w-full h-auto" crossOrigin="anonymous" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">

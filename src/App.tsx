@@ -579,7 +579,7 @@ export default function App() {
                 className="relative h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
               >
                 <LayoutGrid className="w-4 h-4" />
-                Fila
+                Fila Inteligente
                 {printQueue.length > 0 && (
                   <span className="bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
                     {printQueue.length}
