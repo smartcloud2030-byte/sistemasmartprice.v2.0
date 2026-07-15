@@ -7,7 +7,7 @@ import { cn } from '../lib/utils';
 export default function UserManagement() {
   const {
     allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, loadUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
-    maxConcurrentStores, setMaxConcurrentStores, flagUserLimits, setFlagUserLimit,
+    maxConcurrentStores, setMaxConcurrentStores, flagUserLimits, setFlagUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
   } = useStore();
@@ -1210,6 +1210,19 @@ export default function UserManagement() {
                   )} />
                 </button>
               </div>
+
+              {/* Limpar histórico de últimos acessos */}
+              <button
+                onClick={() => {
+                  if (window.confirm('Limpar todo o histórico de últimos acessos?')) {
+                    clearAccessHistory();
+                  }
+                }}
+                className="group flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl border border-zinc-200 dark:border-zinc-700 transition-colors text-[10px] font-black uppercase tracking-widest text-black dark:text-white hover:text-red-500"
+              >
+                <Trash2 className="w-4 h-4 text-zinc-400 group-hover:text-red-500" />
+                <span>Limpar Histórico</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
