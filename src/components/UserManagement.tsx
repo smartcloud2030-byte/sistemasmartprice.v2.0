@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, KeyRound } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -8,7 +8,6 @@ export default function UserManagement() {
   const {
     allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
     maxConcurrentStores, setMaxConcurrentStores, flagUserLimits, setFlagUserLimit, clearAccessHistory,
-    setChangeCredsModalOpen,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
   } = useStore();
@@ -1212,15 +1211,6 @@ export default function UserManagement() {
               >
                 <Trash2 className="w-4 h-4 text-zinc-400 group-hover:text-red-500" />
                 <span>Limpar Histórico</span>
-              </button>
-
-              {/* Alterar usuário/senha do admin logado */}
-              <button
-                onClick={() => setChangeCredsModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-2xl border border-zinc-200 dark:border-zinc-700 transition-colors text-[10px] font-black uppercase tracking-widest text-black dark:text-white"
-              >
-                <KeyRound className="w-4 h-4 text-zinc-400" />
-                <span>Minhas Credenciais</span>
               </button>
             </div>
 
