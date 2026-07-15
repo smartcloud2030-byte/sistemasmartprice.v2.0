@@ -1288,8 +1288,11 @@ export default function UserManagement() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-bold text-zinc-900 dark:text-zinc-100">
-                          {store.lastUsername || 'Usuário'}
+                        <p className={cn(
+                          "font-bold",
+                          store.lastUsername ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 italic font-normal"
+                        )}>
+                          {store.lastUsername || 'Sem acesso registrado'}
                         </p>
                         <span className={cn(
                           "text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded",

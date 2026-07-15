@@ -252,7 +252,12 @@ const AdminDashboard: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <div className={cn('w-2 h-2 rounded-full flex-shrink-0', store.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600')} />
                     <div>
-                      <p className="text-sm font-bold text-black dark:text-white">{store.lastUsername || 'Usuário'}</p>
+                      <p className={cn(
+                        "text-sm font-bold",
+                        store.lastUsername ? "text-black dark:text-white" : "text-zinc-400 italic font-normal"
+                      )}>
+                        {store.lastUsername || 'Sem acesso registrado'}
+                      </p>
                       <p className="text-[10px] font-mono text-zinc-400">{store.cnpj} · {store.bandeira}</p>
                     </div>
                   </div>
