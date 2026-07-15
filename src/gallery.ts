@@ -316,7 +316,7 @@ function galleryHTML() {
   /* LOGIN */
   #login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
   .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
-  .logo-img { height:32px; width:auto; margin:0 auto 10px; display:block; }
+  .logo-img { height:64px; width:auto; margin:0 auto 14px; display:block; }
   .login-card p { color:var(--muted); font-size:13px; margin-bottom:28px; }
   input, select { width:100%; padding:11px 14px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:14px; outline:none; transition:border-color .2s; font-family:inherit; }
   input:focus, select:focus { border-color:var(--accent); }
