@@ -316,8 +316,7 @@ function galleryHTML() {
   /* LOGIN */
   #login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
   .login-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:40px; width:100%; max-width:380px; text-align:center; }
-  .logo { font-size:22px; font-weight:700; margin-bottom:6px; }
-  .logo span { color:var(--accent); }
+  .logo-img { height:32px; width:auto; margin:0 auto 10px; display:block; }
   .login-card p { color:var(--muted); font-size:13px; margin-bottom:28px; }
   input, select { width:100%; padding:11px 14px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:14px; outline:none; transition:border-color .2s; font-family:inherit; }
   input:focus, select:focus { border-color:var(--accent); }
@@ -332,8 +331,8 @@ function galleryHTML() {
   /* APP */
   #app { display:none; }
   header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
-  .header-logo { font-size:16px; font-weight:700; }
-  .header-logo span { color:var(--accent); }
+  .header-logo { display:flex; align-items:center; gap:10px; }
+  .header-logo img { height:20px; width:auto; display:block; }
 
   /* LAYOUT */
   .layout { display:flex; min-height:calc(100vh - 60px); }
@@ -420,7 +419,7 @@ function galleryHTML() {
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
-    <div class="logo">SMART<span>PRICE</span></div>
+    <img src="/logo-gallery.png" alt="SmartGallery" class="logo-img">
     <p>Galeria de Imagens — Acesso Admin</p>
     <input type="password" id="pwd-input" placeholder="Senha de acesso" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn" onclick="doLogin()">Entrar</button>
@@ -431,7 +430,7 @@ function galleryHTML() {
 <!-- APP -->
 <div id="app">
   <header>
-    <div class="header-logo">SMART<span>PRICE</span> <span style="color:var(--muted);font-weight:400;font-size:13px">/ Galeria</span></div>
+    <div class="header-logo"><img src="/logo-gallery.png" alt="SmartGallery"></div>
     <div style="font-size:13px;color:var(--muted)" id="header-info"></div>
   </header>
 
