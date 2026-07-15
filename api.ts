@@ -198,7 +198,7 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
 router.post('/activity/:cnpj', async (req: Request, res: Response) => {
   try {
     const { cnpj } = req.params;
-    const { isOnline, username } = req.body;
+    const { isOnline, lastUsername } = req.body;
 
     const current = await pool.query('SELECT value FROM settings WHERE id = $1', ['activity_status']);
     const activity = current.rows[0]?.value || {};
@@ -206,7 +206,7 @@ router.post('/activity/:cnpj', async (req: Request, res: Response) => {
     activity[cnpj] = {
       isOnline,
       lastAccess: new Date().toISOString(),
-      lastUsername: username
+      lastUsername
     };
 
     await pool.query(
