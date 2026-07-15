@@ -302,6 +302,8 @@ interface AppState {
   setProductModalOpen: (open: boolean) => void;
   isUserModalOpen: boolean;
   setUserModalOpen: (open: boolean) => void;
+  isChangeCredsModalOpen: boolean;
+  setChangeCredsModalOpen: (open: boolean) => void;
   userManagementTab: 'stores' | 'flags' | 'groups' | 'access';
   setUserManagementTab: (tab: 'stores' | 'flags' | 'groups' | 'access') => void;
   userManagementSuspendedFilter: boolean;
@@ -1043,6 +1045,8 @@ export const useStore = create<AppState>()(
       setProductModalOpen: (open) => set({ isProductModalOpen: open }),
       isUserModalOpen: false,
       setUserModalOpen: (open) => set({ isUserModalOpen: open }),
+      isChangeCredsModalOpen: false,
+      setChangeCredsModalOpen: (open) => set({ isChangeCredsModalOpen: open }),
       userManagementTab: 'stores',
       setUserManagementTab: (tab) => set({ userManagementTab: tab }),
       userManagementSuspendedFilter: false,

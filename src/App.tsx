@@ -16,13 +16,14 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
 import EncarteCreator from './components/EncarteCreator';
 import AdminDashboard from './components/AdminDashboard';
+import ChangeCredentialsModal from './components/ChangeCredentialsModal';
 import {
   Printer, FileDown,
   Settings as SettingsIcon,
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -39,7 +40,7 @@ export default function App() {
     isProductModalOpen, setProductModalOpen, 
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
-    isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen,
+    isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
     currentUser, allowedStores, lastLoginTimestamp,
@@ -724,6 +725,9 @@ export default function App() {
                 </div>
                 <DropdownDivider />
                 <DropdownItem icon={<RefreshCw className="w-4 h-4" />} label="Atualizar Página" onClick={() => window.location.reload()} />
+                {userRole === 'admin' && (
+                  <DropdownItem icon={<KeyRound className="w-4 h-4" />} label="Alterar Usuário e Senha" onClick={() => setChangeCredsModalOpen(true)} />
+                )}
                 <DropdownItem icon={<LogOut className="w-4 h-4" />} label="Sair do Sistema" variant="danger" onClick={logout} />
               </HeaderDropdown>
             </div>
@@ -1032,6 +1036,7 @@ export default function App() {
       )}
       <LayoutNamesModal />
       <LayoutManagerModal />
+      <ChangeCredentialsModal />
 
       {/* Botão flutuante de suporte (usuário comum) */}
       {isAuthenticated && userRole !== 'admin' && isChatEnabled && !isPrinting && (
