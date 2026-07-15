@@ -13,12 +13,6 @@ const entrance = (delay: number, reduceMotion: boolean | null) => ({
   transition: { duration: reduceMotion ? 0.2 : 0.45, ease: EASE_OUT, delay: reduceMotion ? 0 : delay },
 });
 
-// Nomes de usuário com acesso administrativo (mesma role 'admin', mesmas
-// funcionalidades). Só o nome de usuário fica aqui — a senha é checada no
-// servidor (ver verifyAdminLogin/POST /api/admin/login), nunca fica exposta
-// no código enviado ao navegador.
-const ADMIN_USERNAMES = ['adm', 'jh'];
-
 export default function Login() {
   const { login, verifyAdminLogin, allowedStores, flags, theme, toggleTheme, maxConcurrentStores, flagUserLimits } = useStore();
   const shouldReduceMotion = useReducedMotion();
@@ -32,7 +26,10 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastCnpj, setLastCnpj] = useState<string | null>(null);
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const isAdmin = ADMIN_USERNAMES.includes(formData.username.toLowerCase());
+  // Alterna manualmente entre login de loja e administrativo — usuário e
+  // senha de admin não ficam fixos no front-end (podem ser trocados pelo
+  // próprio admin), então não dá para detectar o modo pelo texto digitado.
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Auto-fill bandeira based on CNPJ
   useEffect(() => {
@@ -148,6 +145,19 @@ export default function Login() {
 
         {/* Card */}
         <motion.div {...entrance(0.08, shouldReduceMotion)} className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl shadow-black/5 dark:shadow-black/20 border border-zinc-200 dark:border-zinc-800 p-8 md:p-10 transition-colors">
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdmin(prev => !prev);
+                setError('');
+                setFormData({ cnpj: '', bandeira: '', username: '', password: '' });
+              }}
+              className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-600 transition-colors"
+            >
+              {isAdmin ? 'Sou uma loja' : 'Acesso administrativo'}
+            </button>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-6">
             {!isAdmin && (
               <>

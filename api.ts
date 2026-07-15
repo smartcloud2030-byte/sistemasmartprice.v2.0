@@ -37,20 +37,70 @@ function apiAuth(req: Request, res: Response, next: Function) {
 
 // ── Login administrativo ──────────────────
 // As senhas ficam só aqui no servidor (nunca no bundle enviado ao navegador).
-// Pode ser sobrescrito via env (ex.: ADMIN_PASSWORD_ADM, ADMIN_PASSWORD_JH).
-const ADMIN_CREDENTIALS: Record<string, string> = {
-  adm: process.env.ADMIN_PASSWORD_ADM || '8814',
+// Valores abaixo são só a semente inicial (usados se ainda não houver nada
+// salvo em settings.admin_credentials); depois de trocado pelo painel, quem
+// vale é o que está no banco.
+const DEFAULT_ADMIN_CREDENTIALS: Record<string, string> = {
+  daylon: process.env.ADMIN_PASSWORD_DAYLON || '8814',
   jh: process.env.ADMIN_PASSWORD_JH || '1993',
 };
 
-router.post('/admin/login', apiAuth, (req: Request, res: Response) => {
-  const username = String(req.body?.username || '').toLowerCase();
-  const password = String(req.body?.password || '');
-  const expected = ADMIN_CREDENTIALS[username];
-  if (expected && password === expected) {
-    return res.json({ success: true });
+async function getAdminCredentials(): Promise<Record<string, string>> {
+  const result = await pool.query('SELECT value FROM settings WHERE id = $1', ['admin_credentials']);
+  const stored = result.rows[0]?.value;
+  return stored && Object.keys(stored).length > 0 ? stored : { ...DEFAULT_ADMIN_CREDENTIALS };
+}
+
+async function saveAdminCredentials(credentials: Record<string, string>) {
+  await pool.query(
+    `INSERT INTO settings (id, value, updated_at) VALUES ('admin_credentials', $1, NOW())
+     ON CONFLICT (id) DO UPDATE SET value = $1, updated_at = NOW()`,
+    [JSON.stringify(credentials)]
+  );
+}
+
+router.post('/admin/login', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const username = String(req.body?.username || '').toLowerCase();
+    const password = String(req.body?.password || '');
+    const credentials = await getAdminCredentials();
+    if (credentials[username] && password === credentials[username]) {
+      return res.json({ success: true });
+    }
+    res.status(401).json({ success: false });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-  res.status(401).json({ success: false });
+});
+
+// Troca usuário/senha do próprio admin logado (exige a senha atual)
+router.post('/admin/credentials', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const currentUsername = String(req.body?.currentUsername || '').toLowerCase();
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newUsername = String(req.body?.newUsername || '').toLowerCase().trim();
+    const newPassword = String(req.body?.newPassword || '');
+
+    if (!newUsername || !newPassword) {
+      return res.status(400).json({ error: 'Informe o novo usuário e a nova senha.' });
+    }
+
+    const credentials = await getAdminCredentials();
+    if (!credentials[currentUsername] || credentials[currentUsername] !== currentPassword) {
+      return res.status(401).json({ error: 'Senha atual incorreta.' });
+    }
+    if (newUsername !== currentUsername && credentials[newUsername]) {
+      return res.status(409).json({ error: 'Esse nome de usuário já está em uso.' });
+    }
+
+    delete credentials[currentUsername];
+    credentials[newUsername] = newPassword;
+    await saveAdminCredentials(credentials);
+
+    res.json({ success: true, username: newUsername });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ═══════════════════════════════════════════

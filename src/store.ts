@@ -458,6 +458,7 @@ interface AppState {
 
   login: (role: 'user' | 'admin', user: { username: string; cnpj: string; bandeira: string }) => void;
   verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
+  changeAdminCredentials: (currentUsername: string, currentPassword: string, newUsername: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setSlotVisibility: (slot: 1 | 2 | 3, visible: boolean) => void;
   toggleEncarteAccess: (cnpj: string) => void;
@@ -1469,6 +1470,24 @@ export const useStore = create<AppState>()(
           return !!result?.success;
         } catch {
           return false;
+        }
+      },
+
+      // ── changeAdminCredentials → /api/admin/credentials ─────────────────────
+      changeAdminCredentials: async (currentUsername, currentPassword, newUsername, newPassword) => {
+        try {
+          const res = await fetch(`${API_BASE}/admin/credentials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+            body: JSON.stringify({ currentUsername, currentPassword, newUsername, newPassword }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            return { success: false, error: data?.error || 'Erro ao alterar credenciais.' };
+          }
+          return { success: true };
+        } catch {
+          return { success: false, error: 'Erro ao alterar credenciais.' };
         }
       },
 
