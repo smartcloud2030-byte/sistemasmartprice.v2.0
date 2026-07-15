@@ -331,8 +331,8 @@ function galleryHTML() {
   /* APP */
   #app { display:none; }
   header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
-  .header-logo { display:flex; align-items:center; gap:10px; }
-  .header-logo img { height:20px; width:auto; display:block; }
+  .header-logo { font-size:16px; font-weight:700; }
+  .header-logo span { color:var(--accent); }
 
   /* LAYOUT */
   .layout { display:flex; min-height:calc(100vh - 60px); }
@@ -430,7 +430,7 @@ function galleryHTML() {
 <!-- APP -->
 <div id="app">
   <header>
-    <div class="header-logo"><img src="/logo-gallery.png" alt="SmartGallery"></div>
+    <div class="header-logo">SMART<span>PRICE</span> <span style="color:var(--muted);font-weight:400;font-size:13px">/ Galeria</span></div>
     <div style="font-size:13px;color:var(--muted)" id="header-info"></div>
   </header>
 
