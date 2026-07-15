@@ -7,7 +7,7 @@ import { cn } from '../lib/utils';
 export default function UserManagement() {
   const {
     allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
-    maxConcurrentStores, setMaxConcurrentStores, flagUserLimits, setFlagUserLimit, clearAccessHistory,
+    maxConcurrentStores, setMaxConcurrentStores, cnpjUserLimits, setCnpjUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
   } = useStore();
@@ -38,7 +38,8 @@ export default function UserManagement() {
   const [showNewStoreForm, setShowNewStoreForm] = useState(false);
   const [newStoreLayoutSearch, setNewStoreLayoutSearch] = useState('');
   const [storeLayoutSearch, setStoreLayoutSearch] = useState('');
-  const [isFlagLimitsOpen, setIsFlagLimitsOpen] = useState(false);
+  const [isCnpjLimitsOpen, setIsCnpjLimitsOpen] = useState(false);
+  const [cnpjLimitSearch, setCnpjLimitSearch] = useState('');
 
   // Fix: Ensure newBandeira is set when flags are loaded
   React.useEffect(() => {
@@ -1161,16 +1162,16 @@ export default function UserManagement() {
                 </div>
               </div>
 
-              {/* Limites por bandeira */}
+              {/* Limites por CNPJ */}
               <button
-                onClick={() => setIsFlagLimitsOpen(true)}
+                onClick={() => setIsCnpjLimitsOpen(true)}
                 className="flex items-center gap-3 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-2xl border border-zinc-200 dark:border-zinc-700 transition-colors"
               >
-                <Flag className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                <Store className="w-4 h-4 text-zinc-400 flex-shrink-0" />
                 <div className="flex flex-col text-left">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-black dark:text-white opacity-40 leading-none mb-1">Limite por Bandeira</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-black dark:text-white opacity-40 leading-none mb-1">Limite por CNPJ</span>
                   <span className="text-sm font-bold text-black dark:text-white">
-                    {Object.keys(flagUserLimits).length > 0 ? `${Object.keys(flagUserLimits).length} configurada(s)` : 'Configurar'}
+                    {Object.keys(cnpjUserLimits).length > 0 ? `${Object.keys(cnpjUserLimits).length} configurado(s)` : 'Configurar'}
                   </span>
                 </div>
               </button>
@@ -1296,59 +1297,77 @@ export default function UserManagement() {
         ) : null}
       </div>
 
-      {isFlagLimitsOpen && (
+      {isCnpjLimitsOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 no-print">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-md max-h-[80vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
             <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-600 rounded-lg text-white">
-                  <Flag className="w-5 h-5" />
+                  <Store className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-black dark:text-white uppercase tracking-tighter">Limite por Bandeira</h3>
-                  <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Acessos simultâneos por bandeira</p>
+                  <h3 className="font-black text-black dark:text-white uppercase tracking-tighter">Limite por CNPJ</h3>
+                  <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Acessos simultâneos por CNPJ (0 bloqueia, 1 = uma sessão por vez)</p>
                 </div>
               </div>
               <button
-                onClick={() => setIsFlagLimitsOpen(false)}
+                onClick={() => setIsCnpjLimitsOpen(false)}
                 className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  value={cnpjLimitSearch}
+                  onChange={(e) => setCnpjLimitSearch(e.target.value)}
+                  placeholder="Buscar CNPJ ou bandeira..."
+                  className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-transparent rounded-xl text-sm focus:bg-white dark:focus:bg-zinc-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black dark:text-white"
+                />
+              </div>
+            </div>
+
             <div className="flex-grow overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 custom-scrollbar">
-              {flags.length === 0 ? (
-                <p className="p-8 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Nenhuma bandeira cadastrada</p>
-              ) : (
-                flags.map((bandeira) => {
-                  const onlineCount = allowedStores.filter(s => s.isOnline && s.bandeira === bandeira).length;
+              {(() => {
+                const search = cnpjLimitSearch.toLowerCase();
+                const filtered = allowedStores.filter(s => s.cnpj.includes(search) || s.bandeira.toLowerCase().includes(search));
+                if (filtered.length === 0) {
+                  return <p className="p-8 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Nenhum CNPJ encontrado</p>;
+                }
+                return filtered.map((store) => {
+                  const nc = store.cnpj?.replace(/[^\d]/g, '') || '';
                   return (
-                    <div key={bandeira} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div key={store.cnpj} className="px-5 py-3 flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-bold text-sm text-black dark:text-white truncate">{bandeira}</p>
-                        <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">{onlineCount} online agora</p>
+                        <p className="font-mono font-bold text-sm text-black dark:text-white truncate">{store.cnpj}</p>
+                        <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold truncate">
+                          {store.bandeira} · {store.isOnline ? 'Online agora' : 'Offline'}
+                        </p>
                       </div>
                       <input
                         type="number"
                         min={0}
-                        value={flagUserLimits[bandeira] ?? ''}
+                        value={cnpjUserLimits[nc] ?? ''}
                         onChange={(e) => {
                           const raw = e.target.value;
-                          setFlagUserLimit(bandeira, raw === '' ? null : Math.max(0, parseInt(raw, 10)));
+                          setCnpjUserLimit(store.cnpj, raw === '' ? null : Math.max(0, parseInt(raw, 10)));
                         }}
                         placeholder="Sem limite"
                         className="w-28 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-bold text-right text-black dark:text-white outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-zinc-400 placeholder:font-normal flex-shrink-0"
                       />
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
 
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
               <button
-                onClick={() => setIsFlagLimitsOpen(false)}
+                onClick={() => setIsCnpjLimitsOpen(false)}
                 className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase tracking-tighter text-sm hover:bg-blue-700 transition-all active:scale-95"
               >
                 Concluído

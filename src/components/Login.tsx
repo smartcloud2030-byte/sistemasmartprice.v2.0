@@ -14,7 +14,7 @@ const entrance = (delay: number, reduceMotion: boolean | null) => ({
 });
 
 export default function Login() {
-  const { login, verifyAdminLogin, allowedStores, flags, theme, toggleTheme, maxConcurrentStores, flagUserLimits } = useStore();
+  const { login, verifyAdminLogin, allowedStores, flags, theme, toggleTheme, maxConcurrentStores, cnpjUserLimits } = useStore();
   const shouldReduceMotion = useReducedMotion();
   const [formData, setFormData] = useState({
     cnpj: '',
@@ -99,12 +99,21 @@ export default function Login() {
               }
             }
 
-            // Limite de CNPJs simultaneamente online por bandeira
-            const bandeiraLimit = flagUserLimits[store.bandeira];
-            if (!store.isOnline && bandeiraLimit !== undefined) {
-              const bandeiraOnlineCount = allowedStores.filter(s => s.isOnline && s.bandeira === store.bandeira).length;
-              if (bandeiraOnlineCount >= bandeiraLimit) {
-                setError(`Limite de ${bandeiraLimit} acesso(s) simultâneo(s) para a bandeira ${store.bandeira} atingido.`);
+            // Limite de acesso simultâneo por CNPJ individual — só existe um
+            // online/offline por CNPJ (não um contador de sessões), então na
+            // prática só 0 (bloqueia) e 1 (uma sessão por vez) têm efeito.
+            // Ignora sessões "paradas" há mais de 10 min (sem heartbeat) para
+            // não travar quem esqueceu de sair do sistema em outro aparelho.
+            const cnpjLimit = cnpjUserLimits[normalizedInputCnpj];
+            if (cnpjLimit !== undefined) {
+              const STALE_MS = 10 * 60 * 1000;
+              const isReallyOnline = !!store.isOnline && !!store.lastAccess && (Date.now() - new Date(store.lastAccess).getTime() < STALE_MS);
+              if ((isReallyOnline ? 1 : 0) >= cnpjLimit) {
+                setError(
+                  cnpjLimit === 0
+                    ? 'Este CNPJ está bloqueado para acesso pelo administrador.'
+                    : `Este CNPJ já está em uso em outro dispositivo. Limite de ${cnpjLimit} acesso(s) simultâneo(s) atingido.`
+                );
                 setIsLoading(false);
                 return;
               }

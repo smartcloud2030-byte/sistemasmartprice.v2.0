@@ -356,9 +356,12 @@ interface AppState {
   // Limite de CNPJs simultaneamente online no sistema (null = sem limite)
   maxConcurrentStores: number | null;
   setMaxConcurrentStores: (limit: number | null) => void;
-  // Limite de CNPJs simultaneamente online por bandeira (chave ausente = sem limite)
-  flagUserLimits: Record<string, number>;
-  setFlagUserLimit: (bandeira: string, limit: number | null) => void;
+  // Limite de acessos simultâneos por CNPJ individual (chave = cnpj só com
+  // dígitos, ausente = sem limite). Como só existe um "online/offline" por
+  // CNPJ (não um contador de sessões), na prática só 0 (bloqueia) e 1 (só
+  // uma sessão por vez) têm efeito real.
+  cnpjUserLimits: Record<string, number>;
+  setCnpjUserLimit: (cnpj: string, limit: number | null) => void;
 
   userGroups: UserGroup[];
   addUserGroup: (name: string) => void;
@@ -1280,12 +1283,13 @@ export const useStore = create<AppState>()(
 
       maxConcurrentStores: null,
       setMaxConcurrentStores: (limit) => { set({ maxConcurrentStores: limit }); get().saveUsersAndFlagsDebounced(); },
-      flagUserLimits: {},
-      setFlagUserLimit: (bandeira, limit) => set((state) => {
-        const next = { ...state.flagUserLimits };
-        if (limit === null || limit === undefined) delete next[bandeira]; else next[bandeira] = limit;
+      cnpjUserLimits: {},
+      setCnpjUserLimit: (cnpj, limit) => set((state) => {
+        const nc = cnpj?.replace(/[^\d]/g, '') || '';
+        const next = { ...state.cnpjUserLimits };
+        if (limit === null || limit === undefined) delete next[nc]; else next[nc] = limit;
         setTimeout(() => get().saveUsersAndFlags(), 0);
-        return { flagUserLimits: next };
+        return { cnpjUserLimits: next };
       }),
 
       userGroups: [],
@@ -1358,7 +1362,7 @@ export const useStore = create<AppState>()(
               allowedStores: cleanAllowedStores,
               flags: state.flags,
               maxConcurrentStores: state.maxConcurrentStores,
-              flagUserLimits: state.flagUserLimits,
+              cnpjUserLimits: state.cnpjUserLimits,
               userGroups: state.userGroups,
               encartes: state.encartes,
               selectedEncarteModel: state.selectedEncarteModel,
@@ -1403,7 +1407,7 @@ export const useStore = create<AppState>()(
             allowedStores: mergedStores,
             flags: settings.flags || currentState.flags,
             maxConcurrentStores: settings.maxConcurrentStores !== undefined ? settings.maxConcurrentStores : currentState.maxConcurrentStores,
-            flagUserLimits: settings.flagUserLimits || currentState.flagUserLimits,
+            cnpjUserLimits: settings.cnpjUserLimits || currentState.cnpjUserLimits,
             userGroups: settings.userGroups || [],
             encartes: settings.encartes || currentState.encartes,
             selectedEncarteModel: settings.selectedEncarteModel || currentState.selectedEncarteModel,
@@ -1581,7 +1585,7 @@ export const useStore = create<AppState>()(
         allowedStores: state.allowedStores,
         flags: state.flags,
         maxConcurrentStores: state.maxConcurrentStores,
-        flagUserLimits: state.flagUserLimits,
+        cnpjUserLimits: state.cnpjUserLimits,
         userGroups: state.userGroups,
         isAuthenticated: state.isAuthenticated,
         lastLoginTimestamp: state.lastLoginTimestamp,
