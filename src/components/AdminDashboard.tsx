@@ -27,7 +27,7 @@ const AdminDashboard: React.FC = () => {
     currentUser, allowedStores, layouts, userGroups, flags, products,
     printQueue, setView, setProductModalOpen, setUserModalOpen, setAnnouncementModalOpen,
     setUserManagementTab, setUserManagementSuspendedFilter,
-    logout, unreadSupportCount, setSupportChatOpen,
+    logout, unreadSupportCount, setSupportChatOpen, clearAccessHistory,
   } = useStore();
 
   const [quickList, setQuickList] = useState<QuickListKind>(null);
@@ -225,10 +225,24 @@ const AdminDashboard: React.FC = () => {
 
         {/* Recent activity */}
         <motion.div {...entrance(0.46, shouldReduceMotion)} className="space-y-3">
-          <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5" />
-            Últimos Acessos
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5" />
+              Últimos Acessos
+            </h2>
+            {recentAccess.length > 0 && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Limpar todo o histórico de últimos acessos?')) {
+                    clearAccessHistory();
+                  }
+                }}
+                className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-500 transition-colors"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl divide-y divide-zinc-100 dark:divide-zinc-800 max-h-72 overflow-y-auto custom-scrollbar">
             {recentAccess.length === 0 ? (
               <p className="p-6 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Nenhum acesso registrado</p>

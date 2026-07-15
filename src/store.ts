@@ -385,6 +385,7 @@ interface AppState {
   toggleSuspension: (cnpj: string) => void;
   toggleProductManagementAccess: (cnpj: string) => void;
   updateOnlineStatus: () => Promise<void>;
+  clearAccessHistory: () => Promise<void>;
   saveUsersAndFlags: () => Promise<void>;
   saveUsersAndFlagsDebounced: () => void;
   loadUsersAndFlags: () => Promise<void>;
@@ -1299,6 +1300,25 @@ export const useStore = create<AppState>()(
         }
       },
 
+      // ── clearAccessHistory → zera /api/settings/activity_status ────────────
+      clearAccessHistory: async () => {
+        const state = get();
+        if (state.userRole !== 'admin') return;
+        try {
+          set((s) => ({
+            allowedStores: s.allowedStores.map(store => ({
+              ...store,
+              isOnline: false,
+              lastAccess: undefined,
+              lastUsername: undefined,
+            })),
+          }));
+          await apiPost('/settings/activity_status', { value: {} });
+        } catch (error) {
+          console.error('Error clearing access history:', error);
+        }
+      },
+
       saveUsersAndFlagsDebounced: () => {
         if (usersAndFlagsSaveTimeout) clearTimeout(usersAndFlagsSaveTimeout);
         usersAndFlagsSaveTimeout = setTimeout(() => get().saveUsersAndFlags(), 1000);
@@ -1476,7 +1496,8 @@ export const useStore = create<AppState>()(
         if (state.userRole === 'user' && state.currentUser?.cnpj) {
           try {
             const nc = state.currentUser.cnpj.replace(/[^\d]/g, '');
-            await apiPost(`/activity/${nc}`, { isOnline: false });
+            set((s) => ({ allowedStores: s.allowedStores.map(store => store.cnpj?.replace(/[^\d]/g, '') === nc ? { ...store, isOnline: false } : store) }));
+            await apiPost(`/activity/${nc}`, { isOnline: false, lastUsername: state.currentUser.username });
           } catch (error) {
             console.error('Error during logout activity update:', error);
           }
