@@ -35,6 +35,24 @@ function apiAuth(req: Request, res: Response, next: Function) {
   res.status(401).json({ error: 'Não autorizado' });
 }
 
+// ── Login administrativo ──────────────────
+// As senhas ficam só aqui no servidor (nunca no bundle enviado ao navegador).
+// Pode ser sobrescrito via env (ex.: ADMIN_PASSWORD_ADM, ADMIN_PASSWORD_JH).
+const ADMIN_CREDENTIALS: Record<string, string> = {
+  adm: process.env.ADMIN_PASSWORD_ADM || '8814',
+  jh: process.env.ADMIN_PASSWORD_JH || '1993',
+};
+
+router.post('/admin/login', apiAuth, (req: Request, res: Response) => {
+  const username = String(req.body?.username || '').toLowerCase();
+  const password = String(req.body?.password || '');
+  const expected = ADMIN_CREDENTIALS[username];
+  if (expected && password === expected) {
+    return res.json({ success: true });
+  }
+  res.status(401).json({ success: false });
+});
+
 // ═══════════════════════════════════════════
 // PRODUCTS
 // ═══════════════════════════════════════════

@@ -457,6 +457,7 @@ interface AppState {
   setActiveEncarteLayout: (layout: string | null) => void;
 
   login: (role: 'user' | 'admin', user: { username: string; cnpj: string; bandeira: string }) => void;
+  verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   setSlotVisibility: (slot: 1 | 2 | 3, visible: boolean) => void;
   toggleEncarteAccess: (cnpj: string) => void;
@@ -1460,6 +1461,16 @@ export const useStore = create<AppState>()(
       setActiveEncarteLogo: (logo) => set({ activeEncarteLogo: logo }),
       activeEncarteLayout: null,
       setActiveEncarteLayout: (layout) => set({ activeEncarteLayout: layout }),
+
+      // ── verifyAdminLogin → /api/admin/login (senha checada só no servidor) ──
+      verifyAdminLogin: async (username, password) => {
+        try {
+          const result = await apiPost('/admin/login', { username, password });
+          return !!result?.success;
+        } catch {
+          return false;
+        }
+      },
 
       // ── login ───────────────────────────────────────────────────────────────
       login: async (role, user) => {
