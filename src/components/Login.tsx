@@ -14,7 +14,7 @@ const entrance = (delay: number, reduceMotion: boolean | null) => ({
 });
 
 export default function Login() {
-  const { login, allowedStores, flags, theme, toggleTheme } = useStore();
+  const { login, allowedStores, flags, theme, toggleTheme, maxConcurrentStores, flagUserLimits } = useStore();
   const shouldReduceMotion = useReducedMotion();
   const [formData, setFormData] = useState({
     cnpj: '',
@@ -82,6 +82,28 @@ export default function Login() {
               setError('Este CNPJ está suspenso e não pode acessar o sistema.');
               setIsLoading(false);
               return;
+            }
+
+            // Limite global de CNPJs simultaneamente online (não conta o próprio
+            // CNPJ se ele já estiver online, ex.: reabrindo em outra aba)
+            if (!store.isOnline && maxConcurrentStores !== null) {
+              const onlineCount = allowedStores.filter(s => s.isOnline).length;
+              if (onlineCount >= maxConcurrentStores) {
+                setError(`Limite de ${maxConcurrentStores} acesso(s) simultâneo(s) do sistema atingido. Tente novamente mais tarde.`);
+                setIsLoading(false);
+                return;
+              }
+            }
+
+            // Limite de CNPJs simultaneamente online por bandeira
+            const bandeiraLimit = flagUserLimits[store.bandeira];
+            if (!store.isOnline && bandeiraLimit !== undefined) {
+              const bandeiraOnlineCount = allowedStores.filter(s => s.isOnline && s.bandeira === store.bandeira).length;
+              if (bandeiraOnlineCount >= bandeiraLimit) {
+                setError(`Limite de ${bandeiraLimit} acesso(s) simultâneo(s) para a bandeira ${store.bandeira} atingido.`);
+                setIsLoading(false);
+                return;
+              }
             }
 
             // Save last used CNPJ

@@ -351,6 +351,13 @@ interface AppState {
   removeFlag: (flag: string) => void;
   updateFlag: (oldFlag: string, newFlag: string) => void;
 
+  // Limite de CNPJs simultaneamente online no sistema (null = sem limite)
+  maxConcurrentStores: number | null;
+  setMaxConcurrentStores: (limit: number | null) => void;
+  // Limite de CNPJs simultaneamente online por bandeira (chave ausente = sem limite)
+  flagUserLimits: Record<string, number>;
+  setFlagUserLimit: (bandeira: string, limit: number | null) => void;
+
   userGroups: UserGroup[];
   addUserGroup: (name: string) => void;
   removeUserGroup: (id: string) => void;
@@ -1265,6 +1272,16 @@ export const useStore = create<AppState>()(
       removeFlag: (flag) => set((state) => { const newState = { flags: state.flags.filter(f => f !== flag) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       updateFlag: (oldFlag, newFlag) => set((state) => { const newState = { flags: state.flags.map(f => f === oldFlag ? newFlag : f) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
 
+      maxConcurrentStores: null,
+      setMaxConcurrentStores: (limit) => { set({ maxConcurrentStores: limit }); get().saveUsersAndFlagsDebounced(); },
+      flagUserLimits: {},
+      setFlagUserLimit: (bandeira, limit) => set((state) => {
+        const next = { ...state.flagUserLimits };
+        if (limit === null || limit === undefined) delete next[bandeira]; else next[bandeira] = limit;
+        setTimeout(() => get().saveUsersAndFlags(), 0);
+        return { flagUserLimits: next };
+      }),
+
       userGroups: [],
       addUserGroup: (name) => set((state) => { const newState = { userGroups: [...state.userGroups, { id: crypto.randomUUID(), name }] }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       removeUserGroup: (id) => set((state) => { const newState = { userGroups: state.userGroups.filter(g => g.id !== id), allowedStores: state.allowedStores.map(s => s.groupId === id ? { ...s, groupId: undefined } : s) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
@@ -1334,6 +1351,8 @@ export const useStore = create<AppState>()(
             value: {
               allowedStores: cleanAllowedStores,
               flags: state.flags,
+              maxConcurrentStores: state.maxConcurrentStores,
+              flagUserLimits: state.flagUserLimits,
               userGroups: state.userGroups,
               encartes: state.encartes,
               selectedEncarteModel: state.selectedEncarteModel,
@@ -1377,6 +1396,8 @@ export const useStore = create<AppState>()(
           set({
             allowedStores: mergedStores,
             flags: settings.flags || currentState.flags,
+            maxConcurrentStores: settings.maxConcurrentStores !== undefined ? settings.maxConcurrentStores : currentState.maxConcurrentStores,
+            flagUserLimits: settings.flagUserLimits || currentState.flagUserLimits,
             userGroups: settings.userGroups || [],
             encartes: settings.encartes || currentState.encartes,
             selectedEncarteModel: settings.selectedEncarteModel || currentState.selectedEncarteModel,
@@ -1525,6 +1546,8 @@ export const useStore = create<AppState>()(
         zoom: state.zoom,
         allowedStores: state.allowedStores,
         flags: state.flags,
+        maxConcurrentStores: state.maxConcurrentStores,
+        flagUserLimits: state.flagUserLimits,
         userGroups: state.userGroups,
         isAuthenticated: state.isAuthenticated,
         lastLoginTimestamp: state.lastLoginTimestamp,
