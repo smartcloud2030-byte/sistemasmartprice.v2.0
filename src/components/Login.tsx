@@ -13,6 +13,12 @@ const entrance = (delay: number, reduceMotion: boolean | null) => ({
   transition: { duration: reduceMotion ? 0.2 : 0.45, ease: EASE_OUT, delay: reduceMotion ? 0 : delay },
 });
 
+// Usuários com acesso administrativo (mesma role 'admin', mesmas funcionalidades)
+const ADMIN_CREDENTIALS: Record<string, string> = {
+  adm: '8814',
+  jh: '1993',
+};
+
 export default function Login() {
   const { login, allowedStores, flags, theme, toggleTheme, maxConcurrentStores, flagUserLimits } = useStore();
   const shouldReduceMotion = useReducedMotion();
@@ -26,7 +32,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastCnpj, setLastCnpj] = useState<string | null>(null);
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const isAdmin = formData.username.toLowerCase() === 'adm';
+  const isAdmin = Object.prototype.hasOwnProperty.call(ADMIN_CREDENTIALS, formData.username.toLowerCase());
 
   // Auto-fill bandeira based on CNPJ
   useEffect(() => {
@@ -59,7 +65,7 @@ export default function Login() {
 
     try {
       if (isAdmin) {
-        if (formData.password === '8814') {
+        if (formData.password === ADMIN_CREDENTIALS[formData.username.toLowerCase()]) {
           await login('admin', {
             username: formData.username,
             cnpj: 'Administrativo',
