@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import os from 'os';
 import fs from 'fs';
+import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 
 const router = Router();
@@ -19,6 +20,13 @@ const pool = new Pool({
 });
 
 export { pool };
+
+// ── Socket.IO: usado para avisar o painel admin em tempo real quando o ──
+// status de acesso (login/logout/limpar histórico) muda no backend.
+let io: Server | null = null;
+export function setSocketServer(server: Server) {
+  io = server;
+}
 
 // ── Middleware de autenticação da API ─────
 function apiAuth(req: Request, res: Response, next: Function) {
@@ -184,6 +192,9 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
        ON CONFLICT (id) DO UPDATE SET value = $2, updated_at = NOW() RETURNING *`,
       [req.params.id, JSON.stringify(value)]
     );
+    if (req.params.id === 'activity_status') {
+      io?.to('admin_room').emit('activity:replaced', { value: result.rows[0].value });
+    }
     res.json({ value: result.rows[0].value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -214,6 +225,8 @@ router.post('/activity/:cnpj', async (req: Request, res: Response) => {
        ON CONFLICT (id) DO UPDATE SET value = $1, updated_at = NOW()`,
       [JSON.stringify(activity)]
     );
+
+    io?.to('admin_room').emit('activity:update', { cnpj, ...activity[cnpj] });
 
     res.json({ success: true });
   } catch (err: any) {

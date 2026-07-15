@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import 'dotenv/config';
 import galleryRouter from './src/gallery';
-import apiRouter, { pool } from './api';
+import apiRouter, { pool, setSocketServer } from './api';
 
 // ── Suporte / Chat: schema no Postgres local ──
 // Observação: se a tabela já existir (criada por uma migration.sql antiga com
@@ -103,6 +103,7 @@ async function startServer() {
     allowEIO3: true,
     maxHttpBufferSize: 1e8
   });
+  setSocketServer(io);
 
   const PORT = 3000;
 

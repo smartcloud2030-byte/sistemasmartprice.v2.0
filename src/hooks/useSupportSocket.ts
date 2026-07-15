@@ -139,6 +139,26 @@ export function useSupportSocket() {
       if (isViewingThisConv) setMessages([]);
     };
 
+    const onActivityUpdate = (payload: { cnpj: string; isOnline?: boolean; lastAccess?: string; lastUsername?: string }) => {
+      useStore.setState((s) => ({
+        allowedStores: s.allowedStores.map(store =>
+          store.cnpj?.replace(/[^\d]/g, '') === payload.cnpj
+            ? { ...store, isOnline: payload.isOnline, lastAccess: payload.lastAccess, lastUsername: payload.lastUsername }
+            : store
+        ),
+      }));
+    };
+
+    const onActivityReplaced = (payload: { value: Record<string, { isOnline?: boolean; lastAccess?: string; lastUsername?: string }> }) => {
+      useStore.setState((s) => ({
+        allowedStores: s.allowedStores.map(store => {
+          const nc = store.cnpj?.replace(/[^\d]/g, '') || '';
+          const act = payload.value?.[nc];
+          return { ...store, isOnline: act?.isOnline, lastAccess: act?.lastAccess, lastUsername: act?.lastUsername };
+        }),
+      }));
+    };
+
     const onTypingUpdate = (payload: { cnpj: string; role: 'user' | 'admin'; isTyping: boolean }) => {
       const state = useStore.getState();
       const isRelevant = state.userRole === 'admin'
@@ -161,6 +181,8 @@ export function useSupportSocket() {
     s.on('message:read_receipt', onReadReceipt);
     s.on('message:cleared', onCleared);
     s.on('typing:update', onTypingUpdate);
+    s.on('activity:update', onActivityUpdate);
+    s.on('activity:replaced', onActivityReplaced);
 
     if (s.connected) onConnect();
 
@@ -173,6 +195,8 @@ export function useSupportSocket() {
       s.off('message:read_receipt', onReadReceipt);
       s.off('message:cleared', onCleared);
       s.off('typing:update', onTypingUpdate);
+      s.off('activity:update', onActivityUpdate);
+      s.off('activity:replaced', onActivityReplaced);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.cnpj, userRole]);
