@@ -12,6 +12,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import os from 'os';
+import { Pool } from 'pg';
 const execAsync = promisify(exec);
 
 const router = Router();
@@ -23,6 +24,24 @@ const minioClient = new Minio.Client({
   accessKey: process.env.MINIO_ACCESS_KEY || '',
   secretKey: process.env.MINIO_SECRET_KEY || '',
 });
+
+// Pool próprio (não importado de api.ts para evitar import circular — api.ts
+// já importa minioClient/BUCKET daqui). Aponta pro mesmo Postgres.
+const pool = new Pool({
+  host: process.env.DB_HOST || 'postgres',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME || 'smartprice',
+  user: process.env.DB_USER || 'smartprice',
+  password: process.env.DB_PASSWORD || '',
+});
+
+// Usado tanto ao criar quanto ao renomear categoria/pasta — mantém letras
+// (inclusive acentuadas) e números, só remove caracteres realmente inválidos.
+function sanitizeCategoryName(name: string): string {
+  return name.trim().toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .replace(/\s+/g, '-');
+}
 
 export { minioClient };
 const BUCKET = process.env.MINIO_BUCKET || 'smartprice-images';
@@ -105,8 +124,7 @@ router.get('/categories', authGallery, async (req: Request, res: Response) => {
 router.post('/categories', authGallery, async (req: Request, res: Response) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
-  const safeName = name.trim().toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-');
+  const safeName = sanitizeCategoryName(name);
   if (!safeName) return res.status(400).json({ error: 'Nome inválido' });
   try {
     await minioClient.putObject(BUCKET, `${safeName}/.keep`, Buffer.from(''), 0);
@@ -128,6 +146,64 @@ router.delete('/categories/:name', authGallery, async (req: Request, res: Respon
       res.json({ success: true });
     });
     stream.on('error', (err) => res.status(500).json({ error: err.message }));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Renomear categoria/pasta ──────────────
+// Move todos os objetos de uma pasta para outra (ex: corrigir a ortografia de
+// pastas antigas criadas antes de permitirmos acento) e atualiza as URLs já
+// salvas em products e settings (onde ficam os layouts), pra nenhuma imagem
+// ficar órfã.
+router.post('/categories/:name/rename', authGallery, async (req: Request, res: Response) => {
+  const oldName = req.params.name;
+  const newName = sanitizeCategoryName(req.body?.newName || '');
+  if (!newName) return res.status(400).json({ error: 'Novo nome inválido' });
+  if (newName === oldName) return res.json({ success: true, oldName, newName, movedCount: 0 });
+
+  try {
+    const destinationTaken = await new Promise<boolean>((resolve, reject) => {
+      let found = false;
+      const stream = minioClient.listObjectsV2(BUCKET, `${newName}/`, true);
+      stream.on('data', () => { found = true; });
+      stream.on('end', () => resolve(found));
+      stream.on('error', reject);
+    });
+    if (destinationTaken) return res.status(409).json({ error: 'Já existe uma pasta com esse nome' });
+
+    const objects: string[] = await new Promise((resolve, reject) => {
+      const list: string[] = [];
+      const stream = minioClient.listObjectsV2(BUCKET, `${oldName}/`, true);
+      stream.on('data', (obj) => { if (obj.name) list.push(obj.name); });
+      stream.on('end', () => resolve(list));
+      stream.on('error', reject);
+    });
+    if (objects.length === 0) return res.status(404).json({ error: 'Pasta não encontrada ou vazia' });
+
+    // Copia tudo pro novo prefixo antes de apagar o antigo, pra não perder
+    // nada se algo falhar no meio do caminho.
+    for (const objName of objects) {
+      const rest = objName.slice(oldName.length + 1);
+      const stat = await minioClient.statObject(BUCKET, objName);
+      const stream = await minioClient.getObject(BUCKET, objName);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(chunk as Buffer);
+      const buffer = Buffer.concat(chunks);
+      await minioClient.putObject(BUCKET, `${newName}/${rest}`, buffer, buffer.length, {
+        'Content-Type': stat.metaData?.['content-type'] || 'application/octet-stream',
+      });
+    }
+    for (const objName of objects) await minioClient.removeObject(BUCKET, objName);
+
+    // Atualiza referências já salvas (imagens de produtos + background dos layouts)
+    const oldPrefix = `/${BUCKET}/${oldName}/`;
+    const newPrefix = `/${BUCKET}/${newName}/`;
+    await pool.query(`UPDATE products SET image = replace(image, $1, $2) WHERE image LIKE '%' || $1 || '%'`, [oldPrefix, newPrefix]);
+    await pool.query(`UPDATE products SET thumb_image = replace(thumb_image, $1, $2) WHERE thumb_image LIKE '%' || $1 || '%'`, [oldPrefix, newPrefix]);
+    await pool.query(`UPDATE settings SET value = replace(value::text, $1, $2)::jsonb WHERE value::text LIKE '%' || $1 || '%'`, [oldPrefix, newPrefix]);
+
+    res.json({ success: true, oldName, newName, movedCount: objects.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -524,6 +600,7 @@ function galleryHTML() {
     list.innerHTML = categories.map(cat => \`
       <div class="cat-item \${currentCat === cat ? 'active' : ''}" onclick="selectCategory('\${cat}')">
         <span class="cat-name">📁 \${formatCatName(cat)}</span>
+        <button class="cat-del" onclick="event.stopPropagation();renameCategory('\${cat}')" title="Renomear" style="margin-right:2px;">✎</button>
         <button class="cat-del" onclick="event.stopPropagation();deleteCategory('\${cat}')" title="Deletar">✕</button>
       </div>
     \`).join('');
@@ -565,6 +642,24 @@ function galleryHTML() {
         showToast('✅ Galeria criada!');
       }
     });
+  }
+
+  function renameCategory(cat) {
+    const novoNome = prompt(\`Novo nome para a galeria "\${formatCatName(cat)}" (pode usar acento):\`, formatCatName(cat));
+    if (!novoNome || !novoNome.trim()) return;
+    fetch(\`/gallery/categories/\${cat}/rename\`, {
+      method: 'POST',
+      headers: { 'x-gallery-token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newName: novoNome })
+    })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) { showToast('⚠️ ' + (data.error || 'Erro ao renomear')); return; }
+        if (currentCat === cat) currentCat = data.newName;
+        loadCategories(() => { if (currentCat) selectCategory(currentCat); });
+        showToast('✅ Galeria renomeada!');
+      })
+      .catch(() => showToast('⚠️ Erro ao renomear'));
   }
 
   function deleteCategory(cat) {

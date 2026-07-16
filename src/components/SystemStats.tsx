@@ -114,7 +114,7 @@ const SystemStats: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Gauge
-            label="Disco (Galeria de Imagens)"
+            label="Disco (Espaço Total do Servidor)"
             icon={HardDrive}
             percent={diskUsedPercent}
             detail={stats.disk.available
