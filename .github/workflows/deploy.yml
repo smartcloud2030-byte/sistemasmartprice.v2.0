@@ -21,19 +21,25 @@ jobs:
           username: deploy
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             echo "=== Iniciando deploy SmartPrice ==="
-            
+
             cd /var/www/smartprice
-            
-            # Puxar código novo
-            git pull origin main
-            
+
+            # A VPS é só um alvo de deploy — sempre reflete exatamente o que
+            # está no GitHub. Qualquer edição feita direto na VPS (fora do
+            # git) é descartada aqui, pra um "git pull" nunca mais falhar
+            # silenciosamente por causa de mudança local e deixar o deploy
+            # rodando com código antigo em cache.
+            git fetch origin main
+            git reset --hard origin/main
+
             # Rebuild e restart sem downtime
             docker compose pull
             docker compose up -d --build --remove-orphans
-            
+
             # Limpar imagens antigas do Docker
             docker image prune -f
-            
+
             echo "=== Deploy concluído! ==="
             docker compose ps
