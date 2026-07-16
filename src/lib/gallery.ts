@@ -4,9 +4,8 @@ export const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartp
 
 export function slugifyCategory(value: string): string {
   return value
-    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
-    .replace(/[^a-zA-Z0-9\s-]/g, '')
     .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .replace(/\s+/g, '-')
     .toLowerCase();
 }

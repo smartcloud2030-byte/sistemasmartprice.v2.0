@@ -106,8 +106,7 @@ router.post('/categories', authGallery, async (req: Request, res: Response) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
   const safeName = name.trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+    .replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-');
   if (!safeName) return res.status(400).json({ error: 'Nome inválido' });
   try {
     await minioClient.putObject(BUCKET, `${safeName}/.keep`, Buffer.from(''), 0);

@@ -9,9 +9,8 @@ const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@ad
 
 function slugifyCategory(value: string): string {
   return value
-    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
-    .replace(/[^a-zA-Z0-9\s-]/g, '')
     .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .replace(/\s+/g, '-')
     .toLowerCase();
 }
@@ -114,6 +113,14 @@ const TextControl = ({ slot, label, elementKey, textElements }: {
           >
             <option value="Inter">Inter</option>
             <option value="Montserrat">Montserrat</option>
+            <option value="Roboto">Roboto</option>
+            <option value="Poppins">Poppins</option>
+            <option value="Oswald">Oswald</option>
+            <option value="Bebas Neue">Bebas Neue</option>
+            <option value="Anton">Anton</option>
+            <option value="Lato">Lato</option>
+            <option value="Raleway">Raleway</option>
+            <option value="Playfair Display">Playfair Display</option>
           </select>
           <button 
             onClick={() => setElement(slot, elementKey, { isBold: !el.isBold })}
