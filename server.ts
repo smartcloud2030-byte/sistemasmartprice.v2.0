@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import 'dotenv/config';
 import galleryRouter from './src/gallery';
+import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
 import apiRouter, { pool, setSocketServer } from './api';
 
 // ── Suporte / Chat: schema no Postgres local ──
@@ -104,13 +105,15 @@ async function startServer() {
     maxHttpBufferSize: 1e8
   });
   setSocketServer(io);
+  setPaymentsSocketServer(io);
 
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || '3000', 10);
 
   app.use(express.json({ limit: '50mb' }));
 
   // ── Rotas da API (ANTES do static) ────────
   app.use('/gallery', galleryRouter);
+  app.use('/api/payments', paymentsRouter);
   app.use('/api', apiRouter);
 
   await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
@@ -132,6 +135,10 @@ async function startServer() {
       socket.data.cnpj = cnpj;
       socket.data.username = username;
       socket.data.role = role;
+
+      // Sala por CNPJ — usada pelo webhook de pagamento (src/payments.ts) pra
+      // liberar o acesso em tempo real assim que o pagamento é confirmado.
+      if (cnpj) socket.join(`cnpj_${cnpj}`);
 
       try {
         if (role === 'admin') {

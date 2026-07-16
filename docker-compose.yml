@@ -28,6 +28,9 @@ services:
       MINIO_PUBLIC_URL: https://imagens.${DOMAIN}
       GALLERY_PASSWORD: ${GALLERY_PASSWORD}
       API_SECRET: ${API_SECRET}
+      ASAAS_API_KEY: ${ASAAS_API_KEY}
+      ASAAS_ENV: ${ASAAS_ENV:-sandbox}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy

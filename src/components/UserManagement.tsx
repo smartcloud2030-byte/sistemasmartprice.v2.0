@@ -1,16 +1,94 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
+const API_SECRET = import.meta.env.VITE_API_SECRET;
+
 export default function UserManagement() {
   const {
-    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
+    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, togglePaymentBlock, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
     maxConcurrentStores, setMaxConcurrentStores, cnpjUserLimits, setCnpjUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
   } = useStore();
+
+  const [subForms, setSubForms] = useState<Record<string, { name: string; cpfCnpj: string; value: string; dueDay: string }>>({});
+  const [creatingSubFor, setCreatingSubFor] = useState<string | null>(null);
+  // Criar assinatura gera cobrança recorrente real — exige confirmar a senha
+  // de admin de novo antes (mesmo padrão usado para excluir produto/galeria).
+  const [pendingSubCnpj, setPendingSubCnpj] = useState<string | null>(null);
+  const [subAuthUsername, setSubAuthUsername] = useState('');
+  const [subAuthPassword, setSubAuthPassword] = useState('');
+  const [subAuthError, setSubAuthError] = useState('');
+  const [isVerifyingSubAuth, setIsVerifyingSubAuth] = useState(false);
+
+  const requestCreateSubscription = (cnpj: string) => {
+    const form = subForms[cnpj];
+    if (!form?.name || !form?.cpfCnpj || !form?.value || !form?.dueDay) {
+      toast.error('Preencha nome, CPF/CNPJ, valor e dia de vencimento.');
+      return;
+    }
+    setPendingSubCnpj(cnpj);
+  };
+
+  const closeSubAuthConfirm = () => {
+    setPendingSubCnpj(null);
+    setSubAuthUsername('');
+    setSubAuthPassword('');
+    setSubAuthError('');
+  };
+
+  const createSubscription = async (cnpj: string) => {
+    const form = subForms[cnpj];
+    if (!form) return;
+    setCreatingSubFor(cnpj);
+    try {
+      const res = await fetch('/api/payments/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+        body: JSON.stringify({ cnpj, name: form.name, cpfCnpj: form.cpfCnpj, value: Number(form.value), dueDay: Number(form.dueDay) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao criar assinatura');
+      await loadUsersAndFlags();
+      toast.success('Assinatura criada no Asaas!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao criar assinatura');
+    } finally {
+      setCreatingSubFor(null);
+    }
+  };
+
+  const handleConfirmSubAuth = async () => {
+    if (!pendingSubCnpj) return;
+    if (!subAuthUsername.trim() || !subAuthPassword) {
+      setSubAuthError('Informe usuário e senha de administrador.');
+      return;
+    }
+    setIsVerifyingSubAuth(true);
+    setSubAuthError('');
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+        body: JSON.stringify({ username: subAuthUsername.trim(), password: subAuthPassword }),
+      });
+      const data = await res.json();
+      if (!data?.success) {
+        setSubAuthError('Usuário ou senha de administrador incorretos.');
+        setIsVerifyingSubAuth(false);
+        return;
+      }
+      const cnpj = pendingSubCnpj;
+      closeSubAuthConfirm();
+      await createSubscription(cnpj);
+    } catch {
+      setSubAuthError('Erro ao verificar credenciais.');
+      setIsVerifyingSubAuth(false);
+    }
+  };
 
   const [newCnpj, setNewCnpj] = useState('');
   const [newBandeira, setNewBandeira] = useState('');
@@ -860,6 +938,70 @@ export default function UserManagement() {
                             {store.isSuspended ? 'Suspenso' : 'Ativo'}
                           </button>
                         </div>
+
+                        {/* Assinatura Asaas / Pendência de Pagamento */}
+                        <div className="space-y-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="w-4 h-4 text-amber-600" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60">Assinatura (Asaas)</h4>
+                          </div>
+
+                          {!store.asaasSubscriptionId ? (
+                            <div className="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  type="text" placeholder="Nome do responsável"
+                                  value={subForms[store.cnpj]?.name || ''}
+                                  onChange={(e) => setSubForms(prev => ({ ...prev, [store.cnpj]: { ...prev[store.cnpj], name: e.target.value } as any }))}
+                                  className="px-3 py-2 rounded-lg text-xs border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-black dark:text-white"
+                                />
+                                <input
+                                  type="text" placeholder="CPF/CNPJ do responsável"
+                                  value={subForms[store.cnpj]?.cpfCnpj || ''}
+                                  onChange={(e) => setSubForms(prev => ({ ...prev, [store.cnpj]: { ...prev[store.cnpj], cpfCnpj: e.target.value } as any }))}
+                                  className="px-3 py-2 rounded-lg text-xs border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-black dark:text-white"
+                                />
+                                <input
+                                  type="number" placeholder="Valor mensal (R$)"
+                                  value={subForms[store.cnpj]?.value || ''}
+                                  onChange={(e) => setSubForms(prev => ({ ...prev, [store.cnpj]: { ...prev[store.cnpj], value: e.target.value } as any }))}
+                                  className="px-3 py-2 rounded-lg text-xs border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-black dark:text-white"
+                                />
+                                <input
+                                  type="number" min="1" max="28" placeholder="Dia do vencimento"
+                                  value={subForms[store.cnpj]?.dueDay || ''}
+                                  onChange={(e) => setSubForms(prev => ({ ...prev, [store.cnpj]: { ...prev[store.cnpj], dueDay: e.target.value } as any }))}
+                                  className="px-3 py-2 rounded-lg text-xs border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-black dark:text-white"
+                                />
+                              </div>
+                              <button
+                                onClick={() => requestCreateSubscription(store.cnpj)}
+                                disabled={creatingSubFor === store.cnpj}
+                                className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"
+                              >
+                                {creatingSubFor === store.cnpj ? 'Criando...' : 'Criar Assinatura'}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-orange-600" />
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60">Pendência de Pagamento</h4>
+                              </div>
+                              <button
+                                onClick={() => togglePaymentBlock(store.cnpj)}
+                                className={cn(
+                                  "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
+                                  store.isPaymentBlocked
+                                    ? "bg-orange-600 border-orange-600 text-white"
+                                    : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400"
+                                )}
+                              >
+                                {store.isPaymentBlocked ? 'Bloqueado' : 'Em dia'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       </div>
                       )}
@@ -1371,6 +1513,44 @@ export default function UserManagement() {
                 className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase tracking-tighter text-sm hover:bg-blue-700 transition-all active:scale-95"
               >
                 Concluído
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingSubCnpj && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center gap-3 text-amber-600">
+              <CreditCard className="w-6 h-6" />
+              <h3 className="text-lg font-bold">Confirmar Criação de Assinatura</h3>
+            </div>
+            <p className="text-sm text-black dark:text-white opacity-60">Isso cria uma cobrança recorrente real no Asaas. Digite a senha de administrador para confirmar.</p>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Usuário administrador"
+                autoComplete="off"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none text-black dark:text-white"
+                value={subAuthUsername}
+                onChange={e => { setSubAuthUsername(e.target.value); setSubAuthError(''); }}
+              />
+              <input
+                type="password"
+                placeholder="Senha do administrador"
+                autoComplete="off"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none text-black dark:text-white"
+                value={subAuthPassword}
+                onChange={e => { setSubAuthPassword(e.target.value); setSubAuthError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleConfirmSubAuth(); }}
+              />
+              {subAuthError && <p className="text-xs font-bold text-red-500">{subAuthError}</p>}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={closeSubAuthConfirm} className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white">Cancelar</button>
+              <button onClick={handleConfirmSubAuth} disabled={isVerifyingSubAuth} className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-bold disabled:opacity-50">
+                {isVerifyingSubAuth ? 'Verificando...' : 'Confirmar'}
               </button>
             </div>
           </div>

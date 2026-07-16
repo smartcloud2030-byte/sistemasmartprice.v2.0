@@ -380,6 +380,15 @@ interface AppState {
     isOnline?: boolean;
     lastAccess?: string;
     lastUsername?: string;
+    // Assinatura Asaas (cobrança recorrente) vinculada a este CNPJ
+    asaasCustomerId?: string;
+    asaasSubscriptionId?: string;
+    subscriptionValue?: number;
+    subscriptionDueDay?: number;
+    // Pendência de pagamento: gate manual do admin — liberado automaticamente
+    // pelo webhook do Asaas quando o pagamento é confirmado
+    isPaymentBlocked?: boolean;
+    paymentBlockedAt?: string;
   }[];
   addAllowedStore: (store: {
     cnpj: string;
@@ -392,9 +401,16 @@ interface AppState {
     isOnline?: boolean;
     lastAccess?: string;
     lastUsername?: string;
+    asaasCustomerId?: string;
+    asaasSubscriptionId?: string;
+    subscriptionValue?: number;
+    subscriptionDueDay?: number;
+    isPaymentBlocked?: boolean;
+    paymentBlockedAt?: string;
   }) => void;
   removeAllowedStore: (cnpj: string) => void;
   toggleSuspension: (cnpj: string) => void;
+  togglePaymentBlock: (cnpj: string) => void;
   toggleProductManagementAccess: (cnpj: string) => void;
   updateOnlineStatus: () => Promise<void>;
   clearAccessHistory: () => Promise<void>;
@@ -1312,6 +1328,7 @@ export const useStore = create<AppState>()(
       toggleEncarteAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasEncarteAccess: !s.hasEncarteAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleProductManagementAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasProductManagementAccess: !s.hasProductManagementAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleSuspension: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isSuspended: !s.isSuspended } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
+      togglePaymentBlock: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isPaymentBlocked: !s.isPaymentBlocked, paymentBlockedAt: !s.isPaymentBlocked ? new Date().toISOString() : s.paymentBlockedAt } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       bulkUpdateStoreLayouts: (groupId, bandeira, allowedLayouts) => set((state) => { const newAllowedStores = state.allowedStores.map(s => s.groupId === groupId && s.bandeira === bandeira ? { ...s, allowedLayouts } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
 
       // ── updateOnlineStatus → /api/activity/:cnpj ───────────────────────────

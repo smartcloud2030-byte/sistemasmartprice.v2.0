@@ -18,7 +18,7 @@ export interface Message {
 
 let socket: Socket | null = null;
 
-function getSocket(): Socket {
+export function getSocket(): Socket {
   if (!socket) {
     socket = io({ path: '/socket.io/', transports: ['websocket', 'polling'] });
   }

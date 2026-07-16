@@ -3,14 +3,15 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
-  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon
+  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
 import SystemStats from './SystemStats';
 import BackupStatus from './BackupStatus';
+import FinanceiroPanel from './FinanceiroPanel';
 
-type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | null;
+type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | 'paymentPending' | null;
 
 // Curva de ease-out forte (cubic-bezier(0.23, 1, 0.32, 1)) — a padrão do CSS é fraca demais.
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
@@ -31,10 +32,12 @@ const AdminDashboard: React.FC = () => {
   } = useStore();
 
   const [quickList, setQuickList] = useState<QuickListKind>(null);
+  const [showFinanceiro, setShowFinanceiro] = useState(false);
 
   const totalStores = allowedStores.length;
   const onlineStores = allowedStores.filter(s => s.isOnline).length;
   const suspendedStores = allowedStores.filter(s => s.isSuspended).length;
+  const paymentPendingStores = allowedStores.filter(s => s.isPaymentBlocked).length;
 
   const recentAccess = [...allowedStores]
     .filter(s => s.lastAccess)
@@ -52,6 +55,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Lojas Autorizadas', value: totalStores, icon: Store, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', onClick: () => setQuickList('stores') },
     { label: 'Online Agora', value: onlineStores, icon: Users, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20', onClick: () => setQuickList('online') },
     { label: 'Suspensas', value: suspendedStores, icon: AlertTriangle, color: 'text-red-600 bg-red-50 dark:bg-red-900/20', onClick: () => setQuickList('suspended') },
+    { label: 'Pendência Pagamento', value: paymentPendingStores, icon: Wallet, color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', onClick: () => setQuickList('paymentPending') },
     { label: 'Modelos de Etiquetas', value: layouts.length, icon: LayoutGrid, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20' },
     { label: 'Produtos Cadastrados', value: products.length, icon: Database, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', onClick: () => setProductModalOpen(true) },
     { label: 'Bandeiras / Grupos', value: `${flags.length} / ${userGroups.length}`, icon: Flag, color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20', onClick: () => setQuickList('flags') },
@@ -107,6 +111,17 @@ const AdminDashboard: React.FC = () => {
       emptyText: 'Nenhuma bandeira cadastrada.',
       footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('flags') },
     },
+    paymentPending: {
+      title: 'Pendências de Pagamento',
+      icon: Wallet,
+      items: allowedStores.filter(s => s.isPaymentBlocked).map(s => ({
+        primary: s.cnpj,
+        secondary: s.bandeira,
+        badge: { text: 'Bloqueado', className: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' },
+      })),
+      emptyText: 'Nenhuma pendência de pagamento.',
+      footerAction: { label: 'Abrir Financeiro', onClick: () => { setQuickList(null); setShowFinanceiro(true); } },
+    },
   };
 
   const actions = [
@@ -115,6 +130,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Comunicados', description: 'Avisos para os usuários', icon: Megaphone, onClick: () => setAnnouncementModalOpen(true) },
     { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
     { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
+    { label: 'Financeiro', description: 'Assinaturas e pendências de pagamento', icon: Wallet, onClick: () => setShowFinanceiro(true) },
   ];
 
   return (
@@ -283,6 +299,8 @@ const AdminDashboard: React.FC = () => {
           onClose={() => setQuickList(null)}
         />
       )}
+
+      {showFinanceiro && <FinanceiroPanel onClose={() => setShowFinanceiro(false)} />}
     </div>
   );
 };

@@ -17,6 +17,7 @@ import Login from './components/Login';
 import EncarteCreator from './components/EncarteCreator';
 import AdminDashboard from './components/AdminDashboard';
 import ChangeCredentialsModal from './components/ChangeCredentialsModal';
+import PaymentCheckoutModal from './components/PaymentCheckoutModal';
 import {
   Printer, FileDown,
   Settings as SettingsIcon,
@@ -52,6 +53,7 @@ export default function App() {
     orientation
   } = useStore();
   const [activeTab, setActiveTab] = useState<'select' | 'adjustments'>('select');
+  const [showPaymentCheckout, setShowPaymentCheckout] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isModelsColumnCollapsed, setIsModelsColumnCollapsed] = useState(false);
   const [expandedBandeiras, setExpandedBandeiras] = useState<Set<string>>(() => {
@@ -435,7 +437,7 @@ export default function App() {
                 >
                   Contatar Suporte
                 </button>
-                <button 
+                <button
                   onClick={logout}
                   className="w-full py-3 bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl font-black uppercase tracking-tighter hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all"
                 >
@@ -444,6 +446,44 @@ export default function App() {
               </div>
             </div>
           </div>
+        );
+      }
+
+      if (store?.isPaymentBlocked) {
+        return (
+          <>
+            <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-8 text-center">
+              <div className="max-w-md space-y-6 animate-in fade-in zoom-in duration-500">
+                <div className="w-20 h-20 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-10 h-10 text-orange-500" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black tracking-tighter uppercase text-black dark:text-white">Sistema Indisponível</h3>
+                  <p className="text-black dark:text-white opacity-60 text-sm font-medium leading-relaxed">
+                    Identificamos uma pendência no pagamento deste CNPJ (<span className="font-mono font-bold text-orange-600">{currentUser?.cnpj}</span>).
+                    Por gentileza, atualize sua forma de pagamento para continuar usando o sistema.
+                  </p>
+                </div>
+                <div className="pt-4 flex flex-col gap-3">
+                  <button
+                    onClick={() => setShowPaymentCheckout(true)}
+                    className="w-full py-3 bg-orange-600 text-white rounded-2xl font-black uppercase tracking-tighter shadow-xl shadow-orange-500/20 hover:bg-orange-700 transition-all active:scale-95"
+                  >
+                    Regularizar Pagamento
+                  </button>
+                  <button
+                    onClick={logout}
+                    className="w-full py-3 bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl font-black uppercase tracking-tighter hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all"
+                  >
+                    Sair do Sistema
+                  </button>
+                </div>
+              </div>
+            </div>
+            {showPaymentCheckout && (
+              <PaymentCheckoutModal cnpj={currentUser?.cnpj || ''} onClose={() => setShowPaymentCheckout(false)} />
+            )}
+          </>
         );
       }
     }
