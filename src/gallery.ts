@@ -664,6 +664,9 @@ function galleryHTML() {
 
   function deleteCategory(cat) {
     if (!confirm(\`Deletar a galeria "\${formatCatName(cat)}" e todas as imagens dentro dela?\`)) return;
+    const pwd = prompt('Para confirmar, digite novamente a senha de acesso da galeria:');
+    if (pwd === null) return;
+    if (pwd !== token) { showToast('❌ Senha incorreta. Exclusão cancelada.', true); return; }
     fetch(\`/gallery/categories/\${cat}\`, { method:'DELETE', headers:{'x-gallery-token':token} })
       .then(r => r.json())
       .then(() => {
@@ -872,6 +875,9 @@ function galleryHTML() {
 
   function deleteImage(fullPath) {
     if (!confirm('Deletar esta imagem?')) return;
+    const pwd = prompt('Para confirmar, digite novamente a senha de acesso da galeria:');
+    if (pwd === null) return;
+    if (pwd !== token) { showToast('❌ Senha incorreta. Exclusão cancelada.', true); return; }
     fetch('/gallery/delete/' + encodeURIComponent(fullPath), { method:'DELETE', headers:{'x-gallery-token':token} })
       .then(r => r.json())
       .then(data => { if (data.success) { loadImages(currentCat); showToast('🗑️ Imagem deletada'); } });

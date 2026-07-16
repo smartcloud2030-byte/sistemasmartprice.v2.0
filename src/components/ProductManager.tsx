@@ -77,6 +77,10 @@ const ProductManager = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string | number } | null>(null);
+  const [deleteAuthUsername, setDeleteAuthUsername] = useState('');
+  const [deleteAuthPassword, setDeleteAuthPassword] = useState('');
+  const [deleteAuthError, setDeleteAuthError] = useState('');
+  const [isVerifyingDeleteAuth, setIsVerifyingDeleteAuth] = useState(false);
   const [productCount, setProductCount] = useState<number | null>(null);
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [pendingBulkData, setPendingBulkData] = useState<any[]>([]);
@@ -198,6 +202,9 @@ const ProductManager = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name?.trim()) { toast.error('Informe a identificação do produto.'); return; }
+    if (!formData.description?.trim()) { toast.error('Informe a descrição do produto.'); return; }
+    if (!formData.price?.trim()) { toast.error('Informe o preço do produto.'); return; }
     if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
 
     let finalImage = formData.image;
@@ -260,9 +267,39 @@ const ProductManager = () => {
         } catch {}
       }
       toast.success('Produto excluído!');
-      setConfirmDelete(null);
+      closeDeleteConfirm();
       fetchProducts(); fetchProductCount();
-    } catch { toast.error('Erro ao excluir produto.'); setConfirmDelete(null); }
+    } catch { toast.error('Erro ao excluir produto.'); closeDeleteConfirm(); }
+  };
+
+  const closeDeleteConfirm = () => {
+    setConfirmDelete(null);
+    setDeleteAuthUsername('');
+    setDeleteAuthPassword('');
+    setDeleteAuthError('');
+  };
+
+  const handleConfirmDeleteWithAuth = async () => {
+    if (!confirmDelete) return;
+    if (!deleteAuthUsername.trim() || !deleteAuthPassword) {
+      setDeleteAuthError('Informe usuário e senha de administrador.');
+      return;
+    }
+    setIsVerifyingDeleteAuth(true);
+    setDeleteAuthError('');
+    try {
+      const result = await apiCall('POST', '/admin/login', { username: deleteAuthUsername.trim(), password: deleteAuthPassword });
+      if (!result?.success) {
+        setDeleteAuthError('Usuário ou senha de administrador incorretos.');
+        setIsVerifyingDeleteAuth(false);
+        return;
+      }
+      await handleDelete(confirmDelete.id);
+    } catch {
+      setDeleteAuthError('Erro ao verificar credenciais.');
+    } finally {
+      setIsVerifyingDeleteAuth(false);
+    }
   };
 
   const filteredProducts = products.filter(p => {
@@ -430,7 +467,7 @@ const ProductManager = () => {
                         </div>
                       ) : (
                         <div className="flex gap-1">
-                          <select className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                          <select required className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                             value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
                             <option value="">Selecione...</option>
                             {categories.map(cat => <option key={cat} value={cat}>{formatCatName(cat)}</option>)}
@@ -445,7 +482,7 @@ const ProductManager = () => {
 
                 <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
                   <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Descrição</p>
-                  <textarea rows={2} className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-black dark:text-white"
+                  <textarea required rows={2} className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-black dark:text-white"
                     value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                 </div>
 
@@ -674,10 +711,32 @@ const ProductManager = () => {
               <AlertTriangle className="w-6 h-6" />
               <h3 className="text-lg font-bold">Confirmar Exclusão</h3>
             </div>
-            <p className="text-sm text-black dark:text-white opacity-60">Tem certeza? Esta ação não pode ser desfeita.</p>
+            <p className="text-sm text-black dark:text-white opacity-60">Esta ação não pode ser desfeita. Peça ao administrador para digitar a senha dele para confirmar.</p>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Usuário administrador"
+                autoComplete="off"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none text-black dark:text-white"
+                value={deleteAuthUsername}
+                onChange={e => { setDeleteAuthUsername(e.target.value); setDeleteAuthError(''); }}
+              />
+              <input
+                type="password"
+                placeholder="Senha do administrador"
+                autoComplete="off"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none text-black dark:text-white"
+                value={deleteAuthPassword}
+                onChange={e => { setDeleteAuthPassword(e.target.value); setDeleteAuthError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleConfirmDeleteWithAuth(); }}
+              />
+              {deleteAuthError && <p className="text-xs font-bold text-red-500">{deleteAuthError}</p>}
+            </div>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(null)} className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white">Cancelar</button>
-              <button onClick={() => handleDelete(confirmDelete.id)} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold">Excluir</button>
+              <button onClick={closeDeleteConfirm} className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white">Cancelar</button>
+              <button onClick={handleConfirmDeleteWithAuth} disabled={isVerifyingDeleteAuth} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold disabled:opacity-50">
+                {isVerifyingDeleteAuth ? 'Verificando...' : 'Excluir'}
+              </button>
             </div>
           </div>
         </div>
