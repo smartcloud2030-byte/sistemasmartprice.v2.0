@@ -47,7 +47,7 @@ export default function App() {
     currentUser, allowedStores, lastLoginTimestamp,
     favoriteLayouts, toggleFavoriteLayout,
     saveUsersAndFlags, saveLayout, loadUsersAndFlags, saveAll,
-    updateOnlineStatus, isChatEnabled,
+    updateOnlineStatus, notifyClosingOffline, isChatEnabled,
     announcements, seenAnnouncements, setSeenAnnouncements,
     isAnnouncementModalOpen, setAnnouncementModalOpen,
     orientation
@@ -136,6 +136,18 @@ export default function App() {
       return () => clearInterval(interval);
     }
   }, [isAuthenticated, userRole, updateOnlineStatus]);
+
+  // Marca a loja como offline assim que a aba/janela é fechada (ou navegador
+  // encerrado), em vez de esperar o próximo acesso pra detectar sessão "presa".
+  // pagehide é mais confiável que beforeunload (funciona com bfcache/mobile) e
+  // sendBeacon garante o envio mesmo com a página sendo descartada.
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'user') return;
+
+    const handlePageHide = () => notifyClosingOffline();
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [isAuthenticated, userRole, notifyClosingOffline]);
 
   // Pre-load background images for all allowed layouts to speed up selection
   useEffect(() => {

@@ -481,6 +481,7 @@ interface AppState {
   verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
   changeAdminCredentials: (currentUsername: string, currentPassword: string, newUsername: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  notifyClosingOffline: () => void;
   setSlotVisibility: (slot: 1 | 2 | 3, visible: boolean) => void;
   toggleEncarteAccess: (cnpj: string) => void;
   bulkUpdateStoreLayouts: (groupId: string, bandeira: string, allowedLayouts: number[]) => void;
@@ -1581,6 +1582,23 @@ export const useStore = create<AppState>()(
         // Nao reseta printQueue/rascunho aqui: se a mesma loja logar de novo,
         // o login compara lastUserIdentity e mantem o que ela deixou.
         set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null });
+      },
+
+      // Chamado no evento 'pagehide' (fechar aba/janela). fetch() normal não
+      // tem garantia de completar nesse momento, então usa sendBeacon (fire-and-forget,
+      // sobrevive ao unload da página) só para marcar isOnline:false no servidor.
+      // O logout completo (limpar isAuthenticated) acontece no próximo acesso,
+      // via o check de "fresh access" em App.tsx.
+      notifyClosingOffline: () => {
+        const state = get();
+        if (state.userRole === 'user' && state.currentUser?.cnpj && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+          const nc = state.currentUser.cnpj.replace(/[^\d]/g, '');
+          const blob = new Blob(
+            [JSON.stringify({ isOnline: false, lastUsername: state.currentUser.username })],
+            { type: 'application/json' }
+          );
+          navigator.sendBeacon(`${API_BASE}/activity/${nc}`, blob);
+        }
       },
     }),
     {

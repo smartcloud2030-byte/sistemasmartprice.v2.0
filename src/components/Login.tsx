@@ -89,9 +89,13 @@ export default function Login() {
             }
 
             // Limite global de CNPJs simultaneamente online (não conta o próprio
-            // CNPJ se ele já estiver online, ex.: reabrindo em outra aba)
+            // CNPJ se ele já estiver online, ex.: reabrindo em outra aba).
+            // Ignora sessões "presas" (sem heartbeat há mais de 10 min) pra uma
+            // loja que fechou o navegador sem contato com o servidor não ocupar
+            // vaga do limite indefinidamente.
             if (!store.isOnline && maxConcurrentStores !== null) {
-              const onlineCount = allowedStores.filter(s => s.isOnline).length;
+              const STALE_MS = 10 * 60 * 1000;
+              const onlineCount = allowedStores.filter(s => s.isOnline && s.lastAccess && (Date.now() - new Date(s.lastAccess).getTime() < STALE_MS)).length;
               if (onlineCount >= maxConcurrentStores) {
                 setError(`Limite de ${maxConcurrentStores} acesso(s) simultâneo(s) do sistema atingido. Tente novamente mais tarde.`);
                 setIsLoading(false);
