@@ -255,6 +255,23 @@ async function startServer() {
       io.to('admin_room').emit('typing:update', { cnpj: targetCnpj, role, isTyping });
     });
 
+    // Desconectar/atualizar remotamente um CNPJ a partir do painel admin
+    // (Gerenciar Usuários → Status de Acesso). Reaproveita a sala `cnpj_*`
+    // já usada pelo webhook de pagamento pra falar com aquela sessão.
+    socket.on("admin:force_logout", (data) => {
+      if (socket.data.role !== 'admin') return;
+      const cnpj = String(data?.cnpj || '').replace(/[^\d]/g, '');
+      if (!cnpj) return;
+      io.to(`cnpj_${cnpj}`).emit('session:force_logout');
+    });
+
+    socket.on("admin:force_reload", (data) => {
+      if (socket.data.role !== 'admin') return;
+      const cnpj = String(data?.cnpj || '').replace(/[^\d]/g, '');
+      if (!cnpj) return;
+      io.to(`cnpj_${cnpj}`).emit('session:force_reload');
+    });
+
     socket.on("disconnect", () => {});
   });
 

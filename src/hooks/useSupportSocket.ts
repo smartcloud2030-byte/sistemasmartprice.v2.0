@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { toast } from 'sonner';
 import { useStore } from '../store';
 
 export interface Message {
@@ -184,6 +185,19 @@ export function useSupportSocket() {
     s.on('activity:update', onActivityUpdate);
     s.on('activity:replaced', onActivityReplaced);
 
+    // Comandos remotos disparados pelo admin em Gerenciar Usuários → Status de
+    // Acesso (só chegam pra quem está na sala cnpj_*, então nunca afetam o
+    // próprio admin).
+    const onForceLogout = () => {
+      toast.info('Sua sessão foi encerrada pelo administrador.');
+      useStore.getState().logout();
+    };
+    const onForceReload = () => {
+      window.location.reload();
+    };
+    s.on('session:force_logout', onForceLogout);
+    s.on('session:force_reload', onForceReload);
+
     if (s.connected) onConnect();
 
     return () => {
@@ -197,6 +211,8 @@ export function useSupportSocket() {
       s.off('typing:update', onTypingUpdate);
       s.off('activity:update', onActivityUpdate);
       s.off('activity:replaced', onActivityReplaced);
+      s.off('session:force_logout', onForceLogout);
+      s.off('session:force_reload', onForceReload);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.cnpj, userRole]);
@@ -239,12 +255,22 @@ export function useSupportSocket() {
     getSocket().emit('typing:update', { cnpj: cnpj.replace(/[^\d]/g, ''), isTyping });
   };
 
+  // Admin: desconectar ou forçar atualização da página de um CNPJ específico.
+  const forceLogoutUser = (cnpj: string) => {
+    getSocket().emit('admin:force_logout', { cnpj: cnpj.replace(/[^\d]/g, '') });
+  };
+  const forceReloadUser = (cnpj: string) => {
+    getSocket().emit('admin:force_reload', { cnpj: cnpj.replace(/[^\d]/g, '') });
+  };
+
   return {
     messages,
     sendMessage,
     clearMessages,
     markMessagesAsRead,
     sendTyping,
+    forceLogoutUser,
+    forceReloadUser,
     typingOther,
     isConnected: isChatConnected,
     isLoading: isChatLoading,

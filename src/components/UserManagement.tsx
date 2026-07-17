@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { useSupportSocket } from '../hooks/useSupportSocket';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET;
 
@@ -13,6 +14,7 @@ export default function UserManagement() {
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
   } = useStore();
+  const { forceLogoutUser, forceReloadUser } = useSupportSocket();
 
   const [subForms, setSubForms] = useState<Record<string, { name: string; cpfCnpj: string; value: string; dueDay: string }>>({});
   const [creatingSubFor, setCreatingSubFor] = useState<string | null>(null);
@@ -1410,21 +1412,50 @@ export default function UserManagement() {
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Último Acesso</p>
-                    <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      {store.lastAccess ? (
-                        new Date(store.lastAccess).toLocaleString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      ) : (
-                        'Nenhum registro'
-                      )}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Último Acesso</p>
+                      <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                        {store.lastAccess ? (
+                          new Date(store.lastAccess).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        ) : (
+                          'Nenhum registro'
+                        )}
+                      </p>
+                    </div>
+
+                    {store.isOnline && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            forceReloadUser(store.cnpj);
+                            toast.success(`Página de ${store.cnpj} sendo atualizada.`);
+                          }}
+                          title="Atualizar a página desse usuário"
+                          className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-lg transition-all"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Desconectar ${store.lastUsername || store.cnpj} agora?`)) {
+                              forceLogoutUser(store.cnpj);
+                              toast.success(`${store.cnpj} desconectado.`);
+                            }
+                          }}
+                          title="Desconectar esse usuário"
+                          className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all"
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
