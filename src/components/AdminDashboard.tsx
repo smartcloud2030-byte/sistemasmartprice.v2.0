@@ -41,7 +41,11 @@ const AdminDashboard: React.FC = () => {
 
   const recentAccess = [...allowedStores]
     .filter(s => s.lastAccess)
-    .sort((a, b) => new Date(b.lastAccess!).getTime() - new Date(a.lastAccess!).getTime())
+    .sort((a, b) => {
+      if (a.isOnline && !b.isOnline) return -1;
+      if (!a.isOnline && b.isOnline) return 1;
+      return new Date(b.lastAccess!).getTime() - new Date(a.lastAccess!).getTime();
+    })
     .slice(0, 15);
 
   const openFullManagement = (tab: 'stores' | 'flags' | 'groups' | 'access', suspendedOnly = false) => {
