@@ -484,7 +484,12 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
           scaleX={isPrinting ? 1 : autoScale * zoom}
           scaleY={isPrinting ? 1 : autoScale * zoom}
           ref={stageRef}
-          pixelRatio={2}
+          // Impressão física força o canvas a ocupar o tamanho real da folha A4
+          // (210x297mm, ~300dpi) via CSS — pixelRatio 2 (equivale a ~192dpi) fica
+          // borrado quando esticado até lá. Sobe pra 3 (~288dpi, mesmo nível já
+          // usado no "Baixar PNG") só na hora de imprimir; na edição continua 2
+          // pra não pesar a performance à toa.
+          pixelRatio={isPrinting ? 3 : 2}
           onMouseDown={(e) => {
             if (e.target === e.target.getStage()) {
               setSelectedId(null);
