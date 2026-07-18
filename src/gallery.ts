@@ -216,7 +216,10 @@ router.get('/list/:category', authGallery, async (req: Request, res: Response) =
     const images: any[] = [];
     const stream = minioClient.listObjectsV2(BUCKET, prefix, true);
     stream.on('data', (obj) => {
-      if (obj.name && !obj.name.endsWith('.keep') && !obj.name.includes('__thumb')) {
+      // "-thumb.webp" é a miniatura gerada automaticamente pelo upload com remoção
+      // de fundo (upload-nobg2/3) — fica salva ao lado do arquivo principal, mas
+      // não é um conteúdo à parte, então não deve aparecer como item próprio na lista.
+      if (obj.name && !obj.name.endsWith('.keep') && !obj.name.includes('__thumb') && !obj.name.endsWith('-thumb.webp')) {
         const filename = obj.name.replace(prefix, '');
         images.push({
           filename,
