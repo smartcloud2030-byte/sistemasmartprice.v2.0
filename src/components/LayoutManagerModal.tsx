@@ -3,7 +3,7 @@ import { useStore, Layout } from '../store';
 import {
   X, Layout as LayoutIcon, Search, Flag, MapPin, Wand2, Upload,
   Trash2, AlertTriangle, Pencil, Save, Image as ImageIcon, FlaskConical, ArrowUpCircle,
-  Images, FolderOpen, ArrowLeft,
+  Images, FolderOpen, ArrowLeft, RectangleVertical, RectangleHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, getProxyUrl } from '../lib/utils';
@@ -18,7 +18,7 @@ export default function LayoutManagerModal() {
     isLayoutManagerModalOpen, setLayoutManagerModalOpen,
     layouts, flags,
     addLayout, deleteLayout,
-    setLayoutName, setLayoutBandeira, setLayoutLocalidade, setLayoutBackground,
+    setLayoutName, setLayoutBandeira, setLayoutLocalidade, setLayoutBackground, setLayoutOrientation,
     applyLayoutFormatting, applyTestStyleToLayout,
     testLayouts, deleteTestLayout, promoteTestLayout, ensureTestLayoutId,
   } = useStore();
@@ -28,6 +28,7 @@ export default function LayoutManagerModal() {
   const [bandeira, setBandeira] = useState('');
   const [localidade, setLocalidade] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [styleSourceIndex, setStyleSourceIndex] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,6 +66,7 @@ export default function LayoutManagerModal() {
     setBandeira('');
     setLocalidade('');
     setBackgroundUrl(null);
+    setOrientation('portrait');
     setStyleSourceIndex('');
   };
 
@@ -76,6 +78,7 @@ export default function LayoutManagerModal() {
     setBandeira(l.bandeira || '');
     setLocalidade(l.localidade || '');
     setBackgroundUrl(l.background?.url ?? null);
+    setOrientation(l.orientation || 'portrait');
     setStyleSourceIndex('');
   };
 
@@ -146,6 +149,7 @@ export default function LayoutManagerModal() {
       setLayoutLocalidade(index, localidade);
     }
     setLayoutBackground(index, backgroundUrl);
+    setLayoutOrientation(index, orientation);
     if (styleSourceIndex.startsWith('test:')) {
       applyTestStyleToLayout(index, styleSourceIndex.slice('test:'.length));
     } else if (styleSourceIndex) {
@@ -328,6 +332,36 @@ export default function LayoutManagerModal() {
                   <p className="text-[10px] text-zinc-400">Fundo deste modelo</p>
                 </div>
               )}
+            </div>
+
+            <div>
+              <label className="text-[8px] font-bold text-zinc-500 uppercase block mb-1">Orientação da Plaquinha</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOrientation('portrait')}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-colors',
+                    orientation === 'portrait'
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-blue-400'
+                  )}
+                >
+                  <RectangleVertical className="w-3.5 h-3.5" /> Vertical
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrientation('landscape')}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-colors',
+                    orientation === 'landscape'
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-blue-400'
+                  )}
+                >
+                  <RectangleHorizontal className="w-3.5 h-3.5" /> Horizontal
+                </button>
+              </div>
             </div>
 
             <div className="h-px bg-zinc-200 dark:bg-zinc-700" />
