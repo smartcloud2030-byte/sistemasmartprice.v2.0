@@ -734,9 +734,13 @@ function galleryHTML() {
     const safeMeta = formatSize(img.size);
     const safeFilename = img.filename.replace(/'/g, "\\\\'");
     const safeFullPath = img.fullPath.replace(/'/g, "\\\\'");
+    // Miniatura redimensionada (300px) em vez da imagem original — o grid mostra
+    // dezenas de fotos de uma vez, e carregar cada uma em tamanho real (às vezes
+    // vários MB) é o que fazia parecer travado/carregando pela metade.
+    const thumbSrc = '/gallery/thumb/' + img.fullPath.split('/').map(encodeURIComponent).join('/') + '?w=300';
     return \`
       <div class="img-card">
-        <img class="img-thumb" src="\${img.url}" alt="\${img.displayName}" loading="lazy"
+        <img class="img-thumb" src="\${thumbSrc}" alt="\${img.displayName}" loading="lazy"
           onclick="openPreview('\${img.url}', '\${safeName}', '\${safeMeta}', '\${safeFilename}')"
           onerror="this.style.height='80px';this.style.background='var(--surface2)'">
         <div class="card-body">
