@@ -1605,6 +1605,7 @@ export const useStore = create<AppState>()(
       name: 'smartprice-storage',
       partialize: (state) => ({
         theme: state.theme,
+        orientation: state.orientation,
         background: state.background,
         productImage1: state.productImage1,
         productImage2: state.productImage2,
