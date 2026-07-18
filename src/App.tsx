@@ -149,6 +149,52 @@ export default function App() {
     return () => window.removeEventListener('pagehide', handlePageHide);
   }, [isAuthenticated, userRole, notifyClosingOffline]);
 
+  // Logout automático por inatividade — evita loja logar, imprimir e esquecer
+  // a aba aberta o dia todo ocupando a vaga do limite de acesso. Avisa 1 min
+  // antes (com opção de continuar) pra não cortar ninguém no meio do uso.
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'user') return;
+
+    const IDLE_LOGOUT_MS = 50 * 60 * 1000;
+    const IDLE_WARNING_MS = IDLE_LOGOUT_MS - 60 * 1000;
+
+    let lastActivity = Date.now();
+    let warned = false;
+    let warningToastId: string | number | undefined;
+
+    const resetActivity = () => {
+      lastActivity = Date.now();
+      if (warned) {
+        warned = false;
+        if (warningToastId !== undefined) toast.dismiss(warningToastId);
+      }
+    };
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'wheel'];
+    activityEvents.forEach((ev) => window.addEventListener(ev, resetActivity, { passive: true }));
+
+    const interval = setInterval(() => {
+      const idleFor = Date.now() - lastActivity;
+      if (idleFor >= IDLE_LOGOUT_MS) {
+        if (warningToastId !== undefined) toast.dismiss(warningToastId);
+        toast.info('Sessão encerrada por inatividade.');
+        logout();
+      } else if (idleFor >= IDLE_WARNING_MS && !warned) {
+        warned = true;
+        warningToastId = toast.warning('Sem uso há um tempo — a sessão vai encerrar em 1 minuto.', {
+          duration: 60000,
+          action: { label: 'Continuar conectado', onClick: resetActivity },
+        });
+      }
+    }, 5000);
+
+    return () => {
+      activityEvents.forEach((ev) => window.removeEventListener(ev, resetActivity));
+      clearInterval(interval);
+      if (warningToastId !== undefined) toast.dismiss(warningToastId);
+    };
+  }, [isAuthenticated, userRole, logout]);
+
   // Pre-load background images for all allowed layouts to speed up selection
   useEffect(() => {
     if (filteredLayouts.length > 0) {
