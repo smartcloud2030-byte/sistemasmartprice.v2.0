@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
   Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, isStoreOnline } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
 import SystemStats from './SystemStats';
 import BackupStatus from './BackupStatus';
@@ -34,16 +34,27 @@ const AdminDashboard: React.FC = () => {
   const [quickList, setQuickList] = useState<QuickListKind>(null);
   const [showFinanceiro, setShowFinanceiro] = useState(false);
 
+  // allowedStores só muda quando chega um evento do servidor — sem isso, uma
+  // loja que ficou "presa" online (PC desligado sem avisar) nunca voltaria a
+  // parecer offline aqui, mesmo passado o prazo de tolerância do heartbeat.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => forceTick(t => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const totalStores = allowedStores.length;
-  const onlineStores = allowedStores.filter(s => s.isOnline).length;
+  const onlineStores = allowedStores.filter(isStoreOnline).length;
   const suspendedStores = allowedStores.filter(s => s.isSuspended).length;
   const paymentPendingStores = allowedStores.filter(s => s.isPaymentBlocked).length;
 
   const recentAccess = [...allowedStores]
     .filter(s => s.lastAccess)
     .sort((a, b) => {
-      if (a.isOnline && !b.isOnline) return -1;
-      if (!a.isOnline && b.isOnline) return 1;
+      const aOnline = isStoreOnline(a);
+      const bOnline = isStoreOnline(b);
+      if (aOnline && !bOnline) return -1;
+      if (!aOnline && bOnline) return 1;
       return new Date(b.lastAccess!).getTime() - new Date(a.lastAccess!).getTime();
     })
     .slice(0, 15);
@@ -81,7 +92,7 @@ const AdminDashboard: React.FC = () => {
       items: allowedStores.map(s => ({
         primary: s.cnpj,
         secondary: s.bandeira,
-        badge: s.isSuspended ? suspendedBadge : (s.isOnline ? onlineBadge : undefined),
+        badge: s.isSuspended ? suspendedBadge : (isStoreOnline(s) ? onlineBadge : undefined),
       })),
       emptyText: 'Nenhuma loja autorizada.',
       footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('stores') },
@@ -100,7 +111,7 @@ const AdminDashboard: React.FC = () => {
     online: {
       title: 'Usuários Online Agora',
       icon: Users,
-      items: allowedStores.filter(s => s.isOnline).map(s => ({
+      items: allowedStores.filter(isStoreOnline).map(s => ({
         primary: s.cnpj,
         secondary: [s.lastUsername, s.bandeira].filter(Boolean).join(' · '),
         badge: onlineBadge,
@@ -270,7 +281,7 @@ const AdminDashboard: React.FC = () => {
               recentAccess.map(store => (
                 <div key={store.cnpj} className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <div className={cn('w-2 h-2 rounded-full flex-shrink-0', store.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600')} />
+                    <div className={cn('w-2 h-2 rounded-full flex-shrink-0', isStoreOnline(store) ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600')} />
                     <div>
                       <p className={cn(
                         "text-sm font-bold",

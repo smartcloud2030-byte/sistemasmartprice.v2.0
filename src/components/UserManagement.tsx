@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store';
 import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '../lib/utils';
+import { cn, isStoreOnline } from '../lib/utils';
 import { useSupportSocket } from '../hooks/useSupportSocket';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET;
@@ -120,6 +120,15 @@ export default function UserManagement() {
   const [storeLayoutSearch, setStoreLayoutSearch] = useState('');
   const [isCnpjLimitsOpen, setIsCnpjLimitsOpen] = useState(false);
   const [cnpjLimitSearch, setCnpjLimitSearch] = useState('');
+
+  // allowedStores só muda quando chega um evento do servidor — sem isso, uma
+  // loja "presa" online (PC desligado sem avisar) nunca voltaria a aparecer
+  // offline aqui, mesmo passado o prazo de tolerância do heartbeat.
+  const [, forceTick] = useState(0);
+  React.useEffect(() => {
+    const interval = setInterval(() => forceTick(t => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fix: Ensure newBandeira is set when flags are loaded
   React.useEffect(() => {
@@ -1269,7 +1278,7 @@ export default function UserManagement() {
                 <User className="w-5 h-5 text-zinc-400" />
                 <h3 className="font-bold text-lg text-black dark:text-white">Status de Acesso</h3>
                 <span className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
-                  {allowedStores.filter(s => s.isOnline).length} Online
+                  {allowedStores.filter(isStoreOnline).length} Online
                 </span>
               </div>
 
@@ -1369,8 +1378,10 @@ export default function UserManagement() {
                 })
                 .sort((a, b) => {
                   // Online users first, then by last access
-                  if (a.isOnline && !b.isOnline) return -1;
-                  if (!a.isOnline && b.isOnline) return 1;
+                  const aOnline = isStoreOnline(a);
+                  const bOnline = isStoreOnline(b);
+                  if (aOnline && !bOnline) return -1;
+                  if (!aOnline && bOnline) return 1;
                   const dateA = a.lastAccess ? new Date(a.lastAccess).getTime() : 0;
                   const dateB = b.lastAccess ? new Date(b.lastAccess).getTime() : 0;
                   return dateB - dateA;
@@ -1387,7 +1398,7 @@ export default function UserManagement() {
                       </div>
                       <div className={cn(
                         "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm",
-                        store.isOnline ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+                        isStoreOnline(store) ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
                       )} />
                     </div>
                     <div>
@@ -1400,11 +1411,11 @@ export default function UserManagement() {
                         </p>
                         <span className={cn(
                           "text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded",
-                          store.isOnline 
-                            ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" 
+                          isStoreOnline(store)
+                            ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                             : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
                         )}>
-                          {store.isOnline ? 'Online' : 'Offline'}
+                          {isStoreOnline(store) ? 'Online' : 'Offline'}
                         </span>
                       </div>
                       <p className="text-[10px] font-mono font-bold text-zinc-400">CNPJ: {store.cnpj}</p>
@@ -1430,7 +1441,7 @@ export default function UserManagement() {
                       </p>
                     </div>
 
-                    {store.isOnline && (
+                    {isStoreOnline(store) && (
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
                           onClick={() => {
@@ -1518,7 +1529,7 @@ export default function UserManagement() {
                       <div className="min-w-0">
                         <p className="font-mono font-bold text-sm text-black dark:text-white truncate">{store.cnpj}</p>
                         <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold truncate">
-                          {store.bandeira} · {store.isOnline ? 'Online agora' : 'Offline'}
+                          {store.bandeira} · {isStoreOnline(store) ? 'Online agora' : 'Offline'}
                         </p>
                       </div>
                       <input

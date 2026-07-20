@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { Building2, Flag, User, Lock, ArrowRight, Moon, Sun, Loader2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, isStoreOnline } from '../lib/utils';
 import { motion, useReducedMotion } from 'motion/react';
 
 // Curva de ease-out forte (cubic-bezier(0.23, 1, 0.32, 1)) — a padrão do CSS é fraca demais.
@@ -94,8 +94,7 @@ export default function Login() {
             // loja que fechou o navegador sem contato com o servidor não ocupar
             // vaga do limite indefinidamente.
             if (!store.isOnline && maxConcurrentStores !== null) {
-              const STALE_MS = 10 * 60 * 1000;
-              const onlineCount = allowedStores.filter(s => s.isOnline && s.lastAccess && (Date.now() - new Date(s.lastAccess).getTime() < STALE_MS)).length;
+              const onlineCount = allowedStores.filter(isStoreOnline).length;
               if (onlineCount >= maxConcurrentStores) {
                 setError(`Limite de ${maxConcurrentStores} acesso(s) simultâneo(s) do sistema atingido. Tente novamente mais tarde.`);
                 setIsLoading(false);
@@ -110,9 +109,7 @@ export default function Login() {
             // não travar quem esqueceu de sair do sistema em outro aparelho.
             const cnpjLimit = cnpjUserLimits[normalizedInputCnpj];
             if (cnpjLimit !== undefined) {
-              const STALE_MS = 10 * 60 * 1000;
-              const isReallyOnline = !!store.isOnline && !!store.lastAccess && (Date.now() - new Date(store.lastAccess).getTime() < STALE_MS);
-              if ((isReallyOnline ? 1 : 0) >= cnpjLimit) {
+              if ((isStoreOnline(store) ? 1 : 0) >= cnpjLimit) {
                 setError(
                   cnpjLimit === 0
                     ? 'Este CNPJ está bloqueado para acesso pelo administrador.'

@@ -6,6 +6,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Janela de tolerância pro heartbeat (a aba manda isOnline:true a cada 5min
+ * enquanto estiver aberta). Se o último acesso passou disso, trata como offline
+ * mesmo com isOnline:true gravado — cobre loja que desligou o PC, hibernou ou
+ * teve o navegador encerrado à força sem dar tempo do beacon de saída rodar.
+ */
+export const ONLINE_STALE_MS = 10 * 60 * 1000;
+
+export const isStoreOnline = (store: { isOnline?: boolean; lastAccess?: string }): boolean => {
+  return !!store.isOnline && !!store.lastAccess && (Date.now() - new Date(store.lastAccess).getTime() < ONLINE_STALE_MS);
+};
+
+/**
  * Valida se uma URL é uma imagem pública válida.
  * Aceita praticamente qualquer string que pareça uma URL ou caminho de arquivo,
  * priorizando a flexibilidade para aceitar CDNs e proxies.
