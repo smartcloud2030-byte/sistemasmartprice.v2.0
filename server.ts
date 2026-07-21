@@ -81,10 +81,15 @@ function rowToMessage(row: any) {
 }
 
 async function fetchConversationsWithUnread() {
+  // Toda loja que só faz login já ganha uma linha em support_conversations
+  // (necessário pra ela conseguir receber seu próprio histórico, mesmo vazio).
+  // Por isso o admin só deve ver as que realmente têm mensagem — senão a lista
+  // mostraria todas as lojas do sistema, não só quem entrou em contato.
   const res = await pool.query(`
     SELECT c.id, c.user_id AS user_id, c.user_name, c.bandeira, c.updated_at,
       (SELECT COUNT(*) FROM support_messages m WHERE m.conversation_id = c.id AND m.sender_type = 'user' AND m.read = false)::int AS unread_count
     FROM support_conversations c
+    WHERE EXISTS (SELECT 1 FROM support_messages m WHERE m.conversation_id = c.id)
     ORDER BY c.updated_at DESC
   `);
   return res.rows;

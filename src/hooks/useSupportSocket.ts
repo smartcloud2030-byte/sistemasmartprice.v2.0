@@ -119,7 +119,14 @@ export function useSupportSocket() {
       if (state.userRole === 'admin') {
         setConversations((prev: any[]) => {
           const idx = prev.findIndex((c) => c.user_id === payload.cnpj);
-          if (idx === -1) return prev;
+          if (idx === -1) {
+            // Primeira mensagem desta loja — ainda não existe entrada na lista
+            // (o backend só lista conversas com pelo menos uma mensagem).
+            return [
+              { user_id: payload.cnpj, user_name: payload.message.sender_name, bandeira: undefined, updated_at: payload.message.timestamp, unread_count: 0 },
+              ...prev,
+            ];
+          }
           const updated = [...prev];
           updated[idx] = { ...updated[idx], updated_at: payload.message.timestamp };
           return updated;
@@ -138,6 +145,11 @@ export function useSupportSocket() {
       const state = useStore.getState();
       const isViewingThisConv = state.userRole === 'admin' ? state.selectedUserCnpj === payload.cnpj : true;
       if (isViewingThisConv) setMessages([]);
+      // Conversa sem mensagens não aparece mais na lista (backend só lista
+      // quem tem histórico) — remove daqui também pra não esperar um refresh.
+      if (state.userRole === 'admin') {
+        setConversations((prev: any[]) => prev.filter((c) => c.user_id !== payload.cnpj));
+      }
     };
 
     const onActivityUpdate = (payload: { cnpj: string; isOnline?: boolean; lastAccess?: string; lastUsername?: string }) => {
