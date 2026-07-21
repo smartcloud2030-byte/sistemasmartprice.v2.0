@@ -370,7 +370,7 @@ const ProductManager = () => {
             <div key={product.id || index} className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
               <div className="h-28 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
                 {product.image ? (
-                  <img src={(product.thumb_image || product.image).startsWith('blob:') ? (product.thumb_image || product.image) : getProxyUrl(product.thumb_image || product.image)} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img src={(product.thumb_image || product.image).startsWith('blob:') ? (product.thumb_image || product.image) : getProxyUrl(product.thumb_image || product.image)} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" />
                 ) : <Package className="w-8 h-8 text-zinc-300 dark:text-zinc-600" />}
               </div>
               <div className="p-3 flex flex-col gap-1.5 flex-1">
@@ -492,7 +492,7 @@ const ProductManager = () => {
                     <div className="shrink-0 w-20 h-20 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center relative">
                       {formData.image ? (
                         <>
-                          <img src={formData.image.startsWith('blob:') ? formData.image : getProxyUrl(formData.image)} alt="Preview" className="w-full h-full object-cover" />
+                          <img src={formData.image.startsWith('blob:') ? formData.image : getProxyUrl(formData.image)} alt="Preview" className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" />
                           <button type="button" onClick={() => { setFormData({ ...formData, image: null }); setPendingFile(null); }}
                             className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600">
                             <Trash2 className="w-2.5 h-2.5" />
@@ -638,7 +638,7 @@ const ProductManager = () => {
                       value={item.image} onChange={e => { const d = [...multiFormData]; d[index].image = e.target.value; setMultiFormData(d); }} />
                     <div className="flex justify-center">
                       <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded border overflow-hidden flex items-center justify-center">
-                        {item.image ? <img src={item.image.startsWith('blob:') ? item.image : getProxyUrl(item.image)} alt="Preview" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = 'https://placehold.co/40x40?text=Err'; }} />
+                        {item.image ? <img src={item.image.startsWith('blob:') ? item.image : getProxyUrl(item.image)} alt="Preview" className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={e => { (e.target as HTMLImageElement).src = 'https://placehold.co/40x40?text=Err'; }} />
                           : <Package className="w-4 h-4 text-zinc-300" />}
                       </div>
                     </div>
