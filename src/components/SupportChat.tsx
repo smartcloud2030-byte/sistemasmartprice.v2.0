@@ -290,7 +290,11 @@ export default function SupportChat() {
                     key={user.cnpj}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedUserCnpj(user.cnpj)}
+                    onClick={(e) => {
+                      const sel = window.getSelection();
+                      if (sel && sel.toString().length > 0) return;
+                      setSelectedUserCnpj(user.cnpj);
+                    }}
                     className={cn(
                       "w-full p-3 flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left border-b border-zinc-100 dark:border-zinc-800/50 cursor-pointer",
                       selectedUserCnpj === user.cnpj && "bg-blue-50 dark:bg-blue-900/10"
@@ -301,14 +305,14 @@ export default function SupportChat() {
                     </div>
                     <div className="overflow-hidden flex-grow">
                       <div className="flex justify-between items-start">
-                        <p className="text-xs font-bold truncate text-black dark:text-white">{user.name}</p>
+                        <p className="text-xs font-bold truncate text-black dark:text-white select-text cursor-text">{user.name}</p>
                         {user.timestamp && !isNaN(new Date(user.timestamp).getTime()) && (
                           <span className="text-[7px] text-zinc-400 dark:text-zinc-500">
                             {new Date(user.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
                       </div>
-                      <p className="text-[9px] text-black dark:text-white truncate opacity-60">{user.cnpj}</p>
+                      <p className="text-[9px] text-black dark:text-white truncate opacity-60 select-text cursor-text">{user.cnpj}</p>
                       {user.groupName && (
                         <p className="text-[8px] font-black uppercase tracking-widest text-blue-600 truncate mt-0.5">{user.groupName}</p>
                       )}
@@ -490,7 +494,7 @@ export default function SupportChat() {
 
                               <div className="flex flex-wrap items-end gap-2">
                                 {msg.text && (
-                                  <p className="text-sm leading-relaxed break-words max-w-full text-black dark:text-white">
+                                  <p className="text-sm leading-relaxed break-words max-w-full text-black dark:text-white select-text cursor-text">
                                     {msg.text}
                                   </p>
                                 )}
