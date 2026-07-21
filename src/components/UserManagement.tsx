@@ -660,17 +660,28 @@ export default function UserManagement() {
                       key={store.cnpj}
                       className="group flex flex-col p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 transition-all shadow-sm"
                     >
-                      <button
-                        type="button"
-                        onClick={() => toggleStoreExpanded(store.cnpj)}
-                        className="flex items-center justify-between gap-4 text-left"
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          const sel = window.getSelection();
+                          if (sel && sel.toString().length > 0) return;
+                          toggleStoreExpanded(store.cnpj);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleStoreExpanded(store.cnpj);
+                          }
+                        }}
+                        className="flex items-center justify-between gap-4 text-left cursor-pointer"
                       >
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors flex-shrink-0">
                             <Store className="w-6 h-6" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-mono font-bold text-zinc-900 dark:text-zinc-100">{store.cnpj}</p>
+                            <p className="font-mono font-bold text-zinc-900 dark:text-zinc-100 select-text cursor-text">{store.cnpj}</p>
                             {store.groupId && (
                               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 -mt-1 mb-0.5">
                                 {userGroups.find(g => g.id === store.groupId)?.name || 'Grupo Removido'}
@@ -700,7 +711,7 @@ export default function UserManagement() {
                           )}
                           <ChevronDown className={cn("w-4 h-4 text-zinc-400 transition-transform", isExpanded && "rotate-180")} />
                         </div>
-                      </button>
+                      </div>
 
                       {isExpanded && (
                       <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 space-y-4">
