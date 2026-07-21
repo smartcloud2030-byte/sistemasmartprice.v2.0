@@ -451,8 +451,9 @@ function galleryHTML() {
 
   /* GRID */
   .gallery-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:14px; }
-  .img-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:border-color .2s, transform .15s; }
+  .img-card { position:relative; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:border-color .2s, transform .15s; }
   .img-card:hover { border-color:var(--accent); transform:translateY(-2px); }
+  .img-cat-badge { position:absolute; top:6px; left:6px; z-index:1; background:rgba(0,0,0,.65); color:#fff; font-size:10px; font-weight:600; padding:3px 7px; border-radius:999px; pointer-events:none; }
   .img-thumb { width:100%; height:140px; object-fit:cover; display:block; background:var(--surface2); cursor:pointer; transition:opacity .2s; }
   .img-thumb:hover { opacity:.88; }
   .card-body { padding:10px; }
@@ -509,7 +510,10 @@ function galleryHTML() {
 <div id="app">
   <header>
     <div class="header-logo">SMART<span>PRICE</span> <span style="color:var(--muted);font-weight:400;font-size:13px">/ Galeria</span></div>
-    <div style="font-size:13px;color:var(--muted)" id="header-info"></div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <button class="btn btn-sm" onclick="openGlobalSearch()" title="Buscar um produto em todas as galerias">🔎 Buscar em todas</button>
+      <div style="font-size:13px;color:var(--muted)" id="header-info"></div>
+    </div>
   </header>
 
   <div class="layout">
@@ -573,6 +577,7 @@ function galleryHTML() {
   let token = '';
   let categories = [];
   let currentCat = null;
+  let searchMode = false;
   let allImages = [];
   let currentPreviewUrl = '';
   let currentPreviewName = '';
@@ -614,9 +619,58 @@ function galleryHTML() {
   }
 
   function selectCategory(cat) {
+    searchMode = false;
     currentCat = cat;
     renderSidebar();
     loadImages(cat);
+  }
+
+  // BUSCA GERAL — procura o produto em todas as galerias de uma vez, sem
+  // precisar abrir cada pasta pra conferir onde a imagem está.
+  function openGlobalSearch() {
+    searchMode = true;
+    currentCat = null;
+    renderSidebar();
+    document.getElementById('header-info').textContent = '';
+    document.getElementById('main-content').innerHTML = \`
+      <div class="topbar">
+        <div>
+          <h2>🔎 Buscar em todas as galerias</h2>
+          <p id="global-search-count">Carregando imagens de \${categories.length} galeria(s)...</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="search-input" type="text" id="global-search-input" placeholder="Buscar pelo nome..." oninput="filterImages(this.value)">
+        </div>
+      </div>
+      <div class="gallery-grid" id="gallery-grid"><div class="loading">⏳ Carregando imagens...</div></div>
+    \`;
+    setTimeout(() => document.getElementById('global-search-input')?.focus(), 50);
+    loadAllImages();
+  }
+
+  function loadAllImages() {
+    Promise.all(categories.map(cat =>
+      fetch(\`/gallery/list/\${cat}\`, { headers: { 'x-gallery-token': token } })
+        .then(r => r.json())
+        .then(images => (Array.isArray(images) ? images : []).map(img => ({ ...img, category: cat })))
+        .catch(() => [])
+    )).then(results => {
+      if (!searchMode) return; // usuário já saiu da busca geral antes de terminar
+      allImages = results.flat();
+      const grid = document.getElementById('gallery-grid');
+      const counter = document.getElementById('global-search-count');
+      if (counter) counter.textContent = allImages.length + ' imagem(ns) em ' + categories.length + ' galeria(s)';
+      if (!grid) return;
+      grid.innerHTML = allImages.length === 0
+        ? '<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--muted)">📭 Nenhuma imagem encontrada</div>'
+        : allImages.map(img => imgCard(img)).join('');
+    });
+  }
+
+  // Recarrega a visão atual (busca geral ou galeria aberta) depois de mover/excluir
+  function refreshView() {
+    if (searchMode) loadAllImages();
+    else if (currentCat) loadImages(currentCat);
   }
 
   function showCreateModal() {
@@ -741,8 +795,10 @@ function galleryHTML() {
     // dezenas de fotos de uma vez, e carregar cada uma em tamanho real (às vezes
     // vários MB) é o que fazia parecer travado/carregando pela metade.
     const thumbSrc = '/gallery/thumb/' + img.fullPath.split('/').map(encodeURIComponent).join('/') + '?w=300';
+    const catBadge = img.category ? \`<div class="img-cat-badge">📁 \${formatCatName(img.category)}</div>\` : '';
     return \`
       <div class="img-card">
+        \${catBadge}
         <img class="img-thumb" src="\${thumbSrc}" alt="\${img.displayName}" loading="lazy"
           onclick="openPreview('\${img.url}', '\${safeName}', '\${safeMeta}', '\${safeFilename}')"
           onerror="this.style.height='80px';this.style.background='var(--surface2)'">
@@ -837,7 +893,7 @@ function galleryHTML() {
         if (data.success) {
           showToast('✅ Imagem movida!');
           hideMoveModal();
-          if (currentCat) loadImages(currentCat);
+          refreshView();
         } else {
           showToast('❌ ' + (data.error || 'Erro ao mover'), true);
         }
@@ -887,7 +943,7 @@ function galleryHTML() {
     if (pwd !== token) { showToast('❌ Senha incorreta. Exclusão cancelada.', true); return; }
     fetch('/gallery/delete/' + encodeURIComponent(fullPath), { method:'DELETE', headers:{'x-gallery-token':token} })
       .then(r => r.json())
-      .then(data => { if (data.success) { loadImages(currentCat); showToast('🗑️ Imagem deletada'); } });
+      .then(data => { if (data.success) { refreshView(); showToast('🗑️ Imagem deletada'); } });
   }
 
   function showToast(msg, error = false) {
