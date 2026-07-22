@@ -566,7 +566,7 @@ export default function App() {
         {/* Dedicated Print Area for Single Tag */}
         {isPrinting && currentView === 'editor' && (
           <div className="hidden print:block">
-            <CanvasPreview id="placa" />
+            <CanvasPreview id="placa" registerExport={false} />
           </div>
         )}
 

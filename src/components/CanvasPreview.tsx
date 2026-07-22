@@ -8,7 +8,7 @@ import { getProxyUrl } from '../lib/utils';
 const A4_WIDTH = 794; // 210mm at 96dpi
 const A4_HEIGHT = 1123; // 297mm at 96dpi
 
-const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
+const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; registerExport?: boolean }) => {
   const { 
     textElements1, textElements2, textElements3,
     productImage1, productImage2, productImage3,
@@ -146,11 +146,11 @@ const CanvasPreview = ({ id = "placa" }: { id?: string }) => {
   };
 
   useEffect(() => {
-    if (id === "placa") {
+    if (id === "placa" && registerExport) {
       (window as any).getCanvasData = handleExport;
       (window as any).getCanvasPNGData = handleExportPNG;
     }
-  }, [id]);
+  }, [id, registerExport]);
 
   // Price formatting logic
   const renderPrice = (slot: 1 | 2 | 3, el: any, key: string) => {
