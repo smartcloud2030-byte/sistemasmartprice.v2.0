@@ -232,16 +232,6 @@ export default function LayoutManagerModal() {
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCriarEstiloTarget('new')}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-amber-400 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest hover:bg-amber-50/60 dark:hover:bg-amber-900/20 transition-colors"
-              title="Monta um estilo do zero numa folha A4 com réguas, sem espelhar nenhum modelo pronto"
-            >
-              <FlaskConical className="w-3.5 h-3.5" />
-              Criar Estilo (Teste)
-            </button>
-
             <div>
               <label className="text-[8px] font-bold text-zinc-500 uppercase block mb-1">Nome do Modelo</label>
               <input
