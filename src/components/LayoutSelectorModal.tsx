@@ -51,10 +51,7 @@ function LayoutCard({ layout, isActive, isFavorite, onToggleFavorite, onSelect }
       </div>
 
       {/* Preview Image */}
-      <div className={cn(
-        "w-full bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden",
-        layout.orientation === 'landscape' ? "aspect-[16/9]" : "aspect-[210/297]"
-      )}>
+      <div className="aspect-[16/9] w-full bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden">
         {layout.background.url ? (
           <img
             src={getProxyUrl(layout.background.url, { thumbnail: true })}
