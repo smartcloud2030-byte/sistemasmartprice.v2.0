@@ -1294,7 +1294,7 @@ export const useStore = create<AppState>()(
       lastUpdateTimestamp: null,
 
       flags: ['Ultra Popular', 'Maxi Popular', 'Entrefarma', 'Farmanorte', 'Outra'],
-      addFlag: (flag) => set((state) => { const newState = { flags: state.flags.includes(flag) ? state.flags : [...state.flags, flag] }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
+      addFlag: (flag) => set((state) => { const exists = state.flags.some((f) => f.toLowerCase() === flag.toLowerCase()); const newState = { flags: exists ? state.flags : [...state.flags, flag] }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       removeFlag: (flag) => set((state) => { const newState = { flags: state.flags.filter(f => f !== flag) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       updateFlag: (oldFlag, newFlag) => set((state) => { const newState = { flags: state.flags.map(f => f === oldFlag ? newFlag : f) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
 

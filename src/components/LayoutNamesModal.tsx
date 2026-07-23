@@ -30,8 +30,10 @@ export default function LayoutNamesModal() {
   ).sort((a, b) => a.localeCompare(b));
 
   const confirmNewLocalidade = (index: number) => {
-    if (newLocalidadeValue.trim()) {
-      setLayoutLocalidade(index, newLocalidadeValue.trim());
+    const trimmed = newLocalidadeValue.trim();
+    if (trimmed) {
+      const existing = uniqueLocalidades.find((loc) => loc.toLowerCase() === trimmed.toLowerCase());
+      setLayoutLocalidade(index, existing || trimmed);
     }
     setCreatingLocalidadeFor(null);
     setNewLocalidadeValue('');

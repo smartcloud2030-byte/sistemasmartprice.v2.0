@@ -262,6 +262,8 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
     );
     if (req.params.id === 'activity_status') {
       io?.to('admin_room').emit('activity:replaced', { value: result.rows[0].value });
+    } else if (req.params.id === 'current_layout' || req.params.id === 'users_and_flags') {
+      io?.emit('settings:updated', { id: req.params.id });
     }
     res.json({ value: result.rows[0].value });
   } catch (err: any) {

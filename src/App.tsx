@@ -29,7 +29,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
 import { cn, getProxyUrl } from './lib/utils';
-import { useSupportSocket } from './hooks/useSupportSocket';
+import { useSupportSocket, getSocket } from './hooks/useSupportSocket';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { HeaderDropdown, DropdownItem, DropdownDivider, DropdownLabel } from './components/ui/HeaderDropdown';
 
@@ -313,6 +313,10 @@ export default function App() {
     loadLayout();
     loadUsersAndFlags();
 
+    const s = getSocket();
+    const handleSettingsUpdated = () => loadLayout();
+    s.on('settings:updated', handleSettingsUpdated);
+
     const handleBeforePrint = () => setPrinting(true);
     const handleAfterPrint = () => setPrinting(false);
 
@@ -322,6 +326,7 @@ export default function App() {
     return () => {
       window.removeEventListener('beforeprint', handleBeforePrint);
       window.removeEventListener('afterprint', handleAfterPrint);
+      s.off('settings:updated', handleSettingsUpdated);
     };
   }, []);
 
