@@ -432,7 +432,7 @@ const ProductManager = () => {
 
                 <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
                   <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Identificação</p>
-                  <input required type="text" placeholder="Nome do produto" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                  <input required type="text" placeholder="Nome do produto" spellCheck lang="pt-BR" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                     value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                   <div className="grid grid-cols-2 gap-2">
                     <input type="text" placeholder="Código de barras" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
@@ -482,7 +482,7 @@ const ProductManager = () => {
 
                 <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">
                   <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Descrição</p>
-                  <textarea required rows={2} className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-black dark:text-white"
+                  <textarea required rows={2} spellCheck lang="pt-BR" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-black dark:text-white"
                     value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                 </div>
 
@@ -619,7 +619,7 @@ const ProductManager = () => {
                 {multiFormData.map((item, index) => (
                   <div key={index} className="grid grid-cols-[40px_1fr_100px_100px_120px_120px_1fr_1fr_60px] gap-3 items-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-zinc-200 dark:border-zinc-700">
                     <span className="text-xs font-bold text-center text-zinc-400">{index + 1}</span>
-                    <input type="text" placeholder="Nome" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
+                    <input type="text" placeholder="Nome" spellCheck lang="pt-BR" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.name} onChange={e => { const d = [...multiFormData]; d[index].name = e.target.value; setMultiFormData(d); }} />
                     <input type="text" placeholder="R$ 0,00" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.price} onChange={e => { const d = [...multiFormData]; d[index].price = e.target.value; setMultiFormData(d); }} />
@@ -632,7 +632,7 @@ const ProductManager = () => {
                       value={item.barcode || ''} onChange={e => { const d = [...multiFormData]; d[index].barcode = e.target.value; setMultiFormData(d); }} />
                     <input type="text" placeholder="Cód. barras 2" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.barcode2 || ''} onChange={e => { const d = [...multiFormData]; d[index].barcode2 = e.target.value; setMultiFormData(d); }} />
-                    <input type="text" placeholder="Descrição" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
+                    <input type="text" placeholder="Descrição" spellCheck lang="pt-BR" className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.description} onChange={e => { const d = [...multiFormData]; d[index].description = e.target.value; setMultiFormData(d); }} />
                     <input type="text" placeholder="https://..." className="w-full px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-black dark:text-white"
                       value={item.image} onChange={e => { const d = [...multiFormData]; d[index].image = e.target.value; setMultiFormData(d); }} />
