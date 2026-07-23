@@ -11,6 +11,7 @@ import LayoutManagerModal from './components/LayoutManagerModal';
 import AnnouncementManager from './components/AnnouncementManager';
 import UserAnnouncementModal from './components/UserAnnouncementModal';
 import SupportChat from './components/SupportChat';
+import SmartHelpModal from './components/SmartHelpModal';
 import LayoutSelectorModal from './components/LayoutSelectorModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
@@ -1166,6 +1167,7 @@ export default function App() {
       <ErrorBoundary>
         <SupportChat />
       </ErrorBoundary>
+      <SmartHelpModal />
 
       {/* User Announcement Modal */}
       {pendingAnnouncements.length > 0 && (

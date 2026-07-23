@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { useSupportSocket, Message } from '../hooks/useSupportSocket';
-import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon, Smile } from 'lucide-react';
+import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon, Smile, LifeBuoy } from 'lucide-react';
 import { cn, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -34,7 +34,8 @@ export default function SupportChat() {
   const { 
     currentUser, userRole, isSupportChatOpen, setSupportChatOpen,
     setUnreadSupportCount, selectedUserCnpj, setSelectedUserCnpj,
-    unreadPerUser, setUnreadPerUser, messages, allowedStores, userGroups
+    unreadPerUser, setUnreadPerUser, messages, allowedStores, userGroups,
+    setSmartHelpModalOpen
   } = useStore();
   const { sendMessage, clearMessages, markMessagesAsRead, sendTyping, typingOther, isConnected, isLoading, activeConversationId, conversations } = useSupportSocket();
   const [inputText, setInputText] = useState('');
@@ -247,17 +248,29 @@ export default function SupportChat() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setSupportChatOpen(false)}
-            className={cn(
-              "p-2 rounded-full transition-colors flex-shrink-0",
-              isAdmin
-                ? "hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
-                : "hover:bg-white/15 text-white/90"
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isAdmin && (
+              <button
+                onClick={() => setSmartHelpModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+                title="Suporte de infraestrutura (servidor, máquinas, impressoras, provedor, TEF, cartão)"
+              >
+                <LifeBuoy className="w-3.5 h-3.5" />
+                SmartHelp
+              </button>
             )}
-          >
-            <X className="w-5 h-5" />
-          </button>
+            <button
+              onClick={() => setSupportChatOpen(false)}
+              className={cn(
+                "p-2 rounded-full transition-colors",
+                isAdmin
+                  ? "hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
+                  : "hover:bg-white/15 text-white/90"
+              )}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {!isConnected && !isLoading && (
