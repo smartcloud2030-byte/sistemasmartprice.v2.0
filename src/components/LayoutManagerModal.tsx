@@ -432,10 +432,7 @@ export default function LayoutManagerModal() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                     {testLayouts.map((layout, index) => (
                       <div key={index} className="rounded-2xl border border-dashed border-amber-400 dark:border-amber-700 overflow-hidden bg-amber-50/50 dark:bg-amber-900/10">
-                        <div className={cn(
-                          "bg-zinc-200 dark:bg-zinc-900 flex items-center justify-center",
-                          layout.orientation === 'landscape' ? "aspect-[297/210]" : "aspect-[210/297]"
-                        )}>
+                        <div className="aspect-[210/297] bg-zinc-200 dark:bg-zinc-900 flex items-center justify-center">
                           <ImageIcon className="w-8 h-8 text-zinc-400" />
                         </div>
                         <div className="p-2.5 space-y-1">
@@ -489,10 +486,7 @@ export default function LayoutManagerModal() {
                         editingIndex === index ? "border-blue-500 ring-1 ring-blue-500" : "border-zinc-200 dark:border-zinc-700"
                       )}
                     >
-                      <div className={cn(
-                        "bg-zinc-200 dark:bg-zinc-900 flex items-center justify-center overflow-hidden",
-                        layout.orientation === 'landscape' ? "aspect-[297/210]" : "aspect-[210/297]"
-                      )}>
+                      <div className="aspect-[210/297] bg-zinc-200 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
                         {layout.background?.url ? (
                           <img
                             src={getProxyUrl(layout.background.url, { thumbnail: true })}
