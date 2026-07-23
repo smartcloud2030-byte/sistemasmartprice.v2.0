@@ -1296,7 +1296,22 @@ export const useStore = create<AppState>()(
       flags: ['Ultra Popular', 'Maxi Popular', 'Entrefarma', 'Farmanorte', 'Outra'],
       addFlag: (flag) => set((state) => { const exists = state.flags.some((f) => f.toLowerCase() === flag.toLowerCase()); const newState = { flags: exists ? state.flags : [...state.flags, flag] }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       removeFlag: (flag) => set((state) => { const newState = { flags: state.flags.filter(f => f !== flag) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
-      updateFlag: (oldFlag, newFlag) => set((state) => { const newState = { flags: state.flags.map(f => f === oldFlag ? newFlag : f) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
+      updateFlag: (oldFlag, newFlag) => set((state) => {
+        // Se o novo nome já existe (ex: corrigindo "Bigforte" -> "Bigfort"), funde
+        // as duas: remove a antiga da lista em vez de duplicar, e migra todos os
+        // modelos que apontavam pra ela — senão eles ficam órfãos, referenciando
+        // uma bandeira que nem aparece mais nas opções.
+        const mergingIntoExisting = state.flags.some((f) => f !== oldFlag && f.toLowerCase() === newFlag.toLowerCase());
+        const newState = {
+          flags: mergingIntoExisting
+            ? state.flags.filter((f) => f !== oldFlag)
+            : state.flags.map((f) => (f === oldFlag ? newFlag : f)),
+          layouts: state.layouts.map((l) => (l.bandeira === oldFlag ? { ...l, bandeira: newFlag } : l)),
+          testLayouts: state.testLayouts.map((l) => (l.bandeira === oldFlag ? { ...l, bandeira: newFlag } : l)),
+        };
+        setTimeout(() => { get().saveUsersAndFlags(); get().saveLayout(); }, 0);
+        return newState;
+      }),
 
       maxConcurrentStores: null,
       setMaxConcurrentStores: (limit) => { set({ maxConcurrentStores: limit }); get().saveUsersAndFlagsDebounced(); },
