@@ -98,7 +98,9 @@ fi
 # Usa um container descartável com --volumes-from pra ler o mesmo volume do
 # MinIO e compactar tudo, sem precisar de credenciais do MinIO nem depender
 # do bucket estar público.
-if ! docker run --rm --volumes-from "$MINIO_CONTAINER" alpine tar czf - -C /data . > "$IMAGES_BACKUP_FILE" 2>"$ERR_LOG"; then
+if ! docker run --rm --volumes-from "$MINIO_CONTAINER" alpine tar czf - \
+  --exclude='./.minio.sys/tmp' --exclude='./.minio.sys/tmp/*' \
+  -C /data . > "$IMAGES_BACKUP_FILE" 2>"$ERR_LOG"; then
   report_status "failed" "Backup das imagens falhou: $(cat "$ERR_LOG")" "$(basename "$IMAGES_BACKUP_FILE")"
   rm -f "$ERR_LOG" "$IMAGES_BACKUP_FILE"
   exit 1
