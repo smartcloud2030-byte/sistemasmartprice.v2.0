@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
-  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet
+  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet, LifeBuoy
 } from 'lucide-react';
 import { cn, isStoreOnline } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
@@ -146,6 +146,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
     { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
     { label: 'Financeiro', description: 'Assinaturas e pendências de pagamento', icon: Wallet, onClick: () => setShowFinanceiro(true) },
+    { label: 'SmartHelp', description: 'Suporte de infraestrutura das lojas (servidor, máquinas, TEF...)', icon: LifeBuoy, onClick: () => setView('smarthelp') },
   ];
 
   return (

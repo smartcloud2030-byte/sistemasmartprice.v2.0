@@ -374,4 +374,78 @@ router.get('/system/stats', apiAuth, async (_req: Request, res: Response) => {
   });
 });
 
+// ═══════════════════════════════════════════
+// STATUS DAS OPERADORAS DE CARTÃO/TEF (Cielo, Rede)
+// Consulta as páginas de status oficiais (StatusPage.io) — não usa
+// Downdetector porque o site está atrás de proteção anti-bot da Cloudflare
+// e bloqueia requisições de servidor.
+// ═══════════════════════════════════════════
+const TEF_PROVIDERS: Record<string, { label: string; baseUrl: string }> = {
+  cielo: { label: 'Cielo', baseUrl: 'https://cielo.statuspage.io' },
+  rede: { label: 'Rede', baseUrl: 'https://rede.statuspage.io' },
+  bradesco: { label: 'Bradesco', baseUrl: 'https://bradesco.statuspage.io' },
+};
+const TEF_HISTORY_DAYS = 30;
+
+let tefStatusCache: { data: any; fetchedAt: number } | null = null;
+const TEF_CACHE_MS = 60 * 1000;
+
+async function fetchJson(url: string, timeoutMs = 8000): Promise<any> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Monta uma tira de N dias (hoje - N+1 até hoje), marcando quais tiveram
+// algum incidente iniciado naquele dia — mesma ideia da "barra de uptime"
+// que sites de status (GitHub, Stripe etc.) costumam mostrar.
+function buildDayHistory(incidents: any[], days: number): { date: string; hasIncident: boolean }[] {
+  const incidentDays = new Set(
+    (incidents || []).map((i) => (i.started_at || i.created_at || '').slice(0, 10))
+  );
+  const result: { date: string; hasIncident: boolean }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    result.push({ date: dateStr, hasIncident: incidentDays.has(dateStr) });
+  }
+  return result;
+}
+
+router.get('/tef-status', apiAuth, async (_req: Request, res: Response) => {
+  if (tefStatusCache && Date.now() - tefStatusCache.fetchedAt < TEF_CACHE_MS) {
+    return res.json(tefStatusCache.data);
+  }
+  const results = await Promise.all(
+    Object.entries(TEF_PROVIDERS).map(async ([key, { label, baseUrl }]) => {
+      try {
+        const [statusJson, incidentsJson] = await Promise.all([
+          fetchJson(`${baseUrl}/api/v2/status.json`),
+          fetchJson(`${baseUrl}/api/v2/incidents.json`).catch(() => ({ incidents: [] })),
+        ]);
+        return [key, {
+          ok: true,
+          label,
+          indicator: statusJson?.status?.indicator || 'unknown',
+          description: statusJson?.status?.description || 'Sem informação',
+          updatedAt: statusJson?.page?.updated_at || null,
+          days: buildDayHistory(incidentsJson?.incidents || [], TEF_HISTORY_DAYS),
+        }];
+      } catch (err: any) {
+        return [key, { ok: false, label, indicator: 'unknown', description: 'Não foi possível consultar', error: err.message, days: [] }];
+      }
+    })
+  );
+  const data = { checkedAt: new Date().toISOString(), providers: Object.fromEntries(results) };
+  tefStatusCache = { data, fetchedAt: Date.now() };
+  res.json(data);
+});
+
 export default router;

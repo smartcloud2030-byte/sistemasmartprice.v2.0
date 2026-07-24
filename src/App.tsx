@@ -11,7 +11,7 @@ import LayoutManagerModal from './components/LayoutManagerModal';
 import AnnouncementManager from './components/AnnouncementManager';
 import UserAnnouncementModal from './components/UserAnnouncementModal';
 import SupportChat from './components/SupportChat';
-import SmartHelpModal from './components/SmartHelpModal';
+import SmartHelpDashboard from './components/SmartHelpDashboard';
 import LayoutSelectorModal from './components/LayoutSelectorModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
@@ -554,6 +554,10 @@ export default function App() {
 
     if (currentView === 'dashboard' && userRole === 'admin') {
       return <AdminDashboard />;
+    }
+
+    if (currentView === 'smarthelp' && userRole === 'admin') {
+      return <SmartHelpDashboard />;
     }
 
     if (currentView === 'queue') {
@@ -1167,7 +1171,6 @@ export default function App() {
       <ErrorBoundary>
         <SupportChat />
       </ErrorBoundary>
-      <SmartHelpModal />
 
       {/* User Announcement Modal */}
       {pendingAnnouncements.length > 0 && (

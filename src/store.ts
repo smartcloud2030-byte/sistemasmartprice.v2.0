@@ -144,7 +144,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'encarte' | 'dashboard';
+export type View = 'editor' | 'queue' | 'encarte' | 'dashboard' | 'smarthelp';
 
 export interface SelectedProduct extends Product {
   id: string;
@@ -431,8 +431,6 @@ interface AppState {
   isSupportChatOpen: boolean;
   isChatEnabled: boolean;
   setSupportChatOpen: (open: boolean) => void;
-  isSmartHelpModalOpen: boolean;
-  setSmartHelpModalOpen: (open: boolean) => void;
   setIsChatEnabled: (isEnabled: boolean) => void;
   isChatConnected: boolean;
   setIsChatConnected: (connected: boolean) => void;
@@ -1469,8 +1467,6 @@ export const useStore = create<AppState>()(
       isSupportChatOpen: false,
       isChatEnabled: true,
       setSupportChatOpen: (open) => set({ isSupportChatOpen: open }),
-      isSmartHelpModalOpen: false,
-      setSmartHelpModalOpen: (open) => set({ isSmartHelpModalOpen: open }),
       setIsChatEnabled: (isEnabled) => { set({ isChatEnabled: isEnabled }); get().saveUsersAndFlagsDebounced(); },
       isChatConnected: false,
       setIsChatConnected: (connected) => set({ isChatConnected: connected }),
