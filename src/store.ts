@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
+import { isStoreOnline } from './lib/utils';
 
 // ─── API helper ────────────────────────────────────────────────────────────────
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
@@ -1360,20 +1361,28 @@ export const useStore = create<AppState>()(
         }
       },
 
-      // ── clearAccessHistory → zera /api/settings/activity_status ────────────
+      // ── clearAccessHistory → zera /api/settings/activity_status, preservando as lojas online ──
       clearAccessHistory: async () => {
         const state = get();
         if (state.userRole !== 'admin') return;
         try {
           set((s) => ({
-            allowedStores: s.allowedStores.map(store => ({
-              ...store,
-              isOnline: false,
-              lastAccess: undefined,
-              lastUsername: undefined,
-            })),
+            allowedStores: s.allowedStores.map(store =>
+              isStoreOnline(store)
+                ? store
+                : { ...store, isOnline: false, lastAccess: undefined, lastUsername: undefined }
+            ),
           }));
-          await apiPost('/settings/activity_status', { value: {} });
+          const preserved = Object.fromEntries(
+            get().allowedStores
+              .filter(isStoreOnline)
+              .map((store) => [store.cnpj, {
+                isOnline: store.isOnline,
+                lastAccess: store.lastAccess,
+                lastUsername: store.lastUsername,
+              }])
+          );
+          await apiPost('/settings/activity_status', { value: preserved });
         } catch (error) {
           console.error('Error clearing access history:', error);
         }
