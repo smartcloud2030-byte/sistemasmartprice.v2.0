@@ -20,6 +20,10 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: deploy
           key: ${{ secrets.VPS_SSH_KEY }}
+          # Padrão da action é 10m — já estourou duas vezes com o build do
+          # Docker sozinho (npm ci, vite build, pip install do rembg etc.)
+          # levando mais que isso quando a VPS está sob carga.
+          command_timeout: 30m
           script: |
             set -e
             echo "=== Iniciando deploy SmartPrice ==="
