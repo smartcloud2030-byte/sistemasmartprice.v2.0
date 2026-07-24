@@ -31,6 +31,7 @@ services:
       ASAAS_API_KEY: ${ASAAS_API_KEY}
       ASAAS_ENV: ${ASAAS_ENV:-sandbox}
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
+      COSMOS_API_TOKEN: ${COSMOS_API_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy
