@@ -151,6 +151,65 @@ router.get('/products/count', async (_req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════
+// BUSCA DE PRODUTO POR CODIGO DE BARRAS (Cosmos Bluesoft)
+// Teste local: ao bipar/digitar o codigo de barras no cadastro de produto,
+// busca nome/descricao/foto automaticamente. Token fica so no servidor,
+// nunca exposto ao navegador.
+// ═══════════════════════════════════════════
+router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response) => {
+  const token = process.env.COSMOS_API_TOKEN;
+  if (!token) return res.status(501).json({ error: 'COSMOS_API_TOKEN não configurado no servidor' });
+
+  const gtin = req.params.gtin.replace(/\D/g, '');
+  if (!gtin) return res.status(400).json({ error: 'Código de barras inválido' });
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(`https://api.cosmos.bluesoft.com.br/gtins/${gtin}.json`, {
+      headers: { 'X-Cosmos-Token': token, 'User-Agent': 'SmartPrice (suporte@sistemasmartprice.com.br)' },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (r.status === 404) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
+    if (!r.ok) return res.status(r.status).json({ error: `Cosmos retornou HTTP ${r.status}` });
+
+    const json: any = await r.json();
+    res.json({
+      gtin: json.gtin,
+      description: json.description || null,
+      brand: json.brand?.name || null,
+      // A CDN da Cosmos não manda cabecalho CORS, entao o <img> do preview
+      // (que usa crossOrigin="anonymous") nao consegue carregar a URL direto —
+      // servimos via nosso proprio proxy em vez de expor a URL externa.
+      thumbnail: json.thumbnail ? `/api/barcode-image/${gtin}` : null,
+      ncm: json.ncm?.description || null,
+    });
+  } catch (err: any) {
+    res.status(502).json({ error: err.message || 'Falha ao consultar a Cosmos' });
+  }
+});
+
+// Proxy da foto do produto (Cosmos nao manda CORS, <img> nao carrega direto)
+router.get('/barcode-image/:gtin', async (req: Request, res: Response) => {
+  const gtin = req.params.gtin.replace(/\D/g, '');
+  if (!gtin) return res.status(400).end();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(`https://cdn-cosmos.bluesoft.com.br/products/${gtin}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!r.ok) return res.status(r.status).end();
+    res.setHeader('Content-Type', r.headers.get('content-type') || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(await r.arrayBuffer()));
+  } catch {
+    res.status(502).end();
+  }
+});
+
 // Buscar produto por ID
 router.get('/products/:id', async (req: Request, res: Response) => {
   try {

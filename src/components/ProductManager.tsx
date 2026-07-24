@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, Product } from '../store';
-import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2 } from 'lucide-react';
 import { isValidImageUrl, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -96,6 +96,50 @@ const ProductManager = () => {
   const [bulkUploadStatus, setBulkUploadStatus] = useState('');
   const [bulkUploadProgress, setBulkUploadProgress] = useState({ done: 0, total: 0 });
   const [isBulkDragOver, setIsBulkDragOver] = useState(false);
+  const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
+
+  const lookupBarcode = async (rawCode: string) => {
+    const code = rawCode.replace(/\D/g, '');
+    if (code.length < 8 || isLookingUpBarcode) return;
+    setIsLookingUpBarcode(true);
+    try {
+      const res = await fetch(`/api/barcode-lookup/${code}`, { headers: { 'x-api-token': API_SECRET } });
+      if (res.status === 404) { toast.error('Produto não encontrado na base de dados.'); return; }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Falha ao buscar produto.'); return; }
+      const data = await res.json();
+
+      // Baixa a foto e trata como se o usuário tivesse selecionado um arquivo
+      // manualmente — assim, ao salvar, ela sobe pro nosso MinIO pelo mesmo
+      // caminho de sempre (com remoção de fundo), em vez de ficar "emprestada"
+      // direto da Cosmos.
+      let imagePreview: string | null = null;
+      if (data.thumbnail && !formData.image) {
+        try {
+          const imgRes = await fetch(data.thumbnail);
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            const file = new File([blob], `${code}.jpg`, { type: blob.type || 'image/jpeg' });
+            setPendingFile(file);
+            imagePreview = URL.createObjectURL(file);
+          }
+        } catch {
+          // segue sem foto se o download falhar — o resto do preenchimento continua valendo
+        }
+      }
+
+      setFormData(f => ({
+        ...f,
+        name: f.name?.trim() ? f.name : (data.description || f.name),
+        description: f.description?.trim() ? f.description : (data.brand ? `${data.brand} — ${data.description}` : (data.description || f.description)),
+        image: f.image || imagePreview || f.image,
+      }));
+      toast.success(`Produto encontrado: ${data.description}`);
+    } catch {
+      toast.error('Falha ao consultar o código de barras.');
+    } finally {
+      setIsLookingUpBarcode(false);
+    }
+  };
 
   const filenameToName = (filename: string) => {
     const noExt = filename.replace(/\.[^.]+$/, '');
@@ -435,8 +479,18 @@ const ProductManager = () => {
                   <input required type="text" placeholder="Nome do produto" spellCheck lang="pt-BR" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                     value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                   <div className="grid grid-cols-2 gap-2">
-                    <input type="text" placeholder="Código de barras" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
-                      value={formData.barcode || ''} onChange={e => setFormData({ ...formData, barcode: e.target.value })} />
+                    <div className="relative">
+                      <input type="text" placeholder="Código de barras (bipe ou digite)" className="w-full pl-3 pr-9 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
+                        value={formData.barcode || ''}
+                        onChange={e => setFormData({ ...formData, barcode: e.target.value })}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); lookupBarcode(formData.barcode || ''); } }}
+                        onBlur={e => lookupBarcode(e.target.value)} />
+                      <button type="button" onClick={() => lookupBarcode(formData.barcode || '')} disabled={isLookingUpBarcode}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-blue-500 disabled:opacity-40 transition-colors"
+                        title="Buscar produto pelo código de barras">
+                        {isLookingUpBarcode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      </button>
+                    </div>
                     <input type="text" placeholder="2º código de barras" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                       value={formData.barcode2 || ''} onChange={e => setFormData({ ...formData, barcode2: e.target.value })} />
                   </div>

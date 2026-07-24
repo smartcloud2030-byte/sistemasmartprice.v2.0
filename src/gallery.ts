@@ -1005,17 +1005,25 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
   const category = req.params.category;
 
   try {
-    // Envia para o microserviço rembg (processo já rodando, modelo pré-carregado)
-    const FormData = (await import('form-data')).default;
-    const fetch2 = (await import('node-fetch')).default;
+    // Envia para o microserviço rembg (processo já rodando, modelo pré-carregado).
+    // Esse microserviço só existe na VPS (fora deste repo/compose) — em dev local
+    // ele não roda, então cai no fallback abaixo (usa a imagem original sem
+    // remover fundo) em vez de quebrar o cadastro inteiro por causa disso.
+    let rembgBuffer: Buffer;
+    try {
+      const FormData = (await import('form-data')).default;
+      const fetch2 = (await import('node-fetch')).default;
 
-    const form = new FormData();
-    form.append('image', req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
+      const form = new FormData();
+      form.append('image', req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
 
-    const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
-    if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
-
-    const rembgBuffer = Buffer.from(await rembgRes.arrayBuffer());
+      const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
+      if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
+      rembgBuffer = Buffer.from(await rembgRes.arrayBuffer());
+    } catch (rembgErr: any) {
+      console.warn('[gallery] microserviço rembg indisponível, usando imagem original sem remover fundo:', rembgErr.message);
+      rembgBuffer = req.file.buffer;
+    }
 
     const rawName = (req.body && req.body.name && req.body.name.trim()) ? req.body.name.trim() : req.file.originalname.replace(/\.[^.]+$/, '');
     const cleanName = rawName.normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
