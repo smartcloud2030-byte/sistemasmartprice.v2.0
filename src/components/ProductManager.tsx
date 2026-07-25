@@ -42,11 +42,12 @@ function formatCatName(cat: string) {
   return cat.replace(/-/g, ' ').toUpperCase();
 }
 
-async function uploadToMinio(file: File, category: string, productName: string): Promise<{ url: string; thumbUrl: string }> {
+async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string }> {
   const folder = getFolder(category);
   const formData = new FormData();
   formData.append('image', file);
   formData.append('name', productName || '');
+  formData.append('duplicate', duplicate ? 'true' : 'false');
   const res = await fetch(`/gallery/upload-nobg2/${folder}`, {
     method: 'POST',
     headers: { 'x-gallery-token': GALLERY_PASSWORD },
@@ -68,6 +69,7 @@ const ProductManager = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<Omit<Product, 'id'>>({ name: '', description: '', price: '', image: null, category: '' });
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [duplicateOption, setDuplicateOption] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStep, setUploadStep] = useState('');
@@ -215,22 +217,29 @@ const ProductManager = () => {
     setFormData(f => ({ ...f, image: URL.createObjectURL(file) }));
   };
 
-  const doUpload = async (file: File, category: string, name: string): Promise<{ url: string; thumbUrl: string } | null> => {
+  const doUpload = async (file: File, category: string, name: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string } | null> => {
     setIsUploading(true);
     setUploadProgress(5);
     setUploadStep('Enviando imagem...');
-    const steps = [
-      { p: 20, l: 'Enviando para o servidor...' },
-      { p: 40, l: 'Removendo fundo com IA...' },
-      { p: 65, l: 'Processando...' },
-      { p: 80, l: 'Quase pronto...' },
-    ];
+    const steps = duplicate
+      ? [
+          { p: 20, l: 'Enviando para o servidor...' },
+          { p: 40, l: 'Verificando fundo da imagem...' },
+          { p: 60, l: 'Duplicando foto...' },
+          { p: 80, l: 'Quase pronto...' },
+        ]
+      : [
+          { p: 20, l: 'Enviando para o servidor...' },
+          { p: 40, l: 'Verificando fundo da imagem...' },
+          { p: 65, l: 'Processando...' },
+          { p: 80, l: 'Quase pronto...' },
+        ];
     let i = 0;
     const iv = setInterval(() => {
       if (i < steps.length) { setUploadProgress(steps[i].p); setUploadStep(steps[i].l); i++; }
     }, 2000);
     try {
-      const result = await uploadToMinio(file, category, name);
+      const result = await uploadToMinio(file, category, name, duplicate);
       clearInterval(iv);
       setUploadProgress(100); setUploadStep('Concluído!');
       await new Promise(r => setTimeout(r, 700));
@@ -255,7 +264,7 @@ const ProductManager = () => {
     let finalThumb = formData.thumb_image;
 
     if (pendingFile) {
-      const result = await doUpload(pendingFile, formData.category, formData.name);
+      const result = await doUpload(pendingFile, formData.category, formData.name, duplicateOption);
       if (!result) return;
       finalImage = result.url;
       finalThumb = result.thumbUrl;
@@ -275,6 +284,7 @@ const ProductManager = () => {
       setEditingProduct(null);
       setFormData({ name: '', description: '', price: '', image: null, category: '' });
       setPendingFile(null);
+      setDuplicateOption(false);
       await fetchProducts(); await fetchProductCount();
     } catch { toast.error('Erro ao salvar produto.'); }
   };
@@ -558,7 +568,7 @@ const ProductManager = () => {
                       <label className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors">
                         <Upload className="w-4 h-4 text-blue-500 shrink-0" />
                         <span className="text-xs text-blue-600 font-medium truncate">
-                          {pendingFile ? `✓ ${pendingFile.name}` : 'Selecionar imagem (remove fundo ao salvar)'}
+                          {pendingFile ? `✓ ${pendingFile.name}` : 'Selecionar imagem'}
                         </span>
                         <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) selectFile(f); }} />
                       </label>
@@ -566,6 +576,13 @@ const ProductManager = () => {
                         className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                         value={formData.image?.startsWith('blob:') ? '' : (formData.image || '')}
                         onChange={e => { setPendingFile(null); setFormData({ ...formData, image: e.target.value }); }} />
+                      {pendingFile && (
+                        <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+                          <input type="checkbox" checked={duplicateOption} onChange={e => setDuplicateOption(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500" />
+                          Duplicar foto (2 unidades sobrepostas)
+                        </label>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -723,7 +740,7 @@ const ProductManager = () => {
                       if (!row) { advance(); continue; }
                       setBulkUploadStatus(`Removendo fundo: ${row.name}`);
                       try {
-                        const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name);
+                        const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name, false);
                         rows[idx] = { ...row, image: result.url, thumb_image: result.thumbUrl };
                       } catch (e: any) {
                         toast.error(`Falha em ${row.name}: ${e.message || 'erro no upload'}`);
