@@ -100,6 +100,7 @@ fi
 # do bucket estar público.
 if ! docker run --rm --volumes-from "$MINIO_CONTAINER" alpine tar czf - \
   --exclude='./.minio.sys/tmp' --exclude='./.minio.sys/tmp/*' \
+  --exclude='./.minio.sys/buckets/*/.metacache' --exclude='./.minio.sys/buckets/*/.metacache/*' \
   -C /data . > "$IMAGES_BACKUP_FILE" 2>"$ERR_LOG"; then
   report_status "failed" "Backup das imagens falhou: $(cat "$ERR_LOG")" "$(basename "$IMAGES_BACKUP_FILE")"
   rm -f "$ERR_LOG" "$IMAGES_BACKUP_FILE"
