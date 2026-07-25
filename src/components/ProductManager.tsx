@@ -214,6 +214,7 @@ const ProductManager = () => {
   const selectFile = (file: File) => {
     if (!formData.category) { toast.error('Selecione uma categoria antes de escolher a imagem!'); return; }
     setPendingFile(file);
+    setDuplicateOption(false);
     setFormData(f => ({ ...f, image: URL.createObjectURL(file) }));
   };
 
@@ -372,6 +373,7 @@ const ProductManager = () => {
       setFormData({ name: '', description: '', price: '', image: null, category: '' });
     }
     setPendingFile(null);
+    setDuplicateOption(false);
     setIsModalOpen(true);
   };
 
@@ -557,7 +559,7 @@ const ProductManager = () => {
                       {formData.image ? (
                         <>
                           <img src={formData.image.startsWith('blob:') ? formData.image : getProxyUrl(formData.image)} alt="Preview" className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" />
-                          <button type="button" onClick={() => { setFormData({ ...formData, image: null }); setPendingFile(null); }}
+                          <button type="button" onClick={() => { setFormData({ ...formData, image: null }); setPendingFile(null); setDuplicateOption(false); }}
                             className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600">
                             <Trash2 className="w-2.5 h-2.5" />
                           </button>
@@ -575,7 +577,7 @@ const ProductManager = () => {
                       <input type="text" placeholder="ou cole a URL aqui"
                         className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                         value={formData.image?.startsWith('blob:') ? '' : (formData.image || '')}
-                        onChange={e => { setPendingFile(null); setFormData({ ...formData, image: e.target.value }); }} />
+                        onChange={e => { setPendingFile(null); setDuplicateOption(false); setFormData({ ...formData, image: e.target.value }); }} />
                       {pendingFile && (
                         <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
                           <input type="checkbox" checked={duplicateOption} onChange={e => setDuplicateOption(e.target.checked)}
