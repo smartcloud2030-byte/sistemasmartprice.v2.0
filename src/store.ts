@@ -1413,7 +1413,9 @@ export const useStore = create<AppState>()(
               encarteLayouts: state.encarteLayouts,
               announcements: state.announcements,
               seenAnnouncements: state.seenAnnouncements,
-              theme: state.theme,
+              // theme NÃO entra aqui de propósito — é preferência pessoal de
+              // cada admin (claro/escuro), fica só local (localStorage via
+              // persist), nunca sincroniza pro servidor. Ver loadUsersAndFlags.
               activeEncarteTab: state.activeEncarteTab,
               isChatEnabled: state.isChatEnabled
             }
@@ -1458,7 +1460,8 @@ export const useStore = create<AppState>()(
             encarteLayouts: settings.encarteLayouts || [],
             announcements: settings.announcements || [],
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
-            theme: settings.theme || currentState.theme,
+            // theme não é carregado do servidor de propósito — cada admin mantém
+            // o próprio tema local (ver saveUsersAndFlags acima).
             activeEncarteTab: settings.activeEncarteTab || currentState.activeEncarteTab,
             isChatEnabled: settings.isChatEnabled !== undefined ? settings.isChatEnabled : true
           });
