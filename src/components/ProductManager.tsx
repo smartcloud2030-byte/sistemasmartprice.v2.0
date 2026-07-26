@@ -74,6 +74,7 @@ const ProductManager = () => {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [duplicateOption, setDuplicateOption] = useState(false);
   const [duplicateMatch, setDuplicateMatch] = useState<Product | null>(null);
+  const [duplicateMatchFromBarcode, setDuplicateMatchFromBarcode] = useState(false);
   const [bulkDuplicates, setBulkDuplicates] = useState<BulkDuplicate[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -108,6 +109,13 @@ const ProductManager = () => {
   const lookupBarcode = async (rawCode: string) => {
     const code = rawCode.replace(/\D/g, '');
     if (code.length < 8 || isLookingUpBarcode) return;
+
+    // So o codigo de barras conta aqui (nome vazio de proposito) — o nome pode
+    // ja estar preenchido nesse ponto e colidir por acaso com outro produto,
+    // o que travaria o autofill da Cosmos pra um codigo genuinamente novo.
+    const localMatch = findDuplicateProduct({ name: '', barcode: code }, products, editingProduct?.id);
+    if (localMatch) { setDuplicateMatch(localMatch); setDuplicateMatchFromBarcode(true); return; }
+
     setIsLookingUpBarcode(true);
     try {
       const res = await fetch(`/api/barcode-lookup/${code}`, { headers: { 'x-api-token': API_SECRET } });
@@ -301,7 +309,7 @@ const ProductManager = () => {
     if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
 
     const match = findDuplicateProduct({ name: formData.name, barcode: formData.barcode, barcode2: formData.barcode2 }, products, editingProduct?.id);
-    if (match) { setDuplicateMatch(match); return; }
+    if (match) { setDuplicateMatch(match); setDuplicateMatchFromBarcode(false); return; }
 
     await saveProduct();
   };
@@ -391,6 +399,7 @@ const ProductManager = () => {
     setPendingFile(null);
     setDuplicateOption(false);
     setDuplicateMatch(null);
+    setDuplicateMatchFromBarcode(false);
     setIsModalOpen(true);
   };
 
@@ -881,12 +890,16 @@ const ProductManager = () => {
             </div>
             <p className="text-zinc-600 dark:text-zinc-400 font-bold mb-8">Deseja editá-lo em vez de cadastrar um novo?</p>
             <div className="flex gap-3">
-              <button onClick={() => setDuplicateMatch(null)} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Cancelar</button>
-              <button onClick={() => { const match = duplicateMatch; setDuplicateMatch(null); if (match) openModal(match); }} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Editar produto existente</button>
+              <button onClick={() => { setDuplicateMatch(null); setDuplicateMatchFromBarcode(false); }} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">
+                {duplicateMatchFromBarcode ? 'Cadastrar novamente' : 'Cancelar'}
+              </button>
+              <button onClick={() => { const match = duplicateMatch; setDuplicateMatch(null); setDuplicateMatchFromBarcode(false); if (match) openModal(match); }} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Editar produto existente</button>
             </div>
-            <button onClick={() => { setDuplicateMatch(null); saveProduct(); }} className="w-full mt-3 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-center">
-              {editingProduct?.id ? 'Salvar mesmo assim' : 'Cadastrar mesmo assim'}
-            </button>
+            {!duplicateMatchFromBarcode && (
+              <button onClick={() => { setDuplicateMatch(null); saveProduct(); }} className="w-full mt-3 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-center">
+                {editingProduct?.id ? 'Salvar mesmo assim' : 'Cadastrar mesmo assim'}
+              </button>
+            )}
           </div>
         </div>
       )}
