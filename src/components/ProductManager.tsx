@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, Product } from '../store';
+import { findDuplicateProduct } from '../lib/duplicateProductMatch';
 import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2 } from 'lucide-react';
 import { isValidImageUrl, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
@@ -70,6 +71,7 @@ const ProductManager = () => {
   const [formData, setFormData] = useState<Omit<Product, 'id'>>({ name: '', description: '', price: '', image: null, category: '' });
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [duplicateOption, setDuplicateOption] = useState(false);
+  const [duplicateMatch, setDuplicateMatch] = useState<Product | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStep, setUploadStep] = useState('');
@@ -261,6 +263,9 @@ const ProductManager = () => {
     if (!formData.description?.trim()) { toast.error('Informe a descrição do produto.'); return; }
     if (!formData.price?.trim()) { toast.error('Informe o preço do produto.'); return; }
     if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
+
+    const match = findDuplicateProduct({ name: formData.name, barcode: formData.barcode, barcode2: formData.barcode2 }, products, editingProduct?.id);
+    if (match) { setDuplicateMatch(match); return; }
 
     let finalImage = formData.image;
     let finalThumb = formData.thumb_image;
@@ -831,6 +836,34 @@ const ProductManager = () => {
             <div className="flex gap-3">
               <button onClick={() => { setShowBulkConfirm(false); setPendingBulkData([]); }} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Cancelar</button>
               <button onClick={() => executeBulkInsert(pendingBulkData)} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Continuar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmar produto duplicado */}
+      {duplicateMatch && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl shadow-2xl p-8">
+            <div className="flex items-center gap-4 mb-6 text-amber-500">
+              <AlertTriangle className="w-8 h-8" />
+              <h3 className="text-xl font-black uppercase">Produto já cadastrado</h3>
+            </div>
+            <div className="flex items-center gap-4 mb-6 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
+              <div className="w-16 h-16 shrink-0 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center">
+                {duplicateMatch.image ? (
+                  <img src={(duplicateMatch.thumb_image || duplicateMatch.image).startsWith('blob:') ? (duplicateMatch.thumb_image || duplicateMatch.image) : getProxyUrl(duplicateMatch.thumb_image || duplicateMatch.image)} alt={duplicateMatch.name} className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                ) : <Package className="w-6 h-6 text-zinc-300 dark:text-zinc-600" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-black dark:text-white truncate">{duplicateMatch.name}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{duplicateMatch.category}</p>
+              </div>
+            </div>
+            <p className="text-zinc-600 dark:text-zinc-400 font-bold mb-8">Deseja editá-lo em vez de cadastrar um novo?</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDuplicateMatch(null)} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Cancelar</button>
+              <button onClick={() => { const match = duplicateMatch; setDuplicateMatch(null); if (match) openModal(match); }} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Editar produto existente</button>
             </div>
           </div>
         </div>
