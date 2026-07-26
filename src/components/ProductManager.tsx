@@ -43,6 +43,8 @@ function formatCatName(cat: string) {
   return cat.replace(/-/g, ' ').toUpperCase();
 }
 
+type BulkDuplicate = { rowName: string; match: Product };
+
 async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean }> {
   const folder = getFolder(category);
   const formData = new FormData();
@@ -72,7 +74,7 @@ const ProductManager = () => {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [duplicateOption, setDuplicateOption] = useState(false);
   const [duplicateMatch, setDuplicateMatch] = useState<Product | null>(null);
-  const [bulkDuplicates, setBulkDuplicates] = useState<{ rowName: string; match: Product }[]>([]);
+  const [bulkDuplicates, setBulkDuplicates] = useState<BulkDuplicate[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStep, setUploadStep] = useState('');
@@ -258,16 +260,7 @@ const ProductManager = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name?.trim()) { toast.error('Informe a identificação do produto.'); return; }
-    if (!formData.description?.trim()) { toast.error('Informe a descrição do produto.'); return; }
-    if (!formData.price?.trim()) { toast.error('Informe o preço do produto.'); return; }
-    if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
-
-    const match = findDuplicateProduct({ name: formData.name, barcode: formData.barcode, barcode2: formData.barcode2 }, products, editingProduct?.id);
-    if (match) { setDuplicateMatch(match); return; }
-
+  const saveProduct = async () => {
     let finalImage = formData.image;
     let finalThumb = formData.thumb_image;
 
@@ -298,6 +291,19 @@ const ProductManager = () => {
       setDuplicateOption(false);
       await fetchProducts(); await fetchProductCount();
     } catch { toast.error('Erro ao salvar produto.'); }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name?.trim()) { toast.error('Informe a identificação do produto.'); return; }
+    if (!formData.description?.trim()) { toast.error('Informe a descrição do produto.'); return; }
+    if (!formData.price?.trim()) { toast.error('Informe o preço do produto.'); return; }
+    if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
+
+    const match = findDuplicateProduct({ name: formData.name, barcode: formData.barcode, barcode2: formData.barcode2 }, products, editingProduct?.id);
+    if (match) { setDuplicateMatch(match); return; }
+
+    await saveProduct();
   };
 
   const handleBulkSubmit = async (e: React.FormEvent) => {
@@ -384,6 +390,7 @@ const ProductManager = () => {
     }
     setPendingFile(null);
     setDuplicateOption(false);
+    setDuplicateMatch(null);
     setIsModalOpen(true);
   };
 
@@ -401,7 +408,7 @@ const ProductManager = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setMultiFormData(initialMultiFormData); setBulkPendingFiles({}); setBulkDefaultCategory(''); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
+          <button onClick={() => { setMultiFormData(initialMultiFormData); setBulkPendingFiles({}); setBulkDefaultCategory(''); setBulkDuplicates([]); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
             <Upload className="w-4 h-4" /> Cadastrar em massa
           </button>
           <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
@@ -733,6 +740,17 @@ const ProductManager = () => {
               <button onClick={() => setIsMultiRegisterModalOpen(false)} className="px-6 py-2.5 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-black dark:text-white">Cancelar</button>
               <button disabled={isLoading || isBulkUploading} onClick={async () => {
                 const rows = [...multiFormData];
+
+                const validForDuplicateCheck = rows.filter(p => p.name.trim());
+                if (!validForDuplicateCheck.length) { toast.error('Preencha ao menos um produto.'); return; }
+
+                const duplicates: BulkDuplicate[] = [];
+                for (const row of validForDuplicateCheck) {
+                  const match = findDuplicateProduct({ name: row.name, barcode: row.barcode, barcode2: row.barcode2 }, products);
+                  if (match) duplicates.push({ rowName: row.name, match });
+                }
+                if (duplicates.length > 0) { setBulkDuplicates(duplicates); return; }
+
                 const pendingEntries = Object.entries(bulkPendingFiles);
                 if (pendingEntries.length > 0) {
                   setIsBulkUploading(true);
@@ -769,16 +787,8 @@ const ProductManager = () => {
                   setBulkUploadStatus('');
                   setBulkUploadProgress({ done: 0, total: 0 });
                 }
+
                 const valid = rows.filter(p => p.name.trim());
-                if (!valid.length) { toast.error('Preencha ao menos um produto.'); return; }
-
-                const duplicates: { rowName: string; match: Product }[] = [];
-                for (const row of valid) {
-                  const match = findDuplicateProduct({ name: row.name, barcode: row.barcode, barcode2: row.barcode2 }, products);
-                  if (match) duplicates.push({ rowName: row.name, match });
-                }
-                if (duplicates.length > 0) { setBulkDuplicates(duplicates); return; }
-
                 setIsLoading(true);
                 try {
                   await apiCall('POST', '/products/bulk', valid.map(p => ({ name: p.name, description: p.description, price: p.price || 'R$ 0,00', image: p.image || null, thumb_image: p.thumb_image || null, category: p.category, barcode: p.barcode || null, barcode2: p.barcode2 || null })));
@@ -874,6 +884,9 @@ const ProductManager = () => {
               <button onClick={() => setDuplicateMatch(null)} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Cancelar</button>
               <button onClick={() => { const match = duplicateMatch; setDuplicateMatch(null); if (match) openModal(match); }} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Editar produto existente</button>
             </div>
+            <button onClick={() => { setDuplicateMatch(null); saveProduct(); }} className="w-full mt-3 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-center">
+              {editingProduct?.id ? 'Salvar mesmo assim' : 'Cadastrar mesmo assim'}
+            </button>
           </div>
         </div>
       )}

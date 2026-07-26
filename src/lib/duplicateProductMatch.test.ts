@@ -37,6 +37,11 @@ function emptyBarcodesDontMatchEachOther() {
   assert.strictEqual(result, null, 'codigos de barras vazios nao deveriam contar como match entre si');
 }
 
+function matchesWithWhitespacePaddedBarcode() {
+  const result = findDuplicateProduct({ name: 'Produto qualquer', barcode: '  7894900011517  ' }, existing);
+  assert.strictEqual(result?.id, 1, 'codigo de barras com espacos nas pontas deveria bater com o mesmo codigo ja cadastrado sem espacos');
+}
+
 try {
   matchesByBarcode();
   matchesByBarcode2();
@@ -44,6 +49,7 @@ try {
   noMatchForNewProduct();
   excludesOwnIdWhenEditing();
   emptyBarcodesDontMatchEachOther();
+  matchesWithWhitespacePaddedBarcode();
   console.log('PASS: todos os testes de duplicateProductMatch passaram');
 } catch (err: any) {
   console.error('FAIL:', err.message);
