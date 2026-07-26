@@ -873,9 +873,12 @@ const ProductManager = () => {
       {duplicateMatch && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl shadow-2xl p-8">
-            <div className="flex items-center gap-4 mb-6 text-amber-500">
-              <AlertTriangle className="w-8 h-8" />
-              <h3 className="text-xl font-black uppercase">Produto já cadastrado</h3>
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-4 text-amber-500">
+                <AlertTriangle className="w-8 h-8" />
+                <h3 className="text-xl font-black uppercase">Produto já cadastrado</h3>
+              </div>
+              <button onClick={() => { setDuplicateMatch(null); setDuplicateMatchFromBarcode(false); }} className="text-black dark:text-white opacity-60 hover:opacity-100 text-2xl leading-none">&times;</button>
             </div>
             <div className="flex items-center gap-4 mb-6 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
               <div className="w-16 h-16 shrink-0 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center">
