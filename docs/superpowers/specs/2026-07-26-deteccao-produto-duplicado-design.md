@@ -32,22 +32,28 @@ editado da comparação (senão toda edição acusaria duplicata dele mesmo).
 
 ## Fluxo 1 — Cadastro individual ("Novo produto", `ProductManager.tsx`)
 
-- No `handleSubmit` (`ProductManager.tsx:247-280`), **antes** de fazer upload/
-  salvar, e só quando `!editingProduct?.id` (criação nova, não edição), roda a
-  checagem de duplicata contra `products`.
+- No `handleSubmit`, **antes** de fazer upload/salvar, roda a checagem de
+  duplicata contra `products` — em **cadastro novo e em edição**, passando
+  `editingProduct?.id` como `excludeId` (senão toda edição acusaria duplicata
+  dela mesma; se o admin mudar nome/código pra algo que já pertence a OUTRO
+  produto, ainda acusa normalmente).
 - **Se achar duplicata:** não envia nada ainda. Abre um modal de confirmação:
   - Título "Produto já cadastrado"
   - Mostra a **foto** (`thumb_image` ou `image` do produto batido, mesmo padrão
-    de preview já usado em outros lugares do arquivo, ex:
-    `ProductManager.tsx:549` — `getProxyUrl`, `crossOrigin="anonymous"`), nome e
-    categoria do produto existente.
+    de preview já usado em outros lugares do arquivo — `getProxyUrl`,
+    `crossOrigin="anonymous"`), nome e categoria do produto existente.
   - Pergunta "Deseja editá-lo?"
   - Botão **Cancelar**: fecha o modal, o admin ajusta o formulário livremente.
   - Botão **Editar produto existente**: chama `openModal(produtoExistente)`
-    (mesma função já usada pelo botão "Editar" da listagem,
-    `ProductManager.tsx:441`) — carrega os dados do produto existente no
-    formulário e troca para modo edição (próximo submit vira `PUT`, não
-    `POST`).
+    (mesma função já usada pelo botão "Editar" da listagem) — carrega os dados
+    do produto existente no formulário e troca para modo edição (próximo
+    submit vira `PUT`, não `POST`).
+  - Botão **Cadastrar/Salvar mesmo assim** (menos destacado, abaixo dos dois
+    principais): ignora a checagem e segue com o salvamento normal mesmo
+    havendo duplicata. Existe porque a base já pode ter duplicatas de antes
+    dessa feature — sem essa saída, editar qualquer um desses produtos
+    existentes (ex: só pra atualizar preço) ficaria impossível, já que editar
+    um sempre acusaria duplicata do outro.
 - **Se não achar:** segue o fluxo de salvamento exatamente como hoje.
 
 ## Fluxo 2 — Cadastro em massa (grade, `ProductManager.tsx:728-777`)

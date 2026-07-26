@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, Product } from '../store';
+import { findDuplicateProduct } from '../lib/duplicateProductMatch';
 import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2 } from 'lucide-react';
 import { isValidImageUrl, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
@@ -42,6 +43,8 @@ function formatCatName(cat: string) {
   return cat.replace(/-/g, ' ').toUpperCase();
 }
 
+type BulkDuplicate = { rowName: string; match: Product };
+
 async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean }> {
   const folder = getFolder(category);
   const formData = new FormData();
@@ -70,6 +73,8 @@ const ProductManager = () => {
   const [formData, setFormData] = useState<Omit<Product, 'id'>>({ name: '', description: '', price: '', image: null, category: '' });
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [duplicateOption, setDuplicateOption] = useState(false);
+  const [duplicateMatch, setDuplicateMatch] = useState<Product | null>(null);
+  const [bulkDuplicates, setBulkDuplicates] = useState<BulkDuplicate[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStep, setUploadStep] = useState('');
@@ -255,13 +260,7 @@ const ProductManager = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name?.trim()) { toast.error('Informe a identificação do produto.'); return; }
-    if (!formData.description?.trim()) { toast.error('Informe a descrição do produto.'); return; }
-    if (!formData.price?.trim()) { toast.error('Informe o preço do produto.'); return; }
-    if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
-
+  const saveProduct = async () => {
     let finalImage = formData.image;
     let finalThumb = formData.thumb_image;
 
@@ -292,6 +291,19 @@ const ProductManager = () => {
       setDuplicateOption(false);
       await fetchProducts(); await fetchProductCount();
     } catch { toast.error('Erro ao salvar produto.'); }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name?.trim()) { toast.error('Informe a identificação do produto.'); return; }
+    if (!formData.description?.trim()) { toast.error('Informe a descrição do produto.'); return; }
+    if (!formData.price?.trim()) { toast.error('Informe o preço do produto.'); return; }
+    if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
+
+    const match = findDuplicateProduct({ name: formData.name, barcode: formData.barcode, barcode2: formData.barcode2 }, products, editingProduct?.id);
+    if (match) { setDuplicateMatch(match); return; }
+
+    await saveProduct();
   };
 
   const handleBulkSubmit = async (e: React.FormEvent) => {
@@ -378,6 +390,7 @@ const ProductManager = () => {
     }
     setPendingFile(null);
     setDuplicateOption(false);
+    setDuplicateMatch(null);
     setIsModalOpen(true);
   };
 
@@ -395,7 +408,7 @@ const ProductManager = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setMultiFormData(initialMultiFormData); setBulkPendingFiles({}); setBulkDefaultCategory(''); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
+          <button onClick={() => { setMultiFormData(initialMultiFormData); setBulkPendingFiles({}); setBulkDefaultCategory(''); setBulkDuplicates([]); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
             <Upload className="w-4 h-4" /> Cadastrar em massa
           </button>
           <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
@@ -727,6 +740,17 @@ const ProductManager = () => {
               <button onClick={() => setIsMultiRegisterModalOpen(false)} className="px-6 py-2.5 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-black dark:text-white">Cancelar</button>
               <button disabled={isLoading || isBulkUploading} onClick={async () => {
                 const rows = [...multiFormData];
+
+                const validForDuplicateCheck = rows.filter(p => p.name.trim());
+                if (!validForDuplicateCheck.length) { toast.error('Preencha ao menos um produto.'); return; }
+
+                const duplicates: BulkDuplicate[] = [];
+                for (const row of validForDuplicateCheck) {
+                  const match = findDuplicateProduct({ name: row.name, barcode: row.barcode, barcode2: row.barcode2 }, products);
+                  if (match) duplicates.push({ rowName: row.name, match });
+                }
+                if (duplicates.length > 0) { setBulkDuplicates(duplicates); return; }
+
                 const pendingEntries = Object.entries(bulkPendingFiles);
                 if (pendingEntries.length > 0) {
                   setIsBulkUploading(true);
@@ -763,8 +787,8 @@ const ProductManager = () => {
                   setBulkUploadStatus('');
                   setBulkUploadProgress({ done: 0, total: 0 });
                 }
+
                 const valid = rows.filter(p => p.name.trim());
-                if (!valid.length) { toast.error('Preencha ao menos um produto.'); return; }
                 setIsLoading(true);
                 try {
                   await apiCall('POST', '/products/bulk', valid.map(p => ({ name: p.name, description: p.description, price: p.price || 'R$ 0,00', image: p.image || null, thumb_image: p.thumb_image || null, category: p.category, barcode: p.barcode || null, barcode2: p.barcode2 || null })));
@@ -832,6 +856,68 @@ const ProductManager = () => {
               <button onClick={() => { setShowBulkConfirm(false); setPendingBulkData([]); }} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Cancelar</button>
               <button onClick={() => executeBulkInsert(pendingBulkData)} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Continuar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmar produto duplicado */}
+      {duplicateMatch && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl shadow-2xl p-8">
+            <div className="flex items-center gap-4 mb-6 text-amber-500">
+              <AlertTriangle className="w-8 h-8" />
+              <h3 className="text-xl font-black uppercase">Produto já cadastrado</h3>
+            </div>
+            <div className="flex items-center gap-4 mb-6 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
+              <div className="w-16 h-16 shrink-0 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center">
+                {duplicateMatch.image ? (
+                  <img src={(duplicateMatch.thumb_image || duplicateMatch.image).startsWith('blob:') ? (duplicateMatch.thumb_image || duplicateMatch.image) : getProxyUrl(duplicateMatch.thumb_image || duplicateMatch.image)} alt={duplicateMatch.name} className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                ) : <Package className="w-6 h-6 text-zinc-300 dark:text-zinc-600" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-black dark:text-white truncate">{duplicateMatch.name}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{duplicateMatch.category}</p>
+              </div>
+            </div>
+            <p className="text-zinc-600 dark:text-zinc-400 font-bold mb-8">Deseja editá-lo em vez de cadastrar um novo?</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDuplicateMatch(null)} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Cancelar</button>
+              <button onClick={() => { const match = duplicateMatch; setDuplicateMatch(null); if (match) openModal(match); }} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Editar produto existente</button>
+            </div>
+            <button onClick={() => { setDuplicateMatch(null); saveProduct(); }} className="w-full mt-3 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-center">
+              {editingProduct?.id ? 'Salvar mesmo assim' : 'Cadastrar mesmo assim'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicatas no cadastro em massa */}
+      {bulkDuplicates.length > 0 && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl shadow-2xl p-8 max-h-[85vh] flex flex-col">
+            <div className="flex items-center gap-4 mb-6 text-amber-500 shrink-0">
+              <AlertTriangle className="w-8 h-8" />
+              <h3 className="text-xl font-black uppercase">Produtos já cadastrados</h3>
+            </div>
+            <p className="text-zinc-600 dark:text-zinc-400 font-bold mb-4 shrink-0">
+              {bulkDuplicates.length} {bulkDuplicates.length === 1 ? 'linha bate' : 'linhas batem'} com produtos já existentes. Ajuste ou remova essas linhas antes de cadastrar.
+            </p>
+            <div className="space-y-2 overflow-y-auto mb-6">
+              {bulkDuplicates.map((d, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
+                  <div className="w-12 h-12 shrink-0 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden flex items-center justify-center">
+                    {d.match.image ? (
+                      <img src={(d.match.thumb_image || d.match.image).startsWith('blob:') ? (d.match.thumb_image || d.match.image) : getProxyUrl(d.match.thumb_image || d.match.image)} alt={d.match.name} className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                    ) : <Package className="w-5 h-5 text-zinc-300 dark:text-zinc-600" />}
+                  </div>
+                  <div className="min-w-0 text-sm">
+                    <p className="font-semibold text-black dark:text-white truncate">{d.rowName}</p>
+                    <p className="text-zinc-500 dark:text-zinc-400 truncate">já existe como "{d.match.name}"</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setBulkDuplicates([])} className="shrink-0 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">Fechar</button>
           </div>
         </div>
       )}
