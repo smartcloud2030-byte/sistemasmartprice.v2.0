@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "test": "tsx src/backgroundDetect.test.ts && tsx src/duplicateComposite.test.ts",
     "start": "node server.ts",
     "build": "vite build",
     "preview": "vite preview",

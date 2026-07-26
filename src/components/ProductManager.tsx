@@ -42,7 +42,7 @@ function formatCatName(cat: string) {
   return cat.replace(/-/g, ' ').toUpperCase();
 }
 
-async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string }> {
+async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean }> {
   const folder = getFolder(category);
   const formData = new FormData();
   formData.append('image', file);
@@ -58,7 +58,7 @@ async function uploadToMinio(file: File, category: string, productName: string, 
     throw new Error(err.error || 'Falha no upload');
   }
   const data = await res.json();
-  return { url: data.url || '', thumbUrl: data.thumbUrl || data.url || '' };
+  return { url: data.url || '', thumbUrl: data.thumbUrl || data.url || '', duplicated: data.duplicated === true };
 }
 
 const ProductManager = () => {
@@ -122,6 +122,7 @@ const ProductManager = () => {
             const blob = await imgRes.blob();
             const file = new File([blob], `${code}.jpg`, { type: blob.type || 'image/jpeg' });
             setPendingFile(file);
+            setDuplicateOption(false);
             imagePreview = URL.createObjectURL(file);
           }
         } catch {
@@ -218,7 +219,7 @@ const ProductManager = () => {
     setFormData(f => ({ ...f, image: URL.createObjectURL(file) }));
   };
 
-  const doUpload = async (file: File, category: string, name: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string } | null> => {
+  const doUpload = async (file: File, category: string, name: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean } | null> => {
     setIsUploading(true);
     setUploadProgress(5);
     setUploadStep('Enviando imagem...');
@@ -269,6 +270,9 @@ const ProductManager = () => {
       if (!result) return;
       finalImage = result.url;
       finalThumb = result.thumbUrl;
+      if (duplicateOption && !result.duplicated) {
+        toast.warning('Não foi possível duplicar a foto desta vez — a imagem foi salva normalmente, sem o efeito de 2 unidades.');
+      }
     }
 
     const dataToSave = { ...formData, image: finalImage?.startsWith('blob:') ? null : finalImage, thumb_image: finalThumb?.startsWith('blob:') ? null : finalThumb };

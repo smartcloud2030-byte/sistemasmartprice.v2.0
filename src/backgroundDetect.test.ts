@@ -30,10 +30,23 @@ async function opaquePngWithAlphaChannelHasBackground() {
   assert.strictEqual(result, false, 'PNG com canal alfa mas 100% opaco deveria ser detectado como COM fundo');
 }
 
+async function almostOpaqueIsNotAlreadyCutOut() {
+  const core = await sharp({
+    create: { width: 198, height: 198, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  }).png().toBuffer();
+  const buffer = await sharp(core)
+    .extend({ top: 1, bottom: 1, left: 1, right: 1, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const result = await isAlreadyCutOut(buffer);
+  assert.strictEqual(result, false, 'imagem com so 1px de borda transparente (bem abaixo do limiar) NAO deveria contar como ja sem fundo');
+}
+
 async function main() {
   await opaqueJpegHasBackground();
   await transparentPngIsAlreadyCutOut();
   await opaquePngWithAlphaChannelHasBackground();
+  await almostOpaqueIsNotAlreadyCutOut();
   console.log('PASS: todos os testes de backgroundDetect passaram');
 }
 

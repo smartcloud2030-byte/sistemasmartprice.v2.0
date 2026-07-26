@@ -1009,7 +1009,12 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
   try {
     // Detecta automaticamente se a imagem enviada ja nao tem fundo (ex: ja veio
     // recortada de um cadastro anterior) pra nao chamar o rembg de novo a toa.
-    const alreadyCutOut = await isAlreadyCutOut(req.file.buffer);
+    let alreadyCutOut = false;
+    try {
+      alreadyCutOut = await isAlreadyCutOut(req.file.buffer);
+    } catch (detectErr: any) {
+      console.warn('[gallery] falha ao detectar se a imagem ja tem fundo, assumindo que tem:', detectErr.message);
+    }
 
     let rembgBuffer: Buffer;
     if (alreadyCutOut) {
@@ -1036,9 +1041,11 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
     }
 
     let finalBuffer = rembgBuffer;
+    let duplicated = false;
     if (req.body?.duplicate === 'true') {
       try {
         finalBuffer = await composeDuplicate(rembgBuffer);
+        duplicated = true;
       } catch (duplicateErr: any) {
         console.warn('[gallery] falha ao duplicar imagem, usando imagem sem duplicar:', duplicateErr.message);
       }
@@ -1058,7 +1065,7 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
     await minioClient.putObject(BUCKET, fullPath, mainBuffer, mainBuffer.length, { 'Content-Type': 'image/webp' });
     await minioClient.putObject(BUCKET, thumbPath, thumbBuffer, thumbBuffer.length, { 'Content-Type': 'image/webp' });
 
-    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, thumbUrl: `${PUBLIC_URL}/${BUCKET}/${thumbPath}`, filename, size: mainBuffer.length });
+    res.json({ url: `${PUBLIC_URL}/${BUCKET}/${fullPath}`, thumbUrl: `${PUBLIC_URL}/${BUCKET}/${thumbPath}`, filename, size: mainBuffer.length, duplicated });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

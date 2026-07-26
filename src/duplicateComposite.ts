@@ -10,13 +10,20 @@ const SHADOW_BLUR_SIGMA = 8;
 const SHADOW_OPACITY = 0.35;
 const SHADOW_OFFSET_X = 10;
 const SHADOW_OFFSET_Y = 14;
+// Limita a maior dimensao do produto recortado antes de compor — a saida final
+// sempre passa por resize pra 800x800 no chamador, entao compor em resolucao
+// muito maior que isso so custa CPU/memoria sem ganho visual.
+const MAX_INPUT_DIMENSION = 1000;
 
 // Recorta o produto, cria uma copia "de tras" (menor, rotacionada) e uma copia
 // "da frente" (tamanho original, levemente rotacionada), com uma sombra suave
 // atras da copia da frente, e compoe tudo num canvas transparente maior.
 // Deterministico: mesmos pixels reais do produto, nunca inventa/distorce o rotulo.
 export async function composeDuplicate(buffer: Buffer): Promise<Buffer> {
-  const trimmed = await sharp(buffer).trim().toBuffer();
+  let trimmed = await sharp(buffer).trim().toBuffer();
+  trimmed = await sharp(trimmed)
+    .resize(MAX_INPUT_DIMENSION, MAX_INPUT_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer();
   const { width, height } = await sharp(trimmed).metadata();
   if (!width || !height) {
     throw new Error('composeDuplicate: imagem recortada ficou sem dimensoes validas');
@@ -55,15 +62,16 @@ export async function composeDuplicate(buffer: Buffer): Promise<Buffer> {
 
   const offsetX = Math.round(width * OFFSET_X_RATIO);
   const offsetY = Math.round(height * OFFSET_Y_RATIO);
-  const margin = Math.round(Math.max(width, height) * MARGIN_RATIO);
+  const marginX = Math.round(width * MARGIN_RATIO);
+  const marginY = Math.round(height * MARGIN_RATIO);
 
-  const backLeft = margin;
-  const backTop = margin;
-  const frontLeft = margin + offsetX;
-  const frontTop = margin + offsetY;
+  const backLeft = marginX;
+  const backTop = marginY;
+  const frontLeft = marginX + offsetX;
+  const frontTop = marginY + offsetY;
 
-  const canvasWidth = Math.max(backLeft + backMeta.width, frontLeft + frontMeta.width) + margin;
-  const canvasHeight = Math.max(backTop + backMeta.height, frontTop + frontMeta.height) + margin;
+  const canvasWidth = Math.max(backLeft + backMeta.width, frontLeft + frontMeta.width) + marginX;
+  const canvasHeight = Math.max(backTop + backMeta.height, frontTop + frontMeta.height) + marginY;
 
   return sharp({
     create: { width: canvasWidth, height: canvasHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
