@@ -110,7 +110,10 @@ const ProductManager = () => {
     const code = rawCode.replace(/\D/g, '');
     if (code.length < 8 || isLookingUpBarcode) return;
 
-    const localMatch = findDuplicateProduct({ name: formData.name, barcode: code }, products, editingProduct?.id);
+    // So o codigo de barras conta aqui (nome vazio de proposito) — o nome pode
+    // ja estar preenchido nesse ponto e colidir por acaso com outro produto,
+    // o que travaria o autofill da Cosmos pra um codigo genuinamente novo.
+    const localMatch = findDuplicateProduct({ name: '', barcode: code }, products, editingProduct?.id);
     if (localMatch) { setDuplicateMatch(localMatch); setDuplicateMatchFromBarcode(true); return; }
 
     setIsLookingUpBarcode(true);
