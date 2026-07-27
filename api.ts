@@ -269,6 +269,42 @@ router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
   }
 });
 
+// Atualizar varios produtos de uma vez, por id (usado pelo import de
+// planilha) — precisa vir ANTES de PUT /products/:id, senao o Express
+// tentaria casar "/products/bulk" com a rota :id.
+router.put('/products/bulk', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const updates = req.body;
+    if (!Array.isArray(updates)) return res.status(400).json({ error: 'Formato inválido' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      let updatedCount = 0;
+      const skippedIds: (string | number)[] = [];
+      for (const p of updates) {
+        if (p.id === undefined || p.id === null) continue;
+        const result = await client.query(
+          `UPDATE products SET name=$1, description=$2, price=$3, category=$4, barcode=$5, barcode2=$6
+           WHERE id=$7`,
+          [p.name || '', p.description || '', p.price || 'R$ 0,00', p.category || '', p.barcode || null, p.barcode2 || null, p.id]
+        );
+        if (result.rowCount && result.rowCount > 0) updatedCount++;
+        else skippedIds.push(p.id);
+      }
+      await client.query('COMMIT');
+      res.json({ updatedCount, skippedIds });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Atualizar produto
 router.put('/products/:id', apiAuth, async (req: Request, res: Response) => {
   try {
