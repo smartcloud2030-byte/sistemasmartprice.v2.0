@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from './store';
 import CanvasPreview from './components/CanvasPreview';
 import ProductManager from './components/ProductManager';
+import ProductReport from './components/ProductReport';
 import ProductSelector from './components/ProductSelector';
 import Adjustments from './components/Adjustments';
 import PrintQueue from './components/PrintQueue';
@@ -25,7 +26,7 @@ import {
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -39,7 +40,8 @@ import { toast } from 'sonner';
 export default function App() {
   const { 
     theme, toggleTheme, textElements1, 
-    isProductModalOpen, setProductModalOpen, 
+    isProductModalOpen, setProductModalOpen,
+    isProductReportModalOpen, setProductReportModalOpen,
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
     isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
@@ -739,6 +741,7 @@ export default function App() {
                 >
                   <DropdownLabel>Gestão</DropdownLabel>
                   <DropdownItem icon={<Database className="w-4 h-4" />} label="Gerenciador de Produtos" onClick={() => setProductModalOpen(true)} />
+                  <DropdownItem icon={<FileSpreadsheet className="w-4 h-4" />} label="Relatório de Produtos" onClick={() => setProductReportModalOpen(true)} />
                   <DropdownItem icon={<Users className="w-4 h-4" />} label="Gerenciar Usuários" onClick={() => setUserModalOpen(true)} />
                   <DropdownItem icon={<Megaphone className="w-4 h-4" />} label="Comunicados" onClick={() => setAnnouncementModalOpen(true)} />
                   <DropdownDivider />
@@ -1111,6 +1114,33 @@ export default function App() {
             </div>
             <div className="flex-grow overflow-y-auto custom-scrollbar">
               <ProductManager />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Product Report Modal */}
+      {isProductReportModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-600 rounded-lg text-white">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-black dark:text-white">Relatório de Produtos</h3>
+                  <p className="text-xs text-black dark:text-white opacity-60">Exportar e atualizar produtos em lote via Excel</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setProductReportModalOpen(false)}
+                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-grow overflow-y-auto custom-scrollbar">
+              <ProductReport />
             </div>
           </div>
         </div>
