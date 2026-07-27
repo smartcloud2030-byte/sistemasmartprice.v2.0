@@ -9,13 +9,16 @@ const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 const COLUMNS = ['ID', 'Nome do Produto', 'Código de Barras 1', 'Código de Barras 2', 'Preço', 'Categoria', 'Descrição'];
 
+// NUNCA converte pra number: product.id vem do Postgres como BIGSERIAL, e o
+// driver `pg` retorna colunas bigint como string em JS (sem setTypeParser
+// customizado no projeto). Se aqui devolvêssemos number, a auto-exclusão em
+// findDuplicateProduct (product.id === excludeId, comparação estrita) falharia
+// silenciosamente pra toda linha reimportada sem edição, e o import ficaria
+// sempre bloqueado por "conflito consigo mesma".
 function parseId(raw: unknown): string | number | null {
   if (raw === undefined || raw === null || raw === '') return null;
-  if (typeof raw === 'number') return raw;
   const trimmed = String(raw).trim();
-  if (trimmed === '') return null;
-  const asNumber = Number(trimmed);
-  return Number.isNaN(asNumber) ? trimmed : asNumber;
+  return trimmed === '' ? null : trimmed;
 }
 
 function cellToString(raw: unknown): string {
@@ -89,6 +92,11 @@ export default function ProductReport() {
         });
       }
 
+      if (rows.length === 0) {
+        toast.error('Nenhuma linha com ID válido encontrada nessa planilha.');
+        return;
+      }
+
       setIgnoredCount(ignored);
       const foundConflicts = findImportConflicts(rows, products);
       if (foundConflicts.length > 0) {
@@ -137,6 +145,9 @@ export default function ProductReport() {
 
       <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-4 space-y-3">
         <p className="text-sm font-semibold text-black dark:text-white">2. Subir planilha atualizada</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Não renomeie as colunas da planilha — o sistema identifica os campos pelos nomes exatos.
+        </p>
         <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg cursor-pointer text-sm font-medium text-blue-600 w-fit">
           <Upload className="w-4 h-4" /> Selecionar planilha (.xlsx)
           <input type="file" accept=".xlsx" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); }} />
