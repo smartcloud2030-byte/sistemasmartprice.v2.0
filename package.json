@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "test": "tsx src/backgroundDetect.test.ts && tsx src/duplicateComposite.test.ts && tsx src/lib/duplicateProductMatch.test.ts",
+    "test": "tsx src/backgroundDetect.test.ts && tsx src/duplicateComposite.test.ts && tsx src/lib/duplicateProductMatch.test.ts && tsx src/lib/productReportConflicts.test.ts",
     "start": "node server.ts",
     "build": "vite build",
     "preview": "vite preview",
@@ -47,6 +47,7 @@
     "tailwind-merge": "^3.5.0",
     "use-image": "^1.1.4",
     "vite": "^6.2.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
