@@ -2,7 +2,7 @@ import type { Product } from '../store';
 import { findDuplicateProduct } from './duplicateProductMatch';
 
 export interface ReportRow {
-  id: string | number;
+  id: string;
   name: string;
   barcode: string | null;
   barcode2: string | null;

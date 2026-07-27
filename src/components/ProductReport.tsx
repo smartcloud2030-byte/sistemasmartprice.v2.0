@@ -14,11 +14,16 @@ const COLUMNS = ['ID', 'Nome do Produto', 'Código de Barras 1', 'Código de Bar
 // customizado no projeto). Se aqui devolvêssemos number, a auto-exclusão em
 // findDuplicateProduct (product.id === excludeId, comparação estrita) falharia
 // silenciosamente pra toda linha reimportada sem edição, e o import ficaria
-// sempre bloqueado por "conflito consigo mesma".
-function parseId(raw: unknown): string | number | null {
+// sempre bloqueado por "conflito consigo mesma". O tipo de retorno também não
+// aceita mais `number` — isso é o que garante, em tempo de compilação, que
+// esse bug não pode voltar despercebido. Além disso, célula de ID que não é
+// puramente numérica vira null (linha ignorada) em vez de virar uma string
+// que o Postgres rejeitaria com erro 500 pro lote inteiro.
+function parseId(raw: unknown): string | null {
   if (raw === undefined || raw === null || raw === '') return null;
   const trimmed = String(raw).trim();
-  return trimmed === '' ? null : trimmed;
+  if (trimmed === '' || !/^\d+$/.test(trimmed)) return null;
+  return trimmed;
 }
 
 function cellToString(raw: unknown): string {
@@ -32,18 +37,7 @@ export default function ProductReport() {
   const [ignoredCount, setIgnoredCount] = useState(0);
   const [conflicts, setConflicts] = useState<ReportConflict[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-
-  // Não existe useStore().fetchProductCount — a contagem de produtos é
-  // buscada localmente (mesmo padrão do ProductManager.tsx, que também
-  // implementa isso por conta própria via GET /api/products/count).
-  const fetchProductCount = async () => {
-    try {
-      await fetch('/api/products/count', { headers: { 'x-api-token': API_SECRET } });
-    } catch {
-      // silencioso — a contagem exibida em outro lugar da tela vai só
-      // atualizar na próxima visita; não é crítico para o fluxo de importação
-    }
-  };
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const handleExport = () => {
     const rows = products.map(p => ({
@@ -70,20 +64,38 @@ export default function ProductReport() {
 
   const handleFileSelected = async (file: File) => {
     resetImportState();
+    setIsAnalyzing(true);
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
+
+      // Cabeçalho literal (header: 1), não afetado por linhas de dados
+      // esparsas — se alguma coluna foi renomeada ou removida, os campos
+      // dessa coluna virariam undefined em silêncio no resto do parsing (ex.
+      // "Nome do Produto" apagado apagaria o nome de todo produto atualizado
+      // sem nenhum aviso). Barra a importação inteira antes disso acontecer.
+      const headerRow = (XLSX.utils.sheet_to_json(sheet, { header: 1 })[0] as string[] | undefined) || [];
+      const missingColumns = COLUMNS.filter(c => !headerRow.includes(c));
+      if (missingColumns.length > 0) {
+        toast.error(`Planilha inválida — coluna(s) ausente(s) ou renomeada(s): ${missingColumns.join(', ')}. Baixe uma nova planilha e não altere os cabeçalhos.`);
+        return;
+      }
+
       const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
       const rows: ReportRow[] = [];
       let ignored = 0;
       for (const r of raw) {
         const id = parseId(r['ID']);
-        if (id === null) { ignored++; continue; }
+        const name = cellToString(r['Nome do Produto']);
+        // Linha sem ID (não é update de nada) ou sem nome (célula apagada por
+        // engano) é ignorada em vez de virar um `name: ''` que o backend
+        // salvaria por cima do nome real do produto.
+        if (id === null || name === '') { ignored++; continue; }
         rows.push({
           id,
-          name: cellToString(r['Nome do Produto']),
+          name,
           barcode: cellToString(r['Código de Barras 1']) || null,
           barcode2: cellToString(r['Código de Barras 2']) || null,
           price: cellToString(r['Preço']),
@@ -106,6 +118,8 @@ export default function ProductReport() {
       }
     } catch {
       toast.error('Não foi possível ler essa planilha. Confirme que é o arquivo .xlsx baixado por aqui.');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -123,7 +137,6 @@ export default function ProductReport() {
       toast.success(`${data.updatedCount} produto(s) atualizado(s)${data.skippedIds?.length ? `, ${data.skippedIds.length} ignorado(s) (não encontrado(s))` : ''}.`);
       resetImportState();
       await fetchProducts();
-      await fetchProductCount();
     } catch (e: any) {
       toast.error('Erro ao atualizar produtos: ' + (e.message || 'tente novamente'));
     } finally {
@@ -150,8 +163,9 @@ export default function ProductReport() {
         </p>
         <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg cursor-pointer text-sm font-medium text-blue-600 w-fit">
           <Upload className="w-4 h-4" /> Selecionar planilha (.xlsx)
-          <input type="file" accept=".xlsx" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); }} />
+          <input type="file" accept=".xlsx" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); e.target.value = ''; }} />
         </label>
+        {isAnalyzing && <p className="text-xs text-blue-600">Analisando planilha...</p>}
       </div>
 
       {conflicts.length > 0 && (
