@@ -27,7 +27,15 @@ interface DraggableBoxProps {
 
 const MIN_PCT = 3;
 
-export default function DraggableBox({ rect, containerRef, onChange, onRemove, label, color = '#10b981', resizable = true, children }: DraggableBoxProps) {
+// forwardRef: permite aninhar um DraggableBox dentro de outro — o pai passa
+// a própria ref (capturada aqui) como `containerRef` de um DraggableBox
+// filho, pra esse filho poder ser arrastado/redimensionado relativo ao
+// tamanho JÁ RENDERIZADO do pai (ex: mover a foto do produto dentro do
+// card do produto, que por sua vez já é movível dentro do slot).
+const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(function DraggableBox(
+  { rect, containerRef, onChange, onRemove, label, color = '#10b981', resizable = true, children },
+  ref
+) {
   const dragState = useRef<{ mode: 'move' | 'resize'; startX: number; startY: number; startRect: BoxRect } | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -76,6 +84,7 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
 
   return (
     <div
+      ref={ref}
       onPointerDown={startDrag('move')}
       className={children ? 'absolute cursor-move select-none' : 'absolute border-2 border-dashed cursor-move flex items-center justify-center select-none'}
       style={{
@@ -111,4 +120,6 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
       )}
     </div>
   );
-}
+});
+
+export default DraggableBox;

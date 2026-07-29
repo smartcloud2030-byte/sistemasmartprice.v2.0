@@ -147,11 +147,29 @@ export interface Announcement {
 
 export type View = 'editor' | 'queue' | 'encarte' | 'dashboard' | 'smarthelp';
 
+export interface EncarteElementRect {
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+}
+
+// Posição/tamanho independentes de cada elemento (nome, descrição, caixa de
+// preço, foto) dentro do card do produto no Encarte — cada um arrastável e
+// redimensionável na própria posição, igual ao editor de plaquinhas.
+export interface EncarteElementLayout {
+  name?: EncarteElementRect;
+  subtitle?: EncarteElementRect;
+  price?: EncarteElementRect;
+  image?: EncarteElementRect;
+}
+
 export interface SelectedProduct extends Product {
   id: string;
   subtitle?: string;
   offsetX?: number;
   offsetY?: number;
+  elementLayout?: EncarteElementLayout;
   textOffsetX?: number;
   textOffsetY?: number;
   displayType?: 'price' | 'discount';

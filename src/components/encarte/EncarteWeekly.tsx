@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useStore, Product, SelectedProduct, EncarteSemanal } from '../../store';
+import { useStore, Product, SelectedProduct, EncarteSemanal, EncarteElementRect } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
-import { formatPrice } from '../../lib/encartePrice';
 import ProductSelector from '../ProductSelector';
 import DraggableBox, { BoxRect } from './DraggableBox';
-import { Plus, FileDown, Image as ImageIcon2, X, Percent } from 'lucide-react';
+import { Plus, FileDown, Image as ImageIcon2, Percent, ZoomIn, ZoomOut } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
@@ -16,6 +15,16 @@ const SAVE_DEBOUNCE_MS = 800;
 // aba de novo (ou até recarregar a página, já que sessionStorage
 // persiste) até uma tentativa seguinte confirmar no servidor.
 const PENDING_SAVE_KEY = 'smartprice_encarte_semanal_pending';
+
+// Posições/tamanhos iniciais dos 4 elementos dentro do card do produto —
+// só usados até o usuário arrastar/redimensionar algum; a partir daí o
+// valor salvo em product.elementLayout manda.
+const DEFAULT_ELEMENT_RECTS: Record<'name' | 'subtitle' | 'price' | 'image', EncarteElementRect> = {
+  name: { xPct: 2, yPct: 2, widthPct: 58, heightPct: 20 },
+  subtitle: { xPct: 2, yPct: 24, widthPct: 58, heightPct: 16 },
+  price: { xPct: 2, yPct: 44, widthPct: 42, heightPct: 40 },
+  image: { xPct: 62, yPct: 10, widthPct: 36, heightPct: 80 },
+};
 
 const emptySemanal = (moldeId: string, storeProfileId: string): EncarteSemanal => ({
   id: Math.random().toString(36).slice(2, 10),
@@ -42,6 +51,7 @@ export default function EncarteWeekly() {
   const [side, setSide] = useState<'frente' | 'verso'>('frente');
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [zoom, setZoom] = useState(100);
   const previewRef = useRef<HTMLDivElement>(null);
   // Um ref estável por slot (não recriado a cada render) — o conteúdo do
   // produto é arrastável dentro do próprio slot via DraggableBox, que exige
@@ -55,6 +65,17 @@ export default function EncarteWeekly() {
       slotContainerRefs.current.set(slotId, React.createRef<HTMLDivElement>());
     }
     return slotContainerRefs.current.get(slotId)!;
+  };
+  // Ref pro próprio card do produto (o DraggableBox externo) — usado como
+  // containerRef dos 4 elementos internos (nome/descrição/preço/foto), que
+  // são arrastáveis/redimensionáveis cada um dentro do card, igual ao
+  // editor de plaquinhas.
+  const cardRefs = useRef<Map<string, React.RefObject<HTMLDivElement>>>(new Map());
+  const getCardRef = (slotId: string) => {
+    if (!cardRefs.current.has(slotId)) {
+      cardRefs.current.set(slotId, React.createRef<HTMLDivElement>());
+    }
+    return cardRefs.current.get(slotId)!;
   };
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guarda o último EncarteSemanal ainda não confirmado no servidor — usado
@@ -169,6 +190,13 @@ export default function EncarteWeekly() {
     persistSemanal({ ...semanal, produtos: { ...semanal.produtos, [slotId]: { ...current, ...updates } } });
   };
 
+  const updateElementLayout = (slotId: string, key: 'name' | 'subtitle' | 'price' | 'image', rect: EncarteElementRect) => {
+    if (!semanal) return;
+    const current = semanal.produtos[slotId];
+    if (!current) return;
+    updateSlotProduct(slotId, { elementLayout: { ...current.elementLayout, [key]: rect } });
+  };
+
   const toggleSlotDisplayType = (slotId: string) => {
     if (!semanal) return;
     const current = semanal.produtos[slotId];
@@ -183,6 +211,14 @@ export default function EncarteWeekly() {
   const removeSlotProduct = (slotId: string) => {
     if (!semanal) return;
     persistSemanal({ ...semanal, produtos: { ...semanal.produtos, [slotId]: null } });
+  };
+
+  // Zoom só afeta a pré-visualização (facilita clicar/arrastar nos cards
+  // pequenos) — nunca a exportação, que sempre reseta pra 100% antes de
+  // capturar (ver handleExportPNG/PDF).
+  const handleWheelZoom = (e: React.WheelEvent) => {
+    e.preventDefault();
+    setZoom((z) => Math.min(300, Math.max(40, z - Math.sign(e.deltaY) * 10)));
   };
 
   const waitFrame = () => new Promise((resolve) => setTimeout(resolve, 200));
@@ -212,6 +248,8 @@ export default function EncarteWeekly() {
     setIsExporting(true);
     const toastId = toast.loading('Gerando imagem...');
     const originalSide = side;
+    const originalZoom = zoom;
+    setZoom(100); // captura sempre no tamanho real, o zoom é só pra edição
     try {
       const nomeArquivo = molde.nome.replace(/\s+/g, '-');
       const frenteUrl = await captureSideAsDataUrl('frente', 'png');
@@ -226,6 +264,7 @@ export default function EncarteWeekly() {
       toast.error('Erro ao exportar. Verifique se a arte de fundo está acessível.', { id: toastId });
     } finally {
       setSide(originalSide);
+      setZoom(originalZoom);
       setIsExporting(false);
     }
   };
@@ -235,6 +274,8 @@ export default function EncarteWeekly() {
     setIsExporting(true);
     const toastId = toast.loading('Gerando PDF...');
     const originalSide = side;
+    const originalZoom = zoom;
+    setZoom(100); // captura sempre no tamanho real, o zoom é só pra edição
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
 
@@ -253,6 +294,7 @@ export default function EncarteWeekly() {
       toast.error('Erro ao gerar PDF.', { id: toastId });
     } finally {
       setSide(originalSide);
+      setZoom(originalZoom);
       setIsExporting(false);
     }
   };
@@ -307,14 +349,30 @@ export default function EncarteWeekly() {
         </div>
       </div>
 
-      {molde.backBgUrl && (
-        <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit">
-          <button onClick={() => setSide('frente')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${side === 'frente' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}>Frente</button>
-          <button onClick={() => setSide('verso')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${side === 'verso' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}>Verso</button>
-        </div>
-      )}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        {molde.backBgUrl ? (
+          <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit">
+            <button onClick={() => setSide('frente')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${side === 'frente' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}>Frente</button>
+            <button onClick={() => setSide('verso')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${side === 'verso' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}>Verso</button>
+          </div>
+        ) : <div />}
 
-      <div ref={previewRef} className="relative w-full mx-auto bg-white shadow-lg" style={{ maxWidth: 600, fontFamily }}>
+        <div className="no-print flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
+          <button onClick={() => setZoom((z) => Math.max(40, z - 20))} className="p-1.5 hover:bg-white dark:hover:bg-zinc-700 rounded-lg text-zinc-500 transition-all" title="Diminuir zoom">
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-[10px] font-black w-10 text-center">{zoom}%</span>
+          <button onClick={() => setZoom((z) => Math.min(300, z + 20))} className="p-1.5 hover:bg-white dark:hover:bg-zinc-700 rounded-lg text-zinc-500 transition-all" title="Aumentar zoom">
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          {zoom !== 100 && (
+            <button onClick={() => setZoom(100)} className="text-[9px] font-black uppercase text-emerald-600 px-1">100%</button>
+          )}
+        </div>
+      </div>
+
+      <div className="w-full overflow-auto rounded-2xl border border-zinc-200 dark:border-zinc-800" style={{ maxHeight: '75vh' }} onWheel={handleWheelZoom}>
+        <div ref={previewRef} className="relative mx-auto bg-white shadow-lg origin-top transition-transform" style={{ width: 600, fontFamily, transform: `scale(${zoom / 100})` }}>
         {activeBgUrl && <img src={getProxyUrl(activeBgUrl)} className="w-full h-auto block select-none pointer-events-none" draggable={false} crossOrigin="anonymous" />}
 
         {activeSlots.filter((s) => s.tipo === 'logo').map((slot) => (
@@ -348,72 +406,89 @@ export default function EncarteWeekly() {
           const contentRect: BoxRect = {
             xPct: product?.offsetX ?? 10,
             yPct: product?.offsetY ?? 10,
-            widthPct: 80,
-            heightPct: 80,
+            widthPct: product?.width ?? 80,
+            heightPct: product?.height ?? 80,
           };
+          const nameRect = product?.elementLayout?.name || DEFAULT_ELEMENT_RECTS.name;
+          const subtitleRect = product?.elementLayout?.subtitle || DEFAULT_ELEMENT_RECTS.subtitle;
+          const priceRect = product?.elementLayout?.price || DEFAULT_ELEMENT_RECTS.price;
+          const imageRect = product?.elementLayout?.image || DEFAULT_ELEMENT_RECTS.image;
+          const cardRef = getCardRef(slot.id);
           return (
             <div key={slot.id} ref={getSlotContainerRef(slot.id)} className="absolute p-0.5" style={{ left: `${slot.xPct}%`, top: `${slot.yPct}%`, width: `${slot.widthPct}%`, height: `${slot.heightPct}%` }}>
               {product ? (
                 <DraggableBox
+                  ref={cardRef}
                   rect={contentRect}
                   containerRef={getSlotContainerRef(slot.id)}
-                  onChange={(rect) => updateSlotProduct(slot.id, { offsetX: rect.xPct, offsetY: rect.yPct })}
+                  onChange={(rect) => updateSlotProduct(slot.id, { offsetX: rect.xPct, offsetY: rect.yPct, width: rect.widthPct, height: rect.heightPct })}
                   onRemove={() => removeSlotProduct(slot.id)}
-                  resizable={false}
                 >
-                  <div className="group relative w-full h-full flex items-center gap-1 overflow-hidden">
-                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-[1px]">
-                      <p className="text-[6px] font-black uppercase leading-tight" style={{ color: nameColor }}>{product.name}</p>
-                      {product.subtitle && (
-                        <p className="text-[4.5px] font-bold uppercase text-zinc-500 leading-tight line-clamp-2">{product.subtitle}</p>
-                      )}
-                      <div className="mt-[2px] rounded px-1 py-[1px] inline-flex flex-col items-start w-fit leading-none" style={{ backgroundColor: boxColor }}>
-                        <span className="text-[3.5px] font-black text-white uppercase leading-none">Por</span>
-                        {product.displayType === 'discount' ? (
-                          <span className="text-[11px] font-black text-white leading-none">{product.discountValue}%</span>
-                        ) : (
-                          <div className="flex items-baseline gap-[1px]">
-                            <span className="text-[9px] font-black text-white leading-none">
-                              R$ {formatPrice(product.price).integer}
-                              <span className="text-[6px]">{formatPrice(product.price).cents}</span>
-                            </span>
-                            <span className="text-[3.5px] font-black text-white uppercase leading-none">Uni</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  <div className="group relative w-full h-full overflow-visible">
+                    <DraggableBox rect={nameRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'name', rect)}>
+                      <input
+                        type="text"
+                        value={product.name}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onChange={(e) => updateSlotProduct(slot.id, { name: e.target.value })}
+                        className="w-full h-full min-w-0 text-[6px] font-black uppercase leading-tight bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
+                        style={{ color: nameColor }}
+                      />
+                    </DraggableBox>
 
-                    {product.image && (
-                      <img src={getProxyUrl(product.image)} className="w-2/5 flex-shrink-0 object-contain" crossOrigin="anonymous" />
-                    )}
-
-                    <div
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className="no-print absolute bottom-0 left-0 right-0 flex flex-col gap-[1px] bg-white/90 p-[1px] opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
+                    <DraggableBox rect={subtitleRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'subtitle', rect)}>
                       <input
                         type="text"
                         placeholder="Descrição"
                         value={product.subtitle || ''}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onChange={(e) => updateSlotProduct(slot.id, { subtitle: e.target.value })}
-                        className="w-full min-w-0 text-[6px] text-center bg-white border border-zinc-300 rounded px-0.5"
+                        className="w-full h-full min-w-0 text-[4.5px] font-bold uppercase leading-tight text-zinc-500 bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
                       />
-                      <div className="flex items-center gap-1">
+                    </DraggableBox>
+
+                    <DraggableBox rect={priceRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'price', rect)}>
+                      <div className="w-full h-full rounded px-1 py-[1px] flex flex-col items-start justify-center leading-none" style={{ backgroundColor: boxColor }}>
                         <button
                           onClick={() => toggleSlotDisplayType(slot.id)}
+                          onPointerDown={(e) => e.stopPropagation()}
                           title="Alternar entre preço e % de desconto"
-                          className="p-0.5 rounded bg-zinc-200 text-zinc-600 flex-shrink-0"
+                          className="no-print absolute top-0 left-0 p-[1px] rounded bg-black/20 text-white flex-shrink-0"
                         >
                           <Percent className="w-2 h-2" />
                         </button>
-                        <input
-                          type="text"
-                          value={product.displayType === 'discount' ? (product.discountValue || '') : product.price}
-                          onChange={(e) => updateSlotProduct(slot.id, product.displayType === 'discount' ? { discountValue: e.target.value } : { price: e.target.value })}
-                          className="w-full min-w-0 text-[7px] text-center bg-white border border-zinc-300 rounded px-0.5"
-                        />
+                        <span className="text-[3.5px] font-black text-white uppercase leading-none">Por</span>
+                        {product.displayType === 'discount' ? (
+                          <div className="flex items-baseline">
+                            <input
+                              type="text"
+                              value={product.discountValue || ''}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onChange={(e) => updateSlotProduct(slot.id, { discountValue: e.target.value })}
+                              className="w-6 text-[11px] font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
+                            />
+                            <span className="text-[11px] font-black text-white leading-none">%</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-baseline gap-[1px]">
+                            <input
+                              type="text"
+                              value={product.price}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onChange={(e) => updateSlotProduct(slot.id, { price: e.target.value })}
+                              className="w-11 text-[9px] font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
+                            />
+                            <span className="text-[3.5px] font-black text-white uppercase leading-none">Uni</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    </DraggableBox>
+
+                    {product.image && (
+                      <DraggableBox rect={imageRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'image', rect)}>
+                        <img src={getProxyUrl(product.image)} className="w-full h-full object-contain" crossOrigin="anonymous" />
+                      </DraggableBox>
+                    )}
                   </div>
                 </DraggableBox>
               ) : (
@@ -424,6 +499,7 @@ export default function EncarteWeekly() {
             </div>
           );
         })}
+        </div>
       </div>
 
       {activeSlotId && (
