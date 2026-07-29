@@ -177,6 +177,42 @@ export interface SelectedProduct extends Product {
   labelColor?: string;
 }
 
+export interface StoreProfile {
+  id: string;
+  cnpj?: string;
+  nome: string;
+  logoUrl: string;
+  endereco: string;
+  telefone: string;
+  instagram: string;
+}
+
+export interface EncarteSlotDef {
+  id: string;
+  tipo: 'produto' | 'data' | 'logo' | 'contato';
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+}
+
+export interface EncarteMolde {
+  id: string;
+  nome: string;
+  frontBgUrl: string;
+  backBgUrl?: string;
+  frontSlots: EncarteSlotDef[];
+  backSlots?: EncarteSlotDef[];
+}
+
+export interface EncarteSemanal {
+  id: string;
+  moldeId: string;
+  storeProfileId: string;
+  validade: string;
+  produtos: Record<string, SelectedProduct | null>;
+}
+
 export interface EncarteSlot {
   name: string;
   date?: string;
@@ -460,6 +496,16 @@ interface AppState {
   setProductReportModalOpen: (open: boolean) => void;
   seenAnnouncements: string[];
   setSeenAnnouncements: (ids: string[]) => void;
+
+  storeProfiles: StoreProfile[];
+  fetchStoreProfiles: () => Promise<void>;
+  saveStoreProfiles: (profiles: StoreProfile[]) => Promise<void>;
+  encarteMoldes: EncarteMolde[];
+  fetchEncarteMoldes: () => Promise<void>;
+  saveEncarteMoldes: (moldes: EncarteMolde[]) => Promise<void>;
+  encartesSemanais: EncarteSemanal[];
+  fetchEncartesSemanais: () => Promise<void>;
+  saveEncartesSemanais: (semanais: EncarteSemanal[]) => Promise<void>;
 
   encartes: EncarteSlot[];
   setEncartes: (encartes: EncarteSlot[]) => void;
@@ -1500,6 +1546,36 @@ export const useStore = create<AppState>()(
       setConversations: (conversations) => set((state) => ({ conversations: typeof conversations === 'function' ? (conversations as any)(state.conversations) : conversations })),
       isChatLoading: false,
       setIsChatLoading: (loading) => set({ isChatLoading: loading }),
+
+      storeProfiles: [],
+      fetchStoreProfiles: async () => {
+        const data = await apiGet('/settings/encarte_lojas');
+        set({ storeProfiles: data?.value || [] });
+      },
+      saveStoreProfiles: async (profiles) => {
+        set({ storeProfiles: profiles });
+        await apiPost('/settings/encarte_lojas', { value: profiles });
+      },
+
+      encarteMoldes: [],
+      fetchEncarteMoldes: async () => {
+        const data = await apiGet('/settings/encarte_moldes');
+        set({ encarteMoldes: data?.value || [] });
+      },
+      saveEncarteMoldes: async (moldes) => {
+        set({ encarteMoldes: moldes });
+        await apiPost('/settings/encarte_moldes', { value: moldes });
+      },
+
+      encartesSemanais: [],
+      fetchEncartesSemanais: async () => {
+        const data = await apiGet('/settings/encarte_semanais');
+        set({ encartesSemanais: data?.value || [] });
+      },
+      saveEncartesSemanais: async (semanais) => {
+        set({ encartesSemanais: semanais });
+        await apiPost('/settings/encarte_semanais', { value: semanais });
+      },
 
       encartes: Array(10).fill(null).map((_, i) => ({ name: `Modelo ${i + 1}`, frontBgUrl: '', backBgUrl: '', frontProducts: Array(12).fill(null), backProducts: Array(12).fill(null), productCount: 12, extraProducts: [null, null] })),
       setEncartes: (encartes) => { set({ encartes }); get().saveUsersAndFlagsDebounced(); },
