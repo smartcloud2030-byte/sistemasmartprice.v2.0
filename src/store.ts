@@ -213,49 +213,6 @@ export interface EncarteSemanal {
   produtos: Record<string, SelectedProduct | null>;
 }
 
-export interface EncarteSlot {
-  name: string;
-  date?: string;
-  dateOffsetX?: number;
-  dateOffsetY?: number;
-  frontBgUrl: string;
-  backBgUrl: string;
-  frontProducts: (SelectedProduct | null)[];
-  backProducts: (SelectedProduct | null)[];
-  productCount: number;
-  format?: 'post' | 'story' | 'encarte';
-  bubbleShape?: 'rounded' | 'square' | 'circle' | 'pill' | 'burst' | 'badge' | 'diamond' | 'hexagon' | 'star' | 'oval';
-  extraProducts?: (SelectedProduct | null)[];
-}
-
-export interface EncarteModel {
-  id: string;
-  name: string;
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  textColor: string;
-  bgClass: string;
-  borderClass: string;
-  fontFamily?: string;
-  imageUrl?: string;
-}
-
-export interface Theme {
-  id: string;
-  name: string;
-  imageUrl: string;
-  category: string;
-}
-
-export interface ThemeCategory {
-  id: string;
-  name: string;
-  themes: Theme[];
-}
-
-export type EncarteTab = 'themes' | 'layouts' | 'products' | 'info' | 'labels' | 'colors' | 'fonts' | 'logo';
-
 interface AppState {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
@@ -506,25 +463,6 @@ interface AppState {
   encartesSemanais: EncarteSemanal[];
   fetchEncartesSemanais: () => Promise<void>;
   saveEncartesSemanais: (semanais: EncarteSemanal[]) => Promise<void>;
-
-  encartes: EncarteSlot[];
-  setEncartes: (encartes: EncarteSlot[]) => void;
-  selectedEncarteModel: EncarteModel | null;
-  setSelectedEncarteModel: (model: EncarteModel) => void;
-  activeEncarteTab: EncarteTab;
-  setActiveEncarteTab: (tab: EncarteTab) => void;
-  encarteThemes: ThemeCategory[];
-  setEncarteThemes: (themes: ThemeCategory[]) => void;
-  encarteLogos: string[];
-  setEncarteLogos: (logos: string[]) => void;
-  encarteLayouts: string[];
-  setEncarteLayouts: (layouts: string[]) => void;
-  activeEncarteTheme: Theme | null;
-  setActiveEncarteTheme: (theme: Theme | null) => void;
-  activeEncarteLogo: string | null;
-  setActiveEncarteLogo: (logo: string | null) => void;
-  activeEncarteLayout: string | null;
-  setActiveEncarteLayout: (layout: string | null) => void;
 
   login: (role: 'user' | 'admin', user: { username: string; cnpj: string; bandeira: string }) => void;
   verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
@@ -1456,17 +1394,11 @@ export const useStore = create<AppState>()(
               maxConcurrentStores: state.maxConcurrentStores,
               cnpjUserLimits: state.cnpjUserLimits,
               userGroups: state.userGroups,
-              encartes: state.encartes,
-              selectedEncarteModel: state.selectedEncarteModel,
-              encarteThemes: state.encarteThemes,
-              encarteLogos: state.encarteLogos,
-              encarteLayouts: state.encarteLayouts,
               announcements: state.announcements,
               seenAnnouncements: state.seenAnnouncements,
               // theme NÃO entra aqui de propósito — é preferência pessoal de
               // cada admin (claro/escuro), fica só local (localStorage via
               // persist), nunca sincroniza pro servidor. Ver loadUsersAndFlags.
-              activeEncarteTab: state.activeEncarteTab,
               isChatEnabled: state.isChatEnabled
             }
           });
@@ -1503,16 +1435,10 @@ export const useStore = create<AppState>()(
             maxConcurrentStores: settings.maxConcurrentStores !== undefined ? settings.maxConcurrentStores : currentState.maxConcurrentStores,
             cnpjUserLimits: settings.cnpjUserLimits || currentState.cnpjUserLimits,
             userGroups: settings.userGroups || [],
-            encartes: settings.encartes || currentState.encartes,
-            selectedEncarteModel: settings.selectedEncarteModel || currentState.selectedEncarteModel,
-            encarteThemes: settings.encarteThemes || [],
-            encarteLogos: settings.encarteLogos || [],
-            encarteLayouts: settings.encarteLayouts || [],
             announcements: settings.announcements || [],
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
             // theme não é carregado do servidor de propósito — cada admin mantém
             // o próprio tema local (ver saveUsersAndFlags acima).
-            activeEncarteTab: settings.activeEncarteTab || currentState.activeEncarteTab,
             isChatEnabled: settings.isChatEnabled !== undefined ? settings.isChatEnabled : true
           });
         } catch (error) {
@@ -1576,25 +1502,6 @@ export const useStore = create<AppState>()(
         set({ encartesSemanais: semanais });
         await apiPost('/settings/encarte_semanais', { value: semanais });
       },
-
-      encartes: Array(10).fill(null).map((_, i) => ({ name: `Modelo ${i + 1}`, frontBgUrl: '', backBgUrl: '', frontProducts: Array(12).fill(null), backProducts: Array(12).fill(null), productCount: 12, extraProducts: [null, null] })),
-      setEncartes: (encartes) => { set({ encartes }); get().saveUsersAndFlagsDebounced(); },
-      selectedEncarteModel: null,
-      setSelectedEncarteModel: (model) => { set({ selectedEncarteModel: model }); get().saveUsersAndFlagsDebounced(); },
-      activeEncarteTab: 'themes',
-      setActiveEncarteTab: (tab) => set({ activeEncarteTab: tab }),
-      encarteThemes: [],
-      setEncarteThemes: (themes) => { set({ encarteThemes: themes }); get().saveUsersAndFlagsDebounced(); },
-      encarteLogos: [],
-      setEncarteLogos: (logos) => { set({ encarteLogos: logos }); get().saveUsersAndFlagsDebounced(); },
-      encarteLayouts: [],
-      setEncarteLayouts: (layouts) => { set({ encarteLayouts: layouts }); get().saveUsersAndFlagsDebounced(); },
-      activeEncarteTheme: null,
-      setActiveEncarteTheme: (theme) => set({ activeEncarteTheme: theme }),
-      activeEncarteLogo: null,
-      setActiveEncarteLogo: (logo) => set({ activeEncarteLogo: logo }),
-      activeEncarteLayout: null,
-      setActiveEncarteLayout: (layout) => set({ activeEncarteLayout: layout }),
 
       // ── verifyAdminLogin → /api/admin/login (senha checada só no servidor) ──
       verifyAdminLogin: async (username, password) => {
@@ -1737,11 +1644,6 @@ export const useStore = create<AppState>()(
         lastUserIdentity: state.lastUserIdentity,
         userDrafts: state.userDrafts,
         currentView: state.currentView,
-        encartes: state.encartes,
-        selectedEncarteModel: state.selectedEncarteModel,
-        encarteThemes: state.encarteThemes,
-        encarteLogos: state.encarteLogos,
-        encarteLayouts: state.encarteLayouts,
         announcements: state.announcements,
         seenAnnouncements: state.seenAnnouncements,
         isSingleProduct: state.isSingleProduct,

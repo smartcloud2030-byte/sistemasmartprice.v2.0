@@ -16,7 +16,7 @@ import SmartHelpDashboard from './components/SmartHelpDashboard';
 import LayoutSelectorModal from './components/LayoutSelectorModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
-import EncarteCreator from './components/EncarteCreator';
+import EncarteBuilder from './components/encarte/EncarteBuilder';
 import AdminDashboard from './components/AdminDashboard';
 import ChangeCredentialsModal from './components/ChangeCredentialsModal';
 import PaymentCheckoutModal from './components/PaymentCheckoutModal';
@@ -567,7 +567,7 @@ export default function App() {
     }
 
     if (currentView === 'encarte') {
-      return <EncarteCreator />;
+      return <EncarteBuilder />;
     }
 
     return (
