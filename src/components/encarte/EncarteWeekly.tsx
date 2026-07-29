@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useStore, SelectedProduct, EncarteSemanal } from '../../store';
+import { useStore, Product, SelectedProduct, EncarteSemanal } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
 import { formatPrice } from '../../lib/encartePrice';
 import ProductSelector from '../ProductSelector';
-import { Plus, FileDown, Image as ImageIcon2, X } from 'lucide-react';
+import { Plus, FileDown, Image as ImageIcon2, X, Percent } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+
+const SAVE_DEBOUNCE_MS = 800;
 
 const emptySemanal = (moldeId: string, storeProfileId: string): EncarteSemanal => ({
   id: Math.random().toString(36).slice(2, 10),
@@ -26,33 +28,51 @@ export default function EncarteWeekly() {
   const [moldeId, setMoldeId] = useState('');
   const [storeProfileId, setStoreProfileId] = useState('');
   const [semanal, setSemanal] = useState<EncarteSemanal | null>(null);
+  // Só decide "existe ou cria novo" depois que encartesSemanais realmente
+  // carregou — sem isso, escolher molde+loja antes do fetch responder cria
+  // um registro novo que depois convive duplicado com o que já existia.
+  const [semanaisReady, setSemanaisReady] = useState(false);
   const [side, setSide] = useState<'frente' | 'verso'>('frente');
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetchEncarteMoldes();
     fetchStoreProfiles();
-    fetchEncartesSemanais();
+    fetchEncartesSemanais().then(() => setSemanaisReady(true));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, []);
 
   const molde = encarteMoldes.find((m) => m.id === moldeId) || null;
   const storeProfile = storeProfiles.find((p) => p.id === storeProfileId) || null;
 
   useEffect(() => {
-    if (!moldeId || !storeProfileId) { setSemanal(null); return; }
+    if (!moldeId || !storeProfileId || !semanaisReady) return;
     const existing = encartesSemanais.find((s) => s.moldeId === moldeId && s.storeProfileId === storeProfileId);
     setSemanal(existing || emptySemanal(moldeId, storeProfileId));
-  }, [moldeId, storeProfileId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moldeId, storeProfileId, semanaisReady]);
 
-  const persistSemanal = async (updated: EncarteSemanal) => {
+  // Atualiza a tela na hora, mas só grava no servidor 800ms depois da última
+  // mudança — sem isso, cada tecla digitada na validade ou no preço disparava
+  // um POST do array inteiro de encartes semanais.
+  const persistSemanal = (updated: EncarteSemanal) => {
     setSemanal(updated);
-    const others = encartesSemanais.filter((s) => s.id !== updated.id);
-    await saveEncartesSemanais([...others, updated]);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      const others = useStore.getState().encartesSemanais.filter((s) => s.id !== updated.id);
+      saveEncartesSemanais([...others, updated]);
+    }, SAVE_DEBOUNCE_MS);
   };
 
-  const handleSelectProduct = (product: any) => {
+  const handleSelectProduct = (product: Product) => {
     if (!semanal || !activeSlotId) return;
     const produtos = {
       ...semanal.produtos,
@@ -74,6 +94,17 @@ export default function EncarteWeekly() {
     persistSemanal({ ...semanal, produtos: { ...semanal.produtos, [slotId]: { ...current, ...updates } } });
   };
 
+  const toggleSlotDisplayType = (slotId: string) => {
+    if (!semanal) return;
+    const current = semanal.produtos[slotId];
+    if (!current) return;
+    if (current.displayType === 'discount') {
+      updateSlotProduct(slotId, { displayType: 'price' });
+    } else {
+      updateSlotProduct(slotId, { displayType: 'discount', discountValue: current.discountValue || '' });
+    }
+  };
+
   const removeSlotProduct = (slotId: string) => {
     if (!semanal) return;
     persistSemanal({ ...semanal, produtos: { ...semanal.produtos, [slotId]: null } });
@@ -81,26 +112,45 @@ export default function EncarteWeekly() {
 
   const waitFrame = () => new Promise((resolve) => setTimeout(resolve, 200));
 
+  const captureSideAsDataUrl = async (targetSide: 'frente' | 'verso', format: 'png' | 'jpeg') => {
+    setSide(targetSide);
+    await waitFrame();
+    const canvas = await html2canvas(previewRef.current!, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      ignoreElements: (element) => element.classList.contains('no-print'),
+    });
+    return format === 'png' ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.95);
+  };
+
+  const downloadDataUrl = (dataUrl: string, filename: string) => {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    link.click();
+  };
+
   const handleExportPNG = async () => {
-    if (!previewRef.current) return;
+    if (!previewRef.current || !molde) return;
     setIsExporting(true);
     const toastId = toast.loading('Gerando imagem...');
+    const originalSide = side;
     try {
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        ignoreElements: (element) => element.classList.contains('no-print'),
-      });
-      const link = document.createElement('a');
-      link.download = `encarte-${(molde?.nome || 'modelo').replace(/\s+/g, '-')}-${side}-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      const nomeArquivo = molde.nome.replace(/\s+/g, '-');
+      const frenteUrl = await captureSideAsDataUrl('frente', 'png');
+      downloadDataUrl(frenteUrl, `encarte-${nomeArquivo}-frente-${Date.now()}.png`);
+
+      if (molde.backBgUrl) {
+        const versoUrl = await captureSideAsDataUrl('verso', 'png');
+        downloadDataUrl(versoUrl, `encarte-${nomeArquivo}-verso-${Date.now()}.png`);
+      }
       toast.success('Imagem exportada!', { id: toastId });
     } catch {
       toast.error('Erro ao exportar. Verifique se a arte de fundo está acessível.', { id: toastId });
     } finally {
+      setSide(originalSide);
       setIsExporting(false);
     }
   };
@@ -113,25 +163,12 @@ export default function EncarteWeekly() {
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
 
-      const captureSide = async (targetSide: 'frente' | 'verso') => {
-        setSide(targetSide);
-        await waitFrame();
-        const canvas = await html2canvas(previewRef.current!, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          ignoreElements: (element) => element.classList.contains('no-print'),
-        });
-        return canvas.toDataURL('image/jpeg', 0.95);
-      };
-
-      const frenteImg = await captureSide('frente');
+      const frenteImg = await captureSideAsDataUrl('frente', 'jpeg');
       pdf.addImage(frenteImg, 'JPEG', 0, 0, 210, 297);
 
       if (molde.backBgUrl) {
         pdf.addPage();
-        const versoImg = await captureSide('verso');
+        const versoImg = await captureSideAsDataUrl('verso', 'jpeg');
         pdf.addImage(versoImg, 'JPEG', 0, 0, 210, 297);
       }
 
@@ -169,6 +206,7 @@ export default function EncarteWeekly() {
 
   const activeSlots = side === 'frente' ? molde.frontSlots : (molde.backSlots || []);
   const activeBgUrl = side === 'frente' ? molde.frontBgUrl : molde.backBgUrl;
+  const fontFamily = molde.fontFamily || 'Inter';
 
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">
@@ -201,7 +239,7 @@ export default function EncarteWeekly() {
         </div>
       )}
 
-      <div ref={previewRef} className="relative w-full mx-auto bg-white shadow-lg" style={{ maxWidth: 600 }}>
+      <div ref={previewRef} className="relative w-full mx-auto bg-white shadow-lg" style={{ maxWidth: 600, fontFamily }}>
         {activeBgUrl && <img src={getProxyUrl(activeBgUrl)} className="w-full h-auto block select-none pointer-events-none" draggable={false} crossOrigin="anonymous" />}
 
         {activeSlots.filter((s) => s.tipo === 'logo').map((slot) => (
@@ -243,12 +281,21 @@ export default function EncarteWeekly() {
                       <span className="text-xs">{formatPrice(product.price).cents}</span>
                     </p>
                   )}
-                  <input
-                    type="text"
-                    value={product.displayType === 'discount' ? (product.discountValue || '') : product.price}
-                    onChange={(e) => updateSlotProduct(slot.id, product.displayType === 'discount' ? { discountValue: e.target.value } : { price: e.target.value })}
-                    className="no-print w-16 text-[9px] text-center bg-white/80 border border-zinc-300 rounded px-1"
-                  />
+                  <div className="no-print flex items-center gap-1">
+                    <button
+                      onClick={() => toggleSlotDisplayType(slot.id)}
+                      title="Alternar entre preço e % de desconto"
+                      className="p-1 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+                    >
+                      <Percent className="w-2.5 h-2.5" />
+                    </button>
+                    <input
+                      type="text"
+                      value={product.displayType === 'discount' ? (product.discountValue || '') : product.price}
+                      onChange={(e) => updateSlotProduct(slot.id, product.displayType === 'discount' ? { discountValue: e.target.value } : { price: e.target.value })}
+                      className="w-16 text-[9px] text-center bg-white/80 border border-zinc-300 rounded px-1"
+                    />
+                  </div>
                 </div>
               ) : (
                 <button onClick={() => setActiveSlotId(slot.id)} className="no-print w-full h-full border-2 border-dashed border-zinc-300 rounded-lg flex items-center justify-center text-zinc-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors">

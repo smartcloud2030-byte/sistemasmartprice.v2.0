@@ -1,20 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useStore, EncarteMolde, EncarteSlotDef } from '../../store';
+import { useStore, EncarteMolde, EncarteSlotDef, EncarteGridConfig, EncarteFontFamily } from '../../store';
 import { uploadBackgroundImage } from '../../lib/gallery';
 import { distributeSlots } from '../../lib/encarteGrid';
 import { getProxyUrl } from '../../lib/utils';
 import DraggableBox, { BoxRect } from './DraggableBox';
-import { Plus, Upload, Grid3x3, PenLine, Save } from 'lucide-react';
+import { Upload, Grid3x3, PenLine, Save } from 'lucide-react';
 import { toast } from 'sonner';
+
+const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
+const DEFAULT_GRID: EncarteGridConfig = { cols: 3, rows: 5, area: DEFAULT_AREA, manual: false };
 
 const emptyMolde = (): EncarteMolde => ({
   id: Math.random().toString(36).slice(2, 10),
   nome: '',
   frontBgUrl: '',
   frontSlots: [],
+  frontGrid: DEFAULT_GRID,
 });
-
-const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
 
 const SLOT_COLORS: Record<EncarteSlotDef['tipo'], string> = {
   produto: '#10b981',
@@ -27,12 +29,18 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
   const { encarteMoldes, saveEncarteMoldes } = useStore();
   const [draft, setDraft] = useState<EncarteMolde>(molde ? { ...molde } : emptyMolde());
   const [side, setSide] = useState<'frente' | 'verso'>('frente');
-  const [cols, setCols] = useState(3);
-  const [rows, setRows] = useState(5);
-  const [area, setArea] = useState<BoxRect>(DEFAULT_AREA);
-  const [manualMode, setManualMode] = useState(false);
+  // Grade de frente/verso é rastreada separadamente — reabrir um molde salvo
+  // hidrata cols/rows/area/manual exatamente como foram salvos, pra que o
+  // useEffect abaixo reproduza os MESMOS ids de slot (distributeSlots é
+  // determinístico por row/col) em vez de gerar um layout novo por cima do
+  // que já existe e órfãos os produtos já preenchidos em EncarteSemanal.
+  const [frontGrid, setFrontGrid] = useState<EncarteGridConfig>(molde?.frontGrid || DEFAULT_GRID);
+  const [backGrid, setBackGrid] = useState<EncarteGridConfig>(molde?.backGrid || DEFAULT_GRID);
   const [isUploading, setIsUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const grid = side === 'frente' ? frontGrid : backGrid;
+  const setGrid = side === 'frente' ? setFrontGrid : setBackGrid;
 
   const bgUrl = side === 'frente' ? draft.frontBgUrl : draft.backBgUrl;
   const slots = side === 'frente' ? draft.frontSlots : (draft.backSlots || []);
@@ -52,14 +60,16 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
 
   // Grade automática: recalcula os slots de produto sempre que cols/rows/area
   // mudam, a menos que o usuário tenha ativado o modo manual pra esse lado.
+  // Não roda sem uma arte de fundo enviada (evita popular backSlots à toa só
+  // por clicar na aba Verso sem nunca enviar imagem).
   useEffect(() => {
-    if (manualMode) return;
+    if (grid.manual || !bgUrl) return;
     setSlots((current) => {
       const special = current.filter((s) => s.tipo !== 'produto');
-      return [...distributeSlots(cols, rows, area), ...special];
+      return [...distributeSlots(grid.cols, grid.rows, grid.area), ...special];
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols, rows, area, manualMode, side]);
+  }, [grid.cols, grid.rows, grid.area, grid.manual, side, bgUrl]);
 
   const handleBgUpload = async (file: File) => {
     setIsUploading(true);
@@ -99,10 +109,16 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
       toast.error('Envie a arte de fundo da frente antes de salvar.');
       return;
     }
-    const exists = encarteMoldes.some((m) => m.id === draft.id);
+    const finalDraft: EncarteMolde = {
+      ...draft,
+      frontGrid,
+      backGrid: draft.backBgUrl ? backGrid : undefined,
+      backSlots: draft.backBgUrl ? draft.backSlots : undefined,
+    };
+    const exists = encarteMoldes.some((m) => m.id === finalDraft.id);
     const updated = exists
-      ? encarteMoldes.map((m) => (m.id === draft.id ? draft : m))
-      : [...encarteMoldes, draft];
+      ? encarteMoldes.map((m) => (m.id === finalDraft.id ? finalDraft : m))
+      : [...encarteMoldes, finalDraft];
     await saveEncarteMoldes(updated);
     toast.success('Molde salvo!');
     onClose();
@@ -157,17 +173,30 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
             <div className="flex items-center gap-2">
               <Grid3x3 className="w-4 h-4 text-zinc-400" />
               <label className="text-[10px] font-black uppercase text-zinc-500">Colunas</label>
-              <input type="number" min={1} max={6} value={cols} onChange={(e) => setCols(Number(e.target.value) || 1)}
-                className="w-14 px-2 py-1 bg-white dark:bg-zinc-800 rounded-lg text-sm text-center outline-none" disabled={manualMode} />
+              <input type="number" min={1} max={6} value={grid.cols} onChange={(e) => setGrid((g) => ({ ...g, cols: Number(e.target.value) || 1 }))}
+                className="w-14 px-2 py-1 bg-white dark:bg-zinc-800 rounded-lg text-sm text-center outline-none" disabled={grid.manual} />
               <label className="text-[10px] font-black uppercase text-zinc-500">Linhas</label>
-              <input type="number" min={1} max={10} value={rows} onChange={(e) => setRows(Number(e.target.value) || 1)}
-                className="w-14 px-2 py-1 bg-white dark:bg-zinc-800 rounded-lg text-sm text-center outline-none" disabled={manualMode} />
+              <input type="number" min={1} max={10} value={grid.rows} onChange={(e) => setGrid((g) => ({ ...g, rows: Number(e.target.value) || 1 }))}
+                className="w-14 px-2 py-1 bg-white dark:bg-zinc-800 rounded-lg text-sm text-center outline-none" disabled={grid.manual} />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-black uppercase text-zinc-500">Fonte</label>
+              <select
+                value={draft.fontFamily || 'Inter'}
+                onChange={(e) => setDraft((d) => ({ ...d, fontFamily: e.target.value as EncarteFontFamily }))}
+                className="px-2 py-1 bg-white dark:bg-zinc-800 rounded-lg text-sm outline-none"
+              >
+                <option value="Inter">Inter</option>
+                <option value="Roboto">Roboto</option>
+                <option value="Oswald">Oswald</option>
+              </select>
             </div>
 
             <button
-              onClick={() => setManualMode((m) => !m)}
+              onClick={() => setGrid((g) => ({ ...g, manual: !g.manual }))}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                manualMode ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'
+                grid.manual ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'
               }`}
             >
               <PenLine className="w-3.5 h-3.5" /> Desenhar manualmente
@@ -189,11 +218,11 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
           <div ref={containerRef} className="relative w-full mx-auto bg-white shadow-lg" style={{ maxWidth: 600 }}>
             <img src={getProxyUrl(bgUrl)} className="w-full h-auto block select-none pointer-events-none" draggable={false} />
 
-            {!manualMode && (
-              <DraggableBox rect={area} containerRef={containerRef} onChange={setArea} label="Área dos produtos" color={SLOT_COLORS.produto} />
+            {!grid.manual && (
+              <DraggableBox rect={grid.area} containerRef={containerRef} onChange={(rect) => setGrid((g) => ({ ...g, area: rect }))} label="Área dos produtos" color={SLOT_COLORS.produto} />
             )}
 
-            {manualMode && productSlots.map((slot, idx) => (
+            {grid.manual && productSlots.map((slot, idx) => (
               <DraggableBox
                 key={slot.id}
                 rect={slot}
@@ -218,7 +247,7 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
           </div>
 
           <p className="text-[10px] text-zinc-400 text-center">
-            {productSlots.length} posições de produto {manualMode ? '(ajuste arrastando cada uma)' : `(grade automática ${cols}×${rows})`}
+            {productSlots.length} posições de produto {grid.manual ? '(ajuste arrastando cada uma)' : `(grade automática ${grid.cols}×${grid.rows})`}
           </p>
         </>
       )}

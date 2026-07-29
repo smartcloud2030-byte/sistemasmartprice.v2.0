@@ -72,7 +72,8 @@ export default function StoreProfileManager() {
     toast.success('Loja salva!');
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, nome: string) => {
+    if (!window.confirm(`Excluir a loja "${nome}"?`)) return;
     await saveStoreProfiles(storeProfiles.filter((p) => p.id !== id));
   };
 
@@ -103,7 +104,7 @@ export default function StoreProfileManager() {
               <p className="text-[10px] text-zinc-500 truncate">{profile.endereco}</p>
             </div>
             <button onClick={() => setEditing(profile)} className="text-[10px] font-black uppercase text-emerald-600">Editar</button>
-            <button onClick={() => handleDelete(profile.id)} className="text-zinc-400 hover:text-red-500">
+            <button onClick={() => handleDelete(profile.id, profile.nome)} className="text-zinc-400 hover:text-red-500">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>

@@ -29,6 +29,16 @@ function generatesUniqueIdsInRowMajorOrder() {
   assert.strictEqual(slots[2].yPct, 50);
 }
 
+function idsAreDeterministicAcrossRepeatedCallsWithTheSameDimensions() {
+  // Reabrir um molde chama distributeSlots de novo com os mesmos cols/rows/area
+  // — os ids precisam bater pra nao orfanizar produtos ja preenchidos em
+  // EncarteSemanal.produtos (indexado por slot id).
+  const area = { xPct: 5, yPct: 20, widthPct: 90, heightPct: 70 };
+  const first = distributeSlots(3, 5, area);
+  const second = distributeSlots(3, 5, area);
+  assert.deepStrictEqual(first.map(s => s.id), second.map(s => s.id));
+}
+
 function singleCellMatchesTheWholeArea() {
   const area = { xPct: 10, yPct: 10, widthPct: 80, heightPct: 80 };
   const slots = distributeSlots(1, 1, area);
@@ -42,6 +52,7 @@ function singleCellMatchesTheWholeArea() {
 try {
   distributesA3x5GridInsideTheArea();
   generatesUniqueIdsInRowMajorOrder();
+  idsAreDeterministicAcrossRepeatedCallsWithTheSameDimensions();
   singleCellMatchesTheWholeArea();
   console.log('PASS: todos os testes de encarteGrid passaram');
 } catch (err: any) {

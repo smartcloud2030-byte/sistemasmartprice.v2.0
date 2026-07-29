@@ -10,7 +10,8 @@ export default function MoldeList() {
 
   useEffect(() => { fetchEncarteMoldes(); }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, nome: string) => {
+    if (!window.confirm(`Excluir o molde "${nome}"? Isso também desvincula os produtos já preenchidos em qualquer encarte semanal que usa esse molde.`)) return;
     await saveEncarteMoldes(encarteMoldes.filter((m) => m.id !== id));
   };
 
@@ -41,7 +42,7 @@ export default function MoldeList() {
               <p className="text-xs font-black uppercase text-white text-center px-2">{molde.nome}</p>
               <div className="flex gap-2">
                 <button onClick={() => setEditingMolde(molde)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase">Editar</button>
-                <button onClick={() => handleDelete(molde.id)} className="p-1.5 bg-red-600 text-white rounded-lg">
+                <button onClick={() => handleDelete(molde.id, molde.nome)} className="p-1.5 bg-red-600 text-white rounded-lg">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
