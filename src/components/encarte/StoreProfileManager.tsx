@@ -67,7 +67,10 @@ export default function StoreProfileManager() {
     const updated = exists
       ? storeProfiles.map((p) => (p.id === editing.id ? editing : p))
       : [...storeProfiles, editing];
-    await saveStoreProfiles(updated);
+    // saveStoreProfiles já mostra o toast de erro sozinho quando falha — só
+    // fecha e comemora se o servidor realmente confirmou o save.
+    const ok = await saveStoreProfiles(updated);
+    if (!ok) return;
     setEditing(null);
     toast.success('Loja salva!');
   };

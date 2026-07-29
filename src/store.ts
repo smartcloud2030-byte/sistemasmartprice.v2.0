@@ -467,14 +467,14 @@ interface AppState {
   setSeenAnnouncements: (ids: string[]) => void;
 
   storeProfiles: StoreProfile[];
-  fetchStoreProfiles: () => Promise<void>;
-  saveStoreProfiles: (profiles: StoreProfile[]) => Promise<void>;
+  fetchStoreProfiles: () => Promise<boolean>;
+  saveStoreProfiles: (profiles: StoreProfile[]) => Promise<boolean>;
   encarteMoldes: EncarteMolde[];
-  fetchEncarteMoldes: () => Promise<void>;
-  saveEncarteMoldes: (moldes: EncarteMolde[]) => Promise<void>;
+  fetchEncarteMoldes: () => Promise<boolean>;
+  saveEncarteMoldes: (moldes: EncarteMolde[]) => Promise<boolean>;
   encartesSemanais: EncarteSemanal[];
-  fetchEncartesSemanais: () => Promise<void>;
-  saveEncartesSemanais: (semanais: EncarteSemanal[]) => Promise<void>;
+  fetchEncartesSemanais: () => Promise<boolean>;
+  saveEncartesSemanais: (semanais: EncarteSemanal[]) => Promise<boolean>;
 
   login: (role: 'user' | 'admin', user: { username: string; cnpj: string; bandeira: string }) => void;
   verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
@@ -1487,23 +1487,28 @@ export const useStore = create<AppState>()(
 
       // ── Lojas/Moldes/Semanais do Encarte v2: cada save aguarda o POST
       // confirmar antes de atualizar o estado local (nunca mostra como salvo
-      // algo que falhou no servidor), e toda falha vira toast — sem isso o
-      // usuário perdia o cadastro sem nenhum aviso.
+      // algo que falhou no servidor), toda falha vira toast, e todas
+      // retornam boolean pra quem chama saber se deu certo antes de fechar
+      // modal/mostrar sucesso/liberar escritas dependentes.
       storeProfiles: [],
       fetchStoreProfiles: async () => {
         try {
           const data = await apiGet('/settings/encarte_lojas');
           set({ storeProfiles: data?.value || [] });
+          return true;
         } catch {
           toast.error('Não foi possível carregar as lojas cadastradas.');
+          return false;
         }
       },
       saveStoreProfiles: async (profiles) => {
         try {
           await apiPost('/settings/encarte_lojas', { value: profiles });
           set({ storeProfiles: profiles });
+          return true;
         } catch {
           toast.error('Não foi possível salvar a loja. Tente novamente.');
+          return false;
         }
       },
 
@@ -1512,16 +1517,20 @@ export const useStore = create<AppState>()(
         try {
           const data = await apiGet('/settings/encarte_moldes');
           set({ encarteMoldes: data?.value || [] });
+          return true;
         } catch {
           toast.error('Não foi possível carregar os moldes salvos.');
+          return false;
         }
       },
       saveEncarteMoldes: async (moldes) => {
         try {
           await apiPost('/settings/encarte_moldes', { value: moldes });
           set({ encarteMoldes: moldes });
+          return true;
         } catch {
           toast.error('Não foi possível salvar o molde. Tente novamente.');
+          return false;
         }
       },
 
@@ -1530,16 +1539,20 @@ export const useStore = create<AppState>()(
         try {
           const data = await apiGet('/settings/encarte_semanais');
           set({ encartesSemanais: data?.value || [] });
+          return true;
         } catch {
           toast.error('Não foi possível carregar os encartes semanais.');
+          return false;
         }
       },
       saveEncartesSemanais: async (semanais) => {
         try {
           await apiPost('/settings/encarte_semanais', { value: semanais });
           set({ encartesSemanais: semanais });
+          return true;
         } catch {
           toast.error('Não foi possível salvar o encarte. Tente novamente.');
+          return false;
         }
       },
 

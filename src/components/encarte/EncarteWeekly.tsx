@@ -37,24 +37,47 @@ export default function EncarteWeekly() {
   const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guarda o último EncarteSemanal ainda não confirmado no servidor — usado
+  // pra descarregar (flush) o save pendente se o componente desmontar antes
+  // do debounce disparar (trocar de aba não pode perder os últimos 800ms).
+  const pendingSaveRef = useRef<EncarteSemanal | null>(null);
 
   useEffect(() => {
     fetchEncarteMoldes();
     fetchStoreProfiles();
-    fetchEncartesSemanais().then(() => setSemanaisReady(true));
+    // Só libera a criação de novos registros depois que o fetch realmente
+    // confirmar — se falhar, semanaisReady fica false e nada é escrito por
+    // cima do que já existe no servidor (uma falha de leitura seguida de
+    // escrita destruiria o array inteiro salvo, já que a persistência é por
+    // substituição completa).
+    fetchEncartesSemanais().then((ok) => { if (ok) setSemanaisReady(true); });
   }, []);
 
+  const flushPendingSave = () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    const pending = pendingSaveRef.current;
+    if (!pending) return;
+    pendingSaveRef.current = null;
+    const others = useStore.getState().encartesSemanais.filter((s) => s.id !== pending.id);
+    saveEncartesSemanais([...others, pending]);
+  };
+
   useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
+    return () => { flushPendingSave(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const molde = encarteMoldes.find((m) => m.id === moldeId) || null;
   const storeProfile = storeProfiles.find((p) => p.id === storeProfileId) || null;
 
   useEffect(() => {
-    if (!moldeId || !storeProfileId || !semanaisReady) return;
+    if (!moldeId || !storeProfileId || !semanaisReady) {
+      setSemanal(null);
+      return;
+    }
     const existing = encartesSemanais.find((s) => s.moldeId === moldeId && s.storeProfileId === storeProfileId);
     setSemanal(existing || emptySemanal(moldeId, storeProfileId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,14 +85,14 @@ export default function EncarteWeekly() {
 
   // Atualiza a tela na hora, mas só grava no servidor 800ms depois da última
   // mudança — sem isso, cada tecla digitada na validade ou no preço disparava
-  // um POST do array inteiro de encartes semanais.
+  // um POST do array inteiro de encartes semanais. Se o componente desmontar
+  // antes do timer disparar, o useEffect de cleanup acima descarrega
+  // (flush) esse save pendente em vez de simplesmente descartá-lo.
   const persistSemanal = (updated: EncarteSemanal) => {
     setSemanal(updated);
+    pendingSaveRef.current = updated;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      const others = useStore.getState().encartesSemanais.filter((s) => s.id !== updated.id);
-      saveEncartesSemanais([...others, updated]);
-    }, SAVE_DEBOUNCE_MS);
+    saveTimeoutRef.current = setTimeout(flushPendingSave, SAVE_DEBOUNCE_MS);
   };
 
   const handleSelectProduct = (product: Product) => {
@@ -206,7 +229,7 @@ export default function EncarteWeekly() {
 
   const activeSlots = side === 'frente' ? molde.frontSlots : (molde.backSlots || []);
   const activeBgUrl = side === 'frente' ? molde.frontBgUrl : molde.backBgUrl;
-  const fontFamily = molde.fontFamily || 'Inter';
+  const fontFamily = `${molde.fontFamily || 'Inter'}, sans-serif`;
 
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">

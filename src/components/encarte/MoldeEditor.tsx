@@ -66,7 +66,7 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
     if (grid.manual || !bgUrl) return;
     setSlots((current) => {
       const special = current.filter((s) => s.tipo !== 'produto');
-      return [...distributeSlots(grid.cols, grid.rows, grid.area), ...special];
+      return [...distributeSlots(grid.cols, grid.rows, grid.area, side), ...special];
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grid.cols, grid.rows, grid.area, grid.manual, side, bgUrl]);
@@ -119,7 +119,10 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
     const updated = exists
       ? encarteMoldes.map((m) => (m.id === finalDraft.id ? finalDraft : m))
       : [...encarteMoldes, finalDraft];
-    await saveEncarteMoldes(updated);
+    // saveEncarteMoldes já mostra o toast de erro sozinho quando falha —
+    // só fecha e comemora se o servidor realmente confirmou o save.
+    const ok = await saveEncarteMoldes(updated);
+    if (!ok) return;
     toast.success('Molde salvo!');
     onClose();
   };

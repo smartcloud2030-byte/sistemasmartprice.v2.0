@@ -39,6 +39,20 @@ function idsAreDeterministicAcrossRepeatedCallsWithTheSameDimensions() {
   assert.deepStrictEqual(first.map(s => s.id), second.map(s => s.id));
 }
 
+function frontAndBackIdsNeverCollideForTheSameCell() {
+  // produtos e indexado por slot id num mapa plano (EncarteSemanal.produtos)
+  // compartilhado entre frente e verso — sem o prefixo de side, a celula
+  // (0,0) da frente e a celula (0,0) do verso teriam o mesmo id e passariam
+  // a apontar pro mesmo produto.
+  const area = { xPct: 0, yPct: 0, widthPct: 100, heightPct: 100 };
+  const front = distributeSlots(2, 2, area, 'frente');
+  const back = distributeSlots(2, 2, area, 'verso');
+  const frontIds = new Set(front.map(s => s.id));
+  const backIds = new Set(back.map(s => s.id));
+  const overlap = [...frontIds].filter(id => backIds.has(id));
+  assert.strictEqual(overlap.length, 0, 'ids da frente e do verso nao podem se sobrepor');
+}
+
 function singleCellMatchesTheWholeArea() {
   const area = { xPct: 10, yPct: 10, widthPct: 80, heightPct: 80 };
   const slots = distributeSlots(1, 1, area);
@@ -53,6 +67,7 @@ try {
   distributesA3x5GridInsideTheArea();
   generatesUniqueIdsInRowMajorOrder();
   idsAreDeterministicAcrossRepeatedCallsWithTheSameDimensions();
+  frontAndBackIdsNeverCollideForTheSameCell();
   singleCellMatchesTheWholeArea();
   console.log('PASS: todos os testes de encarteGrid passaram');
 } catch (err: any) {
