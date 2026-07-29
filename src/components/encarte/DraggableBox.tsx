@@ -49,12 +49,15 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
     window.removeEventListener('pointerup', handlePointerUp);
   }, [handlePointerMove]);
 
+  const handlersRef = useRef({ move: handlePointerMove, up: handlePointerUp });
+  handlersRef.current = { move: handlePointerMove, up: handlePointerUp };
+
   useEffect(() => {
     return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointermove', handlersRef.current.move);
+      window.removeEventListener('pointerup', handlersRef.current.up);
     };
-  }, [handlePointerMove, handlePointerUp]);
+  }, []);
 
   const startDrag = (mode: 'move' | 'resize') => (e: React.PointerEvent) => {
     e.stopPropagation();
