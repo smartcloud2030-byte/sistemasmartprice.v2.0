@@ -2,6 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **⚠️ Desatualizado após a implementação — não use o código deste documento como referência.**
+> Depois das 11 tasks, a revisão final da branch encontrou bugs reais que
+> mudaram partes do código mostrado aqui. Em especial:
+> - `distributeSlots` (Task 2) ganhou um 4º parâmetro `side: 'frente' | 'verso'`
+>   e o id virou `produto-${side}-${row}-${col}` — a versão sem `side` mostrada
+>   abaixo tinha ids colidindo entre frente e verso.
+> - `EncarteMolde` (Task 1) ganhou os campos `frontGrid`/`backGrid`
+>   (`EncarteGridConfig`), sem os quais reabrir um molde salvo apagava a
+>   grade e desconectava produtos já preenchidos.
+> - `html2canvas` (Task 9) foi trocado por `html2canvas-pro` — o Tailwind v4
+>   usa cores `oklch()` que a v1 não sabe interpretar.
+> - `fetch*`/`save*` do Encarte (Task 1) passaram a retornar `boolean`.
+> Para o comportamento real e atual, ler o código em
+> `src/lib/encarteGrid.ts`, `src/store.ts` e
+> `src/components/encarte/*.tsx`, não este documento.
+
 **Goal:** Substituir a tela "Encarte Online" atual (grade fixa 4/6/8/10/12) por um
 sistema de Moldes reutilizáveis (arte de fundo + posições configuráveis) e
 Perfis de Loja (logo/endereço/telefone/Instagram reaproveitáveis entre

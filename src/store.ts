@@ -177,48 +177,53 @@ export interface SelectedProduct extends Product {
   labelColor?: string;
 }
 
-export interface EncarteSlot {
-  name: string;
-  date?: string;
-  dateOffsetX?: number;
-  dateOffsetY?: number;
+export interface StoreProfile {
+  id: string;
+  cnpj?: string;
+  nome: string;
+  logoUrl: string;
+  endereco: string;
+  telefone: string;
+  instagram: string;
+}
+
+export interface EncarteSlotDef {
+  id: string;
+  tipo: 'produto' | 'data' | 'logo' | 'contato';
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+}
+
+export interface EncarteGridConfig {
+  cols: number;
+  rows: number;
+  area: { xPct: number; yPct: number; widthPct: number; heightPct: number };
+  manual: boolean;
+}
+
+export type EncarteFontFamily = 'Inter' | 'Roboto' | 'Oswald';
+
+export interface EncarteMolde {
+  id: string;
+  nome: string;
   frontBgUrl: string;
-  backBgUrl: string;
-  frontProducts: (SelectedProduct | null)[];
-  backProducts: (SelectedProduct | null)[];
-  productCount: number;
-  format?: 'post' | 'story' | 'encarte';
-  bubbleShape?: 'rounded' | 'square' | 'circle' | 'pill' | 'burst' | 'badge' | 'diamond' | 'hexagon' | 'star' | 'oval';
-  extraProducts?: (SelectedProduct | null)[];
+  backBgUrl?: string;
+  frontSlots: EncarteSlotDef[];
+  backSlots?: EncarteSlotDef[];
+  frontGrid: EncarteGridConfig;
+  backGrid?: EncarteGridConfig;
+  fontFamily?: EncarteFontFamily;
 }
 
-export interface EncarteModel {
+export interface EncarteSemanal {
   id: string;
-  name: string;
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  textColor: string;
-  bgClass: string;
-  borderClass: string;
-  fontFamily?: string;
-  imageUrl?: string;
+  moldeId: string;
+  storeProfileId: string;
+  validade: string;
+  produtos: Record<string, SelectedProduct | null>;
 }
-
-export interface Theme {
-  id: string;
-  name: string;
-  imageUrl: string;
-  category: string;
-}
-
-export interface ThemeCategory {
-  id: string;
-  name: string;
-  themes: Theme[];
-}
-
-export type EncarteTab = 'themes' | 'layouts' | 'products' | 'info' | 'labels' | 'colors' | 'fonts' | 'logo';
 
 interface AppState {
   theme: 'light' | 'dark';
@@ -461,24 +466,15 @@ interface AppState {
   seenAnnouncements: string[];
   setSeenAnnouncements: (ids: string[]) => void;
 
-  encartes: EncarteSlot[];
-  setEncartes: (encartes: EncarteSlot[]) => void;
-  selectedEncarteModel: EncarteModel | null;
-  setSelectedEncarteModel: (model: EncarteModel) => void;
-  activeEncarteTab: EncarteTab;
-  setActiveEncarteTab: (tab: EncarteTab) => void;
-  encarteThemes: ThemeCategory[];
-  setEncarteThemes: (themes: ThemeCategory[]) => void;
-  encarteLogos: string[];
-  setEncarteLogos: (logos: string[]) => void;
-  encarteLayouts: string[];
-  setEncarteLayouts: (layouts: string[]) => void;
-  activeEncarteTheme: Theme | null;
-  setActiveEncarteTheme: (theme: Theme | null) => void;
-  activeEncarteLogo: string | null;
-  setActiveEncarteLogo: (logo: string | null) => void;
-  activeEncarteLayout: string | null;
-  setActiveEncarteLayout: (layout: string | null) => void;
+  storeProfiles: StoreProfile[];
+  fetchStoreProfiles: () => Promise<boolean>;
+  saveStoreProfiles: (profiles: StoreProfile[]) => Promise<boolean>;
+  encarteMoldes: EncarteMolde[];
+  fetchEncarteMoldes: () => Promise<boolean>;
+  saveEncarteMoldes: (moldes: EncarteMolde[]) => Promise<boolean>;
+  encartesSemanais: EncarteSemanal[];
+  fetchEncartesSemanais: () => Promise<boolean>;
+  saveEncartesSemanais: (semanais: EncarteSemanal[]) => Promise<boolean>;
 
   login: (role: 'user' | 'admin', user: { username: string; cnpj: string; bandeira: string }) => void;
   verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
@@ -1410,17 +1406,11 @@ export const useStore = create<AppState>()(
               maxConcurrentStores: state.maxConcurrentStores,
               cnpjUserLimits: state.cnpjUserLimits,
               userGroups: state.userGroups,
-              encartes: state.encartes,
-              selectedEncarteModel: state.selectedEncarteModel,
-              encarteThemes: state.encarteThemes,
-              encarteLogos: state.encarteLogos,
-              encarteLayouts: state.encarteLayouts,
               announcements: state.announcements,
               seenAnnouncements: state.seenAnnouncements,
               // theme NÃO entra aqui de propósito — é preferência pessoal de
               // cada admin (claro/escuro), fica só local (localStorage via
               // persist), nunca sincroniza pro servidor. Ver loadUsersAndFlags.
-              activeEncarteTab: state.activeEncarteTab,
               isChatEnabled: state.isChatEnabled
             }
           });
@@ -1457,16 +1447,10 @@ export const useStore = create<AppState>()(
             maxConcurrentStores: settings.maxConcurrentStores !== undefined ? settings.maxConcurrentStores : currentState.maxConcurrentStores,
             cnpjUserLimits: settings.cnpjUserLimits || currentState.cnpjUserLimits,
             userGroups: settings.userGroups || [],
-            encartes: settings.encartes || currentState.encartes,
-            selectedEncarteModel: settings.selectedEncarteModel || currentState.selectedEncarteModel,
-            encarteThemes: settings.encarteThemes || [],
-            encarteLogos: settings.encarteLogos || [],
-            encarteLayouts: settings.encarteLayouts || [],
             announcements: settings.announcements || [],
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
             // theme não é carregado do servidor de propósito — cada admin mantém
             // o próprio tema local (ver saveUsersAndFlags acima).
-            activeEncarteTab: settings.activeEncarteTab || currentState.activeEncarteTab,
             isChatEnabled: settings.isChatEnabled !== undefined ? settings.isChatEnabled : true
           });
         } catch (error) {
@@ -1501,24 +1485,76 @@ export const useStore = create<AppState>()(
       isChatLoading: false,
       setIsChatLoading: (loading) => set({ isChatLoading: loading }),
 
-      encartes: Array(10).fill(null).map((_, i) => ({ name: `Modelo ${i + 1}`, frontBgUrl: '', backBgUrl: '', frontProducts: Array(12).fill(null), backProducts: Array(12).fill(null), productCount: 12, extraProducts: [null, null] })),
-      setEncartes: (encartes) => { set({ encartes }); get().saveUsersAndFlagsDebounced(); },
-      selectedEncarteModel: null,
-      setSelectedEncarteModel: (model) => { set({ selectedEncarteModel: model }); get().saveUsersAndFlagsDebounced(); },
-      activeEncarteTab: 'themes',
-      setActiveEncarteTab: (tab) => set({ activeEncarteTab: tab }),
-      encarteThemes: [],
-      setEncarteThemes: (themes) => { set({ encarteThemes: themes }); get().saveUsersAndFlagsDebounced(); },
-      encarteLogos: [],
-      setEncarteLogos: (logos) => { set({ encarteLogos: logos }); get().saveUsersAndFlagsDebounced(); },
-      encarteLayouts: [],
-      setEncarteLayouts: (layouts) => { set({ encarteLayouts: layouts }); get().saveUsersAndFlagsDebounced(); },
-      activeEncarteTheme: null,
-      setActiveEncarteTheme: (theme) => set({ activeEncarteTheme: theme }),
-      activeEncarteLogo: null,
-      setActiveEncarteLogo: (logo) => set({ activeEncarteLogo: logo }),
-      activeEncarteLayout: null,
-      setActiveEncarteLayout: (layout) => set({ activeEncarteLayout: layout }),
+      // ── Lojas/Moldes/Semanais do Encarte v2: cada save aguarda o POST
+      // confirmar antes de atualizar o estado local (nunca mostra como salvo
+      // algo que falhou no servidor), toda falha vira toast, e todas
+      // retornam boolean pra quem chama saber se deu certo antes de fechar
+      // modal/mostrar sucesso/liberar escritas dependentes.
+      storeProfiles: [],
+      fetchStoreProfiles: async () => {
+        try {
+          const data = await apiGet('/settings/encarte_lojas');
+          set({ storeProfiles: data?.value || [] });
+          return true;
+        } catch {
+          toast.error('Não foi possível carregar as lojas cadastradas.');
+          return false;
+        }
+      },
+      saveStoreProfiles: async (profiles) => {
+        try {
+          await apiPost('/settings/encarte_lojas', { value: profiles });
+          set({ storeProfiles: profiles });
+          return true;
+        } catch {
+          toast.error('Não foi possível salvar a loja. Tente novamente.');
+          return false;
+        }
+      },
+
+      encarteMoldes: [],
+      fetchEncarteMoldes: async () => {
+        try {
+          const data = await apiGet('/settings/encarte_moldes');
+          set({ encarteMoldes: data?.value || [] });
+          return true;
+        } catch {
+          toast.error('Não foi possível carregar os moldes salvos.');
+          return false;
+        }
+      },
+      saveEncarteMoldes: async (moldes) => {
+        try {
+          await apiPost('/settings/encarte_moldes', { value: moldes });
+          set({ encarteMoldes: moldes });
+          return true;
+        } catch {
+          toast.error('Não foi possível salvar o molde. Tente novamente.');
+          return false;
+        }
+      },
+
+      encartesSemanais: [],
+      fetchEncartesSemanais: async () => {
+        try {
+          const data = await apiGet('/settings/encarte_semanais');
+          set({ encartesSemanais: data?.value || [] });
+          return true;
+        } catch {
+          toast.error('Não foi possível carregar os encartes semanais.');
+          return false;
+        }
+      },
+      saveEncartesSemanais: async (semanais) => {
+        try {
+          await apiPost('/settings/encarte_semanais', { value: semanais });
+          set({ encartesSemanais: semanais });
+          return true;
+        } catch {
+          toast.error('Não foi possível salvar o encarte. Tente novamente.');
+          return false;
+        }
+      },
 
       // ── verifyAdminLogin → /api/admin/login (senha checada só no servidor) ──
       verifyAdminLogin: async (username, password) => {
@@ -1661,11 +1697,6 @@ export const useStore = create<AppState>()(
         lastUserIdentity: state.lastUserIdentity,
         userDrafts: state.userDrafts,
         currentView: state.currentView,
-        encartes: state.encartes,
-        selectedEncarteModel: state.selectedEncarteModel,
-        encarteThemes: state.encarteThemes,
-        encarteLogos: state.encarteLogos,
-        encarteLayouts: state.encarteLayouts,
         announcements: state.announcements,
         seenAnnouncements: state.seenAnnouncements,
         isSingleProduct: state.isSingleProduct,
