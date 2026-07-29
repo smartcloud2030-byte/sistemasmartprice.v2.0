@@ -9,6 +9,12 @@ import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
 const SAVE_DEBOUNCE_MS = 800;
+// Guarda o save pendente aqui também (não só no ref em memória) — se o
+// flush do unmount cair numa falha de rede, o registro não fica só na
+// memória de uma instância que já foi desmontada: sobrevive a trocar de
+// aba de novo (ou até recarregar a página, já que sessionStorage
+// persiste) até uma tentativa seguinte confirmar no servidor.
+const PENDING_SAVE_KEY = 'smartprice_encarte_semanal_pending';
 
 const emptySemanal = (moldeId: string, storeProfileId: string): EncarteSemanal => ({
   id: Math.random().toString(36).slice(2, 10),
@@ -51,6 +57,21 @@ export default function EncarteWeekly() {
     // escrita destruiria o array inteiro salvo, já que a persistência é por
     // substituição completa).
     fetchEncartesSemanais().then((ok) => { if (ok) setSemanaisReady(true); });
+
+    // Se um flush anterior (desta ou de uma sessão de aba anterior) ficou
+    // pendente por causa de uma falha de rede, tenta salvar de novo agora.
+    const leftover = sessionStorage.getItem(PENDING_SAVE_KEY);
+    if (leftover) {
+      try {
+        const pending: EncarteSemanal = JSON.parse(leftover);
+        const others = useStore.getState().encartesSemanais.filter((s) => s.id !== pending.id);
+        saveEncartesSemanais([...others, pending]).then((ok) => {
+          if (ok) sessionStorage.removeItem(PENDING_SAVE_KEY);
+        });
+      } catch {
+        sessionStorage.removeItem(PENDING_SAVE_KEY);
+      }
+    }
   }, []);
 
   const flushPendingSave = () => {
@@ -62,7 +83,9 @@ export default function EncarteWeekly() {
     if (!pending) return;
     pendingSaveRef.current = null;
     const others = useStore.getState().encartesSemanais.filter((s) => s.id !== pending.id);
-    saveEncartesSemanais([...others, pending]);
+    saveEncartesSemanais([...others, pending]).then((ok) => {
+      if (ok) sessionStorage.removeItem(PENDING_SAVE_KEY);
+    });
   };
 
   useEffect(() => {
@@ -91,6 +114,7 @@ export default function EncarteWeekly() {
   const persistSemanal = (updated: EncarteSemanal) => {
     setSemanal(updated);
     pendingSaveRef.current = updated;
+    sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify(updated));
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(flushPendingSave, SAVE_DEBOUNCE_MS);
   };
