@@ -4,7 +4,7 @@ import { getProxyUrl } from '../../lib/utils';
 import { formatPrice } from '../../lib/encartePrice';
 import ProductSelector from '../ProductSelector';
 import { Plus, FileDown, Image as ImageIcon2, X } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
