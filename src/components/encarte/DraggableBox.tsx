@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export interface BoxRect {
@@ -48,6 +48,13 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
     window.removeEventListener('pointermove', handlePointerMove);
     window.removeEventListener('pointerup', handlePointerUp);
   }, [handlePointerMove]);
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [handlePointerMove, handlePointerUp]);
 
   const startDrag = (mode: 'move' | 'resize') => (e: React.PointerEvent) => {
     e.stopPropagation();
