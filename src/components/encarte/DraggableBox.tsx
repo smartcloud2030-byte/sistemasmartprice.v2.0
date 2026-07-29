@@ -21,6 +21,8 @@ const MIN_PCT = 3;
 
 export default function DraggableBox({ rect, containerRef, onChange, onRemove, label, color = '#10b981' }: DraggableBoxProps) {
   const dragState = useRef<{ mode: 'move' | 'resize'; startX: number; startY: number; startRect: BoxRect } | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
@@ -35,13 +37,13 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
     if (state.mode === 'move') {
       const xPct = clamp(state.startRect.xPct + dxPct, 0, 100 - state.startRect.widthPct);
       const yPct = clamp(state.startRect.yPct + dyPct, 0, 100 - state.startRect.heightPct);
-      onChange({ ...state.startRect, xPct, yPct });
+      onChangeRef.current({ ...state.startRect, xPct, yPct });
     } else {
       const widthPct = clamp(state.startRect.widthPct + dxPct, MIN_PCT, 100 - state.startRect.xPct);
       const heightPct = clamp(state.startRect.heightPct + dyPct, MIN_PCT, 100 - state.startRect.yPct);
-      onChange({ ...state.startRect, widthPct, heightPct });
+      onChangeRef.current({ ...state.startRect, widthPct, heightPct });
     }
-  }, [containerRef, onChange]);
+  }, [containerRef]);
 
   const handlePointerUp = useCallback(() => {
     dragState.current = null;
@@ -49,15 +51,12 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
     window.removeEventListener('pointerup', handlePointerUp);
   }, [handlePointerMove]);
 
-  const handlersRef = useRef({ move: handlePointerMove, up: handlePointerUp });
-  handlersRef.current = { move: handlePointerMove, up: handlePointerUp };
-
   useEffect(() => {
     return () => {
-      window.removeEventListener('pointermove', handlersRef.current.move);
-      window.removeEventListener('pointerup', handlersRef.current.up);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, []);
+  }, [handlePointerMove, handlePointerUp]);
 
   const startDrag = (mode: 'move' | 'resize') => (e: React.PointerEvent) => {
     e.stopPropagation();
