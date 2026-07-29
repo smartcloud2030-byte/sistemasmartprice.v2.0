@@ -15,11 +15,19 @@ interface DraggableBoxProps {
   onRemove?: () => void;
   label?: string;
   color?: string;
+  // Quando true (padrão), mostra a alça de redimensionar no canto. Passe
+  // false pra um box que só pode ser movido, não redimensionado (ex:
+  // conteúdo de produto arrastável dentro de um slot de tamanho fixo).
+  resizable?: boolean;
+  // Conteúdo a renderizar dentro do box, no lugar do label/moldura
+  // decorativa padrão — usado quando o DraggableBox embrulha conteúdo real
+  // (que deve aparecer no export) em vez de só marcar uma posição no editor.
+  children?: React.ReactNode;
 }
 
 const MIN_PCT = 3;
 
-export default function DraggableBox({ rect, containerRef, onChange, onRemove, label, color = '#10b981' }: DraggableBoxProps) {
+export default function DraggableBox({ rect, containerRef, onChange, onRemove, label, color = '#10b981', resizable = true, children }: DraggableBoxProps) {
   const dragState = useRef<{ mode: 'move' | 'resize'; startX: number; startY: number; startRect: BoxRect } | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -69,17 +77,18 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
   return (
     <div
       onPointerDown={startDrag('move')}
-      className="absolute border-2 border-dashed cursor-move flex items-center justify-center select-none"
+      className={children ? 'absolute cursor-move select-none' : 'absolute border-2 border-dashed cursor-move flex items-center justify-center select-none'}
       style={{
         left: `${rect.xPct}%`,
         top: `${rect.yPct}%`,
         width: `${rect.widthPct}%`,
         height: `${rect.heightPct}%`,
-        borderColor: color,
-        backgroundColor: `${color}22`,
+        ...(children ? {} : { borderColor: color, backgroundColor: `${color}22` }),
       }}
     >
-      {label && (
+      {children}
+
+      {label && !children && (
         <span className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-black/60 text-white pointer-events-none">
           {label}
         </span>
@@ -88,16 +97,18 @@ export default function DraggableBox({ rect, containerRef, onChange, onRemove, l
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onRemove}
-          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center"
+          className="no-print absolute -top-2 -right-2 z-10 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center"
         >
           <X className="w-3 h-3" />
         </button>
       )}
-      <div
-        onPointerDown={startDrag('resize')}
-        className="absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-full cursor-se-resize"
-        style={{ backgroundColor: color }}
-      />
+      {resizable && (
+        <div
+          onPointerDown={startDrag('resize')}
+          className="no-print absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-full cursor-se-resize"
+          style={{ backgroundColor: color }}
+        />
+      )}
     </div>
   );
 }

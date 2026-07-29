@@ -215,6 +215,8 @@ export interface EncarteMolde {
   frontGrid: EncarteGridConfig;
   backGrid?: EncarteGridConfig;
   fontFamily?: EncarteFontFamily;
+  priceBoxColor?: string;
+  productNameColor?: string;
 }
 
 export interface EncarteSemanal {

@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 
 const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
 const DEFAULT_GRID: EncarteGridConfig = { cols: 3, rows: 5, area: DEFAULT_AREA, manual: false };
+const DEFAULT_PRICE_BOX_COLOR = '#dc2626';
+const DEFAULT_PRODUCT_NAME_COLOR = '#dc2626';
 
 const emptyMolde = (): EncarteMolde => ({
   id: Math.random().toString(36).slice(2, 10),
@@ -16,6 +18,8 @@ const emptyMolde = (): EncarteMolde => ({
   frontBgUrl: '',
   frontSlots: [],
   frontGrid: DEFAULT_GRID,
+  priceBoxColor: DEFAULT_PRICE_BOX_COLOR,
+  productNameColor: DEFAULT_PRODUCT_NAME_COLOR,
 });
 
 const SLOT_COLORS: Record<EncarteSlotDef['tipo'], string> = {
@@ -194,6 +198,27 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
                 <option value="Roboto">Roboto</option>
                 <option value="Oswald">Oswald</option>
               </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <label className="text-[10px] font-black uppercase text-zinc-500">Caixa do preço</label>
+                <input
+                  type="color"
+                  value={draft.priceBoxColor || DEFAULT_PRICE_BOX_COLOR}
+                  onChange={(e) => setDraft((d) => ({ ...d, priceBoxColor: e.target.value }))}
+                  className="w-7 h-7 rounded-lg cursor-pointer border-none bg-transparent"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-[10px] font-black uppercase text-zinc-500">Nome do produto</label>
+                <input
+                  type="color"
+                  value={draft.productNameColor || DEFAULT_PRODUCT_NAME_COLOR}
+                  onChange={(e) => setDraft((d) => ({ ...d, productNameColor: e.target.value }))}
+                  className="w-7 h-7 rounded-lg cursor-pointer border-none bg-transparent"
+                />
+              </div>
             </div>
 
             <button

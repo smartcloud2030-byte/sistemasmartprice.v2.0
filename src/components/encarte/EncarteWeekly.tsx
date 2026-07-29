@@ -3,6 +3,7 @@ import { useStore, Product, SelectedProduct, EncarteSemanal } from '../../store'
 import { getProxyUrl } from '../../lib/utils';
 import { formatPrice } from '../../lib/encartePrice';
 import ProductSelector from '../ProductSelector';
+import DraggableBox, { BoxRect } from './DraggableBox';
 import { Plus, FileDown, Image as ImageIcon2, X, Percent } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
@@ -42,6 +43,19 @@ export default function EncarteWeekly() {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  // Um ref estável por slot (não recriado a cada render) — o conteúdo do
+  // produto é arrastável dentro do próprio slot via DraggableBox, que exige
+  // um containerRef com identidade estável pra não recriar os handlers de
+  // pointer a cada render (a mesma classe de bug já corrigida em
+  // DraggableBox.tsx: um objeto `{ current }` novo a cada render quebraria
+  // o `useCallback` que depende de `containerRef`).
+  const slotContainerRefs = useRef<Map<string, React.RefObject<HTMLDivElement>>>(new Map());
+  const getSlotContainerRef = (slotId: string) => {
+    if (!slotContainerRefs.current.has(slotId)) {
+      slotContainerRefs.current.set(slotId, React.createRef<HTMLDivElement>());
+    }
+    return slotContainerRefs.current.get(slotId)!;
+  };
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guarda o último EncarteSemanal ainda não confirmado no servidor — usado
   // pra descarregar (flush) o save pendente se o componente desmontar antes
@@ -325,39 +339,83 @@ export default function EncarteWeekly() {
 
         {activeSlots.filter((s) => s.tipo === 'produto').map((slot) => {
           const product = semanal?.produtos[slot.id];
+          const nameColor = molde.productNameColor || '#dc2626';
+          const boxColor = molde.priceBoxColor || '#dc2626';
+          // Área "de conteúdo" arrastável dentro do slot: 80% do tamanho do
+          // slot, com até 20% de folga (10% pra cada lado) pra mover sem
+          // sair da célula — offsetX/offsetY guardam a posição atual dessa
+          // área dentro do slot (0-20, padrão 10 = centralizado).
+          const contentRect: BoxRect = {
+            xPct: product?.offsetX ?? 10,
+            yPct: product?.offsetY ?? 10,
+            widthPct: 80,
+            heightPct: 80,
+          };
           return (
-            <div key={slot.id} className="absolute p-0.5" style={{ left: `${slot.xPct}%`, top: `${slot.yPct}%`, width: `${slot.widthPct}%`, height: `${slot.heightPct}%` }}>
+            <div key={slot.id} ref={getSlotContainerRef(slot.id)} className="absolute p-0.5" style={{ left: `${slot.xPct}%`, top: `${slot.yPct}%`, width: `${slot.widthPct}%`, height: `${slot.heightPct}%` }}>
               {product ? (
-                <div className="group relative w-full h-full flex flex-col items-center justify-center gap-0.5 text-center">
-                  <button onClick={() => removeSlotProduct(slot.id)} className="no-print absolute top-0 right-0 z-10 opacity-0 group-hover:opacity-100 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                  {product.image && <img src={getProxyUrl(product.image)} className="max-h-[45%] object-contain" crossOrigin="anonymous" />}
-                  <p className="text-[7px] font-black uppercase leading-tight">{product.name}</p>
-                  {product.displayType === 'discount' ? (
-                    <p className="text-lg font-black text-red-600">{product.discountValue}%</p>
-                  ) : (
-                    <p className="text-lg font-black text-red-600">
-                      {formatPrice(product.price).integer}
-                      <span className="text-xs">{formatPrice(product.price).cents}</span>
-                    </p>
-                  )}
-                  <div className="no-print flex items-center gap-1">
-                    <button
-                      onClick={() => toggleSlotDisplayType(slot.id)}
-                      title="Alternar entre preço e % de desconto"
-                      className="p-1 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+                <DraggableBox
+                  rect={contentRect}
+                  containerRef={getSlotContainerRef(slot.id)}
+                  onChange={(rect) => updateSlotProduct(slot.id, { offsetX: rect.xPct, offsetY: rect.yPct })}
+                  onRemove={() => removeSlotProduct(slot.id)}
+                  resizable={false}
+                >
+                  <div className="group relative w-full h-full flex items-center gap-1 overflow-hidden">
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-[1px]">
+                      <p className="text-[6px] font-black uppercase leading-tight" style={{ color: nameColor }}>{product.name}</p>
+                      {product.subtitle && (
+                        <p className="text-[4.5px] font-bold uppercase text-zinc-500 leading-tight line-clamp-2">{product.subtitle}</p>
+                      )}
+                      <div className="mt-[2px] rounded px-1 py-[1px] inline-flex flex-col items-start w-fit leading-none" style={{ backgroundColor: boxColor }}>
+                        <span className="text-[3.5px] font-black text-white uppercase leading-none">Por</span>
+                        {product.displayType === 'discount' ? (
+                          <span className="text-[11px] font-black text-white leading-none">{product.discountValue}%</span>
+                        ) : (
+                          <div className="flex items-baseline gap-[1px]">
+                            <span className="text-[9px] font-black text-white leading-none">
+                              R$ {formatPrice(product.price).integer}
+                              <span className="text-[6px]">{formatPrice(product.price).cents}</span>
+                            </span>
+                            <span className="text-[3.5px] font-black text-white uppercase leading-none">Uni</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {product.image && (
+                      <img src={getProxyUrl(product.image)} className="w-2/5 flex-shrink-0 object-contain" crossOrigin="anonymous" />
+                    )}
+
+                    <div
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="no-print absolute bottom-0 left-0 right-0 flex flex-col gap-[1px] bg-white/90 p-[1px] opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      <Percent className="w-2.5 h-2.5" />
-                    </button>
-                    <input
-                      type="text"
-                      value={product.displayType === 'discount' ? (product.discountValue || '') : product.price}
-                      onChange={(e) => updateSlotProduct(slot.id, product.displayType === 'discount' ? { discountValue: e.target.value } : { price: e.target.value })}
-                      className="w-16 text-[9px] text-center bg-white/80 border border-zinc-300 rounded px-1"
-                    />
+                      <input
+                        type="text"
+                        placeholder="Descrição"
+                        value={product.subtitle || ''}
+                        onChange={(e) => updateSlotProduct(slot.id, { subtitle: e.target.value })}
+                        className="w-full min-w-0 text-[6px] text-center bg-white border border-zinc-300 rounded px-0.5"
+                      />
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => toggleSlotDisplayType(slot.id)}
+                          title="Alternar entre preço e % de desconto"
+                          className="p-0.5 rounded bg-zinc-200 text-zinc-600 flex-shrink-0"
+                        >
+                          <Percent className="w-2 h-2" />
+                        </button>
+                        <input
+                          type="text"
+                          value={product.displayType === 'discount' ? (product.discountValue || '') : product.price}
+                          onChange={(e) => updateSlotProduct(slot.id, product.displayType === 'discount' ? { discountValue: e.target.value } : { price: e.target.value })}
+                          className="w-full min-w-0 text-[7px] text-center bg-white border border-zinc-300 rounded px-0.5"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </DraggableBox>
               ) : (
                 <button onClick={() => setActiveSlotId(slot.id)} className="no-print w-full h-full border-2 border-dashed border-zinc-300 rounded-lg flex items-center justify-center text-zinc-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors">
                   <Plus className="w-4 h-4" />
