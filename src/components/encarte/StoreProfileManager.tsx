@@ -126,7 +126,7 @@ export default function StoreProfileManager() {
               <input
                 type="text"
                 placeholder="CNPJ (opcional)"
-                value={editing.cnpj}
+                value={editing.cnpj ?? ''}
                 onChange={(e) => setEditing({ ...editing, cnpj: e.target.value })}
                 className="flex-grow px-3 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-sm outline-none"
               />

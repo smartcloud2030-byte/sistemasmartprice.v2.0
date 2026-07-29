@@ -51,27 +51,35 @@ export default function EncarteWeekly() {
   useEffect(() => {
     fetchEncarteMoldes();
     fetchStoreProfiles();
-    // Só libera a criação de novos registros depois que o fetch realmente
-    // confirmar — se falhar, semanaisReady fica false e nada é escrito por
-    // cima do que já existe no servidor (uma falha de leitura seguida de
-    // escrita destruiria o array inteiro salvo, já que a persistência é por
-    // substituição completa).
-    fetchEncartesSemanais().then((ok) => { if (ok) setSemanaisReady(true); });
+    // Só libera a criação de novos registros — e só tenta o retry pendente
+    // abaixo — depois que o fetch realmente confirmar. Tentar retry ANTES
+    // do fetch resolver leria encartesSemanais como [] e o retry POSTaria
+    // só o registro pendente por cima disso, destruindo todo o resto salvo
+    // no servidor (a persistência é por substituição do array inteiro).
+    fetchEncartesSemanais().then((ok) => {
+      if (!ok) return;
+      setSemanaisReady(true);
 
-    // Se um flush anterior (desta ou de uma sessão de aba anterior) ficou
-    // pendente por causa de uma falha de rede, tenta salvar de novo agora.
-    const leftover = sessionStorage.getItem(PENDING_SAVE_KEY);
-    if (leftover) {
+      // Se um flush anterior (desta ou de uma sessão de aba anterior) ficou
+      // pendente por causa de uma falha de rede ou um reload no meio do
+      // debounce, tenta salvar de novo agora — com o array já carregado.
+      const leftover = sessionStorage.getItem(PENDING_SAVE_KEY);
+      if (!leftover) return;
       try {
         const pending: EncarteSemanal = JSON.parse(leftover);
         const others = useStore.getState().encartesSemanais.filter((s) => s.id !== pending.id);
-        saveEncartesSemanais([...others, pending]).then((ok) => {
-          if (ok) sessionStorage.removeItem(PENDING_SAVE_KEY);
+        saveEncartesSemanais([...others, pending]).then((saved) => {
+          // Só limpa a chave se ainda for o mesmo payload que acabou de ser
+          // salvo — se uma edição nova sobrescreveu a chave enquanto esse
+          // POST estava em voo, quem limpa é o próximo save a confirmar.
+          if (saved && sessionStorage.getItem(PENDING_SAVE_KEY) === leftover) {
+            sessionStorage.removeItem(PENDING_SAVE_KEY);
+          }
         });
       } catch {
         sessionStorage.removeItem(PENDING_SAVE_KEY);
       }
-    }
+    });
   }, []);
 
   const flushPendingSave = () => {
@@ -82,9 +90,15 @@ export default function EncarteWeekly() {
     const pending = pendingSaveRef.current;
     if (!pending) return;
     pendingSaveRef.current = null;
+    const pendingJson = JSON.stringify(pending);
     const others = useStore.getState().encartesSemanais.filter((s) => s.id !== pending.id);
     saveEncartesSemanais([...others, pending]).then((ok) => {
-      if (ok) sessionStorage.removeItem(PENDING_SAVE_KEY);
+      // Só limpa a chave se ainda for esse mesmo payload — uma edição nova
+      // pode ter sobrescrito sessionStorage enquanto esse POST estava em
+      // voo, e nesse caso quem limpa é o próximo save a confirmar aquele.
+      if (ok && sessionStorage.getItem(PENDING_SAVE_KEY) === pendingJson) {
+        sessionStorage.removeItem(PENDING_SAVE_KEY);
+      }
     });
   };
 
