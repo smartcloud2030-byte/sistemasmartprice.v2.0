@@ -86,7 +86,13 @@ export default function EncarteWeekly() {
     setIsExporting(true);
     const toastId = toast.loading('Gerando imagem...');
     try {
-      const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        ignoreElements: (element) => element.classList.contains('no-print'),
+      });
       const link = document.createElement('a');
       link.download = `encarte-${(molde?.nome || 'modelo').replace(/\s+/g, '-')}-${side}-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -110,7 +116,13 @@ export default function EncarteWeekly() {
       const captureSide = async (targetSide: 'frente' | 'verso') => {
         setSide(targetSide);
         await waitFrame();
-        const canvas = await html2canvas(previewRef.current!, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        const canvas = await html2canvas(previewRef.current!, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          ignoreElements: (element) => element.classList.contains('no-print'),
+        });
         return canvas.toDataURL('image/jpeg', 0.95);
       };
 
