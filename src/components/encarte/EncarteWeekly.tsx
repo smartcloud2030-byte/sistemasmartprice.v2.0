@@ -39,9 +39,14 @@ const emptySemanal = (moldeId: string, storeProfileId: string): EncarteSemanal =
 // salvo em product.nameFontSize/subtitleFontSize manda.
 const DEFAULT_NAME_FONT_SIZE = 6;
 const DEFAULT_SUBTITLE_FONT_SIZE = 4.5;
+const DEFAULT_PRICE_FONT_SIZE = 11;
 const FONT_SIZE_STEP = 0.5;
 const MIN_FONT_SIZE = 2;
 const MAX_FONT_SIZE = 24;
+// "Por" e "Uni" acompanham o tamanho do número do preço automaticamente
+// nessa proporção — não têm controle de fonte próprio, senão viraria um
+// terceiro botão A-/A+ só pra esses rótulos pequenos.
+const PRICE_LABEL_FONT_RATIO = 0.32;
 
 // Quanto a roda do mouse aumenta/diminui o elemento selecionado por "tick"
 // de scroll — mesma proporção pros dois eixos, crescendo/encolhendo a
@@ -278,13 +283,15 @@ export default function EncarteWeekly() {
   const getElementRect = (product: SelectedProduct, key: 'name' | 'subtitle' | 'price' | 'image'): EncarteElementRect =>
     product.elementLayout?.[key] || DEFAULT_ELEMENT_RECTS[key];
 
-  const adjustFontSize = (slotId: string, key: 'name' | 'subtitle', delta: number) => {
+  const FONT_FIELD = { name: 'nameFontSize', subtitle: 'subtitleFontSize', price: 'priceFontSize' } as const;
+  const FONT_DEFAULT = { name: DEFAULT_NAME_FONT_SIZE, subtitle: DEFAULT_SUBTITLE_FONT_SIZE, price: DEFAULT_PRICE_FONT_SIZE };
+
+  const adjustFontSize = (slotId: string, key: 'name' | 'subtitle' | 'price', delta: number) => {
     if (!semanal) return;
     const current = semanal.produtos[slotId];
     if (!current) return;
-    const field = key === 'name' ? 'nameFontSize' : 'subtitleFontSize';
-    const defaultSize = key === 'name' ? DEFAULT_NAME_FONT_SIZE : DEFAULT_SUBTITLE_FONT_SIZE;
-    const nextSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, (current[field] ?? defaultSize) + delta));
+    const field = FONT_FIELD[key];
+    const nextSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, (current[field] ?? FONT_DEFAULT[key]) + delta));
     updateSlotProduct(slotId, { [field]: nextSize });
   };
 
@@ -620,40 +627,51 @@ export default function EncarteWeekly() {
                       selected={isSelected(slot.id, 'price')}
                       onSelect={() => selectElement(slot.id, 'price')}
                     >
-                      <div className="w-full h-full rounded px-1 py-[1px] flex flex-col items-start justify-center leading-none" style={{ backgroundColor: boxColor }}>
-                        <button
-                          onClick={() => toggleSlotDisplayType(slot.id)}
-                          onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
-                          title="Alternar entre preço e % de desconto"
-                          className="no-print absolute top-0 left-0 p-[1px] rounded bg-black/20 text-white flex-shrink-0"
-                        >
-                          <Percent className="w-2 h-2" />
-                        </button>
-                        <span className="text-[3.5px] font-black text-white uppercase leading-none">Por</span>
-                        {product.displayType === 'discount' ? (
-                          <div className="flex items-baseline">
-                            <input
-                              type="text"
-                              value={product.discountValue || ''}
+                      {(() => {
+                        const priceFontSize = product.priceFontSize ?? DEFAULT_PRICE_FONT_SIZE;
+                        const labelFontSize = priceFontSize * PRICE_LABEL_FONT_RATIO;
+                        return (
+                          <div className="w-full h-full rounded px-1 py-[1px] flex flex-col items-start justify-center leading-none" style={{ backgroundColor: boxColor }}>
+                            <button
+                              onClick={() => toggleSlotDisplayType(slot.id)}
                               onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
-                              onChange={(e) => updateSlotProduct(slot.id, { discountValue: e.target.value })}
-                              className="w-6 text-[11px] font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
-                            />
-                            <span className="text-[11px] font-black text-white leading-none">%</span>
+                              title="Alternar entre preço e % de desconto"
+                              className="no-print absolute top-0 left-0 p-[1px] rounded bg-black/20 text-white flex-shrink-0"
+                            >
+                              <Percent className="w-2 h-2" />
+                            </button>
+                            <span className="font-black text-white uppercase leading-none" style={{ fontSize: `${labelFontSize}px` }}>Por</span>
+                            {product.displayType === 'discount' ? (
+                              <div className="flex items-baseline">
+                                <input
+                                  type="text"
+                                  value={product.discountValue || ''}
+                                  onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
+                                  onChange={(e) => updateSlotProduct(slot.id, { discountValue: e.target.value })}
+                                  className="font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
+                                  style={{ fontSize: `${priceFontSize}px`, width: `${Math.max(24, priceFontSize * 2.2)}px` }}
+                                />
+                                <span className="font-black text-white leading-none" style={{ fontSize: `${priceFontSize}px` }}>%</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-baseline gap-[1px]">
+                                <input
+                                  type="text"
+                                  value={product.price}
+                                  onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
+                                  onChange={(e) => updateSlotProduct(slot.id, { price: e.target.value })}
+                                  className="font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
+                                  style={{ fontSize: `${priceFontSize}px`, width: `${Math.max(44, priceFontSize * 5)}px` }}
+                                />
+                                <span className="font-black text-white uppercase leading-none" style={{ fontSize: `${labelFontSize}px` }}>Uni</span>
+                              </div>
+                            )}
+                            {isSelected(slot.id, 'price') && (
+                              <FontSizeControl onDecrease={() => adjustFontSize(slot.id, 'price', -FONT_SIZE_STEP)} onIncrease={() => adjustFontSize(slot.id, 'price', FONT_SIZE_STEP)} />
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-baseline gap-[1px]">
-                            <input
-                              type="text"
-                              value={product.price}
-                              onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
-                              onChange={(e) => updateSlotProduct(slot.id, { price: e.target.value })}
-                              className="w-11 text-[9px] font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
-                            />
-                            <span className="text-[3.5px] font-black text-white uppercase leading-none">Uni</span>
-                          </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </DraggableBox>
 
                     {product.image && (
