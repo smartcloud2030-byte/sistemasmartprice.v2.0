@@ -66,6 +66,43 @@ function FontSizeControl({ onDecrease, onIncrease }: { onDecrease: () => void; o
   );
 }
 
+// Div editável (nome/descrição do produto) que quebra linha de verdade —
+// diferente de <input>/<textarea>, o html2canvas consegue capturar o texto
+// quebrado corretamente na exportação (ver DEFAULT_ELEMENT_RECTS acima).
+// O conteúdo é escrito no DOM só imperativamente (via ref), nunca através
+// dos children do React: se o valor viesse como children normal, cada
+// keystroke dispararia um re-render que reescreve o textContent do zero e
+// zera a posição do cursor no meio da digitação — o texto sai invertido
+// (bug real encontrado e confirmado via teste automatizado). O efeito abaixo
+// só toca o DOM quando o texto mudou por fora (troca de produto), nunca
+// como reação à própria digitação.
+function EditableText({ value, onInput, onPointerDown, className, style }: {
+  value: string;
+  onInput: (text: string) => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+  className: string;
+  style?: React.CSSProperties;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.textContent !== value) {
+      ref.current.textContent = value;
+    }
+  }, [value]);
+
+  return (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      onPointerDown={onPointerDown}
+      onInput={(e) => onInput(e.currentTarget.textContent || '')}
+      className={className}
+      style={style}
+    />
+  );
+}
+
 export default function EncarteWeekly() {
   const {
     encarteMoldes, fetchEncarteMoldes,
@@ -545,12 +582,11 @@ export default function EncarteWeekly() {
                       selected={isSelected(slot.id, 'name')}
                       onSelect={() => selectElement(slot.id, 'name')}
                     >
-                      <input
-                        type="text"
+                      <EditableText
                         value={product.name}
                         onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'name'); }}
-                        onChange={(e) => updateSlotProduct(slot.id, { name: e.target.value })}
-                        className="w-full h-full min-w-0 font-black uppercase leading-tight bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
+                        onInput={(text) => updateSlotProduct(slot.id, { name: text })}
+                        className="w-full h-full min-w-0 overflow-hidden font-black uppercase leading-tight bg-transparent outline-none whitespace-pre-wrap break-words focus:ring-1 focus:ring-black/20 rounded-[1px]"
                         style={{ color: nameColor, fontSize: `${product.nameFontSize ?? DEFAULT_NAME_FONT_SIZE}px` }}
                       />
                       {isSelected(slot.id, 'name') && (
@@ -565,13 +601,11 @@ export default function EncarteWeekly() {
                       selected={isSelected(slot.id, 'subtitle')}
                       onSelect={() => selectElement(slot.id, 'subtitle')}
                     >
-                      <input
-                        type="text"
-                        placeholder="Descrição"
+                      <EditableText
                         value={product.subtitle || ''}
                         onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'subtitle'); }}
-                        onChange={(e) => updateSlotProduct(slot.id, { subtitle: e.target.value })}
-                        className="w-full h-full min-w-0 font-bold uppercase leading-tight text-zinc-500 bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
+                        onInput={(text) => updateSlotProduct(slot.id, { subtitle: text })}
+                        className="w-full h-full min-w-0 overflow-hidden font-bold uppercase leading-tight text-zinc-500 bg-transparent outline-none whitespace-pre-wrap break-words focus:ring-1 focus:ring-black/20 rounded-[1px] empty:before:content-['Descrição'] empty:before:text-zinc-300"
                         style={{ fontSize: `${product.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE}px` }}
                       />
                       {isSelected(slot.id, 'subtitle') && (
