@@ -22,7 +22,7 @@ const PENDING_SAVE_KEY = 'smartprice_encarte_semanal_pending';
 const DEFAULT_ELEMENT_RECTS: Record<'name' | 'subtitle' | 'price' | 'image', EncarteElementRect> = {
   name: { xPct: 2, yPct: 2, widthPct: 58, heightPct: 20 },
   subtitle: { xPct: 2, yPct: 24, widthPct: 58, heightPct: 16 },
-  price: { xPct: 2, yPct: 44, widthPct: 42, heightPct: 40 },
+  price: { xPct: 2, yPct: 44, widthPct: 48, heightPct: 40 },
   image: { xPct: 62, yPct: 10, widthPct: 36, heightPct: 80 },
 };
 
@@ -631,7 +631,7 @@ export default function EncarteWeekly() {
                         const priceFontSize = product.priceFontSize ?? DEFAULT_PRICE_FONT_SIZE;
                         const labelFontSize = priceFontSize * PRICE_LABEL_FONT_RATIO;
                         return (
-                          <div className="w-full h-full rounded px-1 py-[1px] flex flex-col items-start justify-center leading-none" style={{ backgroundColor: boxColor }}>
+                          <div className="w-full h-full rounded px-2 py-1 flex flex-col items-start justify-center leading-none overflow-hidden" style={{ backgroundColor: boxColor }}>
                             <button
                               onClick={() => toggleSlotDisplayType(slot.id)}
                               onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
@@ -661,7 +661,7 @@ export default function EncarteWeekly() {
                                   onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
                                   onChange={(e) => updateSlotProduct(slot.id, { price: e.target.value })}
                                   className="font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
-                                  style={{ fontSize: `${priceFontSize}px`, width: `${Math.max(44, priceFontSize * 5)}px` }}
+                                  style={{ fontSize: `${priceFontSize}px`, width: `${Math.max(40, priceFontSize * 4)}px` }}
                                 />
                                 <span className="font-black text-white uppercase leading-none" style={{ fontSize: `${labelFontSize}px` }}>Uni</span>
                               </div>

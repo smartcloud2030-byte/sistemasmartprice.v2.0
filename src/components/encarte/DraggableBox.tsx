@@ -67,21 +67,38 @@ function applyResize(handle: ResizeHandle, start: BoxRect, dxPct: number, dyPct:
 }
 
 // Estilo "Figma/PowerPoint": um quadradinho discreto em cada borda/canto,
-// centralizado exatamente no ponto (translate -50%/-50%), com uma área de
-// clique (hitArea) maior que o quadrado visível pra facilitar acertar com
-// o mouse sem deixar a alça grande/pesada na tela.
-const HANDLE_DEFS: { id: ResizeHandle; cursor: string; top: string; left: string }[] = [
-  { id: 'n', cursor: 'ns-resize', top: '0%', left: '50%' },
-  { id: 's', cursor: 'ns-resize', top: '100%', left: '50%' },
-  { id: 'e', cursor: 'ew-resize', top: '50%', left: '100%' },
-  { id: 'w', cursor: 'ew-resize', top: '50%', left: '0%' },
-  { id: 'nw', cursor: 'nwse-resize', top: '0%', left: '0%' },
-  { id: 'ne', cursor: 'nesw-resize', top: '0%', left: '100%' },
-  { id: 'sw', cursor: 'nesw-resize', top: '100%', left: '0%' },
-  { id: 'se', cursor: 'nwse-resize', top: '100%', left: '100%' },
+// com uma área de clique (hitArea) maior que o quadrado visível pra
+// facilitar acertar com o mouse sem deixar a alça grande/pesada na tela.
+// 'anchorX'/'anchorY' controlam pra que lado do ponto a área de clique se
+// estende — 'c' fica centrada no ponto (bordas), já l/r/t/b jogam a área
+// majoritariamente PRA FORA da caixa (cantos). Sem isso, a área de clique
+// (que sempre foi maior que o quadrado visível) invadia o canto de dentro
+// da caixa o suficiente pra "roubar" o clique de qualquer conteúdo que
+// morasse bem no canto (ex: o texto "Por" numa caixa de preço pequena —
+// bug real reportado pelo usuário: clicar em "Por" redimensionava em vez
+// de mover, porque a alça 'nw' estava por cima sem aparecer).
+const HANDLE_DEFS: { id: ResizeHandle; cursor: string; top: string; left: string; anchorX: 'l' | 'c' | 'r'; anchorY: 't' | 'c' | 'b' }[] = [
+  { id: 'n', cursor: 'ns-resize', top: '0%', left: '50%', anchorX: 'c', anchorY: 't' },
+  { id: 's', cursor: 'ns-resize', top: '100%', left: '50%', anchorX: 'c', anchorY: 'b' },
+  { id: 'e', cursor: 'ew-resize', top: '50%', left: '100%', anchorX: 'r', anchorY: 'c' },
+  { id: 'w', cursor: 'ew-resize', top: '50%', left: '0%', anchorX: 'l', anchorY: 'c' },
+  { id: 'nw', cursor: 'nwse-resize', top: '0%', left: '0%', anchorX: 'l', anchorY: 't' },
+  { id: 'ne', cursor: 'nesw-resize', top: '0%', left: '100%', anchorX: 'r', anchorY: 't' },
+  { id: 'sw', cursor: 'nesw-resize', top: '100%', left: '0%', anchorX: 'l', anchorY: 'b' },
+  { id: 'se', cursor: 'nwse-resize', top: '100%', left: '100%', anchorX: 'r', anchorY: 'b' },
 ];
 const HIT_AREA = 18;
 const HANDLE_SIZE = 8;
+// Fração da hitArea que fica DENTRO da caixa em cada eixo enviesado
+// ('l'/'r'/'t'/'b') — o resto (1 - isso) fica por fora. 'c' (bordas) segue
+// centrado 50/50 como antes.
+const HANDLE_INSET_RATIO = 0.25;
+
+function handleOffset(anchor: 'l' | 'c' | 'r' | 't' | 'b', towardStart: 'l' | 't', towardEnd: 'r' | 'b'): number {
+  if (anchor === 'c') return -HIT_AREA / 2;
+  if (anchor === towardStart) return -HIT_AREA * (1 - HANDLE_INSET_RATIO);
+  return -HIT_AREA * HANDLE_INSET_RATIO;
+}
 
 // forwardRef: permite aninhar um DraggableBox dentro de outro — o pai passa
 // a própria ref (capturada aqui) como `containerRef` de um DraggableBox
@@ -180,7 +197,15 @@ const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(functio
           key={h.id}
           onPointerDown={startResize(h.id)}
           className="no-print absolute flex items-center justify-center"
-          style={{ top: h.top, left: h.left, width: HIT_AREA, height: HIT_AREA, marginLeft: -HIT_AREA / 2, marginTop: -HIT_AREA / 2, cursor: h.cursor }}
+          style={{
+            top: h.top,
+            left: h.left,
+            width: HIT_AREA,
+            height: HIT_AREA,
+            marginLeft: handleOffset(h.anchorX, 'l', 'r'),
+            marginTop: handleOffset(h.anchorY, 't', 'b'),
+            cursor: h.cursor,
+          }}
         >
           <div
             className="rounded-[2px] bg-white pointer-events-none shadow-sm"
