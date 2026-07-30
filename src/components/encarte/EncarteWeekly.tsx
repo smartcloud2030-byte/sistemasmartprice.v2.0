@@ -34,6 +34,8 @@ const emptySemanal = (moldeId: string, storeProfileId: string): EncarteSemanal =
   produtos: {},
 });
 
+type ElementKey = 'card' | 'name' | 'subtitle' | 'price' | 'image';
+
 export default function EncarteWeekly() {
   const {
     encarteMoldes, fetchEncarteMoldes,
@@ -52,6 +54,14 @@ export default function EncarteWeekly() {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [zoom, setZoom] = useState(100);
+  // Qual elemento está selecionado agora (só ele mostra alças de
+  // redimensionar) — clicar num elemento diferente troca a seleção, clicar
+  // fora de qualquer elemento (no fundo do preview) limpa. Sem isso, todos
+  // os elementos de todos os produtos mostravam alças ao mesmo tempo,
+  // poluindo a tela.
+  const [selected, setSelected] = useState<{ slotId: string; key: ElementKey } | null>(null);
+  const isSelected = (slotId: string, key: ElementKey) => selected?.slotId === slotId && selected.key === key;
+  const selectElement = (slotId: string, key: ElementKey) => setSelected({ slotId, key });
   const previewRef = useRef<HTMLDivElement>(null);
   // Um ref estável por slot (não recriado a cada render) — o conteúdo do
   // produto é arrastável dentro do próprio slot via DraggableBox, que exige
@@ -211,6 +221,7 @@ export default function EncarteWeekly() {
   const removeSlotProduct = (slotId: string) => {
     if (!semanal) return;
     persistSemanal({ ...semanal, produtos: { ...semanal.produtos, [slotId]: null } });
+    setSelected((sel) => (sel?.slotId === slotId ? null : sel));
   };
 
   // Zoom só afeta a pré-visualização (facilita clicar/arrastar nos cards
@@ -250,6 +261,7 @@ export default function EncarteWeekly() {
     const originalSide = side;
     const originalZoom = zoom;
     setZoom(100); // captura sempre no tamanho real, o zoom é só pra edição
+    setSelected(null); // sem contorno de seleção na imagem exportada
     try {
       const nomeArquivo = molde.nome.replace(/\s+/g, '-');
       const frenteUrl = await captureSideAsDataUrl('frente', 'png');
@@ -276,6 +288,7 @@ export default function EncarteWeekly() {
     const originalSide = side;
     const originalZoom = zoom;
     setZoom(100); // captura sempre no tamanho real, o zoom é só pra edição
+    setSelected(null); // sem contorno de seleção na imagem exportada
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
 
@@ -372,7 +385,12 @@ export default function EncarteWeekly() {
       </div>
 
       <div className="w-full overflow-auto rounded-2xl border border-zinc-200 dark:border-zinc-800" style={{ maxHeight: '75vh' }} onWheel={handleWheelZoom}>
-        <div ref={previewRef} className="relative mx-auto bg-white shadow-lg origin-top transition-transform" style={{ width: 600, fontFamily, transform: `scale(${zoom / 100})` }}>
+        <div
+          ref={previewRef}
+          className="relative mx-auto bg-white shadow-lg origin-top transition-transform"
+          style={{ width: 600, fontFamily, transform: `scale(${zoom / 100})` }}
+          onPointerDown={() => setSelected(null)}
+        >
         {activeBgUrl && <img src={getProxyUrl(activeBgUrl)} className="w-full h-auto block select-none pointer-events-none" draggable={false} crossOrigin="anonymous" />}
 
         {activeSlots.filter((s) => s.tipo === 'logo').map((slot) => (
@@ -423,35 +441,55 @@ export default function EncarteWeekly() {
                   containerRef={getSlotContainerRef(slot.id)}
                   onChange={(rect) => updateSlotProduct(slot.id, { offsetX: rect.xPct, offsetY: rect.yPct, width: rect.widthPct, height: rect.heightPct })}
                   onRemove={() => removeSlotProduct(slot.id)}
+                  selected={isSelected(slot.id, 'card')}
+                  onSelect={() => selectElement(slot.id, 'card')}
                 >
                   <div className="group relative w-full h-full overflow-visible">
-                    <DraggableBox rect={nameRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'name', rect)}>
+                    <DraggableBox
+                      rect={nameRect}
+                      containerRef={cardRef}
+                      onChange={(rect) => updateElementLayout(slot.id, 'name', rect)}
+                      selected={isSelected(slot.id, 'name')}
+                      onSelect={() => selectElement(slot.id, 'name')}
+                    >
                       <input
                         type="text"
                         value={product.name}
-                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'name'); }}
                         onChange={(e) => updateSlotProduct(slot.id, { name: e.target.value })}
                         className="w-full h-full min-w-0 text-[6px] font-black uppercase leading-tight bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
                         style={{ color: nameColor }}
                       />
                     </DraggableBox>
 
-                    <DraggableBox rect={subtitleRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'subtitle', rect)}>
+                    <DraggableBox
+                      rect={subtitleRect}
+                      containerRef={cardRef}
+                      onChange={(rect) => updateElementLayout(slot.id, 'subtitle', rect)}
+                      selected={isSelected(slot.id, 'subtitle')}
+                      onSelect={() => selectElement(slot.id, 'subtitle')}
+                    >
                       <input
                         type="text"
                         placeholder="Descrição"
                         value={product.subtitle || ''}
-                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'subtitle'); }}
                         onChange={(e) => updateSlotProduct(slot.id, { subtitle: e.target.value })}
                         className="w-full h-full min-w-0 text-[4.5px] font-bold uppercase leading-tight text-zinc-500 bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
                       />
                     </DraggableBox>
 
-                    <DraggableBox rect={priceRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'price', rect)}>
+                    <DraggableBox
+                      rect={priceRect}
+                      containerRef={cardRef}
+                      onChange={(rect) => updateElementLayout(slot.id, 'price', rect)}
+                      selected={isSelected(slot.id, 'price')}
+                      onSelect={() => selectElement(slot.id, 'price')}
+                    >
                       <div className="w-full h-full rounded px-1 py-[1px] flex flex-col items-start justify-center leading-none" style={{ backgroundColor: boxColor }}>
                         <button
                           onClick={() => toggleSlotDisplayType(slot.id)}
-                          onPointerDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
                           title="Alternar entre preço e % de desconto"
                           className="no-print absolute top-0 left-0 p-[1px] rounded bg-black/20 text-white flex-shrink-0"
                         >
@@ -463,7 +501,7 @@ export default function EncarteWeekly() {
                             <input
                               type="text"
                               value={product.discountValue || ''}
-                              onPointerDown={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
                               onChange={(e) => updateSlotProduct(slot.id, { discountValue: e.target.value })}
                               className="w-6 text-[11px] font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
                             />
@@ -474,7 +512,7 @@ export default function EncarteWeekly() {
                             <input
                               type="text"
                               value={product.price}
-                              onPointerDown={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
                               onChange={(e) => updateSlotProduct(slot.id, { price: e.target.value })}
                               className="w-11 text-[9px] font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
                             />
@@ -485,7 +523,13 @@ export default function EncarteWeekly() {
                     </DraggableBox>
 
                     {product.image && (
-                      <DraggableBox rect={imageRect} containerRef={cardRef} onChange={(rect) => updateElementLayout(slot.id, 'image', rect)}>
+                      <DraggableBox
+                        rect={imageRect}
+                        containerRef={cardRef}
+                        onChange={(rect) => updateElementLayout(slot.id, 'image', rect)}
+                        selected={isSelected(slot.id, 'image')}
+                        onSelect={() => selectElement(slot.id, 'image')}
+                      >
                         <img src={getProxyUrl(product.image)} className="w-full h-full object-contain" crossOrigin="anonymous" />
                       </DraggableBox>
                     )}

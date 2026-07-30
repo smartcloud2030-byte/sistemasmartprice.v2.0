@@ -20,6 +20,15 @@ interface DraggableBoxProps {
   // redimensionado (ex: conteúdo de produto arrastável dentro de um slot
   // de tamanho fixo).
   resizable?: boolean;
+  // Controla se as alças/realce de seleção aparecem. Por padrão (undefined)
+  // fica sempre true — mantém o comportamento antigo pra quem não usa
+  // seleção (ex: MoldeEditor, onde todas as áreas do molde ficam visíveis
+  // ao mesmo tempo). Quem implementa clique-pra-selecionar (EncarteWeekly)
+  // passa true só pro elemento atualmente selecionado.
+  selected?: boolean;
+  // Chamado no pointerdown (mover ou redimensionar) — quem usa seleção
+  // aproveita esse gancho pra marcar este box como o selecionado.
+  onSelect?: () => void;
   // Conteúdo a renderizar dentro do box, no lugar do label/moldura
   // decorativa padrão — usado quando o DraggableBox embrulha conteúdo real
   // (que deve aparecer no export) em vez de só marcar uma posição no editor.
@@ -57,20 +66,22 @@ function applyResize(handle: ResizeHandle, start: BoxRect, dxPct: number, dyPct:
   return { xPct, yPct, widthPct, heightPct };
 }
 
-// Alça de borda: barra comprida ao longo do lado inteiro (alvo grande, fácil
-// de acertar). Alça de canto: quadrado nos cantos, redimensiona os dois
-// eixos junto. O alvo de clique (hitbox) é maior que o desenho visual — a
-// margem negativa estende a área clicável sem deixar a alça grande demais.
-const HANDLES: { id: ResizeHandle; cursor: string; hitboxClassName: string; visualClassName: string }[] = [
-  { id: 'n', cursor: 'ns-resize', hitboxClassName: 'top-0 left-2 right-2 h-3 -translate-y-1/2', visualClassName: 'inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full' },
-  { id: 's', cursor: 'ns-resize', hitboxClassName: 'bottom-0 left-2 right-2 h-3 translate-y-1/2', visualClassName: 'inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full' },
-  { id: 'e', cursor: 'ew-resize', hitboxClassName: 'right-0 top-2 bottom-2 w-3 translate-x-1/2', visualClassName: 'inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full' },
-  { id: 'w', cursor: 'ew-resize', hitboxClassName: 'left-0 top-2 bottom-2 w-3 -translate-x-1/2', visualClassName: 'inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full' },
-  { id: 'nw', cursor: 'nwse-resize', hitboxClassName: 'top-0 left-0 w-4 h-4 -translate-x-1/2 -translate-y-1/2', visualClassName: 'inset-1/2 w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-sm' },
-  { id: 'ne', cursor: 'nesw-resize', hitboxClassName: 'top-0 right-0 w-4 h-4 translate-x-1/2 -translate-y-1/2', visualClassName: 'inset-1/2 w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-sm' },
-  { id: 'sw', cursor: 'nesw-resize', hitboxClassName: 'bottom-0 left-0 w-4 h-4 -translate-x-1/2 translate-y-1/2', visualClassName: 'inset-1/2 w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-sm' },
-  { id: 'se', cursor: 'nwse-resize', hitboxClassName: 'bottom-0 right-0 w-4 h-4 translate-x-1/2 translate-y-1/2', visualClassName: 'inset-1/2 w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-sm' },
+// Estilo "Figma/PowerPoint": um quadradinho discreto em cada borda/canto,
+// centralizado exatamente no ponto (translate -50%/-50%), com uma área de
+// clique (hitArea) maior que o quadrado visível pra facilitar acertar com
+// o mouse sem deixar a alça grande/pesada na tela.
+const HANDLE_DEFS: { id: ResizeHandle; cursor: string; top: string; left: string }[] = [
+  { id: 'n', cursor: 'ns-resize', top: '0%', left: '50%' },
+  { id: 's', cursor: 'ns-resize', top: '100%', left: '50%' },
+  { id: 'e', cursor: 'ew-resize', top: '50%', left: '100%' },
+  { id: 'w', cursor: 'ew-resize', top: '50%', left: '0%' },
+  { id: 'nw', cursor: 'nwse-resize', top: '0%', left: '0%' },
+  { id: 'ne', cursor: 'nesw-resize', top: '0%', left: '100%' },
+  { id: 'sw', cursor: 'nesw-resize', top: '100%', left: '0%' },
+  { id: 'se', cursor: 'nwse-resize', top: '100%', left: '100%' },
 ];
+const HIT_AREA = 18;
+const HANDLE_SIZE = 8;
 
 // forwardRef: permite aninhar um DraggableBox dentro de outro — o pai passa
 // a própria ref (capturada aqui) como `containerRef` de um DraggableBox
@@ -78,7 +89,7 @@ const HANDLES: { id: ResizeHandle; cursor: string; hitboxClassName: string; visu
 // tamanho JÁ RENDERIZADO do pai (ex: mover a foto do produto dentro do
 // card do produto, que por sua vez já é movível dentro do slot).
 const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(function DraggableBox(
-  { rect, containerRef, onChange, onRemove, label, color = '#10b981', resizable = true, children },
+  { rect, containerRef, onChange, onRemove, label, color = '#10b981', resizable = true, selected = true, onSelect, children },
   ref
 ) {
   const dragState = useRef<{ mode: 'move'; startX: number; startY: number; startRect: BoxRect } | { mode: 'resize'; handle: ResizeHandle; startX: number; startY: number; startRect: BoxRect } | null>(null);
@@ -118,6 +129,7 @@ const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(functio
   const startMove = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    onSelect?.();
     dragState.current = { mode: 'move', startX: e.clientX, startY: e.clientY, startRect: rect };
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
@@ -126,6 +138,7 @@ const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(functio
   const startResize = (handle: ResizeHandle) => (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    onSelect?.();
     dragState.current = { mode: 'resize', handle, startX: e.clientX, startY: e.clientY, startRect: rect };
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
@@ -141,7 +154,9 @@ const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(functio
         top: `${rect.yPct}%`,
         width: `${rect.widthPct}%`,
         height: `${rect.heightPct}%`,
-        ...(children ? {} : { borderColor: color, backgroundColor: `${color}22` }),
+        ...(children
+          ? (selected ? { outline: `1.5px solid ${color}`, outlineOffset: 1 } : {})
+          : { borderColor: color, backgroundColor: `${color}22` }),
       }}
     >
       {children}
@@ -151,7 +166,7 @@ const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(functio
           {label}
         </span>
       )}
-      {onRemove && (
+      {onRemove && selected && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onRemove}
@@ -160,14 +175,17 @@ const DraggableBox = React.forwardRef<HTMLDivElement, DraggableBoxProps>(functio
           <X className="w-3 h-3" />
         </button>
       )}
-      {resizable && HANDLES.map((h) => (
+      {resizable && selected && HANDLE_DEFS.map((h) => (
         <div
           key={h.id}
           onPointerDown={startResize(h.id)}
-          className={`no-print absolute ${h.hitboxClassName}`}
-          style={{ cursor: h.cursor }}
+          className="no-print absolute flex items-center justify-center"
+          style={{ top: h.top, left: h.left, width: HIT_AREA, height: HIT_AREA, marginLeft: -HIT_AREA / 2, marginTop: -HIT_AREA / 2, cursor: h.cursor }}
         >
-          <div className={`absolute ${h.visualClassName} pointer-events-none`} style={{ backgroundColor: color }} />
+          <div
+            className="rounded-[2px] bg-white pointer-events-none shadow-sm"
+            style={{ width: HANDLE_SIZE, height: HANDLE_SIZE, border: `1.5px solid ${color}` }}
+          />
         </div>
       ))}
     </div>
