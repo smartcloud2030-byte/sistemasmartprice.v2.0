@@ -1005,38 +1005,46 @@ router.post('/upload-nobg/:category', authGallery, upload.single('image'), async
 router.post('/upload-nobg2/:category', authGallery, upload.single('image'), async (req: Request, res: Response) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
   const category = req.params.category;
+  // O admin pode desmarcar a remoção de fundo no cadastro (ex: imagem
+  // promocional que já vem pronta) — default true pra preservar o
+  // comportamento de sempre pra quem não manda esse campo (bulk antigo etc).
+  const shouldRemoveBg = req.body?.removeBg !== 'false';
 
   try {
-    // Detecta automaticamente se a imagem enviada ja nao tem fundo (ex: ja veio
-    // recortada de um cadastro anterior) pra nao chamar o rembg de novo a toa.
-    let alreadyCutOut = false;
-    try {
-      alreadyCutOut = await isAlreadyCutOut(req.file.buffer);
-    } catch (detectErr: any) {
-      console.warn('[gallery] falha ao detectar se a imagem ja tem fundo, assumindo que tem:', detectErr.message);
-    }
-
     let rembgBuffer: Buffer;
-    if (alreadyCutOut) {
+    if (!shouldRemoveBg) {
       rembgBuffer = req.file.buffer;
     } else {
-      // Envia para o microserviço rembg (processo já rodando, modelo pré-carregado).
-      // Esse microserviço só existe na VPS (fora deste repo/compose) — em dev local
-      // ele não roda, então cai no fallback abaixo (usa a imagem original sem
-      // remover fundo) em vez de quebrar o cadastro inteiro por causa disso.
+      // Detecta automaticamente se a imagem enviada ja nao tem fundo (ex: ja veio
+      // recortada de um cadastro anterior) pra nao chamar o rembg de novo a toa.
+      let alreadyCutOut = false;
       try {
-        const FormData = (await import('form-data')).default;
-        const fetch2 = (await import('node-fetch')).default;
+        alreadyCutOut = await isAlreadyCutOut(req.file.buffer);
+      } catch (detectErr: any) {
+        console.warn('[gallery] falha ao detectar se a imagem ja tem fundo, assumindo que tem:', detectErr.message);
+      }
 
-        const form = new FormData();
-        form.append('image', req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
-
-        const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
-        if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
-        rembgBuffer = Buffer.from(await rembgRes.arrayBuffer());
-      } catch (rembgErr: any) {
-        console.warn('[gallery] microserviço rembg indisponível, usando imagem original sem remover fundo:', rembgErr.message);
+      if (alreadyCutOut) {
         rembgBuffer = req.file.buffer;
+      } else {
+        // Envia para o microserviço rembg (processo já rodando, modelo pré-carregado).
+        // Esse microserviço só existe na VPS (fora deste repo/compose) — em dev local
+        // ele não roda, então cai no fallback abaixo (usa a imagem original sem
+        // remover fundo) em vez de quebrar o cadastro inteiro por causa disso.
+        try {
+          const FormData = (await import('form-data')).default;
+          const fetch2 = (await import('node-fetch')).default;
+
+          const form = new FormData();
+          form.append('image', req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
+
+          const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
+          if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
+          rembgBuffer = Buffer.from(await rembgRes.arrayBuffer());
+        } catch (rembgErr: any) {
+          console.warn('[gallery] microserviço rembg indisponível, usando imagem original sem remover fundo:', rembgErr.message);
+          rembgBuffer = req.file.buffer;
+        }
       }
     }
 

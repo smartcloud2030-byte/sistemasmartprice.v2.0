@@ -45,12 +45,13 @@ function formatCatName(cat: string) {
 
 type BulkDuplicate = { rowName: string; match: Product };
 
-async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean }> {
+async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean, removeBg: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean }> {
   const folder = getFolder(category);
   const formData = new FormData();
   formData.append('image', file);
   formData.append('name', productName || '');
   formData.append('duplicate', duplicate ? 'true' : 'false');
+  formData.append('removeBg', removeBg ? 'true' : 'false');
   const res = await fetch(`/gallery/upload-nobg2/${folder}`, {
     method: 'POST',
     headers: { 'x-gallery-token': GALLERY_PASSWORD },
@@ -73,6 +74,10 @@ const ProductManager = () => {
   const [formData, setFormData] = useState<Omit<Product, 'id'>>({ name: '', description: '', price: '', image: null, category: '' });
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [duplicateOption, setDuplicateOption] = useState(false);
+  // Ligado por padrão pra manter o comportamento de sempre (remover fundo
+  // com IA) — o admin desmarca quando a imagem já vem pronta (ex: arte
+  // promocional) e não deve ser recortada.
+  const [removeBgOption, setRemoveBgOption] = useState(true);
   const [duplicateMatch, setDuplicateMatch] = useState<Product | null>(null);
   const [duplicateMatchFromBarcode, setDuplicateMatchFromBarcode] = useState(false);
   const [bulkDuplicates, setBulkDuplicates] = useState<BulkDuplicate[]>([]);
@@ -229,10 +234,11 @@ const ProductManager = () => {
     if (!formData.category) { toast.error('Selecione uma categoria antes de escolher a imagem!'); return; }
     setPendingFile(file);
     setDuplicateOption(false);
+    setRemoveBgOption(true);
     setFormData(f => ({ ...f, image: URL.createObjectURL(file) }));
   };
 
-  const doUpload = async (file: File, category: string, name: string, duplicate: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean } | null> => {
+  const doUpload = async (file: File, category: string, name: string, duplicate: boolean, removeBg: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean } | null> => {
     setIsUploading(true);
     setUploadProgress(5);
     setUploadStep('Enviando imagem...');
@@ -254,7 +260,7 @@ const ProductManager = () => {
       if (i < steps.length) { setUploadProgress(steps[i].p); setUploadStep(steps[i].l); i++; }
     }, 2000);
     try {
-      const result = await uploadToMinio(file, category, name, duplicate);
+      const result = await uploadToMinio(file, category, name, duplicate, removeBg);
       clearInterval(iv);
       setUploadProgress(100); setUploadStep('Concluído!');
       await new Promise(r => setTimeout(r, 700));
@@ -273,7 +279,7 @@ const ProductManager = () => {
     let finalThumb = formData.thumb_image;
 
     if (pendingFile) {
-      const result = await doUpload(pendingFile, formData.category, formData.name, duplicateOption);
+      const result = await doUpload(pendingFile, formData.category, formData.name, duplicateOption, removeBgOption);
       if (!result) return;
       finalImage = result.url;
       finalThumb = result.thumbUrl;
@@ -585,7 +591,7 @@ const ProductManager = () => {
                       {formData.image ? (
                         <>
                           <img src={formData.image.startsWith('blob:') ? formData.image : getProxyUrl(formData.image)} alt="Preview" className="w-full h-full object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" />
-                          <button type="button" onClick={() => { setFormData({ ...formData, image: null }); setPendingFile(null); setDuplicateOption(false); }}
+                          <button type="button" onClick={() => { setFormData({ ...formData, image: null }); setPendingFile(null); setDuplicateOption(false); setRemoveBgOption(true); }}
                             className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600">
                             <Trash2 className="w-2.5 h-2.5" />
                           </button>
@@ -603,13 +609,20 @@ const ProductManager = () => {
                       <input type="text" placeholder="ou cole a URL aqui"
                         className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                         value={formData.image?.startsWith('blob:') ? '' : (formData.image || '')}
-                        onChange={e => { setPendingFile(null); setDuplicateOption(false); setFormData({ ...formData, image: e.target.value }); }} />
+                        onChange={e => { setPendingFile(null); setDuplicateOption(false); setRemoveBgOption(true); setFormData({ ...formData, image: e.target.value }); }} />
                       {pendingFile && (
-                        <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
-                          <input type="checkbox" checked={duplicateOption} onChange={e => setDuplicateOption(e.target.checked)}
-                            className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500" />
-                          Duplicar foto (2 unidades sobrepostas)
-                        </label>
+                        <>
+                          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+                            <input type="checkbox" checked={removeBgOption} onChange={e => setRemoveBgOption(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500" />
+                            Remover fundo da imagem (IA)
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+                            <input type="checkbox" checked={duplicateOption} onChange={e => setDuplicateOption(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500" />
+                            Duplicar foto (2 unidades sobrepostas)
+                          </label>
+                        </>
                       )}
                     </div>
                   </div>
@@ -779,7 +792,7 @@ const ProductManager = () => {
                       if (!row) { advance(); continue; }
                       setBulkUploadStatus(`Removendo fundo: ${row.name}`);
                       try {
-                        const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name, false);
+                        const result = await uploadToMinio(file, row.category || bulkDefaultCategory, row.name, false, true);
                         rows[idx] = { ...row, image: result.url, thumb_image: result.thumbUrl };
                       } catch (e: any) {
                         toast.error(`Falha em ${row.name}: ${e.message || 'erro no upload'}`);
