@@ -170,6 +170,8 @@ export interface SelectedProduct extends Product {
   offsetX?: number;
   offsetY?: number;
   elementLayout?: EncarteElementLayout;
+  nameFontSize?: number;
+  subtitleFontSize?: number;
   textOffsetX?: number;
   textOffsetY?: number;
   displayType?: 'price' | 'discount';

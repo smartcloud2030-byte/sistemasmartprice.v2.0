@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore, Product, SelectedProduct, EncarteSemanal, EncarteElementRect } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
 import ProductSelector from '../ProductSelector';
@@ -34,7 +34,37 @@ const emptySemanal = (moldeId: string, storeProfileId: string): EncarteSemanal =
   produtos: {},
 });
 
+// Tamanho de fonte (em px, na escala do preview de 600px) do nome e da
+// descrição — só usado até o usuário clicar em A-/A+, a partir daí o valor
+// salvo em product.nameFontSize/subtitleFontSize manda.
+const DEFAULT_NAME_FONT_SIZE = 6;
+const DEFAULT_SUBTITLE_FONT_SIZE = 4.5;
+const FONT_SIZE_STEP = 0.5;
+const MIN_FONT_SIZE = 2;
+const MAX_FONT_SIZE = 24;
+
+// Quanto a roda do mouse aumenta/diminui o elemento selecionado por "tick"
+// de scroll — mesma proporção pros dois eixos, crescendo/encolhendo a
+// partir do canto superior esquerdo do elemento (xPct/yPct ficam fixos).
+const WHEEL_RESIZE_STEP = 0.05;
+const MIN_ELEMENT_PCT = 3;
+
 type ElementKey = 'card' | 'name' | 'subtitle' | 'price' | 'image';
+
+// Botõezinhos A-/A+ que aparecem colados no topo do nome/descrição quando
+// selecionados — só eles ajustam o tamanho da fonte (a caixa em si continua
+// se movendo/redimensionando normalmente pelas alças do DraggableBox).
+function FontSizeControl({ onDecrease, onIncrease }: { onDecrease: () => void; onIncrease: () => void }) {
+  return (
+    <div
+      className="no-print absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white rounded shadow border border-zinc-200 px-0.5 z-10"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <button onClick={onDecrease} className="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-black text-zinc-600 leading-none">A-</button>
+      <button onClick={onIncrease} className="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-black text-zinc-600 leading-none">A+</button>
+    </div>
+  );
+}
 
 export default function EncarteWeekly() {
   const {
@@ -63,6 +93,7 @@ export default function EncarteWeekly() {
   const isSelected = (slotId: string, key: ElementKey) => selected?.slotId === slotId && selected.key === key;
   const selectElement = (slotId: string, key: ElementKey) => setSelected({ slotId, key });
   const previewRef = useRef<HTMLDivElement>(null);
+  const scrollWrapperRef = useRef<HTMLDivElement>(null);
   // Um ref estável por slot (não recriado a cada render) — o conteúdo do
   // produto é arrastável dentro do próprio slot via DraggableBox, que exige
   // um containerRef com identidade estável pra não recriar os handlers de
@@ -207,6 +238,19 @@ export default function EncarteWeekly() {
     updateSlotProduct(slotId, { elementLayout: { ...current.elementLayout, [key]: rect } });
   };
 
+  const getElementRect = (product: SelectedProduct, key: 'name' | 'subtitle' | 'price' | 'image'): EncarteElementRect =>
+    product.elementLayout?.[key] || DEFAULT_ELEMENT_RECTS[key];
+
+  const adjustFontSize = (slotId: string, key: 'name' | 'subtitle', delta: number) => {
+    if (!semanal) return;
+    const current = semanal.produtos[slotId];
+    if (!current) return;
+    const field = key === 'name' ? 'nameFontSize' : 'subtitleFontSize';
+    const defaultSize = key === 'name' ? DEFAULT_NAME_FONT_SIZE : DEFAULT_SUBTITLE_FONT_SIZE;
+    const nextSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, (current[field] ?? defaultSize) + delta));
+    updateSlotProduct(slotId, { [field]: nextSize });
+  };
+
   const toggleSlotDisplayType = (slotId: string) => {
     if (!semanal) return;
     const current = semanal.produtos[slotId];
@@ -224,13 +268,62 @@ export default function EncarteWeekly() {
     setSelected((sel) => (sel?.slotId === slotId ? null : sel));
   };
 
-  // Zoom só afeta a pré-visualização (facilita clicar/arrastar nos cards
-  // pequenos) — nunca a exportação, que sempre reseta pra 100% antes de
-  // capturar (ver handleExportPNG/PDF).
-  const handleWheelZoom = (e: React.WheelEvent) => {
+  // O scroll do mouse não dá mais zoom na tela (isso agora é só pelos
+  // botões +/-) — com um elemento selecionado, o scroll aumenta/diminui
+  // ELE na hora (card, preço ou foto; nome/descrição usam os botões A-/A+
+  // porque o que muda ali é o tamanho da fonte, não a caixa). Sem nada
+  // selecionado, o scroll faz a rolagem normal do preview.
+  //
+  // Precisa ser um listener NATIVO (addEventListener, não a prop onWheel do
+  // React) — o React registra onWheel como passivo por padrão, então
+  // e.preventDefault() falha em silêncio e a página rola por baixo do
+  // redimensionamento mesmo assim. Ver o useEffect abaixo que anexa isso.
+  const handleWheel = (e: WheelEvent) => {
+    if (!selected || !semanal) return;
+    if (selected.key === 'name' || selected.key === 'subtitle') return;
+    const product = semanal.produtos[selected.slotId];
+    if (!product) return;
     e.preventDefault();
-    setZoom((z) => Math.min(300, Math.max(40, z - Math.sign(e.deltaY) * 10)));
+    const factor = 1 + (e.deltaY < 0 ? 1 : -1) * WHEEL_RESIZE_STEP;
+
+    if (selected.key === 'card') {
+      const xPct = product.offsetX ?? 10;
+      const yPct = product.offsetY ?? 10;
+      const widthPct = Math.min(100 - xPct, Math.max(MIN_ELEMENT_PCT, (product.width ?? 80) * factor));
+      const heightPct = Math.min(100 - yPct, Math.max(MIN_ELEMENT_PCT, (product.height ?? 80) * factor));
+      updateSlotProduct(selected.slotId, { width: widthPct, height: heightPct });
+    } else {
+      const rect = getElementRect(product, selected.key);
+      const widthPct = Math.min(100 - rect.xPct, Math.max(MIN_ELEMENT_PCT, rect.widthPct * factor));
+      const heightPct = Math.min(100 - rect.yPct, Math.max(MIN_ELEMENT_PCT, rect.heightPct * factor));
+      updateElementLayout(selected.slotId, selected.key, { ...rect, widthPct, heightPct });
+    }
   };
+
+  // handleWheel muda de identidade a cada render (fecha sobre `selected` e
+  // `semanal`) — esse ref guarda sempre a versão mais recente, pro listener
+  // nativo (anexado só uma vez por elemento, via callback ref abaixo) poder
+  // chamar a lógica atual sem precisar ser reanexado a cada mudança de estado.
+  const handleWheelRef = useRef(handleWheel);
+  handleWheelRef.current = handleWheel;
+  const wheelListener = useRef((e: WheelEvent) => handleWheelRef.current(e)).current;
+
+  // Callback ref em vez de useEffect(..., []) — a tela só renderiza o
+  // wrapper de scroll DEPOIS que molde+loja são escolhidos (antes disso o
+  // componente retorna a tela de seleção, sem esse elemento no DOM). Um
+  // useEffect de montagem único rodaria cedo demais, com a ref ainda nula,
+  // e o listener nunca seria anexado. O callback ref é chamado toda vez que
+  // o elemento real monta/desmonta, então sempre pega o momento certo.
+  const attachScrollWrapper = useCallback((el: HTMLDivElement | null) => {
+    if (scrollWrapperRef.current) {
+      scrollWrapperRef.current.removeEventListener('wheel', wheelListener);
+    }
+    scrollWrapperRef.current = el;
+    if (el) {
+      el.addEventListener('wheel', wheelListener, { passive: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const waitFrame = () => new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -384,7 +477,7 @@ export default function EncarteWeekly() {
         </div>
       </div>
 
-      <div className="w-full overflow-auto rounded-2xl border border-zinc-200 dark:border-zinc-800" style={{ maxHeight: '75vh' }} onWheel={handleWheelZoom}>
+      <div ref={attachScrollWrapper} className="w-full overflow-auto rounded-2xl border border-zinc-200 dark:border-zinc-800" style={{ maxHeight: '75vh' }}>
         <div
           ref={previewRef}
           className="relative mx-auto bg-white shadow-lg origin-top transition-transform"
@@ -457,9 +550,12 @@ export default function EncarteWeekly() {
                         value={product.name}
                         onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'name'); }}
                         onChange={(e) => updateSlotProduct(slot.id, { name: e.target.value })}
-                        className="w-full h-full min-w-0 text-[6px] font-black uppercase leading-tight bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
-                        style={{ color: nameColor }}
+                        className="w-full h-full min-w-0 font-black uppercase leading-tight bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
+                        style={{ color: nameColor, fontSize: `${product.nameFontSize ?? DEFAULT_NAME_FONT_SIZE}px` }}
                       />
+                      {isSelected(slot.id, 'name') && (
+                        <FontSizeControl onDecrease={() => adjustFontSize(slot.id, 'name', -FONT_SIZE_STEP)} onIncrease={() => adjustFontSize(slot.id, 'name', FONT_SIZE_STEP)} />
+                      )}
                     </DraggableBox>
 
                     <DraggableBox
@@ -475,8 +571,12 @@ export default function EncarteWeekly() {
                         value={product.subtitle || ''}
                         onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'subtitle'); }}
                         onChange={(e) => updateSlotProduct(slot.id, { subtitle: e.target.value })}
-                        className="w-full h-full min-w-0 text-[4.5px] font-bold uppercase leading-tight text-zinc-500 bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
+                        className="w-full h-full min-w-0 font-bold uppercase leading-tight text-zinc-500 bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-black/20 rounded-[1px]"
+                        style={{ fontSize: `${product.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE}px` }}
                       />
+                      {isSelected(slot.id, 'subtitle') && (
+                        <FontSizeControl onDecrease={() => adjustFontSize(slot.id, 'subtitle', -FONT_SIZE_STEP)} onIncrease={() => adjustFontSize(slot.id, 'subtitle', FONT_SIZE_STEP)} />
+                      )}
                     </DraggableBox>
 
                     <DraggableBox
