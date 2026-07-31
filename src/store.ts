@@ -248,6 +248,28 @@ export interface EncarteSemanal {
   produtos: Record<string, SelectedProduct | null>;
 }
 
+// Snapshot do estado "vivo" do editor (modelo ativo + conteudo/estilo atuais
+// dos slots) guardado em cada item da fila de impressao, pra permitir reabrir
+// aquela plaquinha especifica no editor depois (botao "Editar" na fila).
+export interface QueuedPlaquinhaState {
+  activeLayoutIndex: number;
+  orientation: 'portrait' | 'landscape';
+  background: { url: string | null; mode: 'cover' | 'contain'; locked: boolean };
+  productImage1: ImageSettings;
+  productImage2: ImageSettings;
+  productImage3: ImageSettings;
+  textElements1: { name: TextSettings; description: TextSettings; subtitle: TextSettings; price: TextSettings };
+  textElements2: { name: TextSettings; description: TextSettings; subtitle: TextSettings; price: TextSettings };
+  textElements3: { name: TextSettings; description: TextSettings; subtitle: TextSettings; price: TextSettings };
+  optionalText1: OptionalTextSettings;
+  optionalText2: OptionalTextSettings;
+  optionalText3: OptionalTextSettings;
+  customTexts: CustomTextSettings[];
+  isSingleProduct: boolean;
+  showSingleProductControl: boolean;
+  showOptionalTextControl: boolean;
+}
+
 interface AppState {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
@@ -365,12 +387,23 @@ interface AppState {
   setShowOptionalTextControl: (show: boolean) => void;
   toggleHasThirdProduct: () => void;
 
-  printQueue: { imageData: string; isLandscape: boolean; selected: boolean }[];
-  addToQueue: (imageData: string, isLandscape: boolean) => void;
+  printQueue: { imageData: string; isLandscape: boolean; selected: boolean; editorState?: QueuedPlaquinhaState }[];
+  addToQueue: (imageData: string, isLandscape: boolean, editorState?: QueuedPlaquinhaState) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   toggleQueueSelection: (index: number) => void;
   setAllQueueSelected: (selected: boolean) => void;
+  // Restaura no editor o modelo/conteudo salvos no momento em que aquele item
+  // foi adicionado a fila (nao remove o item da fila). Sem efeito em itens
+  // antigos sem editorState (adicionados antes dessa funcionalidade existir).
+  editQueueItem: (index: number) => void;
+  // Indice do item da fila em edicao (via editQueueItem) — usado so pra saber
+  // quando mostrar o botao de destaque "Salvar na Fila" no editor. Null fora
+  // desse fluxo (edicao normal, adicionar novo item etc).
+  editingQueueIndex: number | null;
+  // Sobrescreve o item da fila que estava em edicao com o estado atual do
+  // editor (nao cria item novo) e sai do modo de edicao da fila.
+  updateQueueItem: (index: number, imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => void;
   currentView: View;
   setView: (view: View) => void;
   realtimeInitialized: boolean;
@@ -1306,11 +1339,30 @@ export const useStore = create<AppState>()(
       },
 
       printQueue: [],
-      addToQueue: (imageData, isLandscape) => set((state) => ({ printQueue: [...state.printQueue, { imageData, isLandscape, selected: true }] })),
-      removeFromQueue: (index) => set((state) => ({ printQueue: state.printQueue.filter((_, i) => i !== index) })),
-      clearQueue: () => set({ printQueue: [] }),
+      addToQueue: (imageData, isLandscape, editorState) => set((state) => ({ printQueue: [...state.printQueue, { imageData, isLandscape, selected: true, editorState }] })),
+      removeFromQueue: (index) => set((state) => {
+        let editingQueueIndex = state.editingQueueIndex;
+        if (editingQueueIndex !== null) {
+          if (editingQueueIndex === index) editingQueueIndex = null;
+          else if (editingQueueIndex > index) editingQueueIndex -= 1;
+        }
+        return { printQueue: state.printQueue.filter((_, i) => i !== index), editingQueueIndex };
+      }),
+      clearQueue: () => set({ printQueue: [], editingQueueIndex: null }),
       toggleQueueSelection: (index) => set((state) => ({ printQueue: state.printQueue.map((item, i) => i === index ? { ...item, selected: !item.selected } : item) })),
       setAllQueueSelected: (selected) => set((state) => ({ printQueue: state.printQueue.map((item) => ({ ...item, selected })) })),
+      editQueueItem: (index) => {
+        const item = get().printQueue[index];
+        if (!item?.editorState) return;
+        set({ ...item.editorState, currentView: 'editor', editingQueueIndex: index });
+      },
+      editingQueueIndex: null,
+      updateQueueItem: (index, imageData, isLandscape, editorState) => set((state) => {
+        if (!state.printQueue[index]) return {};
+        const newQueue = [...state.printQueue];
+        newQueue[index] = { ...newQueue[index], imageData, isLandscape, editorState };
+        return { printQueue: newQueue, editingQueueIndex: null };
+      }),
       currentView: 'editor',
       setView: (view) => set({ currentView: view }),
       realtimeInitialized: false,
@@ -1642,6 +1694,7 @@ export const useStore = create<AppState>()(
           lastLoginTimestamp: Date.now(),
           currentView: role === 'admin' ? 'dashboard' : 'editor',
           lastUserIdentity: role === 'user' ? { cnpj: nc, username: user.username } : stateBeforeLogin.lastUserIdentity,
+          editingQueueIndex: null,
           ...switchUpdate,
         } as any);
         if (role === 'user' && user.cnpj) {
@@ -1671,7 +1724,7 @@ export const useStore = create<AppState>()(
         }
         // Nao reseta printQueue/rascunho aqui: se a mesma loja logar de novo,
         // o login compara lastUserIdentity e mantem o que ela deixou.
-        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null });
+        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, editingQueueIndex: null });
       },
 
       // Chamado no evento 'pagehide' (fechar aba/janela). fetch() normal não

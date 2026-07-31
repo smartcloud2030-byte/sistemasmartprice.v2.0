@@ -1,11 +1,11 @@
 import React from 'react';
 import { useStore } from '../store';
-import { Printer, FileDown, Trash2, ArrowLeft, LayoutGrid, CheckSquare, Square } from 'lucide-react';
+import { Printer, FileDown, Trash2, ArrowLeft, LayoutGrid, CheckSquare, Square, Pencil } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
 const PrintQueue = () => {
-  const { printQueue, removeFromQueue, clearQueue, setView, setPrinting, isPrinting, toggleQueueSelection, setAllQueueSelected } = useStore();
+  const { printQueue, removeFromQueue, clearQueue, setView, setPrinting, isPrinting, toggleQueueSelection, setAllQueueSelected, editQueueItem } = useStore();
   // Itens salvos antes do campo `selected` existir vem sem essa propriedade —
   // trata como selecionado por padrao (undefined !== false).
   const selectedQueue = printQueue.filter((item) => item.selected !== false);
@@ -221,6 +221,15 @@ const PrintQueue = () => {
               </button>
               <img src={item.imageData} alt={`Tag ${index + 1}`} className="w-full h-auto" crossOrigin="anonymous" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                {item.editorState && (
+                  <button
+                    onClick={() => editQueueItem(index)}
+                    className="p-3 bg-amber-500 text-white rounded-full hover:scale-110 active:scale-90 transition-all shadow-lg"
+                    title="Editar esta plaquinha"
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleExportSinglePDF(item, index)}
                   className="p-3 bg-blue-600 text-white rounded-full hover:scale-110 active:scale-90 transition-all shadow-lg"

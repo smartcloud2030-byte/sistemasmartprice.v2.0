@@ -26,7 +26,7 @@ import {
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -44,6 +44,7 @@ export default function App() {
     isProductReportModalOpen, setProductReportModalOpen,
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
+    editingQueueIndex, updateQueueItem,
     isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
@@ -448,10 +449,29 @@ export default function App() {
     }
   };
 
+  const buildQueueEditorState = (s: ReturnType<typeof useStore.getState>) => ({
+    activeLayoutIndex: s.activeLayoutIndex,
+    orientation: s.orientation,
+    background: s.background,
+    productImage1: s.productImage1,
+    productImage2: s.productImage2,
+    productImage3: s.productImage3,
+    textElements1: s.textElements1,
+    textElements2: s.textElements2,
+    textElements3: s.textElements3,
+    optionalText1: s.optionalText1,
+    optionalText2: s.optionalText2,
+    optionalText3: s.optionalText3,
+    customTexts: s.customTexts,
+    isSingleProduct: s.isSingleProduct,
+    showSingleProductControl: s.showSingleProductControl,
+    showOptionalTextControl: s.showOptionalTextControl,
+  });
+
   const handleAddToQueue = () => {
     setSelectedId(null);
     const toastId = toast.loading('Adicionando à fila...');
-    
+
     // Small timeout to allow Konva to re-render without the transformer
     setTimeout(() => {
       try {
@@ -463,12 +483,37 @@ export default function App() {
         const activeLayout = layouts[activeLayoutIndex];
         const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
         const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
-        
-        addToQueue(canvasData, isLandscape);
+
+        addToQueue(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
         toast.success('Adicionado à fila com sucesso!', { id: toastId });
       } catch (error) {
         console.error('Erro ao adicionar à fila:', error);
         toast.error('Erro ao adicionar à fila.', { id: toastId });
+      }
+    }, 100);
+  };
+
+  const handleSaveQueueEdit = () => {
+    if (editingQueueIndex === null) return;
+    setSelectedId(null);
+    const toastId = toast.loading('Salvando na fila...');
+
+    setTimeout(() => {
+      try {
+        const canvasData = (window as any).getCanvasData?.();
+        if (!canvasData) {
+          toast.error('Erro ao capturar imagem.', { id: toastId });
+          return;
+        }
+        const activeLayout = layouts[activeLayoutIndex];
+        const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
+        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+
+        updateQueueItem(editingQueueIndex, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+        toast.success('Plaquinha atualizada na fila!', { id: toastId });
+      } catch (error) {
+        console.error('Erro ao salvar na fila:', error);
+        toast.error('Erro ao salvar na fila.', { id: toastId });
       }
     }, 100);
   };
@@ -644,6 +689,22 @@ export default function App() {
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   Painel
+                </button>
+              )}
+
+              {/* Save queue item being edited (só existe quando veio do botão
+                  "Editar" na Fila Inteligente) — destaque piscando pra não
+                  passar despercebido que essas mudanças ainda não foram
+                  salvas de volta na fila. */}
+              {editingQueueIndex !== null && (
+                <button
+                  type="button"
+                  onClick={handleSaveQueueEdit}
+                  className="h-10 flex items-center gap-1.5 px-4 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/40 hover:bg-blue-700 transition-all text-sm font-black uppercase tracking-tighter animate-pulse ring-2 ring-blue-400"
+                  title="Salvar alterações nesta plaquinha da fila"
+                >
+                  <Save className="w-4 h-4" />
+                  Salvar na Fila
                 </button>
               )}
 
