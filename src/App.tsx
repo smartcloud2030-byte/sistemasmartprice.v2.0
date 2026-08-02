@@ -21,13 +21,14 @@ import AdminDashboard from './components/AdminDashboard';
 import ChangeCredentialsModal from './components/ChangeCredentialsModal';
 import PaymentCheckoutModal from './components/PaymentCheckoutModal';
 import SaveToFolderModal from './components/SaveToFolderModal';
+import SavedFolders from './components/SavedFolders';
 import {
   Printer, FileDown,
   Settings as SettingsIcon,
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus, FolderOpen
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -642,6 +643,10 @@ export default function App() {
       return <PrintQueue />;
     }
 
+    if (currentView === 'folders') {
+      return <SavedFolders />;
+    }
+
     if (currentView === 'encarte') {
       return <EncarteBuilder />;
     }
@@ -798,6 +803,15 @@ export default function App() {
                     {printQueue.length}
                   </span>
                 )}
+              </button>
+
+              {/* Pastas */}
+              <button
+                onClick={() => setView('folders')}
+                className="relative h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Minhas Pastas
               </button>
 
               {/* Encarte Online */}
