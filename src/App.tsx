@@ -47,7 +47,7 @@ export default function App() {
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
     editingQueueIndex, updateQueueItem,
-    savePlaquinhaToFolder, editingSavedPlaquinhaId, updateSavedPlaquinha,
+    savePlaquinhaToFolder, editingSavedPlaquinhaId, updateSavedPlaquinha, loadSavedPlaquinhas,
     isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
@@ -316,6 +316,15 @@ export default function App() {
       return () => clearInterval(interval);
     }
   }, [isAuthenticated, lastLoginTimestamp, logout, userRole]);
+
+  // Sessao de loja sobrevive a F5 (sessionStorage), mas o zustand nao
+  // persiste savedPlaquinhas de proposito (dado sempre vem do servidor) — sem
+  // isso, um reload deixa "Minhas Pastas" parecendo vazia ate relogar.
+  useEffect(() => {
+    if (isAuthenticated && userRole !== 'admin') {
+      loadSavedPlaquinhas();
+    }
+  }, [isAuthenticated, userRole, loadSavedPlaquinhas]);
 
   useEffect(() => {
     loadLayout();
