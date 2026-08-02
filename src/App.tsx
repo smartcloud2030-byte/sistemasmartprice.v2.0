@@ -20,13 +20,14 @@ import EncarteBuilder from './components/encarte/EncarteBuilder';
 import AdminDashboard from './components/AdminDashboard';
 import ChangeCredentialsModal from './components/ChangeCredentialsModal';
 import PaymentCheckoutModal from './components/PaymentCheckoutModal';
+import SaveToFolderModal from './components/SaveToFolderModal';
 import {
   Printer, FileDown,
   Settings as SettingsIcon,
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -45,6 +46,7 @@ export default function App() {
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
     editingQueueIndex, updateQueueItem,
+    savePlaquinhaToFolder,
     isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
@@ -57,6 +59,7 @@ export default function App() {
     orientation
   } = useStore();
   const [activeTab, setActiveTab] = useState<'select' | 'adjustments'>('select');
+  const [isSaveToFolderOpen, setIsSaveToFolderOpen] = useState(false);
   const [showPaymentCheckout, setShowPaymentCheckout] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isModelsColumnCollapsed, setIsModelsColumnCollapsed] = useState(false);
@@ -518,6 +521,19 @@ export default function App() {
     }, 100);
   };
 
+  const handleConfirmSaveToFolder = async (folder: string, name: string) => {
+    const canvasData = (window as any).getCanvasData?.();
+    if (!canvasData) {
+      toast.error('Erro ao capturar imagem.');
+      return;
+    }
+    const activeLayout = layouts[activeLayoutIndex];
+    const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
+    const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+    await savePlaquinhaToFolder(folder, name, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+    toast.success('Plaquinha salva na pasta!');
+  };
+
   const renderContent = () => {
     if (!isAuthenticated) {
       return <Login />;
@@ -726,6 +742,16 @@ export default function App() {
                 title="Adicionar à Fila — salva sem sair da tela atual"
               >
                 <ListPlus className="w-4 h-4" />
+              </button>
+
+              {/* Save to Folder */}
+              <button
+                type="button"
+                onClick={() => setIsSaveToFolderOpen(true)}
+                className="h-10 w-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                title="Salvar em Pasta — guarda essa plaquinha pra reaproveitar depois"
+              >
+                <FolderPlus className="w-4 h-4" />
               </button>
 
               {/* Export */}
@@ -1206,6 +1232,13 @@ export default function App() {
           </div>
         </div>
       )}
+      <SaveToFolderModal
+        isOpen={isSaveToFolderOpen}
+        onClose={() => setIsSaveToFolderOpen(false)}
+        defaultName={textElements1.name.text}
+        onConfirm={handleConfirmSaveToFolder}
+      />
+
       {/* User Management Modal */}
       {isUserModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
