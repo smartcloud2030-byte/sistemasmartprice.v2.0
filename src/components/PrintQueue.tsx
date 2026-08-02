@@ -1,18 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useStore } from '../store';
-import { Printer, FileDown, Trash2, ArrowLeft, LayoutGrid, CheckSquare, Square, Pencil, Lightbulb, X } from 'lucide-react';
+import { Printer, FileDown, Trash2, ArrowLeft, LayoutGrid, CheckSquare, Square, Pencil } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
-const QUEUE_TIP_DISMISSED_KEY = 'smartprice_queue_tip_dismissed';
-
 const PrintQueue = () => {
   const { printQueue, removeFromQueue, clearQueue, setView, setPrinting, isPrinting, toggleQueueSelection, setAllQueueSelected, editQueueItem } = useStore();
-  const [tipDismissed, setTipDismissed] = useState(() => localStorage.getItem(QUEUE_TIP_DISMISSED_KEY) === '1');
-  const dismissTip = () => {
-    localStorage.setItem(QUEUE_TIP_DISMISSED_KEY, '1');
-    setTipDismissed(true);
-  };
   // Itens salvos antes do campo `selected` existir vem sem essa propriedade —
   // trata como selecionado por padrao (undefined !== false).
   const selectedQueue = printQueue.filter((item) => item.selected !== false);
@@ -212,30 +205,6 @@ const PrintQueue = () => {
             </button>
           </div>
         </div>
-
-        {/* Dica: a fila como "prateleira" de promocoes reutilizaveis — nao
-            precisa recriar a plaquinha toda semana, so editar o preco. */}
-        {!tipDismissed && (
-          <div className="no-print flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/40 rounded-2xl p-4">
-            <Lightbulb className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-grow text-sm text-black dark:text-white">
-              <p className="font-bold">Dica: use a fila como sua prateleira de promoções da semana</p>
-              <p className="opacity-70 mt-1">
-                Promoção repetiu? Não precisa montar a plaquinha de novo — passe o mouse nela aqui embaixo, clique em <strong>Editar</strong>, troque só o preço e depois em <strong>Salvar na Fila</strong>. Use o checkbox de cada plaquinha pra marcar só as da semana atual antes de imprimir.
-              </p>
-              <p className="opacity-70 mt-1">
-                Atenção: essa fila fica salva só neste navegador/computador — evite limpar o histórico ou trocar de máquina pra não perder o que já foi montado.
-              </p>
-            </div>
-            <button
-              onClick={dismissTip}
-              className="flex-shrink-0 p-1 text-blue-600 opacity-60 hover:opacity-100 transition-opacity"
-              title="Não mostrar de novo"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
 
         {/* Queue Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 no-print">
