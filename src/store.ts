@@ -1405,8 +1405,31 @@ export const useStore = create<AppState>()(
           console.error('Erro ao carregar pastas salvas:', err);
         }
       },
-      savePlaquinhaToFolder: async () => {
-        // implementado na Task 3
+      savePlaquinhaToFolder: async (folder, name, imageData, isLandscape, editorState) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        const trimmedFolder = folder.trim();
+        if (!trimmedFolder) return;
+        const newItem: SavedPlaquinha = {
+          id: crypto.randomUUID(),
+          folder: trimmedFolder,
+          name: name.trim() || 'Sem nome',
+          imageData,
+          isLandscape,
+          editorState,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        const updated = [...get().savedPlaquinhas, newItem];
+        set({ savedPlaquinhas: updated });
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          all[cnpj] = updated;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+        } catch (err) {
+          console.error('Erro ao salvar plaquinha na pasta:', err);
+        }
       },
       editSavedPlaquinha: () => {
         // implementado na Task 4
