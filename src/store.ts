@@ -1382,7 +1382,7 @@ export const useStore = create<AppState>()(
       editQueueItem: (index) => {
         const item = get().printQueue[index];
         if (!item?.editorState) return;
-        set({ ...item.editorState, currentView: 'editor', editingQueueIndex: index });
+        set({ ...item.editorState, currentView: 'editor', editingQueueIndex: index, editingSavedPlaquinhaId: null });
       },
       editingQueueIndex: null,
       updateQueueItem: (index, imageData, isLandscape, editorState) => set((state) => {
@@ -1431,11 +1431,27 @@ export const useStore = create<AppState>()(
           console.error('Erro ao salvar plaquinha na pasta:', err);
         }
       },
-      editSavedPlaquinha: () => {
-        // implementado na Task 4
+      editSavedPlaquinha: (id) => {
+        const item = get().savedPlaquinhas.find((p) => p.id === id);
+        if (!item) return;
+        set({ ...item.editorState, currentView: 'editor', editingSavedPlaquinhaId: id, editingQueueIndex: null });
       },
-      updateSavedPlaquinha: async () => {
-        // implementado na Task 4
+      updateSavedPlaquinha: async (imageData, isLandscape, editorState) => {
+        const id = get().editingSavedPlaquinhaId;
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!id || !cnpj) return;
+        const updated = get().savedPlaquinhas.map((p) =>
+          p.id === id ? { ...p, imageData, isLandscape, editorState, updatedAt: new Date().toISOString() } : p
+        );
+        set({ savedPlaquinhas: updated, editingSavedPlaquinhaId: null });
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          all[cnpj] = updated;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+        } catch (err) {
+          console.error('Erro ao atualizar plaquinha salva:', err);
+        }
       },
       deleteSavedPlaquinha: async () => {
         // implementado na Task 5
@@ -1778,6 +1794,7 @@ export const useStore = create<AppState>()(
           currentView: role === 'admin' ? 'dashboard' : 'editor',
           lastUserIdentity: role === 'user' ? { cnpj: nc, username: user.username } : stateBeforeLogin.lastUserIdentity,
           editingQueueIndex: null,
+          editingSavedPlaquinhaId: null,
           ...switchUpdate,
         } as any);
         if (role === 'user' && user.cnpj) {
@@ -1808,7 +1825,7 @@ export const useStore = create<AppState>()(
         }
         // Nao reseta printQueue/rascunho aqui: se a mesma loja logar de novo,
         // o login compara lastUserIdentity e mantem o que ela deixou.
-        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, editingQueueIndex: null });
+        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, editingQueueIndex: null, editingSavedPlaquinhaId: null });
       },
 
       // Chamado no evento 'pagehide' (fechar aba/janela). fetch() normal não
