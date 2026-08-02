@@ -145,7 +145,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'encarte' | 'dashboard' | 'smarthelp';
+export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'dashboard' | 'smarthelp';
 
 export interface EncarteElementRect {
   xPct: number;
@@ -419,6 +419,19 @@ interface AppState {
   // Sobrescreve o item da fila que estava em edicao com o estado atual do
   // editor (nao cria item novo) e sai do modo de edicao da fila.
   updateQueueItem: (index: number, imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => void;
+
+  // Pastas de Plaquinhas — biblioteca por loja, sincronizada no servidor via
+  // /api/settings/saved_plaquinhas (mesmo padrao de activity_status: um blob
+  // so, indexado por cnpj dentro do JSON). Ver docs/superpowers/specs/2026-08-02-pastas-de-plaquinhas-design.md.
+  savedPlaquinhas: SavedPlaquinha[];
+  loadSavedPlaquinhas: () => Promise<void>;
+  savePlaquinhaToFolder: (folder: string, name: string, imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => Promise<void>;
+  editSavedPlaquinha: (id: string) => void;
+  updateSavedPlaquinha: (imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => Promise<void>;
+  deleteSavedPlaquinha: (id: string) => Promise<void>;
+  renameFolder: (oldName: string, newName: string) => Promise<void>;
+  deleteFolder: (folder: string) => Promise<void>;
+  editingSavedPlaquinhaId: string | null;
   currentView: View;
   setView: (view: View) => void;
   realtimeInitialized: boolean;
@@ -1378,6 +1391,38 @@ export const useStore = create<AppState>()(
         newQueue[index] = { ...newQueue[index], imageData, isLandscape, editorState };
         return { printQueue: newQueue, editingQueueIndex: null };
       }),
+
+      savedPlaquinhas: [],
+      editingSavedPlaquinhaId: null,
+      loadSavedPlaquinhas: async () => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          set({ savedPlaquinhas: all[cnpj] || [] });
+        } catch (err) {
+          console.error('Erro ao carregar pastas salvas:', err);
+        }
+      },
+      savePlaquinhaToFolder: async () => {
+        // implementado na Task 3
+      },
+      editSavedPlaquinha: () => {
+        // implementado na Task 4
+      },
+      updateSavedPlaquinha: async () => {
+        // implementado na Task 4
+      },
+      deleteSavedPlaquinha: async () => {
+        // implementado na Task 5
+      },
+      renameFolder: async () => {
+        // implementado na Task 5
+      },
+      deleteFolder: async () => {
+        // implementado na Task 5
+      },
       currentView: 'editor',
       setView: (view) => set({ currentView: view }),
       realtimeInitialized: false,
@@ -1723,6 +1768,7 @@ export const useStore = create<AppState>()(
         }
         await get().loadLayout();
         await get().fetchProducts();
+        await get().loadSavedPlaquinhas();
       },
 
       // ── logout ──────────────────────────────────────────────────────────────
