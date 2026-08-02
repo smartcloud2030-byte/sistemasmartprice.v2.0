@@ -47,7 +47,7 @@ export default function App() {
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
     editingQueueIndex, updateQueueItem,
-    savePlaquinhaToFolder,
+    savePlaquinhaToFolder, editingSavedPlaquinhaId, updateSavedPlaquinha,
     isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
@@ -522,6 +522,31 @@ export default function App() {
     }, 100);
   };
 
+  const handleSaveSavedPlaquinhaEdit = () => {
+    if (editingSavedPlaquinhaId === null) return;
+    setSelectedId(null);
+    const toastId = toast.loading('Salvando na pasta...');
+
+    setTimeout(() => {
+      try {
+        const canvasData = (window as any).getCanvasData?.();
+        if (!canvasData) {
+          toast.error('Erro ao capturar imagem.', { id: toastId });
+          return;
+        }
+        const activeLayout = layouts[activeLayoutIndex];
+        const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
+        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+
+        updateSavedPlaquinha(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+        toast.success('Plaquinha atualizada na pasta!', { id: toastId });
+      } catch (error) {
+        console.error('Erro ao salvar na pasta:', error);
+        toast.error('Erro ao salvar na pasta.', { id: toastId });
+      }
+    }, 100);
+  };
+
   const handleConfirmSaveToFolder = (folder: string, name: string) => {
     return new Promise<void>((resolve, reject) => {
       setSelectedId(null);
@@ -741,6 +766,18 @@ export default function App() {
                 >
                   <Save className="w-4 h-4" />
                   Salvar na Fila
+                </button>
+              )}
+
+              {editingSavedPlaquinhaId !== null && (
+                <button
+                  type="button"
+                  onClick={handleSaveSavedPlaquinhaEdit}
+                  className="h-10 flex items-center gap-1.5 px-4 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/40 hover:bg-blue-700 transition-all text-sm font-black uppercase tracking-tighter animate-pulse ring-2 ring-blue-400"
+                  title="Salvar alterações nesta plaquinha da pasta"
+                >
+                  <Save className="w-4 h-4" />
+                  Salvar na Pasta
                 </button>
               )}
 
