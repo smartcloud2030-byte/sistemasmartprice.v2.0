@@ -527,7 +527,7 @@ export default function App() {
     setSelectedId(null);
     const toastId = toast.loading('Salvando na pasta...');
 
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         const canvasData = (window as any).getCanvasData?.();
         if (!canvasData) {
@@ -538,7 +538,7 @@ export default function App() {
         const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
         const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
 
-        updateSavedPlaquinha(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+        await updateSavedPlaquinha(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
         toast.success('Plaquinha atualizada na pasta!', { id: toastId });
       } catch (error) {
         console.error('Erro ao salvar na pasta:', error);
@@ -801,15 +801,18 @@ export default function App() {
                 <ListPlus className="w-4 h-4" />
               </button>
 
-              {/* Save to Folder */}
-              <button
-                type="button"
-                onClick={() => setIsSaveToFolderOpen(true)}
-                className="h-10 w-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
-                title="Salvar em Pasta — guarda essa plaquinha pra reaproveitar depois"
-              >
-                <FolderPlus className="w-4 h-4" />
-              </button>
+              {/* Save to Folder — so pra loja: as pastas sao isoladas por cnpj
+                  numerico, e o admin ('Administrativo') nao tem um. */}
+              {userRole !== 'admin' && !!currentUser?.cnpj?.replace(/[^\d]/g, '') && (
+                <button
+                  type="button"
+                  onClick={() => setIsSaveToFolderOpen(true)}
+                  className="h-10 w-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                  title="Salvar em Pasta — guarda essa plaquinha pra reaproveitar depois"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Export */}
               <HeaderDropdown
@@ -842,14 +845,16 @@ export default function App() {
                 )}
               </button>
 
-              {/* Pastas */}
-              <button
-                onClick={() => setView('folders')}
-                className="relative h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Minhas Pastas
-              </button>
+              {/* Pastas — so pra loja, mesmo motivo do botao "Salvar em Pasta" */}
+              {userRole !== 'admin' && !!currentUser?.cnpj?.replace(/[^\d]/g, '') && (
+                <button
+                  onClick={() => setView('folders')}
+                  className="relative h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Minhas Pastas
+                </button>
+              )}
 
               {/* Encarte Online */}
               {(userRole === 'admin' || allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, ''))?.hasEncarteAccess) && (

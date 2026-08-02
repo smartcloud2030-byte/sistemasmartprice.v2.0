@@ -46,6 +46,9 @@ const SaveToFolderModal: React.FC<SaveToFolderModalProps> = ({ isOpen, onClose, 
     try {
       await onConfirm(finalFolder, name.trim());
       onClose();
+    } catch {
+      // Erro ja tratado/mostrado por onConfirm (toast). O modal fica aberto
+      // de proposito pra usuario poder tentar de novo sem perder o que digitou.
     } finally {
       setIsSaving(false);
     }

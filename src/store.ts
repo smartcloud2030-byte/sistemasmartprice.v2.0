@@ -1420,15 +1420,20 @@ export const useStore = create<AppState>()(
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        const updated = [...get().savedPlaquinhas, newItem];
-        set({ savedPlaquinhas: updated });
         try {
+          // Le a lista do servidor ANTES de mexer: o estado local so e populado
+          // no login, entao apos um F5 ele esta vazio/desatualizado e usa-lo
+          // como base apagaria o que ja estava salvo (inclusive de outra aba).
           const res = await apiGet('/settings/saved_plaquinhas');
           const all = res?.value || {};
-          all[cnpj] = updated;
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = [...serverList, newItem];
+          all[cnpj] = newList;
           await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList });
         } catch (err) {
           console.error('Erro ao salvar plaquinha na pasta:', err);
+          throw err;
         }
       },
       editSavedPlaquinha: (id) => {
@@ -1440,66 +1445,74 @@ export const useStore = create<AppState>()(
         const id = get().editingSavedPlaquinhaId;
         const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
         if (!id || !cnpj) return;
-        const updated = get().savedPlaquinhas.map((p) =>
-          p.id === id ? { ...p, imageData, isLandscape, editorState, updatedAt: new Date().toISOString() } : p
-        );
-        set({ savedPlaquinhas: updated, editingSavedPlaquinhaId: null });
         try {
           const res = await apiGet('/settings/saved_plaquinhas');
           const all = res?.value || {};
-          all[cnpj] = updated;
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = serverList.map((p) =>
+            p.id === id ? { ...p, imageData, isLandscape, editorState, updatedAt: new Date().toISOString() } : p
+          );
+          all[cnpj] = newList;
           await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList, editingSavedPlaquinhaId: null });
         } catch (err) {
           console.error('Erro ao atualizar plaquinha salva:', err);
+          throw err;
         }
       },
       deleteSavedPlaquinha: async (id) => {
         const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
         if (!cnpj) return;
-        const updated = get().savedPlaquinhas.filter((p) => p.id !== id);
-        const editingSavedPlaquinhaId = get().editingSavedPlaquinhaId === id ? null : get().editingSavedPlaquinhaId;
-        set({ savedPlaquinhas: updated, editingSavedPlaquinhaId });
         try {
           const res = await apiGet('/settings/saved_plaquinhas');
           const all = res?.value || {};
-          all[cnpj] = updated;
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = serverList.filter((p) => p.id !== id);
+          all[cnpj] = newList;
           await apiPost('/settings/saved_plaquinhas', { value: all });
+          const editingSavedPlaquinhaId = get().editingSavedPlaquinhaId === id ? null : get().editingSavedPlaquinhaId;
+          set({ savedPlaquinhas: newList, editingSavedPlaquinhaId });
         } catch (err) {
           console.error('Erro ao excluir plaquinha salva:', err);
+          throw err;
         }
       },
       renameFolder: async (oldName, newName) => {
         const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
         const trimmedNew = newName.trim();
         if (!cnpj || !trimmedNew) return;
-        const updated = get().savedPlaquinhas.map((p) =>
-          p.folder === oldName ? { ...p, folder: trimmedNew, updatedAt: new Date().toISOString() } : p
-        );
-        set({ savedPlaquinhas: updated });
         try {
           const res = await apiGet('/settings/saved_plaquinhas');
           const all = res?.value || {};
-          all[cnpj] = updated;
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = serverList.map((p) =>
+            p.folder === oldName ? { ...p, folder: trimmedNew, updatedAt: new Date().toISOString() } : p
+          );
+          all[cnpj] = newList;
           await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList });
         } catch (err) {
           console.error('Erro ao renomear pasta:', err);
+          throw err;
         }
       },
       deleteFolder: async (folder) => {
         const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
         if (!cnpj) return;
-        const currentEditingId = get().editingSavedPlaquinhaId;
-        const editingItem = currentEditingId ? get().savedPlaquinhas.find((p) => p.id === currentEditingId) : null;
-        const updated = get().savedPlaquinhas.filter((p) => p.folder !== folder);
-        const editingSavedPlaquinhaId = editingItem?.folder === folder ? null : currentEditingId;
-        set({ savedPlaquinhas: updated, editingSavedPlaquinhaId });
         try {
           const res = await apiGet('/settings/saved_plaquinhas');
           const all = res?.value || {};
-          all[cnpj] = updated;
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const currentEditingId = get().editingSavedPlaquinhaId;
+          const editingItem = currentEditingId ? serverList.find((p) => p.id === currentEditingId) : null;
+          const newList = serverList.filter((p) => p.folder !== folder);
+          const editingSavedPlaquinhaId = editingItem?.folder === folder ? null : currentEditingId;
+          all[cnpj] = newList;
           await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList, editingSavedPlaquinhaId });
         } catch (err) {
           console.error('Erro ao excluir pasta:', err);
+          throw err;
         }
       },
       currentView: 'editor',

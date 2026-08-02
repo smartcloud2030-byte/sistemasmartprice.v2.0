@@ -19,19 +19,28 @@ const SavedFolders = () => {
 
   const handleDeletePlaquinha = (id: string) => {
     if (!window.confirm('Excluir essa plaquinha salva?')) return;
-    deleteSavedPlaquinha(id);
+    deleteSavedPlaquinha(id).catch((err) => {
+      console.error(err);
+      toast.error('Erro ao excluir — tente novamente.');
+    });
   };
 
   const handleDeleteFolder = (folder: string) => {
     if (!window.confirm(`Excluir a pasta "${folder}" e todas as plaquinhas dentro dela?`)) return;
-    deleteFolder(folder);
+    deleteFolder(folder).catch((err) => {
+      console.error(err);
+      toast.error('Erro ao excluir — tente novamente.');
+    });
     setOpenFolder(null);
   };
 
   const handleConfirmRename = (oldName: string) => {
     const trimmed = renameValue.trim();
     if (trimmed && trimmed !== oldName) {
-      renameFolder(oldName, trimmed);
+      renameFolder(oldName, trimmed).catch((err) => {
+        console.error(err);
+        toast.error('Erro ao renomear — tente novamente.');
+      });
       if (openFolder === oldName) setOpenFolder(trimmed);
     }
     setRenamingFolder(null);
