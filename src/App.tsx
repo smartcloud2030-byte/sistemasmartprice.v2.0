@@ -521,17 +521,32 @@ export default function App() {
     }, 100);
   };
 
-  const handleConfirmSaveToFolder = async (folder: string, name: string) => {
-    const canvasData = (window as any).getCanvasData?.();
-    if (!canvasData) {
-      toast.error('Erro ao capturar imagem.');
-      return;
-    }
-    const activeLayout = layouts[activeLayoutIndex];
-    const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-    const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
-    await savePlaquinhaToFolder(folder, name, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
-    toast.success('Plaquinha salva na pasta!');
+  const handleConfirmSaveToFolder = (folder: string, name: string) => {
+    return new Promise<void>((resolve, reject) => {
+      setSelectedId(null);
+      const toastId = toast.loading('Salvando na pasta...');
+
+      // Small timeout to allow Konva to re-render without the transformer
+      setTimeout(async () => {
+        try {
+          const canvasData = (window as any).getCanvasData?.();
+          if (!canvasData) {
+            throw new Error('Erro ao capturar imagem.');
+          }
+          const activeLayout = layouts[activeLayoutIndex];
+          const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
+          const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+
+          await savePlaquinhaToFolder(folder, name, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+          toast.success('Plaquinha salva na pasta!', { id: toastId });
+          resolve();
+        } catch (error) {
+          console.error('Erro ao salvar na pasta:', error);
+          toast.error('Erro ao salvar na pasta.', { id: toastId });
+          reject(error);
+        }
+      }, 100);
+    });
   };
 
   const renderContent = () => {

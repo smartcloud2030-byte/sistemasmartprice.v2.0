@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, FolderPlus } from 'lucide-react';
 import { useStore } from '../store';
 import { toast } from 'sonner';
@@ -19,6 +19,16 @@ const SaveToFolderModal: React.FC<SaveToFolderModalProps> = ({ isOpen, onClose, 
   const [isSaving, setIsSaving] = useState(false);
 
   const existingFolders = Array.from(new Set(savedPlaquinhas.map((p) => p.folder))).sort();
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(defaultName);
+      setFolder('');
+      setIsNewFolder(false);
+      setNewFolderName('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
