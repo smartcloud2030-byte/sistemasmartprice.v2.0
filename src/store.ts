@@ -1453,14 +1453,54 @@ export const useStore = create<AppState>()(
           console.error('Erro ao atualizar plaquinha salva:', err);
         }
       },
-      deleteSavedPlaquinha: async () => {
-        // implementado na Task 5
+      deleteSavedPlaquinha: async (id) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        const updated = get().savedPlaquinhas.filter((p) => p.id !== id);
+        const editingSavedPlaquinhaId = get().editingSavedPlaquinhaId === id ? null : get().editingSavedPlaquinhaId;
+        set({ savedPlaquinhas: updated, editingSavedPlaquinhaId });
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          all[cnpj] = updated;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+        } catch (err) {
+          console.error('Erro ao excluir plaquinha salva:', err);
+        }
       },
-      renameFolder: async () => {
-        // implementado na Task 5
+      renameFolder: async (oldName, newName) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        const trimmedNew = newName.trim();
+        if (!cnpj || !trimmedNew) return;
+        const updated = get().savedPlaquinhas.map((p) =>
+          p.folder === oldName ? { ...p, folder: trimmedNew, updatedAt: new Date().toISOString() } : p
+        );
+        set({ savedPlaquinhas: updated });
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          all[cnpj] = updated;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+        } catch (err) {
+          console.error('Erro ao renomear pasta:', err);
+        }
       },
-      deleteFolder: async () => {
-        // implementado na Task 5
+      deleteFolder: async (folder) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        const currentEditingId = get().editingSavedPlaquinhaId;
+        const editingItem = currentEditingId ? get().savedPlaquinhas.find((p) => p.id === currentEditingId) : null;
+        const updated = get().savedPlaquinhas.filter((p) => p.folder !== folder);
+        const editingSavedPlaquinhaId = editingItem?.folder === folder ? null : currentEditingId;
+        set({ savedPlaquinhas: updated, editingSavedPlaquinhaId });
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          all[cnpj] = updated;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+        } catch (err) {
+          console.error('Erro ao excluir pasta:', err);
+        }
       },
       currentView: 'editor',
       setView: (view) => set({ currentView: view }),
