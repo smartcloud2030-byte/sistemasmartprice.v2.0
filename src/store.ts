@@ -270,6 +270,21 @@ export interface QueuedPlaquinhaState {
   showOptionalTextControl: boolean;
 }
 
+// Plaquinha salva numa pasta (biblioteca de promocoes reutilizaveis,
+// sincronizada por loja no servidor — ver secao "Pastas de Plaquinhas").
+// `folder` e so um campo de texto: nao existe entidade/tabela de pasta
+// separada, "criar pasta" e so digitar um nome novo ao salvar.
+export interface SavedPlaquinha {
+  id: string;
+  folder: string;
+  name: string;
+  imageData: string;
+  isLandscape: boolean;
+  editorState: QueuedPlaquinhaState;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface AppState {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
