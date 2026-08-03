@@ -84,3 +84,205 @@ export function mapNfseError(httpStatus: number, body: any): string {
   if (httpStatus === 503) return 'Serviço da prefeitura indisponível no momento, tente novamente em alguns segundos.';
   return body?.message || 'Erro desconhecido ao emitir a nota fiscal.';
 }
+
+import { Router, Request, Response } from 'express';
+import { Pool } from 'pg';
+import nodemailer from 'nodemailer';
+
+const pool = new Pool({
+  host: process.env.DB_HOST || 'postgres',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME || 'smartprice',
+  user: process.env.DB_USER || 'smartprice',
+  password: process.env.DB_PASSWORD || '',
+});
+
+export async function ensureNotaFiscalSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notas_fiscais (
+      id SERIAL PRIMARY KEY,
+      nfse_id TEXT,
+      cnpj_tomador VARCHAR(14) NOT NULL,
+      nome_tomador TEXT,
+      email_tomador TEXT,
+      codigo_servico VARCHAR(6) NOT NULL,
+      descricao_servico TEXT NOT NULL,
+      valor NUMERIC(12,2) NOT NULL,
+      numero_nota TEXT,
+      chave_acesso TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'transmitindo',
+      erro_detalhe TEXT,
+      ultimo_email_enviado_em TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+}
+
+function apiAuth(req: Request, res: Response, next: Function) {
+  const token = req.headers['x-api-token'];
+  if (token === process.env.API_SECRET) return next();
+  res.status(401).json({ error: 'Não autorizado' });
+}
+
+const NFSE_BASE_URL = process.env.NFSE_API_BASE_URL || '';
+const NFSE_TOKEN = process.env.NFSE_API_TOKEN || '';
+const PRESTADOR_CNPJ = process.env.NFSE_PRESTADOR_CNPJ || '';
+
+async function callNfsePrefeitura(path: string, options: { method?: string; body?: any } = {}) {
+  const res = await fetch(`${NFSE_BASE_URL}${path}`, {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Token ${NFSE_TOKEN}`,
+      'X-Contribuinte-Cnpj': PRESTADOR_CNPJ,
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  return { status: res.status, data };
+}
+
+function danfseLinkDoGoverno(): string {
+  return 'https://www.nfse.gov.br/consultapublica';
+}
+
+async function enviarEmailNota(destinatario: string, nota: { numeroNota: string; chaveAcesso: string; valor: number; descricao: string }) {
+  const transporte = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+  });
+
+  await transporte.sendMail({
+    from: process.env.GMAIL_USER,
+    to: destinatario,
+    subject: `Nota Fiscal de Serviço nº ${nota.numeroNota}`,
+    html: `
+      <p>Segue sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${nota.numeroNota}</b>, no valor de R$ ${nota.valor.toFixed(2)}.</p>
+      <p>Descrição: ${nota.descricao}</p>
+      <p>Para visualizar ou imprimir o documento oficial (DANFSe), acesse a consulta pública do governo e informe a chave de acesso abaixo:</p>
+      <p><a href="${danfseLinkDoGoverno()}">${danfseLinkDoGoverno()}</a></p>
+      <p>Chave de acesso: <code>${nota.chaveAcesso}</code></p>
+    `,
+  });
+}
+
+const router = Router();
+
+router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
+  const input: EmissaoInput = {
+    tomadorCnpj: (req.body?.tomadorCnpj || '').replace(/\D/g, ''),
+    tomadorNome: req.body?.tomadorNome || '',
+    tomadorEmail: req.body?.tomadorEmail || '',
+    tomadorTelefone: req.body?.tomadorTelefone || '',
+    tomadorEndereco: req.body?.tomadorEndereco || {},
+    servicoCodigo: req.body?.servicoCodigo || '',
+    descricao: req.body?.descricao || '',
+    valor: Number(req.body?.valor),
+  };
+
+  const erroValidacao = validateEmissaoInput(input);
+  if (erroValidacao) return res.status(422).json({ error: erroValidacao });
+
+  try {
+    const payload = buildEmissaoPayload(input, PRESTADOR_CNPJ);
+    const { status, data } = await callNfsePrefeitura('/erp/nfse-nacional', { method: 'POST', body: payload });
+
+    if (status === 200) {
+      const inserted = await pool.query(
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'autorizada') RETURNING *`,
+        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, data.numero, data.chave]
+      );
+      return res.json(inserted.rows[0]);
+    }
+
+    if (status === 202) {
+      const inserted = await pool.query(
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo') RETURNING *`,
+        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor]
+      );
+      return res.status(202).json(inserted.rows[0]);
+    }
+
+    const mensagem = mapNfseError(status, data);
+    if (status === 422 && data?.details?.codigoErro) {
+      await pool.query(
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, erro_detalhe)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'rejeitada', $8)`,
+        [data?.details?.id || null, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, mensagem]
+      );
+    }
+    return res.status(status >= 400 ? status : 500).json({ error: mensagem });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Erro ao emitir nota fiscal.' });
+  }
+});
+
+router.get('/:id', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query('SELECT * FROM notas_fiscais WHERE id = $1', [req.params.id]);
+    const nota = result.rows[0];
+    if (!nota) return res.status(404).json({ error: 'Nota não encontrada.' });
+
+    if (nota.status === 'transmitindo' && nota.nfse_id) {
+      const { status, data } = await callNfsePrefeitura(`/erp/nfse-nacional/${nota.nfse_id}`);
+      if (status === 200 && data.status === 'autorizado') {
+        const updated = await pool.query(
+          `UPDATE notas_fiscais SET status = 'autorizada', numero_nota = $1, chave_acesso = $2 WHERE id = $3 RETURNING *`,
+          [data.numero, data.chave, nota.id]
+        );
+        return res.json(updated.rows[0]);
+      }
+      if (status === 200 && data.status === 'rejeitado') {
+        const updated = await pool.query(
+          `UPDATE notas_fiscais SET status = 'rejeitada', erro_detalhe = $1 WHERE id = $2 RETURNING *`,
+          ['NFS-e rejeitada pela Receita Federal.', nota.id]
+        );
+        return res.json(updated.rows[0]);
+      }
+    }
+
+    res.json(nota);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/', apiAuth, async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query('SELECT * FROM notas_fiscais ORDER BY created_at DESC LIMIT 200');
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/email', apiAuth, async (req: Request, res: Response) => {
+  const destinatario = req.body?.email;
+  if (!destinatario) return res.status(422).json({ error: 'E-mail de destino é obrigatório.' });
+
+  try {
+    const result = await pool.query('SELECT * FROM notas_fiscais WHERE id = $1', [req.params.id]);
+    const nota = result.rows[0];
+    if (!nota) return res.status(404).json({ error: 'Nota não encontrada.' });
+    if (nota.status !== 'autorizada') return res.status(400).json({ error: 'Só é possível enviar por e-mail uma nota autorizada.' });
+
+    await enviarEmailNota(destinatario, {
+      numeroNota: nota.numero_nota,
+      chaveAcesso: nota.chave_acesso,
+      valor: Number(nota.valor),
+      descricao: nota.descricao_servico,
+    });
+
+    const updated = await pool.query(
+      `UPDATE notas_fiscais SET ultimo_email_enviado_em = NOW() WHERE id = $1 RETURNING *`,
+      [nota.id]
+    );
+    res.json(updated.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Erro ao enviar e-mail.' });
+  }
+});
+
+export default router;

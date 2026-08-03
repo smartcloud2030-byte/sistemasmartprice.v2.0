@@ -6,6 +6,7 @@ import { Server } from "socket.io";
 import 'dotenv/config';
 import galleryRouter from './src/gallery';
 import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
+import notaFiscalRouter, { ensureNotaFiscalSchema } from './src/notaFiscal';
 import apiRouter, { pool, setSocketServer } from './api';
 
 // ── Suporte / Chat: schema no Postgres local ──
@@ -119,9 +120,11 @@ async function startServer() {
   // ── Rotas da API (ANTES do static) ────────
   app.use('/gallery', galleryRouter);
   app.use('/api/payments', paymentsRouter);
+  app.use('/api/notafiscal', notaFiscalRouter);
   app.use('/api', apiRouter);
 
   await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
+  await ensureNotaFiscalSchema().catch(err => console.error('Erro ao preparar schema de notas fiscais:', err));
 
   io.on("connection", (socket) => {
     console.log("New socket connection attempt:", socket.id);
