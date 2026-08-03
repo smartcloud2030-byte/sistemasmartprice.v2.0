@@ -20,13 +20,15 @@ import EncarteBuilder from './components/encarte/EncarteBuilder';
 import AdminDashboard from './components/AdminDashboard';
 import ChangeCredentialsModal from './components/ChangeCredentialsModal';
 import PaymentCheckoutModal from './components/PaymentCheckoutModal';
+import SaveToFolderModal from './components/SaveToFolderModal';
+import SavedFolders from './components/SavedFolders';
 import {
   Printer, FileDown,
   Settings as SettingsIcon,
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus, FolderOpen
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -45,6 +47,7 @@ export default function App() {
     loadLayout, setPrinting, setSelectedId,
     currentView, setView, addToQueue, printQueue, isPrinting,
     editingQueueIndex, updateQueueItem,
+    savePlaquinhaToFolder, editingSavedPlaquinhaId, updateSavedPlaquinha, loadSavedPlaquinhas,
     isAuthenticated, logout, userRole, isUserModalOpen, setUserModalOpen, setChangeCredsModalOpen,
     isSupportChatOpen, setSupportChatOpen, unreadSupportCount,
     activeLayoutIndex, layouts, setActiveLayout,
@@ -57,6 +60,7 @@ export default function App() {
     orientation
   } = useStore();
   const [activeTab, setActiveTab] = useState<'select' | 'adjustments'>('select');
+  const [isSaveToFolderOpen, setIsSaveToFolderOpen] = useState(false);
   const [showPaymentCheckout, setShowPaymentCheckout] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isModelsColumnCollapsed, setIsModelsColumnCollapsed] = useState(false);
@@ -313,6 +317,15 @@ export default function App() {
     }
   }, [isAuthenticated, lastLoginTimestamp, logout, userRole]);
 
+  // Sessao de loja sobrevive a F5 (sessionStorage), mas o zustand nao
+  // persiste savedPlaquinhas de proposito (dado sempre vem do servidor) — sem
+  // isso, um reload deixa "Minhas Pastas" parecendo vazia ate relogar.
+  useEffect(() => {
+    if (isAuthenticated && userRole !== 'admin') {
+      loadSavedPlaquinhas();
+    }
+  }, [isAuthenticated, userRole, loadSavedPlaquinhas]);
+
   useEffect(() => {
     loadLayout();
     loadUsersAndFlags();
@@ -518,6 +531,59 @@ export default function App() {
     }, 100);
   };
 
+  const handleSaveSavedPlaquinhaEdit = () => {
+    if (editingSavedPlaquinhaId === null) return;
+    setSelectedId(null);
+    const toastId = toast.loading('Salvando na pasta...');
+
+    setTimeout(async () => {
+      try {
+        const canvasData = (window as any).getCanvasData?.();
+        if (!canvasData) {
+          toast.error('Erro ao capturar imagem.', { id: toastId });
+          return;
+        }
+        const activeLayout = layouts[activeLayoutIndex];
+        const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
+        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+
+        await updateSavedPlaquinha(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+        toast.success('Plaquinha atualizada na pasta!', { id: toastId });
+      } catch (error) {
+        console.error('Erro ao salvar na pasta:', error);
+        toast.error('Erro ao salvar na pasta.', { id: toastId });
+      }
+    }, 100);
+  };
+
+  const handleConfirmSaveToFolder = (folder: string, name: string) => {
+    return new Promise<void>((resolve, reject) => {
+      setSelectedId(null);
+      const toastId = toast.loading('Salvando na pasta...');
+
+      // Small timeout to allow Konva to re-render without the transformer
+      setTimeout(async () => {
+        try {
+          const canvasData = (window as any).getCanvasData?.();
+          if (!canvasData) {
+            throw new Error('Erro ao capturar imagem.');
+          }
+          const activeLayout = layouts[activeLayoutIndex];
+          const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
+          const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+
+          await savePlaquinhaToFolder(folder, name, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
+          toast.success('Plaquinha salva na pasta!', { id: toastId });
+          resolve();
+        } catch (error) {
+          console.error('Erro ao salvar na pasta:', error);
+          toast.error('Erro ao salvar na pasta.', { id: toastId });
+          reject(error);
+        }
+      }, 100);
+    });
+  };
+
   const renderContent = () => {
     if (!isAuthenticated) {
       return <Login />;
@@ -609,6 +675,10 @@ export default function App() {
 
     if (currentView === 'queue') {
       return <PrintQueue />;
+    }
+
+    if (currentView === 'folders') {
+      return <SavedFolders />;
     }
 
     if (currentView === 'encarte') {
@@ -708,6 +778,18 @@ export default function App() {
                 </button>
               )}
 
+              {editingSavedPlaquinhaId !== null && (
+                <button
+                  type="button"
+                  onClick={handleSaveSavedPlaquinhaEdit}
+                  className="h-10 flex items-center gap-1.5 px-4 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/40 hover:bg-blue-700 transition-all text-sm font-black uppercase tracking-tighter animate-pulse ring-2 ring-blue-400"
+                  title="Salvar alterações nesta plaquinha da pasta"
+                >
+                  <Save className="w-4 h-4" />
+                  Salvar na Pasta
+                </button>
+              )}
+
               {/* Print */}
               <button
                 type="button"
@@ -727,6 +809,19 @@ export default function App() {
               >
                 <ListPlus className="w-4 h-4" />
               </button>
+
+              {/* Save to Folder — so pra loja: as pastas sao isoladas por cnpj
+                  numerico, e o admin ('Administrativo') nao tem um. */}
+              {userRole !== 'admin' && !!currentUser?.cnpj?.replace(/[^\d]/g, '') && (
+                <button
+                  type="button"
+                  onClick={() => setIsSaveToFolderOpen(true)}
+                  className="h-10 w-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                  title="Salvar em Pasta — guarda essa plaquinha pra reaproveitar depois"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Export */}
               <HeaderDropdown
@@ -758,6 +853,17 @@ export default function App() {
                   </span>
                 )}
               </button>
+
+              {/* Pastas — so pra loja, mesmo motivo do botao "Salvar em Pasta" */}
+              {userRole !== 'admin' && !!currentUser?.cnpj?.replace(/[^\d]/g, '') && (
+                <button
+                  onClick={() => setView('folders')}
+                  className="relative h-10 flex items-center gap-1.5 px-3.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all text-sm font-semibold"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Minhas Pastas
+                </button>
+              )}
 
               {/* Encarte Online */}
               {(userRole === 'admin' || allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, ''))?.hasEncarteAccess) && (
@@ -1206,6 +1312,13 @@ export default function App() {
           </div>
         </div>
       )}
+      <SaveToFolderModal
+        isOpen={isSaveToFolderOpen}
+        onClose={() => setIsSaveToFolderOpen(false)}
+        defaultName={textElements1.name.text}
+        onConfirm={handleConfirmSaveToFolder}
+      />
+
       {/* User Management Modal */}
       {isUserModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">

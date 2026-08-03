@@ -145,7 +145,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'encarte' | 'dashboard' | 'smarthelp';
+export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'dashboard' | 'smarthelp';
 
 export interface EncarteElementRect {
   xPct: number;
@@ -268,6 +268,21 @@ export interface QueuedPlaquinhaState {
   isSingleProduct: boolean;
   showSingleProductControl: boolean;
   showOptionalTextControl: boolean;
+}
+
+// Plaquinha salva numa pasta (biblioteca de promocoes reutilizaveis,
+// sincronizada por loja no servidor — ver secao "Pastas de Plaquinhas").
+// `folder` e so um campo de texto: nao existe entidade/tabela de pasta
+// separada, "criar pasta" e so digitar um nome novo ao salvar.
+export interface SavedPlaquinha {
+  id: string;
+  folder: string;
+  name: string;
+  imageData: string;
+  isLandscape: boolean;
+  editorState: QueuedPlaquinhaState;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AppState {
@@ -404,6 +419,19 @@ interface AppState {
   // Sobrescreve o item da fila que estava em edicao com o estado atual do
   // editor (nao cria item novo) e sai do modo de edicao da fila.
   updateQueueItem: (index: number, imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => void;
+
+  // Pastas de Plaquinhas — biblioteca por loja, sincronizada no servidor via
+  // /api/settings/saved_plaquinhas (mesmo padrao de activity_status: um blob
+  // so, indexado por cnpj dentro do JSON). Ver docs/superpowers/specs/2026-08-02-pastas-de-plaquinhas-design.md.
+  savedPlaquinhas: SavedPlaquinha[];
+  loadSavedPlaquinhas: () => Promise<void>;
+  savePlaquinhaToFolder: (folder: string, name: string, imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => Promise<void>;
+  editSavedPlaquinha: (id: string) => void;
+  updateSavedPlaquinha: (imageData: string, isLandscape: boolean, editorState: QueuedPlaquinhaState) => Promise<void>;
+  deleteSavedPlaquinha: (id: string) => Promise<void>;
+  renameFolder: (oldName: string, newName: string) => Promise<void>;
+  deleteFolder: (folder: string) => Promise<void>;
+  editingSavedPlaquinhaId: string | null;
   currentView: View;
   setView: (view: View) => void;
   realtimeInitialized: boolean;
@@ -1354,7 +1382,7 @@ export const useStore = create<AppState>()(
       editQueueItem: (index) => {
         const item = get().printQueue[index];
         if (!item?.editorState) return;
-        set({ ...item.editorState, currentView: 'editor', editingQueueIndex: index });
+        set({ ...item.editorState, currentView: 'editor', editingQueueIndex: index, editingSavedPlaquinhaId: null });
       },
       editingQueueIndex: null,
       updateQueueItem: (index, imageData, isLandscape, editorState) => set((state) => {
@@ -1363,6 +1391,130 @@ export const useStore = create<AppState>()(
         newQueue[index] = { ...newQueue[index], imageData, isLandscape, editorState };
         return { printQueue: newQueue, editingQueueIndex: null };
       }),
+
+      savedPlaquinhas: [],
+      editingSavedPlaquinhaId: null,
+      loadSavedPlaquinhas: async () => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          set({ savedPlaquinhas: all[cnpj] || [] });
+        } catch (err) {
+          console.error('Erro ao carregar pastas salvas:', err);
+        }
+      },
+      savePlaquinhaToFolder: async (folder, name, imageData, isLandscape, editorState) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        const trimmedFolder = folder.trim();
+        if (!trimmedFolder) return;
+        const newItem: SavedPlaquinha = {
+          id: crypto.randomUUID(),
+          folder: trimmedFolder,
+          name: name.trim() || 'Sem nome',
+          imageData,
+          isLandscape,
+          editorState,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        try {
+          // Le a lista do servidor ANTES de mexer: o estado local so e populado
+          // no login, entao apos um F5 ele esta vazio/desatualizado e usa-lo
+          // como base apagaria o que ja estava salvo (inclusive de outra aba).
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = [...serverList, newItem];
+          all[cnpj] = newList;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList });
+        } catch (err) {
+          console.error('Erro ao salvar plaquinha na pasta:', err);
+          throw err;
+        }
+      },
+      editSavedPlaquinha: (id) => {
+        const item = get().savedPlaquinhas.find((p) => p.id === id);
+        if (!item) return;
+        set({ ...item.editorState, currentView: 'editor', editingSavedPlaquinhaId: id, editingQueueIndex: null });
+      },
+      updateSavedPlaquinha: async (imageData, isLandscape, editorState) => {
+        const id = get().editingSavedPlaquinhaId;
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!id || !cnpj) return;
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = serverList.map((p) =>
+            p.id === id ? { ...p, imageData, isLandscape, editorState, updatedAt: new Date().toISOString() } : p
+          );
+          all[cnpj] = newList;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList, editingSavedPlaquinhaId: null });
+        } catch (err) {
+          console.error('Erro ao atualizar plaquinha salva:', err);
+          throw err;
+        }
+      },
+      deleteSavedPlaquinha: async (id) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = serverList.filter((p) => p.id !== id);
+          all[cnpj] = newList;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+          const editingSavedPlaquinhaId = get().editingSavedPlaquinhaId === id ? null : get().editingSavedPlaquinhaId;
+          set({ savedPlaquinhas: newList, editingSavedPlaquinhaId });
+        } catch (err) {
+          console.error('Erro ao excluir plaquinha salva:', err);
+          throw err;
+        }
+      },
+      renameFolder: async (oldName, newName) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        const trimmedNew = newName.trim();
+        if (!cnpj || !trimmedNew) return;
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const newList = serverList.map((p) =>
+            p.folder === oldName ? { ...p, folder: trimmedNew, updatedAt: new Date().toISOString() } : p
+          );
+          all[cnpj] = newList;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList });
+        } catch (err) {
+          console.error('Erro ao renomear pasta:', err);
+          throw err;
+        }
+      },
+      deleteFolder: async (folder) => {
+        const cnpj = get().currentUser?.cnpj?.replace(/[^\d]/g, '');
+        if (!cnpj) return;
+        try {
+          const res = await apiGet('/settings/saved_plaquinhas');
+          const all = res?.value || {};
+          const serverList: SavedPlaquinha[] = all[cnpj] || [];
+          const currentEditingId = get().editingSavedPlaquinhaId;
+          const editingItem = currentEditingId ? serverList.find((p) => p.id === currentEditingId) : null;
+          const newList = serverList.filter((p) => p.folder !== folder);
+          const editingSavedPlaquinhaId = editingItem?.folder === folder ? null : currentEditingId;
+          all[cnpj] = newList;
+          await apiPost('/settings/saved_plaquinhas', { value: all });
+          set({ savedPlaquinhas: newList, editingSavedPlaquinhaId });
+        } catch (err) {
+          console.error('Erro ao excluir pasta:', err);
+          throw err;
+        }
+      },
       currentView: 'editor',
       setView: (view) => set({ currentView: view }),
       realtimeInitialized: false,
@@ -1695,6 +1847,7 @@ export const useStore = create<AppState>()(
           currentView: role === 'admin' ? 'dashboard' : 'editor',
           lastUserIdentity: role === 'user' ? { cnpj: nc, username: user.username } : stateBeforeLogin.lastUserIdentity,
           editingQueueIndex: null,
+          editingSavedPlaquinhaId: null,
           ...switchUpdate,
         } as any);
         if (role === 'user' && user.cnpj) {
@@ -1708,6 +1861,7 @@ export const useStore = create<AppState>()(
         }
         await get().loadLayout();
         await get().fetchProducts();
+        await get().loadSavedPlaquinhas();
       },
 
       // ── logout ──────────────────────────────────────────────────────────────
@@ -1724,7 +1878,7 @@ export const useStore = create<AppState>()(
         }
         // Nao reseta printQueue/rascunho aqui: se a mesma loja logar de novo,
         // o login compara lastUserIdentity e mantem o que ela deixou.
-        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, editingQueueIndex: null });
+        set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, editingQueueIndex: null, editingSavedPlaquinhaId: null });
       },
 
       // Chamado no evento 'pagehide' (fechar aba/janela). fetch() normal não
