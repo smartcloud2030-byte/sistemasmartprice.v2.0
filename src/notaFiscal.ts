@@ -146,6 +146,15 @@ function danfseLinkDoGoverno(): string {
   return 'https://www.nfse.gov.br/consultapublica';
 }
 
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function enviarEmailNota(destinatario: string, nota: { numeroNota: string; chaveAcesso: string; valor: number; descricao: string }) {
   const transporte = nodemailer.createTransport({
     service: 'gmail',
@@ -157,11 +166,11 @@ async function enviarEmailNota(destinatario: string, nota: { numeroNota: string;
     to: destinatario,
     subject: `Nota Fiscal de Serviço nº ${nota.numeroNota}`,
     html: `
-      <p>Segue sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${nota.numeroNota}</b>, no valor de R$ ${nota.valor.toFixed(2)}.</p>
-      <p>Descrição: ${nota.descricao}</p>
+      <p>Segue sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${escapeHtml(nota.numeroNota)}</b>, no valor de R$ ${nota.valor.toFixed(2)}.</p>
+      <p>Descrição: ${escapeHtml(nota.descricao)}</p>
       <p>Para visualizar ou imprimir o documento oficial (DANFSe), acesse a consulta pública do governo e informe a chave de acesso abaixo:</p>
       <p><a href="${danfseLinkDoGoverno()}">${danfseLinkDoGoverno()}</a></p>
-      <p>Chave de acesso: <code>${nota.chaveAcesso}</code></p>
+      <p>Chave de acesso: <code>${escapeHtml(nota.chaveAcesso)}</code></p>
     `,
   });
 }
@@ -169,6 +178,10 @@ async function enviarEmailNota(destinatario: string, nota: { numeroNota: string;
 const router = Router();
 
 router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
+  if (!NFSE_BASE_URL || !NFSE_TOKEN || !PRESTADOR_CNPJ) {
+    return res.status(500).json({ error: 'Configuração da integração com a prefeitura inválida — contate o suporte.' });
+  }
+
   const input: EmissaoInput = {
     tomadorCnpj: (req.body?.tomadorCnpj || '').replace(/\D/g, ''),
     tomadorNome: req.body?.tomadorNome || '',
@@ -213,9 +226,13 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
         [data?.details?.id || null, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, mensagem]
       );
     }
+    if (status === 401 || status === 403) {
+      return res.status(502).json({ error: mensagem });
+    }
     return res.status(status >= 400 ? status : 500).json({ error: mensagem });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Erro ao emitir nota fiscal.' });
+    console.error('[notaFiscal] POST /emitir:', err);
+    res.status(500).json({ error: 'Erro ao emitir nota fiscal. Tente novamente.' });
   }
 });
 
@@ -245,7 +262,8 @@ router.get('/:id', apiAuth, async (req: Request, res: Response) => {
 
     res.json(nota);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('[notaFiscal] GET /:id:', err);
+    res.status(500).json({ error: 'Erro ao consultar nota fiscal.' });
   }
 });
 
@@ -254,7 +272,8 @@ router.get('/', apiAuth, async (_req: Request, res: Response) => {
     const result = await pool.query('SELECT * FROM notas_fiscais ORDER BY created_at DESC LIMIT 200');
     res.json(result.rows);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('[notaFiscal] GET /:', err);
+    res.status(500).json({ error: 'Erro ao carregar histórico de notas fiscais.' });
   }
 });
 
@@ -281,7 +300,8 @@ router.post('/:id/email', apiAuth, async (req: Request, res: Response) => {
     );
     res.json(updated.rows[0]);
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Erro ao enviar e-mail.' });
+    console.error('[notaFiscal] POST /:id/email:', err);
+    res.status(500).json({ error: 'Erro ao enviar e-mail. Tente novamente.' });
   }
 });
 
