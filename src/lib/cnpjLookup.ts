@@ -40,3 +40,51 @@ export async function fetchCnpjData(cnpj: string): Promise<CnpjData | null> {
   const raw = await res.json();
   return parseCnpjResponse(raw);
 }
+
+export interface EnderecoEstruturado {
+  xLgr: string;
+  nro: string;
+  xCpl: string;
+  xBairro: string;
+  cMun: string;
+  cep: string;
+  uf: string;
+}
+
+export interface CnpjDataEstruturado {
+  nome: string;
+  email: string;
+  telefone: string;
+  endereco: EnderecoEstruturado;
+}
+
+export function parseCnpjResponseEstruturado(raw: any): CnpjDataEstruturado {
+  const nome = (raw?.nome_fantasia || '').trim() || (raw?.razao_social || '').trim();
+  const xLgr = [raw?.descricao_tipo_de_logradouro, raw?.logradouro].filter(Boolean).join(' ').trim();
+
+  return {
+    nome,
+    email: (raw?.email || '').trim(),
+    telefone: formatTelefone(raw?.ddd_telefone_1),
+    endereco: {
+      xLgr,
+      nro: (raw?.numero || '').toString().trim(),
+      xCpl: (raw?.complemento || '').trim(),
+      xBairro: (raw?.bairro || '').trim(),
+      cMun: raw?.codigo_municipio_ibge ? String(raw.codigo_municipio_ibge) : '',
+      cep: (raw?.cep || '').toString().replace(/\D/g, ''),
+      uf: (raw?.uf || '').trim(),
+    },
+  };
+}
+
+export async function fetchCnpjDataEstruturado(cnpj: string): Promise<CnpjDataEstruturado | null> {
+  const digits = cnpj.replace(/\D/g, '');
+  if (digits.length !== 14) return null;
+
+  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+  if (!res.ok) return null;
+
+  const raw = await res.json();
+  return parseCnpjResponseEstruturado(raw);
+}
