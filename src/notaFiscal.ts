@@ -124,6 +124,22 @@ function apiAuth(req: Request, res: Response, next: Function) {
   res.status(401).json({ error: 'Não autorizado' });
 }
 
+// Checagem extra de credencial real de admin, exigida apenas em /emitir por
+// se tratar da emissão de um documento fiscal real (não basta o x-api-token
+// compartilhado, que é o mesmo usado no resto do app). Mesma convenção de
+// api.ts's getAdminCredentials — settings.admin_credentials como fonte de
+// verdade, com fallback pra semente via env vars. Pool próprio deste arquivo
+// (evita import circular com api.ts).
+async function verificarSenhaAdmin(senha: string): Promise<boolean> {
+  if (!senha) return false;
+  const result = await pool.query('SELECT value FROM settings WHERE id = $1', ['admin_credentials']);
+  const stored = result.rows[0]?.value;
+  const credentials: Record<string, string> = stored && Object.keys(stored).length > 0
+    ? stored
+    : { daylon: process.env.ADMIN_PASSWORD_DAYLON || '8814', jh: process.env.ADMIN_PASSWORD_JH || '1993' };
+  return Object.values(credentials).includes(senha);
+}
+
 const NFSE_BASE_URL = process.env.NFSE_API_BASE_URL || '';
 const NFSE_TOKEN = process.env.NFSE_API_TOKEN || '';
 const PRESTADOR_CNPJ = process.env.NFSE_PRESTADOR_CNPJ || '';
@@ -182,6 +198,11 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Configuração da integração com a prefeitura inválida — contate o suporte.' });
   }
 
+  const senhaAdmin = req.body?.adminPassword;
+  if (!(await verificarSenhaAdmin(senhaAdmin))) {
+    return res.status(401).json({ error: 'Senha de admin incorreta ou não informada.' });
+  }
+
   const input: EmissaoInput = {
     tomadorCnpj: (req.body?.tomadorCnpj || '').replace(/\D/g, ''),
     tomadorNome: req.body?.tomadorNome || '',
@@ -196,20 +217,47 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
   const erroValidacao = validateEmissaoInput(input);
   if (erroValidacao) return res.status(422).json({ error: erroValidacao });
 
+  let status: number, data: any;
   try {
     const payload = buildEmissaoPayload(input, PRESTADOR_CNPJ);
-    const { status, data } = await callNfsePrefeitura('/erp/nfse-nacional', { method: 'POST', body: payload });
+    ({ status, data } = await callNfsePrefeitura('/erp/nfse-nacional', { method: 'POST', body: payload }));
+  } catch (err: any) {
+    console.error('[notaFiscal] POST /emitir:', err);
+    return res.status(500).json({ error: 'Erro ao emitir nota fiscal. Tente novamente.' });
+  }
 
+  // A partir daqui a prefeitura já pode ter emitido a nota de verdade — um
+  // erro nesse bloco (ex.: INSERT falhar) NÃO pode ser reportado como "tente
+  // novamente", sob risco de o admin reemitir e gerar uma segunda nota real.
+  try {
     if (status === 200) {
+      const semNumeroOuChave = !data.numero || !data.chave;
+      if (semNumeroOuChave) {
+        console.error('[notaFiscal] 200 sem numero/chave — prefeitura pode ter mudado o contrato:', JSON.stringify(data));
+      }
       const inserted = await pool.query(
         `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'autorizada') RETURNING *`,
-        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, data.numero, data.chave]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [
+          data.id,
+          input.tomadorCnpj,
+          input.tomadorNome,
+          input.tomadorEmail,
+          input.servicoCodigo,
+          input.descricao,
+          input.valor,
+          semNumeroOuChave ? null : data.numero,
+          semNumeroOuChave ? null : data.chave,
+          semNumeroOuChave ? 'transmitindo' : 'autorizada',
+        ]
       );
       return res.json(inserted.rows[0]);
     }
 
     if (status === 202) {
+      if (!data.id) {
+        console.error('[notaFiscal] 202 sem id — nota vai ficar presa em transmitindo:', JSON.stringify(data));
+      }
       const inserted = await pool.query(
         `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo') RETURNING *`,
@@ -219,7 +267,8 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     }
 
     const mensagem = mapNfseError(status, data);
-    if (status === 422 && data?.details?.codigoErro) {
+    const rejeitadaComCodigoErro = status === 422 && data?.details?.codigoErro;
+    if (rejeitadaComCodigoErro) {
       await pool.query(
         `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, erro_detalhe)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'rejeitada', $8)`,
@@ -229,10 +278,13 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     if (status === 401 || status === 403) {
       return res.status(502).json({ error: mensagem });
     }
+    if (!rejeitadaComCodigoErro) {
+      console.error('[notaFiscal] resposta inesperada da prefeitura:', status, JSON.stringify(data));
+    }
     return res.status(status >= 400 ? status : 500).json({ error: mensagem });
   } catch (err: any) {
-    console.error('[notaFiscal] POST /emitir:', err);
-    res.status(500).json({ error: 'Erro ao emitir nota fiscal. Tente novamente.' });
+    console.error('[notaFiscal] CRÍTICO — prefeitura respondeu mas falha ao salvar localmente:', { status, data, err });
+    res.status(500).json({ error: 'A prefeitura pode ter emitido a nota, mas houve um erro ao salvar aqui. NÃO tente emitir de novo — contate o suporte com os dados exibidos no console do servidor.' });
   }
 });
 

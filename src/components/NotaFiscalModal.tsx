@@ -35,6 +35,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
   const [servicoCodigo, setServicoCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [emitindo, setEmitindo] = useState(false);
@@ -131,6 +132,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
           servicoCodigo,
           descricao,
           valor: Number(valor),
+          adminPassword,
         }),
       });
       const data = await res.json();
@@ -282,6 +284,17 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                   onChange={(e) => setDescricao(e.target.value)}
                   rows={2}
                   className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Confirme sua senha de admin</label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Sua senha de administrador"
+                  className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
                 />
               </div>
 
