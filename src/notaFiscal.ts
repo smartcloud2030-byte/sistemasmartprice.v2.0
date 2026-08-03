@@ -199,8 +199,13 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
   }
 
   const senhaAdmin = req.body?.adminPassword;
-  if (!(await verificarSenhaAdmin(senhaAdmin))) {
-    return res.status(401).json({ error: 'Senha de admin incorreta ou não informada.' });
+  try {
+    if (!(await verificarSenhaAdmin(senhaAdmin))) {
+      return res.status(401).json({ error: 'Senha de admin incorreta ou não informada.' });
+    }
+  } catch (err) {
+    console.error('[notaFiscal] erro ao verificar senha de admin:', err);
+    return res.status(500).json({ error: 'Erro ao verificar credenciais. Tente novamente.' });
   }
 
   const input: EmissaoInput = {

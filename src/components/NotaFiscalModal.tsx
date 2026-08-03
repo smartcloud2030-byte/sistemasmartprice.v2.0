@@ -139,8 +139,12 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
 
       if (res.status === 200) {
         setNota(data);
-        setEmitindo(false);
-        onEmitted();
+        if (data.status === 'autorizada') {
+          setEmitindo(false);
+          onEmitted();
+        } else {
+          iniciarPolling(data.id);
+        }
       } else if (res.status === 202) {
         setNota(data);
         iniciarPolling(data.id);
