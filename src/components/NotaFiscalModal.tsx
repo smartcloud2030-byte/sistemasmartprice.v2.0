@@ -116,6 +116,10 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
       setErro('Selecione um CNPJ válido e aguarde o preenchimento automático do endereço.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())) {
+      setErro('Informe um e-mail válido do cliente (a busca automática nem sempre encontra um).');
+      return;
+    }
     setErro(null);
     setEmitindo(true);
 
