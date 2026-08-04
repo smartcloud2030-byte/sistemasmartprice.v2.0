@@ -41,6 +41,11 @@ function formatsValorWithTwoDecimalsEvenForWholeNumbers() {
   assert.strictEqual(payload.valorTotal, '1000.00');
 }
 
+function stripsFormattingFromTelefoneBecauseTheXsdOnlyAcceptsDigits() {
+  const payload: any = buildEmissaoPayload({ ...validInput, tomadorTelefone: '(94) 3321-2758' }, '66125544000198');
+  assert.strictEqual(payload.tomador.telefone, '9433212758');
+}
+
 function validateEmissaoInputRejectsInvalidCnpj() {
   const erro = validateEmissaoInput({ ...validInput, tomadorCnpj: '123' });
   assert.ok(erro && /CNPJ/.test(erro));
@@ -93,6 +98,7 @@ function mapsServiceUnavailableToARetryMessage() {
 try {
   buildsThePayloadWithFixedPrestadorConfig();
   formatsValorWithTwoDecimalsEvenForWholeNumbers();
+  stripsFormattingFromTelefoneBecauseTheXsdOnlyAcceptsDigits();
   validateEmissaoInputRejectsInvalidCnpj();
   validateEmissaoInputRejectsServicoCodigoWithWrongLength();
   validateEmissaoInputRejectsZeroValue();

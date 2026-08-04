@@ -52,7 +52,7 @@ export function buildEmissaoPayload(input: EmissaoInput, prestadorCnpj: string) 
     tomador: {
       nome: input.tomadorNome,
       email: input.tomadorEmail,
-      telefone: input.tomadorTelefone || '',
+      telefone: (input.tomadorTelefone || '').replace(/\D/g, ''),
       endereco: {
         xLgr: input.tomadorEndereco.xLgr,
         nro: input.tomadorEndereco.nro,
