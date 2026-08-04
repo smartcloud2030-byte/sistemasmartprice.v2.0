@@ -32,6 +32,11 @@ services:
       ASAAS_ENV: ${ASAAS_ENV:-sandbox}
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
       COSMOS_API_TOKEN: ${COSMOS_API_TOKEN}
+      NFSE_API_BASE_URL: ${NFSE_API_BASE_URL}
+      NFSE_API_TOKEN: ${NFSE_API_TOKEN}
+      NFSE_PRESTADOR_CNPJ: ${NFSE_PRESTADOR_CNPJ}
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
