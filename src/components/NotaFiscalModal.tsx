@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, FileText, Loader2, ExternalLink, Mail, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { X, FileText, Loader2, ExternalLink, Mail, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store';
 import { fetchCnpjDataEstruturado, EnderecoEstruturado } from '../lib/cnpjLookup';
+import { baixarComprovanteNotaFiscalPdf } from '../lib/notaFiscalPdf';
 import { cn } from '../lib/utils';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
@@ -19,6 +20,7 @@ interface Nota {
   numero_nota: string | null;
   chave_acesso: string | null;
   erro_detalhe: string | null;
+  created_at?: string;
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -217,6 +219,20 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                 />
               </div>
               <div className="flex gap-3">
+                <button
+                  onClick={() => nota && baixarComprovanteNotaFiscalPdf({
+                    numeroNota: nota.numero_nota || '',
+                    chaveAcesso: nota.chave_acesso || '',
+                    cnpjTomador: tomadorCnpj,
+                    nomeTomador: tomadorNome,
+                    descricaoServico: descricao,
+                    valor: Number(valor),
+                    dataEmissao: nota.created_at || new Date().toISOString(),
+                  })}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-bold text-black dark:text-white hover:border-emerald-500/50 transition-colors"
+                >
+                  <Download className="w-4 h-4" /> Baixar PDF
+                </button>
                 <a
                   href="https://www.nfse.gov.br/consultapublica"
                   target="_blank"
@@ -225,14 +241,14 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                 >
                   <ExternalLink className="w-4 h-4" /> Ver DANFSe
                 </a>
-                <button
-                  onClick={handleEnviarEmail}
-                  disabled={enviandoEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60"
-                >
-                  {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Enviar por E-mail
-                </button>
               </div>
+              <button
+                onClick={handleEnviarEmail}
+                disabled={enviandoEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60"
+              >
+                {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Enviar por E-mail
+              </button>
             </div>
           ) : (
             <>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, Mail, Loader2, FileText } from 'lucide-react';
+import { ExternalLink, Mail, Loader2, FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { baixarComprovanteNotaFiscalPdf } from '../lib/notaFiscalPdf';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 const AUTH_HEADERS = { 'x-api-token': API_SECRET, 'Content-Type': 'application/json' };
@@ -92,6 +93,21 @@ export default function NotaFiscalHistorico() {
                   </span>
                   {nota.status === 'autorizada' && (
                     <>
+                      <button
+                        onClick={() => baixarComprovanteNotaFiscalPdf({
+                          numeroNota: nota.numero_nota || '',
+                          chaveAcesso: nota.chave_acesso || '',
+                          cnpjTomador: nota.cnpj_tomador,
+                          nomeTomador: nota.nome_tomador,
+                          descricaoServico: nota.descricao_servico,
+                          valor: Number(nota.valor),
+                          dataEmissao: nota.created_at,
+                        })}
+                        title="Baixar PDF"
+                        className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-emerald-500/50 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5 text-zinc-500" />
+                      </button>
                       <a
                         href="https://www.nfse.gov.br/consultapublica"
                         target="_blank"
