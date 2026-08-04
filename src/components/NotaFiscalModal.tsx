@@ -206,6 +206,16 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                   <p className="text-xs text-zinc-500">Nº {nota?.numero_nota} · Chave: {nota?.chave_acesso}</p>
                 </div>
               </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">E-mail de destino</label>
+                <input
+                  type="email"
+                  value={tomadorEmail}
+                  onChange={(e) => setTomadorEmail(e.target.value)}
+                  placeholder="cliente@exemplo.com.br"
+                  className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
+                />
+              </div>
               <div className="flex gap-3">
                 <a
                   href="https://www.nfse.gov.br/consultapublica"
@@ -217,7 +227,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                 </a>
                 <button
                   onClick={handleEnviarEmail}
-                  disabled={enviandoEmail}
+                  disabled={enviandoEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60"
                 >
                   {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Enviar por E-mail
