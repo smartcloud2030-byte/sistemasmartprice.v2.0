@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore, Product, SelectedProduct, EncarteSemanal, EncarteElementRect } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
+import { formatPrice } from '../../lib/encartePrice';
 import ProductSelector from '../ProductSelector';
 import DraggableBox, { BoxRect } from './DraggableBox';
 import { Plus, FileDown, Image as ImageIcon2, Percent, ZoomIn, ZoomOut } from 'lucide-react';
@@ -594,7 +595,11 @@ export default function EncarteWeekly() {
                         onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'name'); }}
                         onInput={(text) => updateSlotProduct(slot.id, { name: text })}
                         className="w-full h-full min-w-0 overflow-hidden font-black uppercase leading-tight bg-transparent outline-none whitespace-pre-wrap break-words focus:ring-1 focus:ring-black/20 rounded-[1px]"
-                        style={{ color: nameColor, fontSize: `${product.nameFontSize ?? DEFAULT_NAME_FONT_SIZE}px` }}
+                        style={{
+                          color: nameColor,
+                          fontSize: `${product.nameFontSize ?? DEFAULT_NAME_FONT_SIZE}px`,
+                          textShadow: molde.textShadow ? '0 1px 2px rgba(0,0,0,.35)' : undefined,
+                        }}
                       />
                       {isSelected(slot.id, 'name') && (
                         <FontSizeControl onDecrease={() => adjustFontSize(slot.id, 'name', -FONT_SIZE_STEP)} onIncrease={() => adjustFontSize(slot.id, 'name', FONT_SIZE_STEP)} />
@@ -653,6 +658,16 @@ export default function EncarteWeekly() {
                                 />
                                 <span className="font-black text-white leading-none" style={{ fontSize: `${priceFontSize}px` }}>%</span>
                               </div>
+                            ) : molde.priceTypography === 'destacado' && !isSelected(slot.id, 'price') ? (
+                              <div
+                                className="flex items-start gap-[1px]"
+                                onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
+                                style={{ textShadow: molde.textShadow ? '0 1px 2px rgba(0,0,0,.35)' : undefined }}
+                              >
+                                <span className="font-black text-white leading-none" style={{ fontSize: `${priceFontSize}px` }}>{formatPrice(product.price).integer}</span>
+                                <span className="font-black text-white leading-none" style={{ fontSize: `${priceFontSize * 0.55}px` }}>{formatPrice(product.price).cents}</span>
+                                <span className="font-black text-white uppercase leading-none self-end" style={{ fontSize: `${labelFontSize}px` }}>Uni</span>
+                              </div>
                             ) : (
                               <div className="flex items-baseline gap-[1px]">
                                 <input
@@ -661,7 +676,7 @@ export default function EncarteWeekly() {
                                   onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'price'); }}
                                   onChange={(e) => updateSlotProduct(slot.id, { price: e.target.value })}
                                   className="font-black text-white leading-none bg-transparent border-none outline-none p-0 focus:ring-1 focus:ring-white/50 rounded-[1px]"
-                                  style={{ fontSize: `${priceFontSize}px`, width: `${Math.max(40, priceFontSize * 4)}px` }}
+                                  style={{ fontSize: `${priceFontSize}px`, width: `${Math.max(40, priceFontSize * 4)}px`, textShadow: molde.textShadow ? '0 1px 2px rgba(0,0,0,.35)' : undefined }}
                                 />
                                 <span className="font-black text-white uppercase leading-none" style={{ fontSize: `${labelFontSize}px` }}>Uni</span>
                               </div>
