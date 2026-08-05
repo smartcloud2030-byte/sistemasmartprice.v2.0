@@ -282,7 +282,7 @@ export default function EncarteWeekly() {
   };
 
   const getElementRect = (product: SelectedProduct, key: 'name' | 'subtitle' | 'price' | 'image'): EncarteElementRect =>
-    product.elementLayout?.[key] || DEFAULT_ELEMENT_RECTS[key];
+    product.elementLayout?.[key] || molde?.defaultElementLayout?.[key] || DEFAULT_ELEMENT_RECTS[key];
 
   const FONT_FIELD = { name: 'nameFontSize', subtitle: 'subtitleFontSize', price: 'priceFontSize' } as const;
   const FONT_DEFAULT = { name: DEFAULT_NAME_FONT_SIZE, subtitle: DEFAULT_SUBTITLE_FONT_SIZE, price: DEFAULT_PRICE_FONT_SIZE };
@@ -560,15 +560,15 @@ export default function EncarteWeekly() {
           // sair da célula — offsetX/offsetY guardam a posição atual dessa
           // área dentro do slot (0-20, padrão 10 = centralizado).
           const contentRect: BoxRect = {
-            xPct: product?.offsetX ?? 10,
-            yPct: product?.offsetY ?? 10,
-            widthPct: product?.width ?? 80,
-            heightPct: product?.height ?? 80,
+            xPct: product?.offsetX ?? molde.defaultCardRect?.offsetX ?? 10,
+            yPct: product?.offsetY ?? molde.defaultCardRect?.offsetY ?? 10,
+            widthPct: product?.width ?? molde.defaultCardRect?.width ?? 80,
+            heightPct: product?.height ?? molde.defaultCardRect?.height ?? 80,
           };
-          const nameRect = product?.elementLayout?.name || DEFAULT_ELEMENT_RECTS.name;
-          const subtitleRect = product?.elementLayout?.subtitle || DEFAULT_ELEMENT_RECTS.subtitle;
-          const priceRect = product?.elementLayout?.price || DEFAULT_ELEMENT_RECTS.price;
-          const imageRect = product?.elementLayout?.image || DEFAULT_ELEMENT_RECTS.image;
+          const nameRect = product?.elementLayout?.name || molde.defaultElementLayout?.name || DEFAULT_ELEMENT_RECTS.name;
+          const subtitleRect = product?.elementLayout?.subtitle || molde.defaultElementLayout?.subtitle || DEFAULT_ELEMENT_RECTS.subtitle;
+          const priceRect = product?.elementLayout?.price || molde.defaultElementLayout?.price || DEFAULT_ELEMENT_RECTS.price;
+          const imageRect = product?.elementLayout?.image || molde.defaultElementLayout?.image || DEFAULT_ELEMENT_RECTS.image;
           const cardRef = getCardRef(slot.id);
           return (
             <div key={slot.id} ref={getSlotContainerRef(slot.id)} className="absolute p-0.5" style={{ left: `${slot.xPct}%`, top: `${slot.yPct}%`, width: `${slot.widthPct}%`, height: `${slot.heightPct}%` }}>
@@ -597,7 +597,7 @@ export default function EncarteWeekly() {
                         className="w-full h-full min-w-0 overflow-hidden font-black uppercase leading-tight bg-transparent outline-none whitespace-pre-wrap break-words focus:ring-1 focus:ring-black/20 rounded-[1px]"
                         style={{
                           color: nameColor,
-                          fontSize: `${product.nameFontSize ?? DEFAULT_NAME_FONT_SIZE}px`,
+                          fontSize: `${product.nameFontSize ?? molde.defaultNameFontSize ?? DEFAULT_NAME_FONT_SIZE}px`,
                           textShadow: molde.textShadow ? '0 1px 2px rgba(0,0,0,.35)' : undefined,
                         }}
                       />
@@ -618,7 +618,7 @@ export default function EncarteWeekly() {
                         onPointerDown={(e) => { e.stopPropagation(); selectElement(slot.id, 'subtitle'); }}
                         onInput={(text) => updateSlotProduct(slot.id, { subtitle: text })}
                         className="w-full h-full min-w-0 overflow-hidden font-bold uppercase leading-tight text-zinc-500 bg-transparent outline-none whitespace-pre-wrap break-words focus:ring-1 focus:ring-black/20 rounded-[1px] empty:before:content-['Descrição'] empty:before:text-zinc-300"
-                        style={{ fontSize: `${product.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE}px` }}
+                        style={{ fontSize: `${product.subtitleFontSize ?? molde.defaultSubtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE}px` }}
                       />
                       {isSelected(slot.id, 'subtitle') && (
                         <FontSizeControl onDecrease={() => adjustFontSize(slot.id, 'subtitle', -FONT_SIZE_STEP)} onIncrease={() => adjustFontSize(slot.id, 'subtitle', FONT_SIZE_STEP)} />
@@ -633,7 +633,7 @@ export default function EncarteWeekly() {
                       onSelect={() => selectElement(slot.id, 'price')}
                     >
                       {(() => {
-                        const priceFontSize = product.priceFontSize ?? DEFAULT_PRICE_FONT_SIZE;
+                        const priceFontSize = product.priceFontSize ?? molde.defaultPriceFontSize ?? DEFAULT_PRICE_FONT_SIZE;
                         const labelFontSize = priceFontSize * PRICE_LABEL_FONT_RATIO;
                         return (
                           <div className="w-full h-full rounded px-2 py-1 flex flex-col items-start justify-center leading-none overflow-hidden" style={{ backgroundColor: boxColor }}>
