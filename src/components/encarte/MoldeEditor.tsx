@@ -221,6 +221,27 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
               </div>
             </div>
 
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDraft((d) => ({ ...d, priceTypography: d.priceTypography === 'destacado' ? 'uniforme' : 'destacado' }))}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  draft.priceTypography === 'destacado' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'
+                }`}
+              >
+                Preço destacado
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft((d) => ({ ...d, textShadow: !d.textShadow }))}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  draft.textShadow ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'
+                }`}
+              >
+                Sombra no texto
+              </button>
+            </div>
+
             <button
               onClick={() => setGrid((g) => ({ ...g, manual: !g.manual }))}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
