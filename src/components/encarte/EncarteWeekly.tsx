@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useStore, Product, SelectedProduct, EncarteSemanal, EncarteElementRect } from '../../store';
+import { useStore, Product, SelectedProduct, EncarteSemanal, EncarteElementRect, EncarteMolde } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
 import { formatPrice } from '../../lib/encartePrice';
+import { extractLayoutFields, applyLayoutToAll, buildMoldeDefaults } from '../../lib/encarteLayoutSync';
 import ProductSelector from '../ProductSelector';
 import DraggableBox, { BoxRect } from './DraggableBox';
 import { Plus, FileDown, Image as ImageIcon2, Percent, ZoomIn, ZoomOut } from 'lucide-react';
@@ -111,7 +112,7 @@ function EditableText({ value, onInput, onPointerDown, className, style }: {
 
 export default function EncarteWeekly() {
   const {
-    encarteMoldes, fetchEncarteMoldes,
+    encarteMoldes, fetchEncarteMoldes, saveEncarteMoldes,
     storeProfiles, fetchStoreProfiles,
     encartesSemanais, fetchEncartesSemanais, saveEncartesSemanais,
   } = useStore();
@@ -311,6 +312,52 @@ export default function EncarteWeekly() {
     if (!semanal) return;
     persistSemanal({ ...semanal, produtos: { ...semanal.produtos, [slotId]: null } });
     setSelected((sel) => (sel?.slotId === slotId ? null : sel));
+  };
+
+  // Copia o layout (posição/tamanho/fonte) do card `sourceSlotId` pra todos
+  // os outros produtos JÁ PREENCHIDOS do mesmo lado (frente OU verso — os
+  // dois lados dividem o mesmo mapa `produtos`, então restringe aos slots
+  // do lado atual pra não bagunçar o outro lado, que pode ter proporções
+  // bem diferentes). `molde?.` porque esta função é definida antes do guard
+  // `if (!molde...) return`, igual a getElementRect/handleWheel acima.
+  const handleApplyLayoutToAll = (sourceSlotId: string) => {
+    if (!semanal || !molde) return;
+    const source = semanal.produtos[sourceSlotId];
+    if (!source) return;
+    const layout = extractLayoutFields(source);
+    const currentSideSlots = side === 'frente' ? molde.frontSlots : (molde.backSlots || []);
+    const sameSideSlotIds = currentSideSlots.filter((s) => s.tipo === 'produto').map((s) => s.id);
+    const produtos = applyLayoutToAll(semanal.produtos, sameSideSlotIds, layout);
+    persistSemanal({ ...semanal, produtos });
+    toast.success('Layout aplicado aos produtos desse lado!');
+  };
+
+  // Grava o layout do card `sourceSlotId` como padrão do MOLDE — produtos
+  // novos colocados em qualquer slot desse molde, essa semana em diante,
+  // já nascem com esse layout em vez das constantes fixas de fábrica.
+  const handleSaveAsMoldeDefault = async (sourceSlotId: string) => {
+    if (!semanal || !molde) return;
+    const source = semanal.produtos[sourceSlotId];
+    if (!source) return;
+    const layout = extractLayoutFields(source);
+    const defaults = buildMoldeDefaults(layout);
+    // Merge campo a campo, não spread direto: se o produto de referência
+    // nunca foi arrastado (ex: usuário só quer salvar o tamanho de fonte),
+    // `defaults.defaultCardRect` vem undefined — um spread ingênuo
+    // (`{...molde, ...defaults}`) apagaria um defaultCardRect bom que já
+    // existisse no molde. Cada campo só é sobrescrito se o novo valor
+    // existir; senão mantém o que já estava salvo.
+    const updatedMolde: EncarteMolde = {
+      ...molde,
+      defaultCardRect: defaults.defaultCardRect ?? molde.defaultCardRect,
+      defaultElementLayout: defaults.defaultElementLayout ?? molde.defaultElementLayout,
+      defaultNameFontSize: defaults.defaultNameFontSize ?? molde.defaultNameFontSize,
+      defaultSubtitleFontSize: defaults.defaultSubtitleFontSize ?? molde.defaultSubtitleFontSize,
+      defaultPriceFontSize: defaults.defaultPriceFontSize ?? molde.defaultPriceFontSize,
+    };
+    const updatedMoldes = encarteMoldes.map((m) => (m.id === molde.id ? updatedMolde : m));
+    const ok = await saveEncarteMoldes(updatedMoldes);
+    if (ok) toast.success('Padrão do molde atualizado!');
   };
 
   // O scroll do mouse não dá mais zoom na tela (isso agora é só pelos
@@ -583,6 +630,20 @@ export default function EncarteWeekly() {
                   onSelect={() => selectElement(slot.id, 'card')}
                 >
                   <div className="group relative w-full h-full overflow-visible">
+                    {isSelected(slot.id, 'card') && (
+                      <div
+                        className="no-print absolute -top-7 left-0 flex items-center gap-1.5 bg-white rounded shadow border border-zinc-200 px-1.5 py-1 z-10 whitespace-nowrap"
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
+                        <button onClick={() => handleApplyLayoutToAll(slot.id)} className="text-[9px] font-black text-zinc-600 hover:text-emerald-600">
+                          Aplicar a todos
+                        </button>
+                        <span className="text-zinc-300">|</span>
+                        <button onClick={() => handleSaveAsMoldeDefault(slot.id)} className="text-[9px] font-black text-zinc-600 hover:text-emerald-600">
+                          Definir padrão do molde
+                        </button>
+                      </div>
+                    )}
                     <DraggableBox
                       rect={nameRect}
                       containerRef={cardRef}
