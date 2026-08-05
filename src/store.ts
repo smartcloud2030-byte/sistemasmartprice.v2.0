@@ -225,6 +225,7 @@ export interface EncarteGridConfig {
 }
 
 export type EncarteFontFamily = 'Inter' | 'Roboto' | 'Oswald';
+export type EncartePriceTypography = 'uniforme' | 'destacado';
 
 export interface EncarteMolde {
   id: string;
@@ -238,6 +239,19 @@ export interface EncarteMolde {
   fontFamily?: EncarteFontFamily;
   priceBoxColor?: string;
   productNameColor?: string;
+  // Tipografia do preço: 'uniforme' (padrão, comportamento de sempre) ou
+  // 'destacado' (reais grande + centavos menor, como etiqueta de preço).
+  priceTypography?: EncartePriceTypography;
+  // Sombra sutil no nome do produto e no texto do preço (não na descrição).
+  textShadow?: boolean;
+  // Layout padrão pra produto NOVO colocado num slot desse molde — grava
+  // via botão "Definir como padrão do molde" em EncarteWeekly. Ausente =
+  // usa as constantes DEFAULT_* de EncarteWeekly.tsx (comportamento atual).
+  defaultCardRect?: { offsetX: number; offsetY: number; width: number; height: number };
+  defaultElementLayout?: EncarteElementLayout;
+  defaultNameFontSize?: number;
+  defaultSubtitleFontSize?: number;
+  defaultPriceFontSize?: number;
 }
 
 export interface EncarteSemanal {
