@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "test": "tsx src/backgroundDetect.test.ts && tsx src/duplicateComposite.test.ts && tsx src/lib/duplicateProductMatch.test.ts && tsx src/lib/productReportConflicts.test.ts && tsx src/lib/encarteGrid.test.ts && tsx src/lib/encartePrice.test.ts && tsx src/lib/cnpjLookup.test.ts && tsx src/lib/savedPlaquinhaFolders.test.ts && tsx src/notaFiscal.test.ts && tsx src/lib/encarteLayoutSync.test.ts",
+    "test": "tsx src/backgroundDetect.test.ts && tsx src/duplicateComposite.test.ts && tsx src/lib/duplicateProductMatch.test.ts && tsx src/lib/productReportConflicts.test.ts && tsx src/lib/encarteGrid.test.ts && tsx src/lib/encartePrice.test.ts && tsx src/lib/cnpjLookup.test.ts && tsx src/lib/savedPlaquinhaFolders.test.ts && tsx src/notaFiscal.test.ts && tsx src/lib/encarteLayoutSync.test.ts && tsx src/lib/despesas.test.ts",
     "start": "node server.ts",
     "build": "vite build",
     "preview": "vite preview",
