@@ -15,3 +15,4 @@ backups/
 .github/skills/
 .github/hooks/
 skills-lock.json
+.worktrees/
