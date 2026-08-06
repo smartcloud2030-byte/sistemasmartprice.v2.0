@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, CreditCard, AlertTriangle, Search, Wallet, Info } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
-import { totalDespesasDoMes, mesAnterior, mesSeguinte } from '../lib/despesas';
+import { totalDespesasDoMes, mesAnterior, mesSeguinte, formatMesAno } from '../lib/despesas';
 import FinanceiroDespesasTab from './FinanceiroDespesasTab';
 
 interface Props {
@@ -65,11 +65,11 @@ export default function FinanceiroPanel({ onClose }: Props) {
               <p className="text-2xl font-black text-black dark:text-white tracking-tighter">{currency(mrr)}</p>
               <Info className="w-3.5 h-3.5 text-zinc-400" />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400" title="Receita atual (MRR) — sem histórico por mês">Receita Atual</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Receita Atual · sem histórico</p>
           </div>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
             <p className="text-2xl font-black text-red-600 tracking-tighter">{currency(despesasDoMesTotal)}</p>
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Despesas do Mês</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Despesas · {formatMesAno(selectedYear, selectedMonth)}</p>
           </div>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
             <p className={cn('text-2xl font-black tracking-tighter', resultado >= 0 ? 'text-emerald-600' : 'text-red-600')}>{currency(resultado)}</p>

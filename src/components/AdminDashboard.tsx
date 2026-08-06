@@ -145,7 +145,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Comunicados', description: 'Avisos para os usuários', icon: Megaphone, onClick: () => setAnnouncementModalOpen(true) },
     { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
     { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
-    { label: 'Financeiro', description: 'Assinaturas e pendências de pagamento', icon: Wallet, onClick: () => setShowFinanceiro(true) },
+    { label: 'Financeiro', description: 'Receitas, despesas e resultado do sistema', icon: Wallet, onClick: () => setShowFinanceiro(true) },
     { label: 'SmartHelp', description: 'Suporte de infraestrutura das lojas (servidor, máquinas, TEF...)', icon: LifeBuoy, onClick: () => setView('smarthelp') },
   ];
 

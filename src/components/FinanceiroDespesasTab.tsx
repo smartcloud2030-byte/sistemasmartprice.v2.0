@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Globe, Sparkles, Tag, X } from 'lucide-react';
 import { useStore } from '../store';
 import type { Despesa } from '../lib/despesas';
-import { despesasDoMes, formatMesAno } from '../lib/despesas';
+import { despesasDoMes, formatMesAno, mesSeguinte } from '../lib/despesas';
 import { cn } from '../lib/utils';
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -94,18 +94,19 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
   };
 
   const handleEncerrarRecorrente = (d: Despesa) => {
-    updateDespesa(d.id, { dataFim: new Date().toISOString().slice(0, 10) });
+    const { ano, mes } = mesSeguinte(year, month);
+    updateDespesa(d.id, { dataFim: `${ano}-${String(mes).padStart(2, '0')}-01` });
   };
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-6 pt-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button onClick={onPrevMonth} className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
+          <button onClick={onPrevMonth} aria-label="Mês anterior" className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <p className="text-sm font-bold text-black dark:text-white w-32 text-center">{formatMesAno(year, month)}</p>
-          <button onClick={onNextMonth} className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
+          <button onClick={onNextMonth} aria-label="Próximo mês" className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -121,7 +122,7 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
         <form onSubmit={handleSubmit} className="mx-6 mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl space-y-3">
           <div className="flex justify-between items-center">
             <p className="text-xs font-black uppercase tracking-widest text-zinc-400">{editingId ? 'Editar despesa' : 'Nova despesa'}</p>
-            <button type="button" onClick={closeForm} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full">
+            <button type="button" onClick={closeForm} aria-label="Fechar formulário" className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -219,10 +220,10 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
                       Encerrar
                     </button>
                   )}
-                  <button onClick={() => openEditForm(d)} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
+                  <button onClick={() => openEditForm(d)} aria-label="Editar despesa" className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
                     <Pencil className="w-4 h-4 text-zinc-400" />
                   </button>
-                  <button onClick={() => removeDespesa(d.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors">
+                  <button onClick={() => removeDespesa(d.id)} aria-label="Excluir despesa" className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors">
                     <Trash2 className="w-4 h-4 text-red-500" />
                   </button>
                 </div>
