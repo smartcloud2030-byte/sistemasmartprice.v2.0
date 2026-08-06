@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
 import { isStoreOnline } from './lib/utils';
+import type { Despesa } from './lib/despesas';
+
+export type { Despesa };
 
 // ─── API helper ────────────────────────────────────────────────────────────────
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
@@ -557,6 +560,10 @@ interface AppState {
   setAnnouncements: (announcements: Announcement[]) => void;
   addAnnouncement: (announcement: Announcement) => void;
   deleteAnnouncement: (id: string) => void;
+  despesas: Despesa[];
+  addDespesa: (despesa: Despesa) => void;
+  updateDespesa: (id: string, patch: Partial<Despesa>) => void;
+  removeDespesa: (id: string) => void;
   isAnnouncementModalOpen: boolean;
   setAnnouncementModalOpen: (open: boolean) => void;
   isProductReportModalOpen: boolean;
@@ -1188,6 +1195,22 @@ export const useStore = create<AppState>()(
         setTimeout(() => get().saveUsersAndFlags(), 0);
         return { announcements: newAnnouncements };
       }),
+      despesas: [],
+      addDespesa: (despesa) => set((state) => {
+        const newDespesas = [...state.despesas, despesa];
+        setTimeout(() => get().saveUsersAndFlags(), 0);
+        return { despesas: newDespesas };
+      }),
+      updateDespesa: (id, patch) => set((state) => {
+        const newDespesas = state.despesas.map((d) => d.id === id ? { ...d, ...patch } : d);
+        setTimeout(() => get().saveUsersAndFlags(), 0);
+        return { despesas: newDespesas };
+      }),
+      removeDespesa: (id) => set((state) => {
+        const newDespesas = state.despesas.filter((d) => d.id !== id);
+        setTimeout(() => get().saveUsersAndFlags(), 0);
+        return { despesas: newDespesas };
+      }),
       seenAnnouncements: [],
       setSeenAnnouncements: (ids) => set({ seenAnnouncements: ids }),
 
@@ -1649,6 +1672,7 @@ export const useStore = create<AppState>()(
               userGroups: state.userGroups,
               announcements: state.announcements,
               seenAnnouncements: state.seenAnnouncements,
+              despesas: state.despesas,
               // theme NÃO entra aqui de propósito — é preferência pessoal de
               // cada admin (claro/escuro), fica só local (localStorage via
               // persist), nunca sincroniza pro servidor. Ver loadUsersAndFlags.
@@ -1690,6 +1714,7 @@ export const useStore = create<AppState>()(
             userGroups: settings.userGroups || [],
             announcements: settings.announcements || [],
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
+            despesas: settings.despesas || currentState.despesas,
             // theme não é carregado do servidor de propósito — cada admin mantém
             // o próprio tema local (ver saveUsersAndFlags acima).
             isChatEnabled: settings.isChatEnabled !== undefined ? settings.isChatEnabled : true
@@ -1943,6 +1968,7 @@ export const useStore = create<AppState>()(
         currentView: state.currentView,
         announcements: state.announcements,
         seenAnnouncements: state.seenAnnouncements,
+        despesas: state.despesas,
         isSingleProduct: state.isSingleProduct,
         showSingleProductControl: state.showSingleProductControl,
         showOptionalTextControl: state.showOptionalTextControl,
