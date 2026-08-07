@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { HardDrive, MemoryStick, Cpu, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Gauge } from './ui/Gauge';
+import { Gauge, CRITICAL_THRESHOLD, WARNING_THRESHOLD } from './ui/Gauge';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
-const CRITICAL_THRESHOLD = 85;
-const WARNING_THRESHOLD = 65;
 
 interface SystemStatsResponse {
   gallery: { usedBytes: number; fileCount: number };

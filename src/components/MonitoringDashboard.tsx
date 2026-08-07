@@ -39,27 +39,6 @@ interface HistoryPoint {
   diskPercent: number | null;
 }
 
-// As colunas de métrica no Postgres são NUMERIC — o driver `pg` (sem
-// setTypeParser custom, e não há um configurado neste projeto) serializa
-// esse tipo como string no JSON da API (ex.: "cpuPercent": "10"), não como
-// number. Sem essa normalização, `.toFixed()` no MachineTile e no Gauge (que
-// não podemos editar — é da Task 6) quebra em runtime assim que uma loja com
-// dados reais é expandida.
-function toNumOrNull(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
-  const n = typeof v === 'number' ? v : parseFloat(String(v));
-  return Number.isFinite(n) ? n : null;
-}
-
-function normalizeMachine(m: any): MachineData {
-  return {
-    ...m,
-    cpuPercent: toNumOrNull(m.cpuPercent),
-    memPercent: toNumOrNull(m.memPercent),
-    diskPercent: toNumOrNull(m.diskPercent),
-  };
-}
-
 const ALERT_BADGE: Record<MachineData['alertState'], { label: string; className: string }> = {
   ok: { label: 'Normal', className: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
   disk_alert: { label: 'Disco crítico', className: 'bg-red-100 dark:bg-red-900/30 text-red-600' },
@@ -375,24 +354,23 @@ function HistoryLineChart({ points, range }: { points: HistoryPoint[]; range: '2
 
 function MachineHistoryPanel({ machine, onClose }: { machine: MachineData; onClose: () => void }) {
   const [range, setRange] = useState<'24h' | '7d'>('24h');
-  const [points, setPoints] = useState<{ timestamp: string; cpuPercent: number; memPercent: number; diskPercent: number }[]>([]);
+  const [points, setPoints] = useState<HistoryPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
+    setError(null);
     fetch(`/api/monitoring/machines/${machine.id}/history?range=${range}`, { headers: { 'x-api-token': API_SECRET } })
-      .then((res) => res.json())
-      .then((data) =>
-        setPoints(
-          (data.points || []).map((p: any) => ({
-            timestamp: p.timestamp,
-            cpuPercent: toNumOrNull(p.cpuPercent),
-            memPercent: toNumOrNull(p.memPercent),
-            diskPercent: toNumOrNull(p.diskPercent),
-          }))
-        )
-      )
-      .catch(() => setPoints([]))
+      .then((res) => {
+        if (!res.ok) throw new Error(`Falha ao carregar histórico (status ${res.status})`);
+        return res.json();
+      })
+      .then((data) => setPoints(data.points || []))
+      .catch(() => {
+        setPoints([]);
+        setError('Erro ao carregar histórico — tente novamente.');
+      })
       .finally(() => setIsLoading(false));
   }, [machine.id, range]);
 
@@ -409,6 +387,11 @@ function MachineHistoryPanel({ machine, onClose }: { machine: MachineData; onClo
         </div>
         {isLoading ? (
           <p className="text-sm text-zinc-400">Carregando histórico...</p>
+        ) : error ? (
+          <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-bold text-red-600">{error}</p>
+          </div>
         ) : points.length === 0 ? (
           <p className="text-sm text-zinc-400">Sem dados suficientes ainda para este período.</p>
         ) : (
@@ -458,23 +441,21 @@ function StoreSection({ store, onOpenMachine }: { store: StoreOverview; onOpenMa
 export default function MonitoringDashboard() {
   const { setView, monitoringThresholds, loadMonitoringThresholds, saveMonitoringThresholds } = useStore();
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
   const [selectedMachine, setSelectedMachine] = useState<MachineData | null>(null);
   const [thresholdsForm, setThresholdsForm] = useState(monitoringThresholds);
 
   const fetchOverview = () => {
     fetch('/api/monitoring/overview', { headers: { 'x-api-token': API_SECRET } })
-      .then((res) => res.json())
-      .then((data: OverviewResponse) =>
-        setOverview({
-          ...data,
-          stores: (data.stores || []).map((s) => ({
-            ...s,
-            servers: (s.servers || []).map(normalizeMachine),
-            workstations: (s.workstations || []).map(normalizeMachine),
-          })),
-        })
-      )
-      .catch(() => setOverview(null));
+      .then((res) => {
+        if (!res.ok) throw new Error(`Falha ao carregar visão geral (status ${res.status})`);
+        return res.json();
+      })
+      .then((data: OverviewResponse) => {
+        setOverview(data);
+        setOverviewError(null);
+      })
+      .catch(() => setOverviewError('Erro ao carregar dados de monitoramento — tente novamente.'));
   };
 
   useEffect(() => {
@@ -525,8 +506,15 @@ export default function MonitoringDashboard() {
           </button>
         </div>
 
+        {overviewError && (
+          <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-bold text-red-600">{overviewError}</p>
+          </div>
+        )}
+
         {!overview ? (
-          <p className="text-sm text-zinc-400">Carregando...</p>
+          overviewError ? null : <p className="text-sm text-zinc-400">Carregando...</p>
         ) : overview.stores.length === 0 ? (
           <p className="text-sm text-zinc-400">Nenhuma máquina reportou ainda. Instale o agente nas lojas para começar a ver dados aqui.</p>
         ) : (

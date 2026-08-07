@@ -1,8 +1,8 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-const CRITICAL_THRESHOLD = 85;
-const WARNING_THRESHOLD = 65;
+export const CRITICAL_THRESHOLD = 85;
+export const WARNING_THRESHOLD = 65;
 
 function barColor(percent: number): string {
   if (percent >= CRITICAL_THRESHOLD) return 'bg-red-500';

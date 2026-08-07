@@ -4,6 +4,7 @@ import { ArrowLeft, LifeBuoy, Server, Printer, Wifi, CreditCard, HardDrive, Chec
 import { cn } from '../lib/utils';
 import NotaFiscalModal from './NotaFiscalModal';
 import NotaFiscalHistorico from './NotaFiscalHistorico';
+import { getSocket } from '../hooks/useSupportSocket';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
@@ -38,23 +39,38 @@ const INDICATOR_CONFIG: Record<Indicator, { label: string; color: string; bg: st
 
 function useMonitoringOverview() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOverview = async () => {
       try {
         const res = await fetch('/api/monitoring/overview', { headers: { 'x-api-token': API_SECRET } });
+        if (!res.ok) throw new Error(`status ${res.status}`);
         const json = await res.json();
         setData(json);
+        setError(null);
       } catch (e) {
         console.error('Erro ao carregar visão geral do monitoramento:', e);
+        setError('Erro ao carregar dados de monitoramento — tente novamente.');
       }
     };
     fetchOverview();
     const interval = setInterval(fetchOverview, 30 * 1000);
-    return () => clearInterval(interval);
+
+    // Além do polling a cada 30s, escuta o mesmo evento que sweepAlerts()
+    // emite pra sala admin_room (src/monitoring.ts) — assim que um alerta
+    // muda de estado, refaz a busca na hora em vez de esperar o próximo tick.
+    const socket = getSocket();
+    const onMonitoringAlert = () => fetchOverview();
+    socket.on('monitoring:alert', onMonitoringAlert);
+
+    return () => {
+      clearInterval(interval);
+      socket.off('monitoring:alert', onMonitoringAlert);
+    };
   }, []);
 
-  return data;
+  return { data, error };
 }
 
 function useTefStatus() {
@@ -97,6 +113,57 @@ function TefAlertBanner({ data }: { data: TefStatusResponse | null }) {
         </p>
         <p className="text-xs text-red-600/80 mt-0.5">
           {affected.map((p) => `${p.label}: ${p.description}`).join(' · ')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+interface MonitoringMachineAlert {
+  machineName: string;
+  cnpj: string;
+  alertState: 'disk_alert' | 'mem_alert' | 'offline';
+}
+
+const MONITORING_ALERT_LABEL: Record<MonitoringMachineAlert['alertState'], string> = {
+  disk_alert: 'disco crítico',
+  mem_alert: 'memória crítica',
+  offline: 'offline',
+};
+
+// Alerta destacado no topo — mesmo padrão do TefAlertBanner acima. Fonte de
+// verdade é o overview já poll(30s)/socket-refresh pelo useMonitoringOverview
+// — assim o banner já sai correto num carregamento novo da página, sem
+// depender de estar conectado ao socket no instante em que o alerta disparou.
+function MonitoringAlertBanner({ overview }: { overview: any }) {
+  if (!overview?.stores) return null;
+
+  const alerting: MonitoringMachineAlert[] = [];
+  for (const store of overview.stores) {
+    for (const m of [...(store.servers || []), ...(store.workstations || [])]) {
+      if (m.alertState && m.alertState !== 'ok') {
+        alerting.push({ machineName: m.machineName, cnpj: store.cnpj, alertState: m.alertState });
+      }
+    }
+  }
+  if (alerting.length === 0) return null;
+
+  const storesAffected = new Set(alerting.map((a) => a.cnpj)).size;
+  const summary = alerting.length === 1
+    ? `${alerting[0].machineName} (loja ${alerting[0].cnpj}) com alerta`
+    : `${alerting.length} máquinas com alerta em ${storesAffected} loja${storesAffected === 1 ? '' : 's'}`;
+  const detail = alerting
+    .slice(0, 5)
+    .map((a) => `${a.machineName}: ${MONITORING_ALERT_LABEL[a.alertState]}`)
+    .join(' · ');
+
+  return (
+    <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40">
+      <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+      <div>
+        <p className="text-sm font-black text-red-600 uppercase tracking-wide">{summary}</p>
+        <p className="text-xs text-red-600/80 mt-0.5">
+          {detail}{alerting.length > 5 ? ' · ...' : ''}
         </p>
       </div>
     </div>
@@ -217,7 +284,7 @@ function DowndetectorLinks() {
 const SmartHelpDashboard: React.FC = () => {
   const { setView } = useStore();
   const { data: tefData, isLoading: tefLoading } = useTefStatus();
-  const monitoringOverview = useMonitoringOverview();
+  const { data: monitoringOverview, error: monitoringError } = useMonitoringOverview();
   const [showNotaFiscal, setShowNotaFiscal] = useState(false);
   const [historicoKey, setHistoricoKey] = useState(0);
 
@@ -245,6 +312,13 @@ const SmartHelpDashboard: React.FC = () => {
         </div>
 
         <TefAlertBanner data={tefData} />
+        <MonitoringAlertBanner overview={monitoringOverview} />
+        {monitoringError && (
+          <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-bold text-red-600">{monitoringError}</p>
+          </div>
+        )}
 
         {/* Content */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 space-y-6">

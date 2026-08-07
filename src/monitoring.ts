@@ -127,7 +127,14 @@ router.post('/report', async (req: Request, res: Response) => {
 router.get('/overview', apiAuth, async (_req: Request, res: Response) => {
   try {
     const thresholds = await getThresholds();
-    const result = await pool.query('SELECT * FROM monitored_machines ORDER BY store_cnpj, role DESC, machine_name');
+    const result = await pool.query(
+      `SELECT id, store_cnpj, machine_name, role,
+              last_cpu_percent::float8 AS last_cpu_percent,
+              last_mem_percent::float8 AS last_mem_percent,
+              last_disk_percent::float8 AS last_disk_percent,
+              last_seen_at, alert_state
+       FROM monitored_machines ORDER BY store_cnpj, role DESC, machine_name`
+    );
     const now = new Date();
 
     const stores: Record<string, { cnpj: string; servers: any[]; workstations: any[] }> = {};
@@ -165,7 +172,15 @@ router.get('/stores/:cnpj', apiAuth, async (req: Request, res: Response) => {
   try {
     const cnpj = req.params.cnpj.replace(/\D/g, '');
     const thresholds = await getThresholds();
-    const result = await pool.query('SELECT * FROM monitored_machines WHERE store_cnpj = $1 ORDER BY role DESC, machine_name', [cnpj]);
+    const result = await pool.query(
+      `SELECT id, store_cnpj, machine_name, role,
+              last_cpu_percent::float8 AS last_cpu_percent,
+              last_mem_percent::float8 AS last_mem_percent,
+              last_disk_percent::float8 AS last_disk_percent,
+              last_seen_at, alert_state
+       FROM monitored_machines WHERE store_cnpj = $1 ORDER BY role DESC, machine_name`,
+      [cnpj]
+    );
     const now = new Date();
     const machines = result.rows.map((row) => ({
       id: row.id,
@@ -186,11 +201,13 @@ router.get('/stores/:cnpj', apiAuth, async (req: Request, res: Response) => {
 router.get('/machines/:id/history', apiAuth, async (req: Request, res: Response) => {
   try {
     const machineId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(machineId)) return res.status(400).json({ error: 'ID de máquina inválido' });
     const range = req.query.range === '7d' ? '7d' : '24h';
 
     if (range === '24h') {
       const result = await pool.query(
-        `SELECT cpu_percent, mem_percent, disk_percent, sampled_at FROM machine_metrics_samples
+        `SELECT cpu_percent::float8 AS cpu_percent, mem_percent::float8 AS mem_percent, disk_percent::float8 AS disk_percent, sampled_at
+         FROM machine_metrics_samples
          WHERE machine_id = $1 AND sampled_at > NOW() - INTERVAL '24 hours' ORDER BY sampled_at ASC`,
         [machineId]
       );
@@ -198,7 +215,8 @@ router.get('/machines/:id/history', apiAuth, async (req: Request, res: Response)
     }
 
     const result = await pool.query(
-      `SELECT avg_cpu_percent, avg_mem_percent, avg_disk_percent, hour_bucket FROM machine_metrics_hourly
+      `SELECT avg_cpu_percent::float8 AS avg_cpu_percent, avg_mem_percent::float8 AS avg_mem_percent, avg_disk_percent::float8 AS avg_disk_percent, hour_bucket
+       FROM machine_metrics_hourly
        WHERE machine_id = $1 AND hour_bucket > NOW() - INTERVAL '7 days' ORDER BY hour_bucket ASC`,
       [machineId]
     );
@@ -227,7 +245,13 @@ async function sendTelegramAlert(message: string) {
 // ── Varredura de alertas: roda a cada 2 min, dispara só na transição ────
 async function sweepAlerts(io: Server | null) {
   const thresholds = await getThresholds();
-  const result = await pool.query('SELECT * FROM monitored_machines');
+  const result = await pool.query(
+    `SELECT id, store_cnpj, machine_name,
+            last_disk_percent::float8 AS last_disk_percent,
+            last_mem_percent::float8 AS last_mem_percent,
+            last_seen_at, alert_state
+     FROM monitored_machines`
+  );
   const now = new Date();
 
   for (const row of result.rows) {
@@ -254,19 +278,32 @@ async function sweepAlerts(io: Server | null) {
 }
 
 // ── Rollup + limpeza: roda a cada 1h ────
+// O cutoff é calculado UMA vez (via date_trunc, arredondado pra hora cheia) e
+// reutilizado tanto no INSERT quanto no DELETE abaixo. Antes, cada statement
+// calculava `NOW() - INTERVAL '48 hours'` separadamente — como o job roda a
+// cada 1h a partir de um horário arbitrário (ex.: HH:37), o INSERT agregava
+// uma hora ainda incompleta e o ON CONFLICT ... DO UPDATE SOBRESCREVIA a
+// média já calculada (mais completa) de uma execução anterior, corrompendo
+// silenciosamente o histórico de 7 dias. Truncando pra hora cheia, uma hora
+// só entra no rollup quando já está inteiramente fora da janela de 48h — ou
+// seja, completa — e nunca mais é reprocessada.
 async function rollupAndPrune() {
-  await pool.query(`
-    INSERT INTO machine_metrics_hourly (machine_id, hour_bucket, avg_cpu_percent, avg_mem_percent, avg_disk_percent)
-    SELECT machine_id, date_trunc('hour', sampled_at), AVG(cpu_percent), AVG(mem_percent), AVG(disk_percent)
-    FROM machine_metrics_samples
-    WHERE sampled_at < NOW() - INTERVAL '48 hours'
-    GROUP BY machine_id, date_trunc('hour', sampled_at)
-    ON CONFLICT (machine_id, hour_bucket) DO UPDATE SET
-      avg_cpu_percent = EXCLUDED.avg_cpu_percent,
-      avg_mem_percent = EXCLUDED.avg_mem_percent,
-      avg_disk_percent = EXCLUDED.avg_disk_percent
-  `);
-  await pool.query(`DELETE FROM machine_metrics_samples WHERE sampled_at < NOW() - INTERVAL '48 hours'`);
+  const cutoffResult = await pool.query(`SELECT date_trunc('hour', NOW() - INTERVAL '48 hours') AS cutoff`);
+  const cutoff = cutoffResult.rows[0].cutoff;
+
+  await pool.query(
+    `INSERT INTO machine_metrics_hourly (machine_id, hour_bucket, avg_cpu_percent, avg_mem_percent, avg_disk_percent)
+     SELECT machine_id, date_trunc('hour', sampled_at), AVG(cpu_percent), AVG(mem_percent), AVG(disk_percent)
+     FROM machine_metrics_samples
+     WHERE sampled_at < $1
+     GROUP BY machine_id, date_trunc('hour', sampled_at)
+     ON CONFLICT (machine_id, hour_bucket) DO UPDATE SET
+       avg_cpu_percent = EXCLUDED.avg_cpu_percent,
+       avg_mem_percent = EXCLUDED.avg_mem_percent,
+       avg_disk_percent = EXCLUDED.avg_disk_percent`,
+    [cutoff]
+  );
+  await pool.query(`DELETE FROM machine_metrics_samples WHERE sampled_at < $1`, [cutoff]);
   await pool.query(`DELETE FROM machine_metrics_hourly WHERE hour_bucket < NOW() - INTERVAL '90 days'`);
 }
 

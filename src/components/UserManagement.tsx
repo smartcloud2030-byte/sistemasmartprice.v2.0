@@ -1041,7 +1041,10 @@ export default function UserManagement() {
                                 Copiar
                               </button>
                               <button
-                                onClick={() => generateMonitoringToken(store.cnpj)}
+                                onClick={() => {
+                                  if (!window.confirm('Isso vai invalidar o token atual e desconectar todas as máquinas desta loja até você reconfigurar cada uma com o novo token. Continuar?')) return;
+                                  generateMonitoringToken(store.cnpj);
+                                }}
                                 className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-cyan-600 text-white hover:bg-cyan-700 transition-colors"
                               >
                                 Gerar novo
