@@ -13,6 +13,7 @@ import AnnouncementManager from './components/AnnouncementManager';
 import UserAnnouncementModal from './components/UserAnnouncementModal';
 import SupportChat from './components/SupportChat';
 import SmartHelpDashboard from './components/SmartHelpDashboard';
+import MonitoringDashboard from './components/MonitoringDashboard';
 import LayoutSelectorModal from './components/LayoutSelectorModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
@@ -671,6 +672,10 @@ export default function App() {
 
     if (currentView === 'smarthelp' && userRole === 'admin') {
       return <SmartHelpDashboard />;
+    }
+
+    if (currentView === 'monitoring' && userRole === 'admin') {
+      return <MonitoringDashboard />;
     }
 
     if (currentView === 'queue') {

@@ -36,6 +36,27 @@ const INDICATOR_CONFIG: Record<Indicator, { label: string; color: string; bg: st
   unknown: { label: 'Status indisponível', color: 'text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800', icon: HelpCircle },
 };
 
+function useMonitoringOverview() {
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchOverview = async () => {
+      try {
+        const res = await fetch('/api/monitoring/overview', { headers: { 'x-api-token': API_SECRET } });
+        const json = await res.json();
+        setData(json);
+      } catch (e) {
+        console.error('Erro ao carregar visão geral do monitoramento:', e);
+      }
+    };
+    fetchOverview();
+    const interval = setInterval(fetchOverview, 30 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return data;
+}
+
 function useTefStatus() {
   const [data, setData] = useState<TefStatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -196,6 +217,7 @@ function DowndetectorLinks() {
 const SmartHelpDashboard: React.FC = () => {
   const { setView } = useStore();
   const { data: tefData, isLoading: tefLoading } = useTefStatus();
+  const monitoringOverview = useMonitoringOverview();
   const [showNotaFiscal, setShowNotaFiscal] = useState(false);
   const [historicoKey, setHistoricoKey] = useState(0);
 
@@ -236,9 +258,33 @@ const SmartHelpDashboard: React.FC = () => {
               <FileText className="w-6 h-6 text-emerald-600" />
               <span className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white">Emitir Nota Fiscal</span>
             </button>
+            <button
+              onClick={() => setView('monitoring')}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border transition-all hover:shadow-md",
+                monitoringOverview?.hasActiveAlert ? "border-red-300 dark:border-red-900/50" : "border-zinc-200 dark:border-zinc-700"
+              )}
+            >
+              <Server className={cn("w-6 h-6", monitoringOverview?.hasActiveAlert ? "text-red-600" : "text-emerald-600")} />
+              <span className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white">Servidores</span>
+              <span className="text-[9px] text-zinc-400">
+                {monitoringOverview ? `${monitoringOverview.serverOnline}/${monitoringOverview.serverTotal} online` : 'Carregando...'}
+              </span>
+            </button>
+            <button
+              onClick={() => setView('monitoring')}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border transition-all hover:shadow-md",
+                monitoringOverview?.hasActiveAlert ? "border-red-300 dark:border-red-900/50" : "border-zinc-200 dark:border-zinc-700"
+              )}
+            >
+              <HardDrive className={cn("w-6 h-6", monitoringOverview?.hasActiveAlert ? "text-red-600" : "text-emerald-600")} />
+              <span className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white">Máquinas</span>
+              <span className="text-[9px] text-zinc-400">
+                {monitoringOverview ? `${monitoringOverview.machineOnline}/${monitoringOverview.machineTotal} online` : 'Carregando...'}
+              </span>
+            </button>
             {[
-              { icon: Server, label: 'Servidor' },
-              { icon: HardDrive, label: 'Máquinas' },
               { icon: Printer, label: 'Impressoras' },
               { icon: Wifi, label: 'Provedor' },
             ].map(({ icon: Icon, label }) => (

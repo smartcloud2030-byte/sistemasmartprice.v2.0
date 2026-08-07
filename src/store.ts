@@ -148,7 +148,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'dashboard' | 'smarthelp';
+export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'dashboard' | 'smarthelp' | 'monitoring';
 
 export interface EncarteElementRect {
   xPct: number;
