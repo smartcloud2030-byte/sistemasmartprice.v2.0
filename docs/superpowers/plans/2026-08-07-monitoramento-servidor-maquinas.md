@@ -176,7 +176,7 @@ Com `npm run dev` rodando:
 
 ```bash
 # cria uma loja de teste com token, direto no Postgres, pra nao depender da Task 5 ainda
-docker exec -it smartprice_postgres_local psql -U smartprice -d smartprice -c "
+docker exec -it smartprice_postgres psql -U smartprice -d smartprice -c "
 INSERT INTO settings (id, value, updated_at) VALUES ('users_and_flags', '{\"allowedStores\":[{\"cnpj\":\"11111111000199\",\"bandeira\":\"Teste\",\"monitoringToken\":\"token-teste-123\"}]}', NOW())
 ON CONFLICT (id) DO UPDATE SET value = '{\"allowedStores\":[{\"cnpj\":\"11111111000199\",\"bandeira\":\"Teste\",\"monitoringToken\":\"token-teste-123\"}]}';
 "
@@ -188,7 +188,7 @@ curl -i -X POST http://localhost:3000/api/monitoring/report -H "Content-Type: ap
 curl -i -X POST http://localhost:3000/api/monitoring/report -H "Content-Type: application/json" -H "x-monitoring-token: token-teste-123" -d '{"machineName":"Caixa 1","role":"workstation","cpuPercent":10,"memPercent":20,"diskPercent":30}'
 
 # confirma que gravou
-docker exec -it smartprice_postgres_local psql -U smartprice -d smartprice -c "SELECT * FROM monitored_machines; SELECT * FROM machine_metrics_samples;"
+docker exec -it smartprice_postgres psql -U smartprice -d smartprice -c "SELECT * FROM monitored_machines; SELECT * FROM machine_metrics_samples;"
 ```
 
 Expected: os 3 comportamentos batem (401, 200, linhas gravadas nas duas tabelas).
@@ -613,7 +613,7 @@ Sem `TELEGRAM_BOT_TOKEN` configurado no `.env` local (comportamento esperado: al
 curl -i -X POST http://localhost:3000/api/monitoring/report -H "Content-Type: application/json" -H "x-monitoring-token: token-teste-123" -d '{"machineName":"Caixa 1","role":"workstation","cpuPercent":10,"memPercent":20,"diskPercent":95}'
 
 # espera ate 2 min (ou reinicia o servidor pra forcar o setInterval a rodar antes) e confere no Postgres
-docker exec -it smartprice_postgres_local psql -U smartprice -d smartprice -c "SELECT machine_name, alert_state FROM monitored_machines;"
+docker exec -it smartprice_postgres psql -U smartprice -d smartprice -c "SELECT machine_name, alert_state FROM monitored_machines;"
 ```
 
 Expected: `alert_state` muda de `ok` para `disk_alert` dentro de até 2 minutos, sem erro nos logs do `npm run dev` mesmo sem Telegram configurado.
@@ -1271,7 +1271,7 @@ powershell -File scripts/monitoring-agent/smartprice-monitor-agent.ps1
 Confirme no Postgres que uma nova amostra apareceu com CPU/RAM/disco **reais** desta máquina:
 
 ```bash
-docker exec -it smartprice_postgres_local psql -U smartprice -d smartprice -c "SELECT machine_name, last_cpu_percent, last_mem_percent, last_disk_percent, last_seen_at FROM monitored_machines WHERE machine_name = 'Teste Agente Real';"
+docker exec -it smartprice_postgres psql -U smartprice -d smartprice -c "SELECT machine_name, last_cpu_percent, last_mem_percent, last_disk_percent, last_seen_at FROM monitored_machines WHERE machine_name = 'Teste Agente Real';"
 ```
 
 Expected: linha aparece com valores plausíveis de CPU/RAM/disco desta máquina (não zero, não erro). Depois do teste, delete `scripts/monitoring-agent/smartprice-monitor.json` (é local, não deve ir pro git) e reverta a URL do script de volta pra produção.
