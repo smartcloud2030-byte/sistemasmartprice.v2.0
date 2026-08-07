@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
+import { evaluateAlertState, MonitoringThresholds } from './lib/monitoringStatus';
 
 const router = Router();
 
@@ -70,6 +71,16 @@ async function resolveStoreCnpjByToken(token: string): Promise<string | null> {
   return match ? String(match.cnpj).replace(/\D/g, '') : null;
 }
 
+async function getThresholds(): Promise<MonitoringThresholds> {
+  const result = await pool.query("SELECT value FROM settings WHERE id = 'monitoring_thresholds'");
+  const stored = result.rows[0]?.value;
+  return {
+    diskPercent: stored?.diskPercent ?? 90,
+    memPercent: stored?.memPercent ?? 90,
+    offlineMinutes: stored?.offlineMinutes ?? 5,
+  };
+}
+
 // ── Ingestão: chamado pelo agente PowerShell de cada máquina ────
 router.post('/report', async (req: Request, res: Response) => {
   try {
@@ -106,6 +117,91 @@ router.post('/report', async (req: Request, res: Response) => {
     );
 
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Leitura: alimenta a tela de Monitoramento e os cards do SmartHelp ────
+router.get('/overview', apiAuth, async (_req: Request, res: Response) => {
+  try {
+    const thresholds = await getThresholds();
+    const result = await pool.query('SELECT * FROM monitored_machines ORDER BY store_cnpj, role DESC, machine_name');
+    const now = new Date();
+
+    const stores: Record<string, { cnpj: string; servers: any[]; workstations: any[] }> = {};
+    for (const row of result.rows) {
+      const state = evaluateAlertState({ lastDiskPercent: row.last_disk_percent, lastMemPercent: row.last_mem_percent, lastSeenAt: row.last_seen_at }, thresholds, now);
+      const entry = {
+        id: row.id,
+        machineName: row.machine_name,
+        role: row.role,
+        cpuPercent: row.last_cpu_percent,
+        memPercent: row.last_mem_percent,
+        diskPercent: row.last_disk_percent,
+        lastSeenAt: row.last_seen_at,
+        alertState: state,
+      };
+      if (!stores[row.store_cnpj]) stores[row.store_cnpj] = { cnpj: row.store_cnpj, servers: [], workstations: [] };
+      if (row.role === 'server') stores[row.store_cnpj].servers.push(entry);
+      else stores[row.store_cnpj].workstations.push(entry);
+    }
+
+    const storeList = Object.values(stores);
+    const serverTotal = storeList.reduce((sum, s) => sum + s.servers.length, 0);
+    const serverOnline = storeList.reduce((sum, s) => sum + s.servers.filter((m) => m.alertState !== 'offline').length, 0);
+    const machineTotal = storeList.reduce((sum, s) => sum + s.workstations.length, 0);
+    const machineOnline = storeList.reduce((sum, s) => sum + s.workstations.filter((m) => m.alertState !== 'offline').length, 0);
+    const hasActiveAlert = storeList.some((s) => [...s.servers, ...s.workstations].some((m) => m.alertState !== 'ok'));
+
+    res.json({ serverOnline, serverTotal, machineOnline, machineTotal, hasActiveAlert, stores: storeList });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/stores/:cnpj', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const cnpj = req.params.cnpj.replace(/\D/g, '');
+    const thresholds = await getThresholds();
+    const result = await pool.query('SELECT * FROM monitored_machines WHERE store_cnpj = $1 ORDER BY role DESC, machine_name', [cnpj]);
+    const now = new Date();
+    const machines = result.rows.map((row) => ({
+      id: row.id,
+      machineName: row.machine_name,
+      role: row.role,
+      cpuPercent: row.last_cpu_percent,
+      memPercent: row.last_mem_percent,
+      diskPercent: row.last_disk_percent,
+      lastSeenAt: row.last_seen_at,
+      alertState: evaluateAlertState({ lastDiskPercent: row.last_disk_percent, lastMemPercent: row.last_mem_percent, lastSeenAt: row.last_seen_at }, thresholds, now),
+    }));
+    res.json({ cnpj, machines });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/machines/:id/history', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const machineId = parseInt(req.params.id, 10);
+    const range = req.query.range === '7d' ? '7d' : '24h';
+
+    if (range === '24h') {
+      const result = await pool.query(
+        `SELECT cpu_percent, mem_percent, disk_percent, sampled_at FROM machine_metrics_samples
+         WHERE machine_id = $1 AND sampled_at > NOW() - INTERVAL '24 hours' ORDER BY sampled_at ASC`,
+        [machineId]
+      );
+      return res.json({ range, points: result.rows.map((r) => ({ timestamp: r.sampled_at, cpuPercent: r.cpu_percent, memPercent: r.mem_percent, diskPercent: r.disk_percent })) });
+    }
+
+    const result = await pool.query(
+      `SELECT avg_cpu_percent, avg_mem_percent, avg_disk_percent, hour_bucket FROM machine_metrics_hourly
+       WHERE machine_id = $1 AND hour_bucket > NOW() - INTERVAL '7 days' ORDER BY hour_bucket ASC`,
+      [machineId]
+    );
+    res.json({ range, points: result.rows.map((r) => ({ timestamp: r.hour_bucket, cpuPercent: r.avg_cpu_percent, memPercent: r.avg_mem_percent, diskPercent: r.avg_disk_percent })) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
