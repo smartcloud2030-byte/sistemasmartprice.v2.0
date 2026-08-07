@@ -7,7 +7,7 @@ import 'dotenv/config';
 import galleryRouter from './src/gallery';
 import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
 import notaFiscalRouter, { ensureNotaFiscalSchema } from './src/notaFiscal';
-import monitoringRouter, { ensureMonitoringSchema } from './src/monitoring';
+import monitoringRouter, { ensureMonitoringSchema, startMonitoringJobs } from './src/monitoring';
 import apiRouter, { pool, setSocketServer } from './api';
 
 // ── Suporte / Chat: schema no Postgres local ──
@@ -113,6 +113,7 @@ async function startServer() {
   });
   setSocketServer(io);
   setPaymentsSocketServer(io);
+  startMonitoringJobs(io);
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
 

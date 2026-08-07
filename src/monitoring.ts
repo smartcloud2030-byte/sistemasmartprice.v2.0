@@ -6,7 +6,8 @@
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { evaluateAlertState, MonitoringThresholds } from './lib/monitoringStatus';
+import type { Server } from 'socket.io';
+import { evaluateAlertState, alertStateLabel, MonitoringThresholds } from './lib/monitoringStatus';
 
 const router = Router();
 
@@ -206,6 +207,73 @@ router.get('/machines/:id/history', apiAuth, async (req: Request, res: Response)
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── Notificação externa (Telegram) ────────
+async function sendTelegramAlert(message: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message }),
+    });
+  } catch (err) {
+    console.error('[monitoring] Erro ao enviar alerta no Telegram:', err);
+  }
+}
+
+// ── Varredura de alertas: roda a cada 2 min, dispara só na transição ────
+async function sweepAlerts(io: Server | null) {
+  const thresholds = await getThresholds();
+  const result = await pool.query('SELECT * FROM monitored_machines');
+  const now = new Date();
+
+  for (const row of result.rows) {
+    const newState = evaluateAlertState(
+      { lastDiskPercent: row.last_disk_percent, lastMemPercent: row.last_mem_percent, lastSeenAt: row.last_seen_at },
+      thresholds,
+      now
+    );
+    if (newState === row.alert_state) continue;
+
+    await pool.query('UPDATE monitored_machines SET alert_state = $1 WHERE id = $2', [newState, row.id]);
+
+    const label = `${row.machine_name} (loja ${row.store_cnpj})`;
+    const message = newState === 'ok' ? `✅ ${label} voltou ao normal.` : `⚠️ ${label}: ${alertStateLabel(newState)}.`;
+
+    io?.to('admin_room').emit('monitoring:alert', {
+      machineId: row.id,
+      storeCnpj: row.store_cnpj,
+      machineName: row.machine_name,
+      alertState: newState,
+    });
+    await sendTelegramAlert(message);
+  }
+}
+
+// ── Rollup + limpeza: roda a cada 1h ────
+async function rollupAndPrune() {
+  await pool.query(`
+    INSERT INTO machine_metrics_hourly (machine_id, hour_bucket, avg_cpu_percent, avg_mem_percent, avg_disk_percent)
+    SELECT machine_id, date_trunc('hour', sampled_at), AVG(cpu_percent), AVG(mem_percent), AVG(disk_percent)
+    FROM machine_metrics_samples
+    WHERE sampled_at < NOW() - INTERVAL '48 hours'
+    GROUP BY machine_id, date_trunc('hour', sampled_at)
+    ON CONFLICT (machine_id, hour_bucket) DO UPDATE SET
+      avg_cpu_percent = EXCLUDED.avg_cpu_percent,
+      avg_mem_percent = EXCLUDED.avg_mem_percent,
+      avg_disk_percent = EXCLUDED.avg_disk_percent
+  `);
+  await pool.query(`DELETE FROM machine_metrics_samples WHERE sampled_at < NOW() - INTERVAL '48 hours'`);
+  await pool.query(`DELETE FROM machine_metrics_hourly WHERE hour_bucket < NOW() - INTERVAL '90 days'`);
+}
+
+export function startMonitoringJobs(io: Server | null) {
+  setInterval(() => sweepAlerts(io).catch((err) => console.error('[monitoring] Erro na varredura de alertas:', err)), 2 * 60 * 1000);
+  setInterval(() => rollupAndPrune().catch((err) => console.error('[monitoring] Erro no rollup/limpeza:', err)), 60 * 60 * 1000);
+}
 
 export { pool, apiAuth };
 export default router;
