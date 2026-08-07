@@ -496,6 +496,7 @@ interface AppState {
     // pelo webhook do Asaas quando o pagamento é confirmado
     isPaymentBlocked?: boolean;
     paymentBlockedAt?: string;
+    monitoringToken?: string;
   }[];
   addAllowedStore: (store: {
     cnpj: string;
@@ -514,10 +515,15 @@ interface AppState {
     subscriptionDueDay?: number;
     isPaymentBlocked?: boolean;
     paymentBlockedAt?: string;
+    monitoringToken?: string;
   }) => void;
   removeAllowedStore: (cnpj: string) => void;
   toggleSuspension: (cnpj: string) => void;
   togglePaymentBlock: (cnpj: string) => void;
+  generateMonitoringToken: (cnpj: string) => void;
+  monitoringThresholds: { diskPercent: number; memPercent: number; offlineMinutes: number };
+  loadMonitoringThresholds: () => Promise<void>;
+  saveMonitoringThresholds: (thresholds: { diskPercent: number; memPercent: number; offlineMinutes: number }) => Promise<void>;
   toggleProductManagementAccess: (cnpj: string) => void;
   updateOnlineStatus: () => Promise<void>;
   clearAccessHistory: () => Promise<void>;
@@ -1610,6 +1616,30 @@ export const useStore = create<AppState>()(
       toggleProductManagementAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasProductManagementAccess: !s.hasProductManagementAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleSuspension: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isSuspended: !s.isSuspended } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       togglePaymentBlock: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isPaymentBlocked: !s.isPaymentBlocked, paymentBlockedAt: !s.isPaymentBlocked ? new Date().toISOString() : s.paymentBlockedAt } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
+      generateMonitoringToken: (cnpj) => set((state) => {
+        const nc = cnpj?.replace(/[^\d]/g, '') || '';
+        const token = crypto.randomUUID();
+        const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, monitoringToken: token } : s);
+        setTimeout(() => get().saveUsersAndFlags(), 0);
+        return { allowedStores: newAllowedStores };
+      }),
+      monitoringThresholds: { diskPercent: 90, memPercent: 90, offlineMinutes: 5 },
+      loadMonitoringThresholds: async () => {
+        try {
+          const data = await apiGet('/settings/monitoring_thresholds');
+          if (data?.value) set({ monitoringThresholds: data.value });
+        } catch (error) {
+          console.error('Error loading monitoring thresholds:', error);
+        }
+      },
+      saveMonitoringThresholds: async (thresholds) => {
+        set({ monitoringThresholds: thresholds });
+        try {
+          await apiPost('/settings/monitoring_thresholds', { value: thresholds });
+        } catch (error) {
+          console.error('Error saving monitoring thresholds:', error);
+        }
+      },
       bulkUpdateStoreLayouts: (groupId, bandeira, allowedLayouts) => set((state) => { const newAllowedStores = state.allowedStores.map(s => s.groupId === groupId && s.bandeira === bandeira ? { ...s, allowedLayouts } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
 
       // ── updateOnlineStatus → /api/activity/:cnpj ───────────────────────────

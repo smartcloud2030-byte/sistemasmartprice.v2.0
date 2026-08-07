@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, isStoreOnline } from '../lib/utils';
 import { useSupportSocket } from '../hooks/useSupportSocket';
@@ -9,7 +9,7 @@ const API_SECRET = import.meta.env.VITE_API_SECRET;
 
 export default function UserManagement() {
   const {
-    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, togglePaymentBlock, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
+    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
     maxConcurrentStores, setMaxConcurrentStores, cnpjUserLimits, setCnpjUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
@@ -1022,6 +1022,38 @@ export default function UserManagement() {
                                 {store.isPaymentBlocked ? 'Bloqueado' : 'Em dia'}
                               </button>
                             </div>
+                          )}
+                        </div>
+
+                        {/* Token de Monitoramento (agente de CPU/RAM/disco) */}
+                        <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                          <div className="flex items-center gap-2">
+                            <KeyRound className="w-4 h-4 text-cyan-600" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60">Token de Monitoramento</h4>
+                          </div>
+                          {store.monitoringToken ? (
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 px-3 py-2 rounded-lg text-[10px] bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 text-zinc-500 truncate">{store.monitoringToken}</code>
+                              <button
+                                onClick={() => { navigator.clipboard.writeText(store.monitoringToken || ''); toast.success('Token copiado!'); }}
+                                className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                              >
+                                Copiar
+                              </button>
+                              <button
+                                onClick={() => generateMonitoringToken(store.cnpj)}
+                                className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-cyan-600 text-white hover:bg-cyan-700 transition-colors"
+                              >
+                                Gerar novo
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => generateMonitoringToken(store.cnpj)}
+                              className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
+                            >
+                              Gerar token de monitoramento
+                            </button>
                           )}
                         </div>
                       </div>
