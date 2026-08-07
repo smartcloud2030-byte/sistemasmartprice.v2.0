@@ -6,6 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+scripts/monitoring-agent/smartprice-monitor.json
 backups/
 
 # Ferramentas/skills do assistente de IA (Claude Code) — locais, não fazem parte do produto
