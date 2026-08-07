@@ -175,19 +175,20 @@ function HistoryLineChart({ points, range }: { points: HistoryPoint[]; range: '2
   const tooltipBoxX = tooltipFlipLeft ? tooltipX - tooltipWidth - 8 : tooltipX + 8;
 
   return (
-    <div className="space-y-3">
-      <div
-        className={cn(
-          '[--series-cpu:#2a78d6] dark:[--series-cpu:#3987e5]',
-          '[--series-ram:#eb6834] dark:[--series-ram:#d95926]',
-          '[--series-disk:#1baf7a] dark:[--series-disk:#199e70]',
-          '[--chart-grid:#e1e0d9] dark:[--chart-grid:#2c2c2a]',
-          '[--chart-axis:#c3c2b7] dark:[--chart-axis:#383835]',
-          '[--chart-muted:#898781] dark:[--chart-muted:#898781]',
-          '[--chart-surface:#fcfcfb] dark:[--chart-surface:#1a1a19]',
-          '[--chart-ink:#0b0b0b] dark:[--chart-ink:#ffffff]'
-        )}
-      >
+    <div
+      className={cn(
+        'space-y-3',
+        '[--series-cpu:#2a78d6] dark:[--series-cpu:#3987e5]',
+        '[--series-ram:#eb6834] dark:[--series-ram:#d95926]',
+        '[--series-disk:#1baf7a] dark:[--series-disk:#199e70]',
+        '[--chart-grid:#e1e0d9] dark:[--chart-grid:#2c2c2a]',
+        '[--chart-axis:#c3c2b7] dark:[--chart-axis:#383835]',
+        '[--chart-muted:#898781] dark:[--chart-muted:#898781]',
+        '[--chart-surface:#fcfcfb] dark:[--chart-surface:#1a1a19]',
+        '[--chart-ink:#0b0b0b] dark:[--chart-ink:#ffffff]'
+      )}
+    >
+      <div>
         <svg
           viewBox={`0 0 ${SERIES_CHART_WIDTH} ${SERIES_CHART_HEIGHT}`}
           className="w-full h-auto touch-none"
