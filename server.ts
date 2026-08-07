@@ -7,6 +7,7 @@ import 'dotenv/config';
 import galleryRouter from './src/gallery';
 import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
 import notaFiscalRouter, { ensureNotaFiscalSchema } from './src/notaFiscal';
+import monitoringRouter, { ensureMonitoringSchema } from './src/monitoring';
 import apiRouter, { pool, setSocketServer } from './api';
 
 // ── Suporte / Chat: schema no Postgres local ──
@@ -121,10 +122,12 @@ async function startServer() {
   app.use('/gallery', galleryRouter);
   app.use('/api/payments', paymentsRouter);
   app.use('/api/notafiscal', notaFiscalRouter);
+  app.use('/api/monitoring', monitoringRouter);
   app.use('/api', apiRouter);
 
   await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
   await ensureNotaFiscalSchema().catch(err => console.error('Erro ao preparar schema de notas fiscais:', err));
+  await ensureMonitoringSchema().catch(err => console.error('Erro ao preparar schema de monitoramento:', err));
 
   io.on("connection", (socket) => {
     console.log("New socket connection attempt:", socket.id);
