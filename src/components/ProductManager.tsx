@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, Product } from '../store';
 import { findDuplicateProduct } from '../lib/duplicateProductMatch';
+import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateString } from '../lib/cosmosUsage';
 import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2 } from 'lucide-react';
-import { isValidImageUrl, getProxyUrl } from '../lib/utils';
+import { isValidImageUrl, getProxyUrl, cn } from '../lib/utils';
 import { toast } from 'sonner';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
@@ -34,6 +35,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   eletronicos: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   padrao: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
+
+const COSMOS_BADGE_COLOR: Record<CosmosUsageState, string> = {
+  ok: 'text-zinc-400',
+  warning: 'text-amber-500',
+  critical: 'text-red-500',
+};
+
 function getCategoryColor(category: string) {
   const folder = getFolder(category);
   return CATEGORY_COLORS[folder] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
@@ -111,6 +119,24 @@ const ProductManager = () => {
   const [isBulkDragOver, setIsBulkDragOver] = useState(false);
   const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
 
+  const [cosmosUsage, setCosmosUsage] = useState<{ date: string; count: number } | null>(null);
+  // Se a data guardada nao for hoje, o contador ainda nao "virou" no backend
+  // (so reseta quando alguem faz uma consulta nova) — tratamos como 0 pra nao
+  // mostrar cota esgotada logo cedo por causa do uso de ontem.
+  const cosmosUsageCount = cosmosUsage?.date === getBrazilDateString() ? cosmosUsage.count : 0;
+
+  const fetchCosmosUsage = async () => {
+    try {
+      const res = await fetch('/api/settings/cosmos_usage_daily', { headers: { 'x-api-token': API_SECRET } });
+      const json = await res.json();
+      setCosmosUsage(json?.value || null);
+    } catch {
+      // indicador é informativo — se falhar, so nao mostra nada, sem toast de erro
+    }
+  };
+
+  useEffect(() => { fetchCosmosUsage(); }, []);
+
   const lookupBarcode = async (rawCode: string) => {
     const code = rawCode.replace(/\D/g, '');
     if (code.length < 8 || isLookingUpBarcode) return;
@@ -159,6 +185,7 @@ const ProductManager = () => {
       toast.error('Falha ao consultar o código de barras.');
     } finally {
       setIsLookingUpBarcode(false);
+      fetchCosmosUsage();
     }
   };
 
@@ -538,6 +565,11 @@ const ProductManager = () => {
                     <input type="text" placeholder="2º código de barras" className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
                       value={formData.barcode2 || ''} onChange={e => setFormData({ ...formData, barcode2: e.target.value })} />
                   </div>
+                  {cosmosUsage && (
+                    <p className={cn('text-[10px] font-bold', COSMOS_BADGE_COLOR[getUsageState(cosmosUsageCount, COSMOS_DAILY_LIMIT)])}>
+                      Cosmos: {cosmosUsageCount}/{COSMOS_DAILY_LIMIT} consultas hoje
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-2">

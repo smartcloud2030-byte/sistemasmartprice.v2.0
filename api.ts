@@ -8,6 +8,7 @@ import os from 'os';
 import fs from 'fs';
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
+import { getBrazilDateString } from './src/lib/cosmosUsage';
 
 const router = Router();
 
@@ -157,6 +158,26 @@ router.get('/products/count', async (_req: Request, res: Response) => {
 // busca nome/descricao/foto automaticamente. Token fica so no servidor,
 // nunca exposto ao navegador.
 // ═══════════════════════════════════════════
+
+// Registra uma consulta real à Cosmos no contador diário (tabela settings,
+// chave 'cosmos_usage_daily'). Upsert atomico numa query so — evita
+// race condition sem precisar de transacao/lock explicito. O CASE dentro
+// do UPDATE reseta o contador sozinho quando a data muda, sem job/cron.
+async function registerCosmosUsage() {
+  const today = getBrazilDateString();
+  await pool.query(
+    `INSERT INTO settings (id, value, updated_at)
+     VALUES ('cosmos_usage_daily', jsonb_build_object('date', $1::text, 'count', 1), NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       value = CASE
+         WHEN settings.value->>'date' = $1 THEN jsonb_set(settings.value, '{count}', to_jsonb(((settings.value->>'count')::int) + 1))
+         ELSE jsonb_build_object('date', $1::text, 'count', 1)
+       END,
+       updated_at = NOW()`,
+    [today]
+  );
+}
+
 router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response) => {
   const token = process.env.COSMOS_API_TOKEN;
   if (!token) return res.status(501).json({ error: 'COSMOS_API_TOKEN não configurado no servidor' });
@@ -172,6 +193,10 @@ router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response)
       signal: controller.signal,
     });
     clearTimeout(timeout);
+
+    // Conta a partir daqui — a Cosmos respondeu (sucesso, 404 ou erro dela),
+    // e isso é o que consome a cota diária, não só as buscas com resultado.
+    registerCosmosUsage().catch((err) => console.error('Falha ao registrar uso da Cosmos:', err));
 
     if (r.status === 404) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
     if (!r.ok) return res.status(r.status).json({ error: `Cosmos retornou HTTP ${r.status}` });
