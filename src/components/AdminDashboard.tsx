@@ -9,6 +9,7 @@ import { cn, isStoreOnline } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
 import SystemStats from './SystemStats';
 import BackupStatus from './BackupStatus';
+import CosmosUsageStatus from './CosmosUsageStatus';
 import FinanceiroPanel from './FinanceiroPanel';
 
 type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | 'paymentPending' | null;
@@ -230,6 +231,11 @@ const AdminDashboard: React.FC = () => {
         {/* Backup status */}
         <motion.div {...entrance(0.34, shouldReduceMotion)}>
           <BackupStatus />
+        </motion.div>
+
+        {/* Cota diaria da Cosmos (busca por codigo de barras) */}
+        <motion.div {...entrance(0.37, shouldReduceMotion)}>
+          <CosmosUsageStatus />
         </motion.div>
 
         {/* Quick actions */}
