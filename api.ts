@@ -196,7 +196,7 @@ router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response)
 
     // Conta a partir daqui — a Cosmos respondeu (sucesso, 404 ou erro dela),
     // e isso é o que consome a cota diária, não só as buscas com resultado.
-    await registerCosmosUsage();
+    registerCosmosUsage().catch((err) => console.error('Falha ao registrar uso da Cosmos:', err));
 
     if (r.status === 404) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
     if (!r.ok) return res.status(r.status).json({ error: `Cosmos retornou HTTP ${r.status}` });

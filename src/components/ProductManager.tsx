@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, Product } from '../store';
 import { findDuplicateProduct } from '../lib/duplicateProductMatch';
-import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState } from '../lib/cosmosUsage';
+import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateString } from '../lib/cosmosUsage';
 import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2 } from 'lucide-react';
 import { isValidImageUrl, getProxyUrl, cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -120,6 +120,10 @@ const ProductManager = () => {
   const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
 
   const [cosmosUsage, setCosmosUsage] = useState<{ date: string; count: number } | null>(null);
+  // Se a data guardada nao for hoje, o contador ainda nao "virou" no backend
+  // (so reseta quando alguem faz uma consulta nova) — tratamos como 0 pra nao
+  // mostrar cota esgotada logo cedo por causa do uso de ontem.
+  const cosmosUsageCount = cosmosUsage?.date === getBrazilDateString() ? cosmosUsage.count : 0;
 
   const fetchCosmosUsage = async () => {
     try {
@@ -562,8 +566,8 @@ const ProductManager = () => {
                       value={formData.barcode2 || ''} onChange={e => setFormData({ ...formData, barcode2: e.target.value })} />
                   </div>
                   {cosmosUsage && (
-                    <p className={cn('text-[10px] font-bold', COSMOS_BADGE_COLOR[getUsageState(cosmosUsage.count, COSMOS_DAILY_LIMIT)])}>
-                      Cosmos: {cosmosUsage.count}/{COSMOS_DAILY_LIMIT} consultas hoje
+                    <p className={cn('text-[10px] font-bold', COSMOS_BADGE_COLOR[getUsageState(cosmosUsageCount, COSMOS_DAILY_LIMIT)])}>
+                      Cosmos: {cosmosUsageCount}/{COSMOS_DAILY_LIMIT} consultas hoje
                     </p>
                   )}
                 </div>

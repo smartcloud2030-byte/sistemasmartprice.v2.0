@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Barcode, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState } from '../lib/cosmosUsage';
+import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateString } from '../lib/cosmosUsage';
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
@@ -39,7 +39,7 @@ const CosmosUsageStatus: React.FC = () => {
     );
   }
 
-  const count = data?.count ?? 0;
+  const count = data?.date === getBrazilDateString() ? data.count : 0;
   const state = getUsageState(count, COSMOS_DAILY_LIMIT);
 
   const config: Record<CosmosUsageState, { icon: React.ElementType; color: string; bg: string; bar: string; label: string }> = {
