@@ -1,11 +1,11 @@
 import sharp from 'sharp';
 
-const BACK_SCALE = 0.85;
-const BACK_ROTATION_DEG = -8;
-const FRONT_ROTATION_DEG = 3;
-const OFFSET_X_RATIO = 0.16;
-const OFFSET_Y_RATIO = 0.12;
-const MARGIN_RATIO = 0.25;
+const BACK_SCALE = 0.97;
+const BACK_ROTATION_DEG = -2;
+const FRONT_ROTATION_DEG = 0;
+const OFFSET_X_RATIO = 0.42;
+const OFFSET_Y_RATIO = 0.18;
+const MARGIN_RATIO = 0.22;
 const SHADOW_BLUR_SIGMA = 8;
 const SHADOW_OPACITY = 0.35;
 const SHADOW_OFFSET_X = 10;
@@ -15,10 +15,13 @@ const SHADOW_OFFSET_Y = 14;
 // muito maior que isso so custa CPU/memoria sem ganho visual.
 const MAX_INPUT_DIMENSION = 1000;
 
-// Recorta o produto, cria uma copia "de tras" (menor, rotacionada) e uma copia
-// "da frente" (tamanho original, levemente rotacionada), com uma sombra suave
-// atras da copia da frente, e compoe tudo num canvas transparente maior.
-// Deterministico: mesmos pixels reais do produto, nunca inventa/distorce o rotulo.
+// Recorta o produto, cria uma copia "da frente" (ancorada, totalmente visivel)
+// e uma copia "de tras" (quase o mesmo tamanho, levemente rotacionada,
+// deslocada bastante pra baixo-direita — fica saindo por tras da copia da
+// frente, como numa foto real de embalagem dupla), com uma sombra suave da
+// frente projetada sobre a de tras, tudo composto num canvas transparente
+// maior. Deterministico: mesmos pixels reais do produto, nunca inventa/
+// distorce o rotulo.
 export async function composeDuplicate(buffer: Buffer): Promise<Buffer> {
   let trimmed = await sharp(buffer).trim().toBuffer();
   trimmed = await sharp(trimmed)
@@ -65,10 +68,13 @@ export async function composeDuplicate(buffer: Buffer): Promise<Buffer> {
   const marginX = Math.round(width * MARGIN_RATIO);
   const marginY = Math.round(height * MARGIN_RATIO);
 
-  const backLeft = marginX;
-  const backTop = marginY;
-  const frontLeft = marginX + offsetX;
-  const frontTop = marginY + offsetY;
+  // A frente fica ancorada no canto base, totalmente visivel; a de tras sai
+  // deslocada pra baixo-direita, entao aparece "saindo por tras" do lado
+  // direito/inferior — igual numa foto real de embalagem dupla.
+  const frontLeft = marginX;
+  const frontTop = marginY;
+  const backLeft = marginX + offsetX;
+  const backTop = marginY + offsetY;
 
   const canvasWidth = Math.max(backLeft + backMeta.width, frontLeft + frontMeta.width) + marginX;
   const canvasHeight = Math.max(backTop + backMeta.height, frontTop + frontMeta.height) + marginY;
@@ -77,8 +83,8 @@ export async function composeDuplicate(buffer: Buffer): Promise<Buffer> {
     create: { width: canvasWidth, height: canvasHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
   })
     .composite([
-      { input: shadowLayer, left: frontLeft + SHADOW_OFFSET_X, top: frontTop + SHADOW_OFFSET_Y },
       { input: backCopy, left: backLeft, top: backTop },
+      { input: shadowLayer, left: frontLeft + SHADOW_OFFSET_X, top: frontTop + SHADOW_OFFSET_Y },
       { input: frontCopy, left: frontLeft, top: frontTop },
     ])
     .png()
