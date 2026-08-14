@@ -1038,7 +1038,18 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
           const form = new FormData();
           form.append('image', req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
 
-          const rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form });
+          // Timeout — sem isso, se o microservico travar (processo preso mas porta
+          // ainda de pe), o fetch fica pendurado pra sempre e o cadastro nunca
+          // recebe erro nem resposta, so fica "carregando" eternamente. 20s e
+          // generoso (o microservico quente leva ~6s por imagem em uso normal).
+          const rembgController = new AbortController();
+          const rembgTimeout = setTimeout(() => rembgController.abort(), 20000);
+          let rembgRes;
+          try {
+            rembgRes = await fetch2('http://172.18.0.1:5001/remove-bg', { method: 'POST', body: form, signal: rembgController.signal as any });
+          } finally {
+            clearTimeout(rembgTimeout);
+          }
           if (!rembgRes.ok) throw new Error('Erro no microserviço rembg');
           rembgBuffer = Buffer.from(await rembgRes.arrayBuffer());
         } catch (rembgErr: any) {
