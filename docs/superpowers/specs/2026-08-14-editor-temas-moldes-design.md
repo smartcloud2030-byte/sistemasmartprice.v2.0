@@ -40,9 +40,16 @@ WhatsApp) — o alvo desta spec é só a criação da arte de fundo do Molde.
   que o `MoldeEditor` já tem hoje.
 - **Título + subtítulo editáveis** por uso do tema (ex: título "Inverno
   das Melhores Ofertas", subtítulo "Preços que esquentam sua economia").
-- **Logo da loja entra automático**, puxada de `logoUrl` do perfil de loja
-  ativo (`StoreProfileManager`), com toggle pra esconder se não quiser
-  naquele molde específico.
+- **Logo não é gravada na imagem do tema** — o Molde já tem um mecanismo
+  próprio pra isso: um slot especial `tipo: 'logo'`, renderizado
+  dinamicamente em `EncarteWeekly.tsx:581-583` com a logo da loja ativa
+  *daquele encarte específico* (o mesmo Molde é reaproveitado entre
+  lojas diferentes, cada uma com sua logo — gravar uma logo fixa na
+  imagem quebraria isso pras outras lojas). Aplicar um tema **adiciona
+  automaticamente esse slot** (mesmo `addSpecialSlot('logo')` que o
+  `MoldeEditor` já expõe hoje) num canto padrão, com toggle "Incluir
+  slot de logo" (default ligado) — a logo em si continua dinâmica, sem
+  mudança de comportamento.
 
 ## Legibilidade — folha inteira colorida sem perder o texto dos produtos
 
@@ -89,22 +96,32 @@ interface EncarteTema {
 
 Paletas propostas (fundo em gradiente, cor primária → secundária):
 
-| Tema | Fundo | Título | Preço/nome | Fonte | Ícone |
-|---|---|---|---|---|---|
-| Fecha o Mês | `#7f1d1d → #dc2626` | branco | `#f59e0b` / branco | Anton | TrendingDown |
-| Verão | `#0ea5e9 → #fbbf24` | branco | `#f97316` / branco | Poppins | Sun |
-| Outono | `#b45309 → #78350f` | creme | `#c2410c` / branco | Playfair Display | Leaf |
-| Inverno | `#1e3a8a → #60a5fa` | branco | `#0369a1` / branco | Montserrat | Snowflake |
-| Primavera | `#f472b6 → #4ade80` | branco | `#16a34a` / branco | Poppins | Flower2 |
-| Festa Junina | `#b91c1c → #ca8a04` | creme | `#991b1b` / creme | Oswald | Flame |
-| Dia das Mães | `#fda4af → #f472b6` | branco | `#db2777` / branco | Playfair Display | Heart |
-| Dia dos Namorados | `#dc2626 → #db2777` | branco | `#991b1b` / branco | Playfair Display | Heart |
-| Black Friday | `#111827 → #000000` | `#facc15` | `#facc15` (texto preto) / branco | Anton | Tag |
-| Natal | `#166534 → #b91c1c` | branco | `#b91c1c` / branco | Playfair Display | Gift |
+O texto dentro da caixa de preço é branco fixo no código
+(`EncarteWeekly.tsx:709-742`, `text-white` sem variável) — `priceBoxColor`
+precisa ser sempre escuro/saturado o bastante pra branco ler bem em cima.
+E como o nome do produto fica sobre o **painel claro** (branco/creme, não
+sobre o fundo forte), `productNameColor` precisa ser escuro/saturado
+também, nunca branco.
 
-`painelClaroColor` é branco (`#ffffff`) ou creme bem claro (`#fef9ec`) em
-todos — mantém consistência e legibilidade, varia só o tom de fundo forte
-ao redor.
+| Tema | Fundo (gradiente) | Título | Caixa de preço | Nome do produto | Fonte | Ícone |
+|---|---|---|---|---|---|---|
+| Fecha o Mês | `#7f1d1d → #dc2626` | branco | `#f59e0b` | `#7f1d1d` | Anton | TrendingDown |
+| Verão | `#0ea5e9 → #fbbf24` | branco | `#f97316` | `#0369a1` | Poppins | Sun |
+| Outono | `#b45309 → #78350f` | creme `#fef3c7` | `#c2410c` | `#78350f` | Playfair Display | Leaf |
+| Inverno | `#1e3a8a → #60a5fa` | branco | `#0369a1` | `#1e3a8a` | Montserrat | Snowflake |
+| Primavera | `#f472b6 → #4ade80` | branco (com sombra) | `#16a34a` | `#be185d` | Poppins | Flower2 |
+| Festa Junina | `#b91c1c → #92400e` | creme `#fef3c7` | `#991b1b` | `#92400e` | Oswald | Flame |
+| Dia das Mães | `#fb7185 → #f472b6` | branco (com sombra) | `#db2777` | `#9d174d` | Playfair Display | Heart |
+| Dia dos Namorados | `#dc2626 → #db2777` | branco | `#991b1b` | `#9f1239` | Playfair Display | Heart |
+| Black Friday | `#111827 → #000000` | `#facc15` | `#dc2626` | `#111827` | Anton | Tag |
+| Natal | `#166534 → #7f1d1d` | branco | `#b91c1c` | `#166534` | Playfair Display | Gift |
+
+`painelClaroColor` é branco (`#ffffff`) em todos, exceto Outono e Festa
+Junina que usam creme bem claro (`#fef9ec`) — mantém consistência e
+legibilidade, varia só o tom de fundo forte ao redor. Os temas marcados
+"com sombra" (Primavera, Dia das Mães — gradientes mais claros) recebem
+uma sombra sutil no título/subtítulo (`text-shadow`) só na hora de gerar
+a imagem, garantindo contraste mesmo em fundo mais claro.
 
 ## Componente novo
 
@@ -114,9 +131,10 @@ ao redor.
   (`background: linear-gradient(...)`, sem gerar imagem real só pra
   escolher — leve e instantâneo).
 - **Painel de customização**, ao selecionar um tema: campo título, campo
-  subtítulo, toggle "Mostrar logo da loja" (default ligado se
-  `logoUrl` existir no perfil de loja ativo), preview grande ao vivo do
-  molde inteiro (fundo + painel claro + título/subtítulo + logo + ícone).
+  subtítulo, toggle "Incluir slot de logo" (default ligado), preview
+  grande ao vivo do molde inteiro (fundo + painel claro + título/subtítulo
+  + ícone — a logo em si não aparece no preview da imagem, já que é um
+  slot dinâmico preenchido depois, por loja).
 - Botão **"Usar este tema"**.
 
 ## Integração no `MoldeEditor.tsx`
@@ -128,8 +146,8 @@ tema":
 
 1. Renderiza um DOM temporário (tamanho do molde, mesma técnica de
    `html2canvas` já usada em `EncarteWeekly.tsx`) com fundo, painel
-   claro na área de `grid.area`, título/subtítulo, logo (se ativo) e
-   ícone.
+   claro na área de `grid.area`, título/subtítulo e ícone (sem logo —
+   ver seção acima).
 2. Converte pra PNG (blob) e sobe via `uploadBackgroundImage(file,
    'encarte-moldes')` — mesma função que o upload manual já usa hoje.
 3. Preenche `bgUrl` do lado atual com a URL retornada, e já aplica no
@@ -137,6 +155,17 @@ tema":
    escolhido (os mesmos campos que o `MoldeEditor` já edita manualmente
    hoje — o tema só define o valor inicial, o usuário pode ajustar depois
    nos controles que já existem).
+4. Se "Incluir slot de logo" estiver ligado e ainda não existir nenhum
+   slot `tipo: 'logo'` nesse lado, chama a mesma `addSpecialSlot('logo')`
+   que o botão manual do `MoldeEditor` já usa, numa posição padrão de
+   canto (ex: `{ xPct: 5, yPct: 5, widthPct: 20, heightPct: 8 }`).
+
+`EncarteFontFamily` hoje é um union fechado (`'Inter' | 'Roboto' |
+'Oswald'`), mas os temas usam Anton, Poppins, Playfair Display e
+Montserrat também. Precisa estender esse tipo em `store.ts` e adicionar
+as novas opções no `<select>` de fonte do `MoldeEditor.tsx` (hoje só
+lista Inter/Roboto/Oswald) — assim o usuário também consegue escolher
+manualmente depois de aplicar um tema.
 
 Depois de aplicado, o restante do fluxo do `MoldeEditor` (grade de
 produtos, slots especiais, salvar) continua idêntico ao de hoje — o
