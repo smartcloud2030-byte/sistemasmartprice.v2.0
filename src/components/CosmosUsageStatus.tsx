@@ -5,9 +5,17 @@ import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateStrin
 
 const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
+interface CosmosUsageByUser {
+  username: string;
+  cnpj: string;
+  bandeira: string;
+  count: number;
+}
+
 interface CosmosUsageValue {
   date: string;
   count: number;
+  byUser?: Record<string, CosmosUsageByUser>;
 }
 
 const CosmosUsageStatus: React.FC = () => {
@@ -49,6 +57,8 @@ const CosmosUsageStatus: React.FC = () => {
   };
   const { icon: Icon, color, bg, bar, label } = config[state];
   const percent = Math.min((count / COSMOS_DAILY_LIMIT) * 100, 100);
+  const byUserToday = data?.date === getBrazilDateString() ? data?.byUser : undefined;
+  const ranking = byUserToday ? Object.values(byUserToday).sort((a, b) => b.count - a.count) : [];
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 flex items-center gap-4">
@@ -64,6 +74,15 @@ const CosmosUsageStatus: React.FC = () => {
         <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 mt-2">
           <div className={cn('h-1.5 rounded-full transition-all', bar)} style={{ width: `${percent}%` }} />
         </div>
+        {ranking.length > 0 && (
+          <ul className="mt-2.5 space-y-0.5">
+            {ranking.map((u) => (
+              <li key={`${u.cnpj}:${u.username}`} className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{u.username}</span> ({u.bandeira}) — {u.count} consulta{u.count === 1 ? '' : 's'}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

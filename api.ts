@@ -162,19 +162,57 @@ router.get('/products/count', async (_req: Request, res: Response) => {
 // Registra uma consulta real à Cosmos no contador diário (tabela settings,
 // chave 'cosmos_usage_daily'). Upsert atomico numa query so — evita
 // race condition sem precisar de transacao/lock explicito. O CASE dentro
-// do UPDATE reseta o contador sozinho quando a data muda, sem job/cron.
-async function registerCosmosUsage() {
+// do UPDATE reseta o contador (e o byUser) sozinho quando a data muda, sem
+// job/cron. `user` é opcional — sem ele a consulta ainda soma no `count`
+// global, só não aparece em "quem mais consultou hoje".
+async function registerCosmosUsage(user?: { username: string; cnpj: string; bandeira: string }) {
   const today = getBrazilDateString();
+  // Chave composta cnpj:username — evita juntar operadores com o mesmo
+  // nome em lojas diferentes num único contador.
+  const userKey = user ? `${user.cnpj}:${user.username}` : null;
   await pool.query(
     `INSERT INTO settings (id, value, updated_at)
-     VALUES ('cosmos_usage_daily', jsonb_build_object('date', $1::text, 'count', 1), NOW())
+     VALUES (
+       'cosmos_usage_daily',
+       jsonb_build_object(
+         'date', $1::text,
+         'count', 1,
+         'byUser', CASE WHEN $2::text IS NULL THEN '{}'::jsonb
+           ELSE jsonb_build_object($2::text, jsonb_build_object('username', $3::text, 'cnpj', $4::text, 'bandeira', $5::text, 'count', 1))
+         END
+       ),
+       NOW()
+     )
      ON CONFLICT (id) DO UPDATE SET
        value = CASE
-         WHEN settings.value->>'date' = $1 THEN jsonb_set(settings.value, '{count}', to_jsonb(((settings.value->>'count')::int) + 1))
-         ELSE jsonb_build_object('date', $1::text, 'count', 1)
+         WHEN settings.value->>'date' = $1 THEN
+           jsonb_set(
+             jsonb_set(settings.value, '{count}', to_jsonb(((settings.value->>'count')::int) + 1)),
+             '{byUser}',
+             CASE WHEN $2::text IS NULL THEN COALESCE(settings.value->'byUser', '{}'::jsonb)
+               ELSE jsonb_set(
+                 COALESCE(settings.value->'byUser', '{}'::jsonb),
+                 ARRAY[$2::text],
+                 jsonb_build_object(
+                   'username', $3::text,
+                   'cnpj', $4::text,
+                   'bandeira', $5::text,
+                   'count', COALESCE((settings.value->'byUser'->$2::text->>'count')::int, 0) + 1
+                 )
+               )
+             END
+           )
+         ELSE
+           jsonb_build_object(
+             'date', $1::text,
+             'count', 1,
+             'byUser', CASE WHEN $2::text IS NULL THEN '{}'::jsonb
+               ELSE jsonb_build_object($2::text, jsonb_build_object('username', $3::text, 'cnpj', $4::text, 'bandeira', $5::text, 'count', 1))
+             END
+           )
        END,
        updated_at = NOW()`,
-    [today]
+    [today, userKey, user?.username ?? null, user?.cnpj ?? null, user?.bandeira ?? null]
   );
 }
 
@@ -196,7 +234,13 @@ router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response)
 
     // Conta a partir daqui — a Cosmos respondeu (sucesso, 404 ou erro dela),
     // e isso é o que consome a cota diária, não só as buscas com resultado.
-    registerCosmosUsage().catch((err) => console.error('Falha ao registrar uso da Cosmos:', err));
+    // username/cnpj/bandeira são opcionais (chamada antiga/externa sem eles
+    // ainda soma no contador global, só não aparece em "quem mais consultou").
+    const qUsername = typeof req.query.username === 'string' ? req.query.username : undefined;
+    const qCnpj = typeof req.query.cnpj === 'string' ? req.query.cnpj : undefined;
+    const qBandeira = typeof req.query.bandeira === 'string' ? req.query.bandeira : undefined;
+    const cosmosUser = qUsername && qCnpj && qBandeira ? { username: qUsername, cnpj: qCnpj, bandeira: qBandeira } : undefined;
+    registerCosmosUsage(cosmosUser).catch((err) => console.error('Falha ao registrar uso da Cosmos:', err));
 
     if (r.status === 404) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
     if (!r.ok) return res.status(r.status).json({ error: `Cosmos retornou HTTP ${r.status}` });

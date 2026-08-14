@@ -74,7 +74,7 @@ async function uploadToMinio(file: File, category: string, productName: string, 
 }
 
 const ProductManager = () => {
-  const { products, fetchProducts } = useStore();
+  const { products, fetchProducts, currentUser } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -149,7 +149,10 @@ const ProductManager = () => {
 
     setIsLookingUpBarcode(true);
     try {
-      const res = await fetch(`/api/barcode-lookup/${code}`, { headers: { 'x-api-token': API_SECRET } });
+      const userQuery = currentUser
+        ? `?username=${encodeURIComponent(currentUser.username)}&cnpj=${encodeURIComponent(currentUser.cnpj)}&bandeira=${encodeURIComponent(currentUser.bandeira)}`
+        : '';
+      const res = await fetch(`/api/barcode-lookup/${code}${userQuery}`, { headers: { 'x-api-token': API_SECRET } });
       if (res.status === 404) { toast.error('Produto não encontrado na base de dados.'); return; }
       if (!res.ok) { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Falha ao buscar produto.'); return; }
       const data = await res.json();
