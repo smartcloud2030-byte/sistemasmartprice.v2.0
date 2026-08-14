@@ -197,6 +197,10 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
                 <option value="Inter">Inter</option>
                 <option value="Roboto">Roboto</option>
                 <option value="Oswald">Oswald</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Anton">Anton</option>
+                <option value="Playfair Display">Playfair Display</option>
               </select>
             </div>
 
