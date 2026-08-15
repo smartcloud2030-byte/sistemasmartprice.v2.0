@@ -7,9 +7,11 @@ export interface EncarteTema {
   id: string;
   nome: string;
   background: { cores: string[]; anguloDeg: number };
-  // Sombra no titulo/subtitulo — só os temas com fundo mais claro
-  // (Primavera, Dia das Mães) precisam, pra manter contraste do texto
-  // branco.
+  // Sombra no titulo/subtitulo — reservado pra temas com titulo claro
+  // sobre fundo claro, onde uma sombra escura ajuda o contraste. Nenhum
+  // tema atual usa (os que tinham titulo branco em fundo claro ganharam
+  // titulo escuro em vez disso — sombra escura atras de texto escuro so
+  // atrapalha).
   tituloComSombra: boolean;
   painelClaroColor: string;
   tituloColor: string;
@@ -88,7 +90,7 @@ export const ENCARTE_TEMAS: EncarteTema[] = [
     id: 'primavera',
     nome: 'Primavera',
     background: { cores: ['#f472b6', '#4ade80'], anguloDeg: 135 },
-    tituloComSombra: true,
+    tituloComSombra: false,
     painelClaroColor: '#ffffff',
     tituloColor: '#831843',
     subtituloColor: '#831843',
@@ -116,7 +118,7 @@ export const ENCARTE_TEMAS: EncarteTema[] = [
     id: 'dia-das-maes',
     nome: 'Dia das Mães',
     background: { cores: ['#fb7185', '#f472b6'], anguloDeg: 135 },
-    tituloComSombra: true,
+    tituloComSombra: false,
     painelClaroColor: '#ffffff',
     tituloColor: '#831843',
     subtituloColor: '#831843',

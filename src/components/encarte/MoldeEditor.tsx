@@ -109,7 +109,15 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
 
   const handleTemaApply = ({ url, tema, incluirLogo }: { url: string; tema: EncarteTema; incluirLogo: boolean }) => {
     setBgUrl(url);
-    const alreadyStyled = !!(draft.fontFamily || draft.priceBoxColor || draft.productNameColor);
+    // Compara contra os defaults de emptyMolde() (linhas 23-24), nao so
+    // truthiness — priceBoxColor/productNameColor ja vem preenchido com o
+    // vermelho padrao em todo molde novo, entao "truthy" sempre seria true
+    // e o tema nunca aplicaria cor/fonte nenhuma.
+    const alreadyStyled = !!(
+      draft.fontFamily ||
+      (draft.priceBoxColor && draft.priceBoxColor !== DEFAULT_PRICE_BOX_COLOR) ||
+      (draft.productNameColor && draft.productNameColor !== DEFAULT_PRODUCT_NAME_COLOR)
+    );
     if (!alreadyStyled) {
       setDraft((d) => ({ ...d, fontFamily: tema.fontFamily, priceBoxColor: tema.priceBoxColor, productNameColor: tema.productNameColor }));
     }

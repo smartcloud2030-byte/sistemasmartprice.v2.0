@@ -68,8 +68,11 @@ function productNameColorTemContrasteSuficienteComPainelClaro() {
 function tituloColorTemContrasteSuficienteComOFundo() {
   for (const tema of ENCARTE_TEMAS) {
     for (const corDoGradiente of tema.background.cores) {
-      const ratio = contrastRatio(tema.tituloColor, corDoGradiente);
-      assert.ok(ratio >= 3, `tema ${tema.id}: tituloColor ${tema.tituloColor} tem contraste ${ratio.toFixed(2)}:1 contra ${corDoGradiente}, abaixo de 3:1 (minimo pra texto grande/negrito)`);
+      const ratioTitulo = contrastRatio(tema.tituloColor, corDoGradiente);
+      assert.ok(ratioTitulo >= 3, `tema ${tema.id}: tituloColor ${tema.tituloColor} tem contraste ${ratioTitulo.toFixed(2)}:1 contra ${corDoGradiente}, abaixo de 3:1 (minimo pra texto grande/negrito)`);
+
+      const ratioSubtitulo = contrastRatio(tema.subtituloColor, corDoGradiente);
+      assert.ok(ratioSubtitulo >= 3, `tema ${tema.id}: subtituloColor ${tema.subtituloColor} tem contraste ${ratioSubtitulo.toFixed(2)}:1 contra ${corDoGradiente}, abaixo de 3:1 (minimo pra texto grande/negrito)`);
     }
   }
 }
