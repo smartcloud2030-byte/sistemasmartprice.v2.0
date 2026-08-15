@@ -7,7 +7,7 @@ import DraggableBox, { BoxRect } from './DraggableBox';
 import { Upload, Grid3x3, PenLine, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
-const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
+export const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
 const DEFAULT_GRID: EncarteGridConfig = { cols: 3, rows: 5, area: DEFAULT_AREA, manual: false };
 const DEFAULT_PRICE_BOX_COLOR = '#dc2626';
 const DEFAULT_PRODUCT_NAME_COLOR = '#dc2626';
