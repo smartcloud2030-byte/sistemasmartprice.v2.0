@@ -227,7 +227,7 @@ export interface EncarteGridConfig {
   manual: boolean;
 }
 
-export type EncarteFontFamily = 'Inter' | 'Roboto' | 'Oswald';
+export type EncarteFontFamily = 'Inter' | 'Roboto' | 'Oswald' | 'Montserrat' | 'Poppins' | 'Anton' | 'Playfair Display';
 export type EncartePriceTypography = 'uniforme' | 'destacado';
 
 export interface EncarteMolde {
