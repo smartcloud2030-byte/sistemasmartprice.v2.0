@@ -3,6 +3,20 @@ import { ENCARTE_TEMAS, getTemaById, MOLDE_WIDTH_PX, MOLDE_HEIGHT_PX } from './e
 
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 
+// Calcula o contraste WCAG entre uma cor e branco puro — usado tanto pra
+// verificar se o texto branco fixo da caixa de preço le bem em cima do
+// priceBoxColor, quanto se o productNameColor le bem sobre o painel claro
+// (que e branco ou creme bem proximo de branco).
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = [hex.slice(1, 3), hex.slice(3, 5), hex.slice(5, 7)].map((h) => parseInt(h, 16) / 255);
+  const linear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+function contrastRatioComBranco(hex: string): number {
+  return 1.05 / (relativeLuminance(hex) + 0.05);
+}
+
 function existemDezTemas() {
   assert.strictEqual(ENCARTE_TEMAS.length, 10);
 }
@@ -26,6 +40,20 @@ function todosOsCamposObrigatoriosEstaoPreenchidos() {
   }
 }
 
+function priceBoxColorTemContrasteSuficienteComTextoBranco() {
+  for (const tema of ENCARTE_TEMAS) {
+    const ratio = contrastRatioComBranco(tema.priceBoxColor);
+    assert.ok(ratio >= 4.5, `tema ${tema.id}: priceBoxColor ${tema.priceBoxColor} tem contraste ${ratio.toFixed(2)}:1 com texto branco, abaixo de 4.5:1`);
+  }
+}
+
+function productNameColorTemContrasteSuficienteComPainelClaro() {
+  for (const tema of ENCARTE_TEMAS) {
+    const ratio = contrastRatioComBranco(tema.productNameColor);
+    assert.ok(ratio >= 4.5, `tema ${tema.id}: productNameColor ${tema.productNameColor} tem contraste ${ratio.toFixed(2)}:1 sobre painel claro, abaixo de 4.5:1`);
+  }
+}
+
 function getTemaByIdEncontraTemaExistente() {
   const tema = getTemaById('inverno');
   assert.ok(tema);
@@ -45,6 +73,8 @@ try {
   existemDezTemas();
   idsSaoUnicos();
   todosOsCamposObrigatoriosEstaoPreenchidos();
+  priceBoxColorTemContrasteSuficienteComTextoBranco();
+  productNameColorTemContrasteSuficienteComPainelClaro();
   getTemaByIdEncontraTemaExistente();
   getTemaByIdRetornaUndefinedParaIdInexistente();
   dimensoesDoMoldeEstaoCorretas();
