@@ -69,7 +69,11 @@ export const ENCARTE_TEMAS: EncarteTema[] = [
   {
     id: 'inverno',
     nome: 'Inverno',
-    background: { cores: ['#1e3a8a', '#60a5fa'], anguloDeg: 135 },
+    // A ponta clara original (#60a5fa) era clara demais: nenhuma cor de
+    // titulo flat alcanca 3:1 de contraste contra as duas pontas do
+    // gradiente ao mesmo tempo (verificado por busca exaustiva). Uma ponta
+    // um pouco mais escura resolve sem perder o clima "azul gelo".
+    background: { cores: ['#1e3a8a', '#3b82f6'], anguloDeg: 135 },
     tituloComSombra: false,
     painelClaroColor: '#ffffff',
     tituloColor: '#ffffff',
