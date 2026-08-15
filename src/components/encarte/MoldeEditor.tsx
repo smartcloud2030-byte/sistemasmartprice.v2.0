@@ -4,8 +4,10 @@ import { uploadBackgroundImage } from '../../lib/gallery';
 import { distributeSlots } from '../../lib/encarteGrid';
 import { getProxyUrl } from '../../lib/utils';
 import DraggableBox, { BoxRect } from './DraggableBox';
-import { Upload, Grid3x3, PenLine, Save } from 'lucide-react';
+import { Upload, Grid3x3, PenLine, Save, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import TemaPicker from './TemaPicker';
+import { EncarteTema } from '../../lib/encarteTemas';
 
 export const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
 const DEFAULT_GRID: EncarteGridConfig = { cols: 3, rows: 5, area: DEFAULT_AREA, manual: false };
@@ -41,6 +43,7 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
   const [frontGrid, setFrontGrid] = useState<EncarteGridConfig>(molde?.frontGrid || DEFAULT_GRID);
   const [backGrid, setBackGrid] = useState<EncarteGridConfig>(molde?.backGrid || DEFAULT_GRID);
   const [isUploading, setIsUploading] = useState(false);
+  const [showTemaPicker, setShowTemaPicker] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const grid = side === 'frente' ? frontGrid : backGrid;
@@ -102,6 +105,15 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
 
   const removeSlot = (id: string) => {
     setSlots((current) => current.filter((s) => s.id !== id));
+  };
+
+  const handleTemaApply = ({ url, tema, incluirLogo }: { url: string; tema: EncarteTema; incluirLogo: boolean }) => {
+    setBgUrl(url);
+    setDraft((d) => ({ ...d, fontFamily: tema.fontFamily, priceBoxColor: tema.priceBoxColor, productNameColor: tema.productNameColor }));
+    if (incluirLogo && !specialSlots.some((s) => s.tipo === 'logo')) {
+      addSpecialSlot('logo');
+    }
+    setShowTemaPicker(false);
   };
 
   const handleSave = async () => {
@@ -167,13 +179,23 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
       </div>
 
       {!bgUrl ? (
-        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl py-16 cursor-pointer hover:border-emerald-500/50 transition-colors">
-          <Upload className="w-8 h-8 text-zinc-400" />
-          <span className="text-xs font-black uppercase tracking-widest text-zinc-500">
-            {isUploading ? 'Enviando...' : `Enviar arte de fundo (${side})`}
-          </span>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleBgUpload(e.target.files[0])} />
-        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl py-16 cursor-pointer hover:border-emerald-500/50 transition-colors">
+            <Upload className="w-8 h-8 text-zinc-400" />
+            <span className="text-xs font-black uppercase tracking-widest text-zinc-500">
+              {isUploading ? 'Enviando...' : `Enviar arte de fundo (${side})`}
+            </span>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleBgUpload(e.target.files[0])} />
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowTemaPicker(true)}
+            className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl py-16 hover:border-emerald-500/50 transition-colors"
+          >
+            <Sparkles className="w-8 h-8 text-zinc-400" />
+            <span className="text-xs font-black uppercase tracking-widest text-zinc-500">Criar com tema ({side})</span>
+          </button>
+        </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl">
@@ -304,6 +326,8 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
           </p>
         </>
       )}
+
+      {showTemaPicker && <TemaPicker onApply={handleTemaApply} onCancel={() => setShowTemaPicker(false)} />}
     </div>
   );
 }
