@@ -17,6 +17,17 @@ function contrastRatioComBranco(hex: string): number {
   return 1.05 / (relativeLuminance(hex) + 0.05);
 }
 
+// Contraste WCAG entre duas cores hex quaisquer (nao so contra branco) —
+// usado pra checar o titulo contra as duas pontas do proprio gradiente do
+// tema, ja que ele nao fica sobre um fundo branco como o preco/nome.
+function contrastRatio(hexA: string, hexB: string): number {
+  const lA = relativeLuminance(hexA);
+  const lB = relativeLuminance(hexB);
+  const lighter = Math.max(lA, lB);
+  const darker = Math.min(lA, lB);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 function existemDezTemas() {
   assert.strictEqual(ENCARTE_TEMAS.length, 10);
 }
@@ -49,8 +60,17 @@ function priceBoxColorTemContrasteSuficienteComTextoBranco() {
 
 function productNameColorTemContrasteSuficienteComPainelClaro() {
   for (const tema of ENCARTE_TEMAS) {
-    const ratio = contrastRatioComBranco(tema.productNameColor);
-    assert.ok(ratio >= 4.5, `tema ${tema.id}: productNameColor ${tema.productNameColor} tem contraste ${ratio.toFixed(2)}:1 sobre painel claro, abaixo de 4.5:1`);
+    const ratio = contrastRatio(tema.productNameColor, tema.painelClaroColor);
+    assert.ok(ratio >= 4.5, `tema ${tema.id}: productNameColor ${tema.productNameColor} tem contraste ${ratio.toFixed(2)}:1 sobre painelClaroColor ${tema.painelClaroColor}, abaixo de 4.5:1`);
+  }
+}
+
+function tituloColorTemContrasteSuficienteComOFundo() {
+  for (const tema of ENCARTE_TEMAS) {
+    for (const corDoGradiente of tema.background.cores) {
+      const ratio = contrastRatio(tema.tituloColor, corDoGradiente);
+      assert.ok(ratio >= 3, `tema ${tema.id}: tituloColor ${tema.tituloColor} tem contraste ${ratio.toFixed(2)}:1 contra ${corDoGradiente}, abaixo de 3:1 (minimo pra texto grande/negrito)`);
+    }
   }
 }
 
@@ -75,6 +95,7 @@ try {
   todosOsCamposObrigatoriosEstaoPreenchidos();
   priceBoxColorTemContrasteSuficienteComTextoBranco();
   productNameColorTemContrasteSuficienteComPainelClaro();
+  tituloColorTemContrasteSuficienteComOFundo();
   getTemaByIdEncontraTemaExistente();
   getTemaByIdRetornaUndefinedParaIdInexistente();
   dimensoesDoMoldeEstaoCorretas();

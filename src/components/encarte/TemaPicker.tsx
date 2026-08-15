@@ -1,21 +1,23 @@
 import React, { useRef, useState } from 'react';
-import * as LucideIcons from 'lucide-react';
-import { X } from 'lucide-react';
+import { X, TrendingDown, Sun, Leaf, Snowflake, Flower2, Flame, Heart, Tag, Gift } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { toast } from 'sonner';
 import { ENCARTE_TEMAS, EncarteTema, MOLDE_WIDTH_PX, MOLDE_HEIGHT_PX } from '../../lib/encarteTemas';
-import { DEFAULT_AREA } from './MoldeEditor';
+import { BoxRect } from './DraggableBox';
 import { uploadBackgroundImage } from '../../lib/gallery';
 
 const PREVIEW_WIDTH = 300;
 const PREVIEW_HEIGHT = Math.round(PREVIEW_WIDTH * (MOLDE_HEIGHT_PX / MOLDE_WIDTH_PX));
 
+const ICONES: Record<string, React.ElementType> = { TrendingDown, Sun, Leaf, Snowflake, Flower2, Flame, Heart, Tag, Gift };
+
 interface TemaPickerProps {
+  area: BoxRect;
   onApply: (result: { url: string; tema: EncarteTema; incluirLogo: boolean }) => void;
   onCancel: () => void;
 }
 
-export default function TemaPicker({ onApply, onCancel }: TemaPickerProps) {
+export default function TemaPicker({ area, onApply, onCancel }: TemaPickerProps) {
   const [selected, setSelected] = useState<EncarteTema | null>(null);
   const [titulo, setTitulo] = useState('');
   const [subtitulo, setSubtitulo] = useState('');
@@ -46,14 +48,15 @@ export default function TemaPicker({ onApply, onCancel }: TemaPickerProps) {
       const file = new File([blob], `tema-${selected.id}.png`, { type: 'image/png' });
       const { url } = await uploadBackgroundImage(file, 'encarte-moldes');
       onApply({ url, tema: selected, incluirLogo });
-    } catch {
+    } catch (err) {
+      console.error('[TemaPicker] falha ao gerar/enviar a arte do tema:', err);
       toast.error('Falha ao gerar a arte do tema.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const IconComp = selected ? ((LucideIcons as unknown) as Record<string, React.ElementType>)[selected.icone] : undefined;
+  const IconComp = selected ? ICONES[selected.icone] : undefined;
   const tituloShadow = selected?.tituloComSombra ? '0 2px 8px rgba(0,0,0,.4)' : undefined;
 
   return (
@@ -96,14 +99,25 @@ export default function TemaPicker({ onApply, onCancel }: TemaPickerProps) {
                   background: `linear-gradient(${selected.background.anguloDeg}deg, ${selected.background.cores.join(', ')})`,
                 }}
               >
+                <div
+                  className="absolute rounded-lg shadow-sm"
+                  style={{
+                    left: `${area.xPct}%`,
+                    top: `${area.yPct}%`,
+                    width: `${area.widthPct}%`,
+                    height: `${area.heightPct}%`,
+                    backgroundColor: selected.painelClaroColor,
+                  }}
+                />
+
                 {IconComp && (
                   <IconComp
                     className="absolute"
                     style={{
                       left: `${selected.iconePosicao.xPct}%`,
                       top: `${selected.iconePosicao.yPct}%`,
-                      width: `${selected.iconePosicao.sizePct}%`,
-                      height: `${selected.iconePosicao.sizePct}%`,
+                      width: `${(selected.iconePosicao.sizePct / 100) * PREVIEW_WIDTH}px`,
+                      height: `${(selected.iconePosicao.sizePct / 100) * PREVIEW_WIDTH}px`,
                       opacity: selected.iconePosicao.opacity,
                       color: selected.tituloColor,
                     }}
@@ -112,7 +126,7 @@ export default function TemaPicker({ onApply, onCancel }: TemaPickerProps) {
 
                 <div
                   className="absolute text-center px-2"
-                  style={{ left: '5%', top: '6%', width: '90%', color: selected.tituloColor, fontFamily: selected.fontFamily }}
+                  style={{ left: '5%', top: '6%', width: '90%', height: '16%', overflow: 'hidden', color: selected.tituloColor, fontFamily: selected.fontFamily }}
                 >
                   <p className="font-black uppercase leading-tight" style={{ fontSize: PREVIEW_WIDTH * 0.11, textShadow: tituloShadow }}>
                     {titulo}
@@ -123,17 +137,6 @@ export default function TemaPicker({ onApply, onCancel }: TemaPickerProps) {
                     </p>
                   )}
                 </div>
-
-                <div
-                  className="absolute rounded-lg shadow-sm"
-                  style={{
-                    left: `${DEFAULT_AREA.xPct}%`,
-                    top: `${DEFAULT_AREA.yPct}%`,
-                    width: `${DEFAULT_AREA.widthPct}%`,
-                    height: `${DEFAULT_AREA.heightPct}%`,
-                    backgroundColor: selected.painelClaroColor,
-                  }}
-                />
               </div>
               <button onClick={() => setSelected(null)} className="text-[10px] font-black uppercase text-zinc-400 hover:text-zinc-600">
                 ← Escolher outro tema

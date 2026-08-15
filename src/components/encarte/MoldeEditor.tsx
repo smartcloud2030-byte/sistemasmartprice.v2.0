@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import TemaPicker from './TemaPicker';
 import { EncarteTema } from '../../lib/encarteTemas';
 
-export const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
+const DEFAULT_AREA: BoxRect = { xPct: 5, yPct: 18, widthPct: 90, heightPct: 68 };
 const DEFAULT_GRID: EncarteGridConfig = { cols: 3, rows: 5, area: DEFAULT_AREA, manual: false };
 const DEFAULT_PRICE_BOX_COLOR = '#dc2626';
 const DEFAULT_PRODUCT_NAME_COLOR = '#dc2626';
@@ -109,7 +109,10 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
 
   const handleTemaApply = ({ url, tema, incluirLogo }: { url: string; tema: EncarteTema; incluirLogo: boolean }) => {
     setBgUrl(url);
-    setDraft((d) => ({ ...d, fontFamily: tema.fontFamily, priceBoxColor: tema.priceBoxColor, productNameColor: tema.productNameColor }));
+    const alreadyStyled = !!(draft.fontFamily || draft.priceBoxColor || draft.productNameColor);
+    if (!alreadyStyled) {
+      setDraft((d) => ({ ...d, fontFamily: tema.fontFamily, priceBoxColor: tema.priceBoxColor, productNameColor: tema.productNameColor }));
+    }
     if (incluirLogo && !specialSlots.some((s) => s.tipo === 'logo')) {
       addSpecialSlot('logo');
     }
@@ -327,7 +330,7 @@ export default function MoldeEditor({ molde, onClose }: { molde: EncarteMolde | 
         </>
       )}
 
-      {showTemaPicker && <TemaPicker onApply={handleTemaApply} onCancel={() => setShowTemaPicker(false)} />}
+      {showTemaPicker && <TemaPicker area={grid.area} onApply={handleTemaApply} onCancel={() => setShowTemaPicker(false)} />}
     </div>
   );
 }
