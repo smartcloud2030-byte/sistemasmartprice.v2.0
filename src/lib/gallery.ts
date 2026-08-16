@@ -25,6 +25,24 @@ export async function uploadBackgroundImage(file: File, category: string): Promi
   return res.json();
 }
 
+export interface GalleryImage {
+  filename: string;
+  displayName: string;
+  fullPath: string;
+  url: string;
+  size: number;
+  lastModified: string;
+}
+
+export async function listGalleryImages(category: string): Promise<GalleryImage[]> {
+  const res = await fetch(`/gallery/list/${category}`, {
+    headers: { 'x-gallery-token': GALLERY_PASSWORD },
+  });
+  if (!res.ok) throw new Error('Falha ao carregar as imagens.');
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
 // Exclusão definitiva do arquivo na galeria (MinIO) — usada junto com a
 // remoção do estado local para não deixar imagens órfãs.
 export async function deleteGalleryImage(url: string | null | undefined): Promise<void> {

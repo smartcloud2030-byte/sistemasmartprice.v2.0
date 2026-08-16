@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid } from 'lucide-react';
 import { useStore } from '../../store';
 import { cn } from '../../lib/utils';
+import TemasTab from './TemasTab';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
 
@@ -49,9 +50,15 @@ export default function EncarteBuilder() {
           ))}
         </nav>
 
-        <main className="flex-grow flex flex-col items-center justify-center gap-3 text-center px-6">
-          <LayoutGrid className="w-10 h-10 text-zinc-300 dark:text-zinc-700" />
-          <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">{activeLabel} — em construção</p>
+        <main className="flex-grow overflow-y-auto">
+          {activeMenu === 'temas' ? (
+            <TemasTab />
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
+              <LayoutGrid className="w-10 h-10 text-zinc-300 dark:text-zinc-700" />
+              <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">{activeLabel} — em construção</p>
+            </div>
+          )}
         </main>
       </div>
     </div>
