@@ -3,6 +3,7 @@ import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGr
 import { useStore } from '../../store';
 import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
+import EncarteCanvas from './EncarteCanvas';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
 
@@ -19,19 +20,20 @@ const MENU_ITEMS: { id: MenuItem; label: string; icon: React.ElementType }[] = [
 export default function EncarteBuilder() {
   const { setView } = useStore();
   const [activeMenu, setActiveMenu] = useState<MenuItem>('temas');
+  const [temaSelecionado, setTemaSelecionado] = useState<string | null>(null);
 
   const activeLabel = MENU_ITEMS.find((m) => m.id === activeMenu)?.label;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col">
-      <header className="h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center gap-4 px-6 sticky top-0 z-40">
-        <button onClick={() => setView('editor')} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
+    <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
+      <header className="h-16 flex-shrink-0 border-b border-zinc-800 bg-zinc-900 flex items-center gap-4 px-6 z-40">
+        <button onClick={() => setView('editor')} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-black tracking-tighter uppercase">Encarte Online</h1>
       </header>
 
-      <div className="flex-grow flex">
+      <div className="flex-grow flex min-h-0">
         <nav className="w-20 flex-shrink-0 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-4 gap-1">
           {MENU_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
@@ -50,16 +52,18 @@ export default function EncarteBuilder() {
           ))}
         </nav>
 
-        <main className="flex-grow overflow-y-auto">
+        <aside className="w-72 flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto">
           {activeMenu === 'temas' ? (
-            <TemasTab />
+            <TemasTab selecionada={temaSelecionado} onSelecionar={setTemaSelecionado} />
           ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
-              <LayoutGrid className="w-10 h-10 text-zinc-300 dark:text-zinc-700" />
-              <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">{activeLabel} — em construção</p>
+            <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
+              <LayoutGrid className="w-8 h-8 text-zinc-700" />
+              <p className="text-xs font-semibold text-zinc-500">{activeLabel} — em construção</p>
             </div>
           )}
-        </main>
+        </aside>
+
+        <EncarteCanvas backgroundUrl={temaSelecionado} />
       </div>
     </div>
   );
