@@ -1,8 +1,21 @@
-import { Undo2, Redo2, FileText, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, ZoomIn, ZoomOut } from 'lucide-react';
+import { useState } from 'react';
+import { Undo2, Redo2, LayoutTemplate, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, ZoomIn, ZoomOut, Check, ChevronDown } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 
+interface Formato {
+  id: 'a3' | 'a4' | 'post';
+  label: string;
+  sublabel: string;
+  ratio: number; // largura / altura
+}
+
+const FORMATOS: Formato[] = [
+  { id: 'a3', label: 'A3 Vertical', sublabel: 'Impressão', ratio: 297 / 420 },
+  { id: 'a4', label: 'A4 Vertical', sublabel: 'Impressão', ratio: 210 / 297 },
+  { id: 'post', label: 'Post Vertical', sublabel: 'Instagram, Facebook', ratio: 1080 / 1350 },
+];
+
 const TOOLBAR_ITEMS = [
-  { icon: FileText, label: 'Post Vertical' },
   { icon: Type, label: 'Fontes' },
   { icon: Type, label: 'Texto' },
   { icon: Palette, label: 'Cores' },
@@ -16,6 +29,9 @@ interface EncarteCanvasProps {
 }
 
 export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: EncarteCanvasProps) {
+  const [formato, setFormato] = useState<Formato>(FORMATOS[1]);
+  const [posicaoAberta, setPosicaoAberta] = useState(false);
+
   return (
     <div className="flex-grow flex flex-col bg-zinc-950 relative">
       {/* Barra de ferramentas */}
@@ -28,6 +44,35 @@ export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: En
             <Redo2 className="w-4 h-4" />
           </button>
           <div className="w-px h-5 bg-zinc-800 mx-2" />
+
+          <div className="relative">
+            <button
+              onClick={() => setPosicaoAberta((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              Posição
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {posicaoAberta && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+                {FORMATOS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => { setFormato(f); setPosicaoAberta(false); }}
+                    className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left"
+                  >
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-200">{f.label}</p>
+                      <p className="text-[10px] text-zinc-500">{f.sublabel}</p>
+                    </div>
+                    {formato.id === f.id && <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {TOOLBAR_ITEMS.map(({ icon: Icon, label }) => (
             <button
               key={label}
@@ -52,10 +97,10 @@ export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: En
       </div>
 
       {/* Área de preview */}
-      <div className="flex-grow overflow-auto flex items-center justify-center p-8">
+      <div className="flex-grow overflow-auto flex items-center justify-center p-8" onClick={() => posicaoAberta && setPosicaoAberta(false)}>
         <div
           className="bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col"
-          style={{ width: 480, aspectRatio: '210 / 297' }}
+          style={{ width: 480, aspectRatio: `${formato.ratio}` }}
         >
           <div className="w-full flex-shrink-0" style={{ height: backgroundUrl ? undefined : '30%' }}>
             {backgroundUrl ? (
@@ -81,7 +126,7 @@ export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: En
       {/* Páginas */}
       <div className="absolute top-[4.5rem] right-4 bg-zinc-900 border border-zinc-800 rounded-xl p-2 w-16">
         <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center mb-1.5">Páginas</p>
-        <div className={cn('aspect-[3/4] rounded-lg border-2 border-emerald-500 bg-zinc-800 flex items-end justify-center pb-1')}>
+        <div className={cn('rounded-lg border-2 border-emerald-500 bg-zinc-800 flex items-end justify-center pb-1')} style={{ aspectRatio: `${formato.ratio}` }}>
           <span className="text-[10px] font-bold text-zinc-400">1</span>
         </div>
       </div>
