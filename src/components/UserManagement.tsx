@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Layout, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw, KeyRound } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, isStoreOnline } from '../lib/utils';
 import { useSupportSocket } from '../hooks/useSupportSocket';
@@ -9,7 +9,7 @@ const API_SECRET = import.meta.env.VITE_API_SECRET;
 
 export default function UserManagement() {
   const {
-    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleEncarteAccess, toggleProductManagementAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
+    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleProductManagementAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
     maxConcurrentStores, setMaxConcurrentStores, cnpjUserLimits, setCnpjUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
@@ -905,26 +905,7 @@ export default function UserManagement() {
                         </div>
                       </div>
 
-                      {/* Encarte Online Access Toggle */}
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Layout className="w-4 h-4 text-emerald-600" />
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60">Acesso ao Encarte Online</h4>
-                          </div>
-                          <button
-                            onClick={() => toggleEncarteAccess(store.cnpj)}
-                            className={cn(
-                              "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
-                              store.hasEncarteAccess
-                                ? "bg-emerald-600 border-emerald-600 text-white"
-                                : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400"
-                            )}
-                          >
-                            {store.hasEncarteAccess ? 'Ativado' : 'Desativado'}
-                          </button>
-                        </div>
-
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Database className="w-4 h-4 text-blue-600" />

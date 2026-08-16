@@ -148,122 +148,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'dashboard' | 'smarthelp' | 'monitoring';
-
-export interface EncarteElementRect {
-  xPct: number;
-  yPct: number;
-  widthPct: number;
-  heightPct: number;
-}
-
-// Posição/tamanho independentes de cada elemento (nome, descrição, caixa de
-// preço, foto) dentro do card do produto no Encarte — cada um arrastável e
-// redimensionável na própria posição, igual ao editor de plaquinhas.
-export interface EncarteElementLayout {
-  name?: EncarteElementRect;
-  subtitle?: EncarteElementRect;
-  price?: EncarteElementRect;
-  image?: EncarteElementRect;
-}
-
-export interface SelectedProduct extends Product {
-  id: string;
-  subtitle?: string;
-  offsetX?: number;
-  offsetY?: number;
-  elementLayout?: EncarteElementLayout;
-  nameFontSize?: number;
-  subtitleFontSize?: number;
-  priceFontSize?: number;
-  textOffsetX?: number;
-  textOffsetY?: number;
-  displayType?: 'price' | 'discount';
-  discountValue?: string;
-  priceColor?: string;
-  textColor?: string;
-  width?: number;
-  height?: number;
-  bgColor?: string;
-  showBg?: boolean;
-  medidaValue?: string;
-  medidaUnit?: string;
-  tipo?: string;
-  tituloOriginal?: string;
-  precoOriginal?: string;
-  tituloDesconto?: string;
-  precoDesconto?: string;
-  showPercentage?: boolean;
-  strikeThrough?: boolean;
-  productSize?: number;
-  labelSize?: number;
-  backgroundColor?: string;
-  labelColor?: string;
-}
-
-export interface StoreProfile {
-  id: string;
-  cnpj?: string;
-  nome: string;
-  logoUrl: string;
-  endereco: string;
-  telefone: string;
-  instagram: string;
-}
-
-export interface EncarteSlotDef {
-  id: string;
-  tipo: 'produto' | 'data' | 'logo' | 'contato';
-  xPct: number;
-  yPct: number;
-  widthPct: number;
-  heightPct: number;
-}
-
-export interface EncarteGridConfig {
-  cols: number;
-  rows: number;
-  area: { xPct: number; yPct: number; widthPct: number; heightPct: number };
-  manual: boolean;
-}
-
-export type EncarteFontFamily = 'Inter' | 'Roboto' | 'Oswald';
-export type EncartePriceTypography = 'uniforme' | 'destacado';
-
-export interface EncarteMolde {
-  id: string;
-  nome: string;
-  frontBgUrl: string;
-  backBgUrl?: string;
-  frontSlots: EncarteSlotDef[];
-  backSlots?: EncarteSlotDef[];
-  frontGrid: EncarteGridConfig;
-  backGrid?: EncarteGridConfig;
-  fontFamily?: EncarteFontFamily;
-  priceBoxColor?: string;
-  productNameColor?: string;
-  // Tipografia do preço: 'uniforme' (padrão, comportamento de sempre) ou
-  // 'destacado' (reais grande + centavos menor, como etiqueta de preço).
-  priceTypography?: EncartePriceTypography;
-  // Sombra sutil no nome do produto e no texto do preço (não na descrição).
-  textShadow?: boolean;
-  // Layout padrão pra produto NOVO colocado num slot desse molde — grava
-  // via botão "Definir como padrão do molde" em EncarteWeekly. Ausente =
-  // usa as constantes DEFAULT_* de EncarteWeekly.tsx (comportamento atual).
-  defaultCardRect?: { offsetX: number; offsetY: number; width: number; height: number };
-  defaultElementLayout?: EncarteElementLayout;
-  defaultNameFontSize?: number;
-  defaultSubtitleFontSize?: number;
-  defaultPriceFontSize?: number;
-}
-
-export interface EncarteSemanal {
-  id: string;
-  moldeId: string;
-  storeProfileId: string;
-  validade: string;
-  produtos: Record<string, SelectedProduct | null>;
-}
+export type View = 'editor' | 'queue' | 'folders' | 'dashboard' | 'smarthelp' | 'monitoring';
 
 // Snapshot do estado "vivo" do editor (modelo ativo + conteudo/estilo atuais
 // dos slots) guardado em cada item da fila de impressao, pra permitir reabrir
@@ -480,7 +365,6 @@ interface AppState {
     cnpj: string;
     bandeira: string;
     allowedLayouts?: number[];
-    hasEncarteAccess?: boolean;
     hasProductManagementAccess?: boolean;
     groupId?: string;
     isSuspended?: boolean;
@@ -502,7 +386,6 @@ interface AppState {
     cnpj: string;
     bandeira: string;
     allowedLayouts?: number[];
-    hasEncarteAccess?: boolean;
     hasProductManagementAccess?: boolean;
     groupId?: string;
     isSuspended?: boolean;
@@ -577,23 +460,12 @@ interface AppState {
   seenAnnouncements: string[];
   setSeenAnnouncements: (ids: string[]) => void;
 
-  storeProfiles: StoreProfile[];
-  fetchStoreProfiles: () => Promise<boolean>;
-  saveStoreProfiles: (profiles: StoreProfile[]) => Promise<boolean>;
-  encarteMoldes: EncarteMolde[];
-  fetchEncarteMoldes: () => Promise<boolean>;
-  saveEncarteMoldes: (moldes: EncarteMolde[]) => Promise<boolean>;
-  encartesSemanais: EncarteSemanal[];
-  fetchEncartesSemanais: () => Promise<boolean>;
-  saveEncartesSemanais: (semanais: EncarteSemanal[]) => Promise<boolean>;
-
   login: (role: 'user' | 'admin', user: { username: string; cnpj: string; bandeira: string }) => void;
   verifyAdminLogin: (username: string, password: string) => Promise<boolean>;
   changeAdminCredentials: (currentUsername: string, currentPassword: string, newUsername: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   notifyClosingOffline: () => void;
   setSlotVisibility: (slot: 1 | 2 | 3, visible: boolean) => void;
-  toggleEncarteAccess: (cnpj: string) => void;
   bulkUpdateStoreLayouts: (groupId: string, bandeira: string, allowedLayouts: number[]) => void;
 }
 
@@ -1605,14 +1477,13 @@ export const useStore = create<AppState>()(
       addAllowedStore: (store) => set((state) => {
         const nc = store.cnpj?.replace(/[^\d]/g, '') || '';
         const existingIndex = state.allowedStores.findIndex(s => s.cnpj?.replace(/[^\d]/g, '') === nc);
-        const updatedStore = { ...store, cnpj: store.cnpj.trim(), allowedLayouts: store.allowedLayouts !== undefined ? store.allowedLayouts : (existingIndex !== -1 ? state.allowedStores[existingIndex].allowedLayouts : undefined), hasEncarteAccess: store.hasEncarteAccess !== undefined ? store.hasEncarteAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasEncarteAccess : false), hasProductManagementAccess: store.hasProductManagementAccess !== undefined ? store.hasProductManagementAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasProductManagementAccess : false) };
+        const updatedStore = { ...store, cnpj: store.cnpj.trim(), allowedLayouts: store.allowedLayouts !== undefined ? store.allowedLayouts : (existingIndex !== -1 ? state.allowedStores[existingIndex].allowedLayouts : undefined), hasProductManagementAccess: store.hasProductManagementAccess !== undefined ? store.hasProductManagementAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasProductManagementAccess : false) };
         let newAllowedStores;
         if (existingIndex !== -1) { newAllowedStores = [...state.allowedStores]; newAllowedStores[existingIndex] = updatedStore; } else { newAllowedStores = [...state.allowedStores, updatedStore]; }
         setTimeout(() => get().saveUsersAndFlags(), 0);
         return { allowedStores: newAllowedStores };
       }),
       removeAllowedStore: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newState = { allowedStores: state.allowedStores.filter(s => s.cnpj?.replace(/[^\d]/g, '') !== nc) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
-      toggleEncarteAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasEncarteAccess: !s.hasEncarteAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleProductManagementAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasProductManagementAccess: !s.hasProductManagementAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleSuspension: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isSuspended: !s.isSuspended } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       togglePaymentBlock: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isPaymentBlocked: !s.isPaymentBlocked, paymentBlockedAt: !s.isPaymentBlocked ? new Date().toISOString() : s.paymentBlockedAt } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
@@ -1780,77 +1651,6 @@ export const useStore = create<AppState>()(
       setConversations: (conversations) => set((state) => ({ conversations: typeof conversations === 'function' ? (conversations as any)(state.conversations) : conversations })),
       isChatLoading: false,
       setIsChatLoading: (loading) => set({ isChatLoading: loading }),
-
-      // ── Lojas/Moldes/Semanais do Encarte v2: cada save aguarda o POST
-      // confirmar antes de atualizar o estado local (nunca mostra como salvo
-      // algo que falhou no servidor), toda falha vira toast, e todas
-      // retornam boolean pra quem chama saber se deu certo antes de fechar
-      // modal/mostrar sucesso/liberar escritas dependentes.
-      storeProfiles: [],
-      fetchStoreProfiles: async () => {
-        try {
-          const data = await apiGet('/settings/encarte_lojas');
-          set({ storeProfiles: data?.value || [] });
-          return true;
-        } catch {
-          toast.error('Não foi possível carregar as lojas cadastradas.');
-          return false;
-        }
-      },
-      saveStoreProfiles: async (profiles) => {
-        try {
-          await apiPost('/settings/encarte_lojas', { value: profiles });
-          set({ storeProfiles: profiles });
-          return true;
-        } catch {
-          toast.error('Não foi possível salvar a loja. Tente novamente.');
-          return false;
-        }
-      },
-
-      encarteMoldes: [],
-      fetchEncarteMoldes: async () => {
-        try {
-          const data = await apiGet('/settings/encarte_moldes');
-          set({ encarteMoldes: data?.value || [] });
-          return true;
-        } catch {
-          toast.error('Não foi possível carregar os moldes salvos.');
-          return false;
-        }
-      },
-      saveEncarteMoldes: async (moldes) => {
-        try {
-          await apiPost('/settings/encarte_moldes', { value: moldes });
-          set({ encarteMoldes: moldes });
-          return true;
-        } catch {
-          toast.error('Não foi possível salvar o molde. Tente novamente.');
-          return false;
-        }
-      },
-
-      encartesSemanais: [],
-      fetchEncartesSemanais: async () => {
-        try {
-          const data = await apiGet('/settings/encarte_semanais');
-          set({ encartesSemanais: data?.value || [] });
-          return true;
-        } catch {
-          toast.error('Não foi possível carregar os encartes semanais.');
-          return false;
-        }
-      },
-      saveEncartesSemanais: async (semanais) => {
-        try {
-          await apiPost('/settings/encarte_semanais', { value: semanais });
-          set({ encartesSemanais: semanais });
-          return true;
-        } catch {
-          toast.error('Não foi possível salvar o encarte. Tente novamente.');
-          return false;
-        }
-      },
 
       // ── verifyAdminLogin → /api/admin/login (senha checada só no servidor) ──
       verifyAdminLogin: async (username, password) => {
