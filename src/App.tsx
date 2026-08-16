@@ -15,6 +15,7 @@ import SupportChat from './components/SupportChat';
 import SmartHelpDashboard from './components/SmartHelpDashboard';
 import MonitoringDashboard from './components/MonitoringDashboard';
 import LayoutSelectorModal from './components/LayoutSelectorModal';
+import EncarteBuilder from './components/encarte/EncarteBuilder';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
@@ -685,6 +686,10 @@ export default function App() {
       return <SavedFolders />;
     }
 
+    if (currentView === 'encarte' && userRole === 'admin') {
+      return <EncarteBuilder />;
+    }
+
     return (
       <div className={cn(
         "bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col",
@@ -873,6 +878,22 @@ export default function App() {
                 >
                   <Database className="w-4 h-4" />
                   Produtos
+                </button>
+              )}
+
+              {/* Encarte Online — por enquanto so admin, ativa pra loja depois */}
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => setView('encarte')}
+                  className={cn(
+                    'h-10 flex items-center gap-1.5 px-3.5 rounded-xl transition-all text-sm font-semibold',
+                    (currentView as string) === 'encarte'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                      : 'bg-white dark:bg-zinc-800 text-emerald-600 border border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-900/10'
+                  )}
+                >
+                  <Layout className="w-4 h-4" />
+                  Encarte
                 </button>
               )}
 

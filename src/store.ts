@@ -148,7 +148,7 @@ export interface Announcement {
   createdAt: string;
 }
 
-export type View = 'editor' | 'queue' | 'folders' | 'dashboard' | 'smarthelp' | 'monitoring';
+export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'dashboard' | 'smarthelp' | 'monitoring';
 
 // Snapshot do estado "vivo" do editor (modelo ativo + conteudo/estilo atuais
 // dos slots) guardado em cada item da fila de impressao, pra permitir reabrir
