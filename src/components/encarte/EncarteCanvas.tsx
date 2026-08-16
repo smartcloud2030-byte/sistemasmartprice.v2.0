@@ -12,9 +12,10 @@ const TOOLBAR_ITEMS = [
 
 interface EncarteCanvasProps {
   backgroundUrl: string | null;
+  onAdicionarProdutos: () => void;
 }
 
-export default function EncarteCanvas({ backgroundUrl }: EncarteCanvasProps) {
+export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: EncarteCanvasProps) {
   return (
     <div className="flex-grow flex flex-col bg-zinc-950 relative">
       {/* Barra de ferramentas */}
@@ -65,12 +66,15 @@ export default function EncarteCanvas({ backgroundUrl }: EncarteCanvasProps) {
               </div>
             )}
           </div>
-          <div className="flex-grow flex flex-col items-center justify-center gap-3 bg-black">
+          <button
+            onClick={onAdicionarProdutos}
+            className="flex-grow flex flex-col items-center justify-center gap-3 bg-black hover:bg-zinc-900 transition-colors"
+          >
             <div className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center">
               <Package className="w-5 h-5 text-emerald-500" />
             </div>
             <p className="text-xs font-semibold text-zinc-400">Adicionar produtos no encarte</p>
-          </div>
+          </button>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGr
 import { useStore } from '../../store';
 import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
+import ProdutosTab from './ProdutosTab';
 import EncarteCanvas from './EncarteCanvas';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
@@ -55,6 +56,8 @@ export default function EncarteBuilder() {
         <aside className="w-72 flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto">
           {activeMenu === 'temas' ? (
             <TemasTab selecionada={temaSelecionado} onSelecionar={setTemaSelecionado} />
+          ) : activeMenu === 'produtos' ? (
+            <ProdutosTab />
           ) : (
             <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
               <LayoutGrid className="w-8 h-8 text-zinc-700" />
@@ -63,7 +66,7 @@ export default function EncarteBuilder() {
           )}
         </aside>
 
-        <EncarteCanvas backgroundUrl={temaSelecionado} />
+        <EncarteCanvas backgroundUrl={temaSelecionado} onAdicionarProdutos={() => setActiveMenu('produtos')} />
       </div>
     </div>
   );
