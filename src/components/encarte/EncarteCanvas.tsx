@@ -101,44 +101,48 @@ export default function EncarteCanvas({ backgroundUrl, produtos, onAdicionarProd
       {/* Área de preview */}
       <div className="flex-grow overflow-auto flex items-center justify-center p-8" onClick={() => posicaoAberta && setPosicaoAberta(false)}>
         <div
-          className="bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+          className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
           style={{ width: 480, aspectRatio: `${formato.ratio}` }}
         >
-          <div className="w-full flex-shrink-0" style={{ height: backgroundUrl ? undefined : '30%' }}>
+          {/* Fundo — preenche a caixa toda, produtos ficam por cima */}
+          <div className="absolute inset-0">
             {backgroundUrl ? (
-              <img src={getProxyUrl(backgroundUrl)} className="w-full h-auto block" />
+              <img src={getProxyUrl(backgroundUrl)} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-zinc-900">
                 <p className="text-[10px] text-zinc-600 font-semibold">Escolha um fundo na aba Temas</p>
               </div>
             )}
           </div>
-          {produtos.length === 0 ? (
-            <button
-              onClick={onAdicionarProdutos}
-              className="flex-grow flex flex-col items-center justify-center gap-3 bg-black hover:bg-zinc-900 transition-colors"
-            >
-              <div className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center">
-                <Package className="w-5 h-5 text-emerald-500" />
-              </div>
-              <p className="text-xs font-semibold text-zinc-400">Adicionar produtos no encarte</p>
-            </button>
-          ) : (
-            <div className="flex-grow bg-black overflow-y-auto p-3 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2.5">
-                {produtos.map((p) => (
-                  <EncarteProductCard key={p.id} product={p} />
-                ))}
-              </div>
+
+          <div className="relative h-full flex flex-col">
+            {produtos.length === 0 ? (
               <button
                 onClick={onAdicionarProdutos}
-                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors text-xs font-semibold"
+                className="flex-grow flex flex-col items-center justify-center gap-3 hover:bg-black/20 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Adicionar mais produtos
+                <div className="w-11 h-11 rounded-xl bg-zinc-900/80 backdrop-blur flex items-center justify-center">
+                  <Package className="w-5 h-5 text-emerald-500" />
+                </div>
+                <p className="text-xs font-semibold text-white drop-shadow">Adicionar produtos no encarte</p>
               </button>
-            </div>
-          )}
+            ) : (
+              <div className="mt-auto max-h-[70%] overflow-y-auto p-3 space-y-2.5 bg-gradient-to-t from-black/70 via-black/40 to-transparent">
+                <div className="grid grid-cols-2 gap-2.5">
+                  {produtos.map((p) => (
+                    <EncarteProductCard key={p.id} product={p} />
+                  ))}
+                </div>
+                <button
+                  onClick={onAdicionarProdutos}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-white/30 bg-black/30 text-white/80 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar mais produtos
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
