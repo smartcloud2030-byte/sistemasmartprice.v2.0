@@ -3,14 +3,13 @@ import { Undo2, Redo2, LayoutTemplate, Type, Palette, Maximize2, CalendarDays, D
 import { getProxyUrl, cn } from '../../lib/utils';
 
 interface Formato {
-  id: 'a3' | 'a4' | 'post';
+  id: 'a4' | 'post';
   label: string;
   sublabel: string;
   ratio: number; // largura / altura
 }
 
 const FORMATOS: Formato[] = [
-  { id: 'a3', label: 'A3 Vertical', sublabel: 'Impressão', ratio: 297 / 420 },
   { id: 'a4', label: 'A4 Vertical', sublabel: 'Impressão', ratio: 210 / 297 },
   { id: 'post', label: 'Post Vertical', sublabel: 'Instagram, Facebook', ratio: 1080 / 1350 },
 ];
@@ -29,7 +28,7 @@ interface EncarteCanvasProps {
 }
 
 export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: EncarteCanvasProps) {
-  const [formato, setFormato] = useState<Formato>(FORMATOS[1]);
+  const [formato, setFormato] = useState<Formato>(FORMATOS[0]);
   const [posicaoAberta, setPosicaoAberta] = useState(false);
 
   return (
