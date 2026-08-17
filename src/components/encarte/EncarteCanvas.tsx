@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Undo2, Redo2, LayoutTemplate, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, ZoomIn, ZoomOut, Check, ChevronDown } from 'lucide-react';
+import { Undo2, Redo2, LayoutTemplate, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, Plus, ZoomIn, ZoomOut, Check, ChevronDown } from 'lucide-react';
+import { Product } from '../../store';
 import { getProxyUrl, cn } from '../../lib/utils';
+import EncarteProductCard from './EncarteProductCard';
 
 interface Formato {
   id: 'a4' | 'post';
@@ -24,10 +26,11 @@ const TOOLBAR_ITEMS = [
 
 interface EncarteCanvasProps {
   backgroundUrl: string | null;
+  produtos: Product[];
   onAdicionarProdutos: () => void;
 }
 
-export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: EncarteCanvasProps) {
+export default function EncarteCanvas({ backgroundUrl, produtos, onAdicionarProdutos }: EncarteCanvasProps) {
   const [formato, setFormato] = useState<Formato>(FORMATOS[0]);
   const [posicaoAberta, setPosicaoAberta] = useState(false);
 
@@ -110,15 +113,32 @@ export default function EncarteCanvas({ backgroundUrl, onAdicionarProdutos }: En
               </div>
             )}
           </div>
-          <button
-            onClick={onAdicionarProdutos}
-            className="flex-grow flex flex-col items-center justify-center gap-3 bg-black hover:bg-zinc-900 transition-colors"
-          >
-            <div className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center">
-              <Package className="w-5 h-5 text-emerald-500" />
+          {produtos.length === 0 ? (
+            <button
+              onClick={onAdicionarProdutos}
+              className="flex-grow flex flex-col items-center justify-center gap-3 bg-black hover:bg-zinc-900 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center">
+                <Package className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-xs font-semibold text-zinc-400">Adicionar produtos no encarte</p>
+            </button>
+          ) : (
+            <div className="flex-grow bg-black overflow-y-auto p-3 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                {produtos.map((p) => (
+                  <EncarteProductCard key={p.id} product={p} />
+                ))}
+              </div>
+              <button
+                onClick={onAdicionarProdutos}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar mais produtos
+              </button>
             </div>
-            <p className="text-xs font-semibold text-zinc-400">Adicionar produtos no encarte</p>
-          </button>
+          )}
         </div>
       </div>
 

@@ -1,20 +1,15 @@
-import { useState } from 'react';
 import { X, ShoppingCart } from 'lucide-react';
 import ProductSelector from '../ProductSelector';
 import { Product } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
 
-export default function ProdutosTab() {
-  const [selecionados, setSelecionados] = useState<Product[]>([]);
+interface ProdutosTabProps {
+  selecionados: Product[];
+  onSelecionar: (product: Product) => void;
+  onRemover: (id?: string | number) => void;
+}
 
-  const handleSelect = (product: Product) => {
-    setSelecionados((prev) => (prev.some((p) => p.id === product.id) ? prev : [...prev, product]));
-  };
-
-  const remover = (id?: string | number) => {
-    setSelecionados((prev) => prev.filter((p) => p.id !== id));
-  };
-
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover }: ProdutosTabProps) {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -25,7 +20,7 @@ export default function ProdutosTab() {
         </div>
       </div>
 
-      <ProductSelector onSelect={handleSelect} />
+      <ProductSelector onSelect={onSelecionar} />
 
       {selecionados.length > 0 && (
         <div className="space-y-2 pt-3 border-t border-zinc-800">
@@ -39,7 +34,7 @@ export default function ProdutosTab() {
                   {p.image && <img src={getProxyUrl(p.image, { thumbnail: true })} className="w-full h-full object-cover" />}
                 </div>
                 <span className="text-xs text-zinc-200 truncate flex-grow">{p.name}</span>
-                <button onClick={() => remover(p.id)} className="text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0">
+                <button onClick={() => onRemover(p.id)} className="text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>

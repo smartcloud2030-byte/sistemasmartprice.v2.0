@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid } from 'lucide-react';
-import { useStore } from '../../store';
+import { useStore, Product } from '../../store';
 import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
 import ProdutosTab from './ProdutosTab';
@@ -22,8 +22,17 @@ export default function EncarteBuilder() {
   const { setView } = useStore();
   const [activeMenu, setActiveMenu] = useState<MenuItem>('temas');
   const [temaSelecionado, setTemaSelecionado] = useState<string | null>(null);
+  const [produtosSelecionados, setProdutosSelecionados] = useState<Product[]>([]);
 
   const activeLabel = MENU_ITEMS.find((m) => m.id === activeMenu)?.label;
+
+  const adicionarProduto = (product: Product) => {
+    setProdutosSelecionados((prev) => (prev.some((p) => p.id === product.id) ? prev : [...prev, product]));
+  };
+
+  const removerProduto = (id?: string | number) => {
+    setProdutosSelecionados((prev) => prev.filter((p) => p.id !== id));
+  };
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
@@ -57,7 +66,7 @@ export default function EncarteBuilder() {
           {activeMenu === 'temas' ? (
             <TemasTab selecionada={temaSelecionado} onSelecionar={setTemaSelecionado} />
           ) : activeMenu === 'produtos' ? (
-            <ProdutosTab />
+            <ProdutosTab selecionados={produtosSelecionados} onSelecionar={adicionarProduto} onRemover={removerProduto} />
           ) : (
             <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
               <LayoutGrid className="w-8 h-8 text-zinc-700" />
@@ -66,7 +75,11 @@ export default function EncarteBuilder() {
           )}
         </aside>
 
-        <EncarteCanvas backgroundUrl={temaSelecionado} onAdicionarProdutos={() => setActiveMenu('produtos')} />
+        <EncarteCanvas
+          backgroundUrl={temaSelecionado}
+          produtos={produtosSelecionados}
+          onAdicionarProdutos={() => setActiveMenu('produtos')}
+        />
       </div>
     </div>
   );
