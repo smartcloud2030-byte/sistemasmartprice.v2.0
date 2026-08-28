@@ -5,7 +5,7 @@ import { Undo2, Redo2, Type, Palette, Maximize2, CalendarDays, Download, Share2,
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import { Formato } from './formatos';
-import { EncarteProduto } from './encarteProduto';
+import { EncarteProduto, EstiloEncarte } from './encarteProduto';
 
 const TOOLBAR_ITEMS = [
   { icon: Type, label: 'Fontes' },
@@ -15,25 +15,42 @@ const TOOLBAR_ITEMS = [
   { icon: CalendarDays, label: 'Validade' },
 ];
 
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
 interface EncarteCanvasProps {
   backgroundUrl: string | null;
   produtos: EncarteProduto[];
+  estilo: EstiloEncarte;
   formato: Formato;
   produtoDetalhadoId: string | number | null;
   onAdicionarProdutos: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
+  onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
+}
+
+interface DragState {
+  id: string | number | undefined;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  origXPct: number;
+  origYPct: number;
+  moved: boolean;
 }
 
 export default function EncarteCanvas({
   backgroundUrl,
   produtos,
+  estilo,
   formato,
   produtoDetalhadoId,
   onAdicionarProdutos,
   onAbrirDetalhes,
+  onMoverProduto,
 }: EncarteCanvasProps) {
   const [exportando, setExportando] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<DragState | null>(null);
 
   const handleDownload = async () => {
     if (!canvasRef.current || exportando) return;
@@ -53,6 +70,39 @@ export default function EncarteCanvas({
     } finally {
       setExportando(false);
     }
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, ep: EncarteProduto) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      id: ep.product.id,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origXPct: ep.xPct,
+      origYPct: ep.yPct,
+      moved: false,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = dragRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!st || !rect || e.pointerId !== st.pointerId) return;
+    const dx = e.clientX - st.startX;
+    const dy = e.clientY - st.startY;
+    if (!st.moved && Math.hypot(dx, dy) < 4) return;
+    st.moved = true;
+    const xPct = clamp(st.origXPct + (dx / rect.width) * 100, 0, 92);
+    const yPct = clamp(st.origYPct + (dy / rect.height) * 100, 0, 92);
+    onMoverProduto(st.id, xPct, yPct);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>, ep: EncarteProduto) => {
+    const st = dragRef.current;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    dragRef.current = null;
+    if (st && !st.moved) onAbrirDetalhes(ep.product.id);
   };
 
   return (
@@ -96,7 +146,17 @@ export default function EncarteCanvas({
       </div>
 
       {/* Área de preview */}
-      <div className="flex-grow overflow-auto flex items-center justify-center p-8">
+      <div className="flex-grow overflow-auto flex items-center justify-center p-8 relative">
+        {produtos.length > 0 && (
+          <button
+            onClick={onAdicionarProdutos}
+            className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Produtos
+          </button>
+        )}
+
         <div
           ref={canvasRef}
           className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
@@ -113,41 +173,38 @@ export default function EncarteCanvas({
             )}
           </div>
 
-          <div className="relative h-full flex flex-col">
-            {produtos.length === 0 ? (
-              <button
-                onClick={onAdicionarProdutos}
-                data-html2canvas-ignore="true"
-                className="flex-grow flex flex-col items-center justify-center gap-3 hover:bg-black/20 transition-colors"
-              >
-                <div className="w-11 h-11 rounded-xl bg-zinc-900/80 backdrop-blur flex items-center justify-center">
-                  <Package className="w-5 h-5 text-emerald-500" />
-                </div>
-                <p className="text-xs font-semibold text-white drop-shadow">Adicionar produtos no encarte</p>
-              </button>
-            ) : (
-              <div className="mt-auto max-h-[70%] overflow-y-auto p-3 space-y-2.5 bg-gradient-to-t from-black/70 via-black/40 to-transparent">
-                <div className="grid grid-cols-2 gap-2.5">
-                  {produtos.map((ep) => (
-                    <EncarteProductCard
-                      key={ep.product.id}
-                      produto={ep}
-                      selecionado={ep.product.id === produtoDetalhadoId}
-                      onClick={() => onAbrirDetalhes(ep.product.id)}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={onAdicionarProdutos}
-                  data-html2canvas-ignore="true"
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-white/30 bg-black/30 text-white/80 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Adicionar mais produtos
-                </button>
+          {produtos.length === 0 ? (
+            <button
+              onClick={onAdicionarProdutos}
+              data-html2canvas-ignore="true"
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 hover:bg-black/20 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-zinc-900/80 backdrop-blur flex items-center justify-center">
+                <Package className="w-5 h-5 text-emerald-500" />
               </div>
-            )}
-          </div>
+              <p className="text-xs font-semibold text-white drop-shadow">Adicionar produtos no encarte</p>
+            </button>
+          ) : (
+            <div className="absolute inset-0">
+              {produtos.map((ep) => (
+                <div
+                  key={ep.product.id}
+                  className="absolute touch-none cursor-grab active:cursor-grabbing"
+                  style={{ left: `${ep.xPct}%`, top: `${ep.yPct}%` }}
+                  onPointerDown={(e) => handlePointerDown(e, ep)}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={(e) => handlePointerUp(e, ep)}
+                  onPointerCancel={(e) => handlePointerUp(e, ep)}
+                >
+                  <EncarteProductCard
+                    produto={ep}
+                    estilo={estilo}
+                    selecionado={ep.product.id === produtoDetalhadoId}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

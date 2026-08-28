@@ -8,7 +8,7 @@ import FormatosTab from './FormatosTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
 import { Formato, FORMATO_PADRAO } from './formatos';
-import { EncarteProduto, criarEncarteProduto } from './encarteProduto';
+import { EncarteProduto, EstiloEncarte, ESTILO_PADRAO, criarEncarteProduto } from './encarteProduto';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
 
@@ -27,6 +27,7 @@ export default function EncarteBuilder() {
   const [activeMenu, setActiveMenu] = useState<MenuItem>('temas');
   const [temaSelecionado, setTemaSelecionado] = useState<string | null>(null);
   const [produtosSelecionados, setProdutosSelecionados] = useState<EncarteProduto[]>([]);
+  const [estilo, setEstilo] = useState<EstiloEncarte>(ESTILO_PADRAO);
   const [formato, setFormato] = useState<Formato>(FORMATO_PADRAO);
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
 
@@ -34,7 +35,7 @@ export default function EncarteBuilder() {
 
   const adicionarProduto = (product: Product) => {
     setProdutosSelecionados((prev) =>
-      prev.some((ep) => ep.product.id === product.id) ? prev : [...prev, criarEncarteProduto(product)],
+      prev.some((ep) => ep.product.id === product.id) ? prev : [...prev, criarEncarteProduto(product, prev.length)],
     );
   };
 
@@ -46,6 +47,11 @@ export default function EncarteBuilder() {
   const atualizarProduto = (id: string | number | undefined, patch: Partial<EncarteProduto>) => {
     setProdutosSelecionados((prev) => prev.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)));
   };
+
+  const moverProduto = (id: string | number | undefined, xPct: number, yPct: number) =>
+    atualizarProduto(id, { xPct, yPct });
+
+  const atualizarEstilo = (patch: Partial<EstiloEncarte>) => setEstilo((prev) => ({ ...prev, ...patch }));
 
   const produtoDetalhado = produtosSelecionados.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
 
@@ -81,7 +87,9 @@ export default function EncarteBuilder() {
           {produtoDetalhado ? (
             <ProdutoDetalhes
               produto={produtoDetalhado}
+              estilo={estilo}
               onAtualizar={(patch) => atualizarProduto(produtoDetalhado.product.id, patch)}
+              onAtualizarEstilo={atualizarEstilo}
               onRemover={() => removerProduto(produtoDetalhado.product.id)}
               onVoltar={() => setProdutoDetalhadoId(null)}
             />
@@ -107,10 +115,12 @@ export default function EncarteBuilder() {
         <EncarteCanvas
           backgroundUrl={temaSelecionado}
           produtos={produtosSelecionados}
+          estilo={estilo}
           formato={formato}
           produtoDetalhadoId={produtoDetalhadoId}
           onAdicionarProdutos={() => setActiveMenu('produtos')}
           onAbrirDetalhes={setProdutoDetalhadoId}
+          onMoverProduto={moverProduto}
         />
       </div>
     </div>

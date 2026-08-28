@@ -1,17 +1,26 @@
 import { ArrowLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
-import { EncarteProduto } from './encarteProduto';
+import { EncarteProduto, EstiloEncarte } from './encarteProduto';
 
 interface ProdutoDetalhesProps {
   produto: EncarteProduto;
+  estilo: EstiloEncarte;
   onAtualizar: (patch: Partial<EncarteProduto>) => void;
+  onAtualizarEstilo: (patch: Partial<EstiloEncarte>) => void;
   onRemover: () => void;
   onVoltar: () => void;
 }
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'cx', 'pct', 'fardo'];
 
-export default function ProdutoDetalhes({ produto, onAtualizar, onRemover, onVoltar }: ProdutoDetalhesProps) {
+export default function ProdutoDetalhes({
+  produto,
+  estilo,
+  onAtualizar,
+  onAtualizarEstilo,
+  onRemover,
+  onVoltar,
+}: ProdutoDetalhesProps) {
   const { product } = produto;
 
   return (
@@ -23,7 +32,7 @@ export default function ProdutoDetalhes({ produto, onAtualizar, onRemover, onVol
         </button>
         <div>
           <h2 className="text-sm font-black uppercase tracking-widest">Detalhes do produto</h2>
-          <p className="text-[11px] text-zinc-400 mt-0.5">Ajustes valem só neste encarte</p>
+          <p className="text-[11px] text-zinc-400 mt-0.5">Nome, descrição e preço são só deste produto</p>
         </div>
       </div>
 
@@ -54,11 +63,16 @@ export default function ProdutoDetalhes({ produto, onAtualizar, onRemover, onVol
 
         <div className="flex flex-col gap-1.5">
           <BotaoAcao icon={Scissors} label="Remover fundo" premium disabled />
-          <BotaoAcaoCor icon={Palette} label="Cor de fundo" value={produto.corFundo} onChange={(corFundo) => onAtualizar({ corFundo })} />
-          <BotaoAcaoCor icon={Tag} label="Cor da etiqueta" value={produto.corEtiqueta} onChange={(corEtiqueta) => onAtualizar({ corEtiqueta })} />
+          <BotaoAcaoCor icon={Palette} label="Cor de fundo" value={estilo.corFundo} onChange={(corFundo) => onAtualizarEstilo({ corFundo })} />
+          <BotaoAcaoCor icon={Tag} label="Cor da etiqueta" value={estilo.corEtiqueta} onChange={(corEtiqueta) => onAtualizarEstilo({ corEtiqueta })} />
           <BotaoAcao icon={Trash2} label="Remover produto" danger onClick={onRemover} />
         </div>
       </div>
+
+      <p className="flex items-start gap-1.5 text-[10px] text-amber-300/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
+        <Crown className="w-3 h-3 mt-px flex-shrink-0" />
+        Cor e tamanho valem para todos os produtos do encarte.
+      </p>
 
       {/* Nome */}
       <Campo label="Nome">
@@ -67,6 +81,17 @@ export default function ProdutoDetalhes({ produto, onAtualizar, onRemover, onVol
           value={produto.nome}
           onChange={(e) => onAtualizar({ nome: e.target.value })}
           className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+        />
+      </Campo>
+
+      {/* Descrição */}
+      <Campo label="Descrição">
+        <textarea
+          rows={2}
+          value={produto.descricao}
+          onChange={(e) => onAtualizar({ descricao: e.target.value })}
+          placeholder="Ex.: sabor morango, 900g"
+          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
         />
       </Campo>
 
@@ -129,8 +154,8 @@ export default function ProdutoDetalhes({ produto, onAtualizar, onRemover, onVol
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Tamanhos</h3>
           <Crown className="w-3.5 h-3.5 text-amber-400" />
         </div>
-        <SliderEscala label="Produto" value={produto.escalaProduto} onChange={(escalaProduto) => onAtualizar({ escalaProduto })} />
-        <SliderEscala label="Etiqueta" value={produto.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizar({ escalaEtiqueta })} />
+        <SliderEscala label="Produto" value={estilo.escalaCard} onChange={(escalaCard) => onAtualizarEstilo({ escalaCard })} />
+        <SliderEscala label="Etiqueta" value={estilo.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizarEstilo({ escalaEtiqueta })} />
       </div>
     </div>
   );
