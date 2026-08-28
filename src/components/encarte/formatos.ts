@@ -1,4 +1,4 @@
-export type FormatoId = 'a4' | 'digital' | 'post' | 'quadrado' | 'stories';
+export type FormatoId = 'a4' | 'digital' | 'quadrado' | 'stories';
 
 export interface Formato {
   id: FormatoId;
@@ -21,8 +21,7 @@ const criar = (
 
 export const FORMATOS: Formato[] = [
   criar('a4', 'A4 Vertical', 'Impressão', 2480, 3508),
-  criar('digital', 'Digital', 'Post / tela', 1080, 1350),
-  criar('post', 'Post Vertical', 'Instagram, Facebook', 1080, 1350),
+  criar('digital', 'Digital', 'Instagram, Facebook', 1080, 1350),
   criar('quadrado', 'Post Quadrado', 'Instagram, WhatsApp', 1080, 1080),
   criar('stories', 'Stories', 'Instagram, Facebook', 1080, 1920),
 ];
