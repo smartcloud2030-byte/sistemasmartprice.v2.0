@@ -44,10 +44,10 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
             <span className="text-sm font-black text-white">{produto.precoOferta}</span>
           </div>
         </div>
-        <div className="w-24 flex-shrink-0 bg-zinc-100 flex items-center justify-center overflow-hidden">
+        <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">
           {product.image ? (
             <img
-              src={getProxyUrl(product.image, { thumbnail: true })}
+              src={getProxyUrl(product.thumb_image || product.image, { thumbnail: true })}
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
               crossOrigin="anonymous"
