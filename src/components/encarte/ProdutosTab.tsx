@@ -1,15 +1,17 @@
-import { X, ShoppingCart } from 'lucide-react';
+import { X, ShoppingCart, ChevronRight } from 'lucide-react';
 import ProductSelector from '../ProductSelector';
 import { Product } from '../../store';
 import { getProxyUrl } from '../../lib/utils';
+import { EncarteProduto } from './encarteProduto';
 
 interface ProdutosTabProps {
-  selecionados: Product[];
+  selecionados: EncarteProduto[];
   onSelecionar: (product: Product) => void;
   onRemover: (id?: string | number) => void;
+  onAbrirDetalhes: (id?: string | number) => void;
 }
 
-export default function ProdutosTab({ selecionados, onSelecionar, onRemover }: ProdutosTabProps) {
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes }: ProdutosTabProps) {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -28,13 +30,26 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover }: P
             Selecionados ({selecionados.length})
           </h3>
           <div className="space-y-1.5">
-            {selecionados.map((p) => (
-              <div key={p.id} className="flex items-center gap-2 bg-zinc-800 rounded-lg px-2 py-1.5">
-                <div className="w-7 h-7 rounded bg-zinc-700 flex-shrink-0 overflow-hidden">
-                  {p.image && <img src={getProxyUrl(p.image, { thumbnail: true })} className="w-full h-full object-cover" />}
-                </div>
-                <span className="text-xs text-zinc-200 truncate flex-grow">{p.name}</span>
-                <button onClick={() => onRemover(p.id)} className="text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0">
+            {selecionados.map((ep) => (
+              <div key={ep.product.id} className="flex items-center gap-2 bg-zinc-800 rounded-lg pl-2 pr-1.5 py-1.5">
+                <button
+                  onClick={() => onAbrirDetalhes(ep.product.id)}
+                  className="flex items-center gap-2 flex-grow min-w-0 text-left group"
+                >
+                  <div className="w-7 h-7 rounded bg-zinc-700 flex-shrink-0 overflow-hidden">
+                    {ep.product.image && (
+                      <img src={getProxyUrl(ep.product.image, { thumbnail: true })} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <span className="text-xs text-zinc-200 truncate flex-grow group-hover:text-emerald-300 transition-colors">
+                    {ep.nome}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0 group-hover:text-emerald-400 transition-colors" />
+                </button>
+                <button
+                  onClick={() => onRemover(ep.product.id)}
+                  className="text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
