@@ -1,11 +1,14 @@
 import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { toast } from 'sonner';
-import { Undo2, Redo2, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, Plus, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
+import {
+  Undo2, Redo2, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, Plus,
+  ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X,
+} from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import { Formato } from './formatos';
-import { EncarteProduto, EstiloEncarte } from './encarteProduto';
+import { EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade } from './encarteProduto';
 
 const TOOLBAR_ITEMS = [
   { icon: Type, label: 'Fontes' },
@@ -22,10 +25,17 @@ interface EncarteCanvasProps {
   produtos: EncarteProduto[];
   estilo: EstiloEncarte;
   formato: Formato;
+  grade: GradeId;
+  ladoAtivo: 'frente' | 'verso';
+  temVerso: boolean;
   produtoDetalhadoId: string | number | null;
   onAdicionarProdutos: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
+  onGradeChange: (grade: GradeId) => void;
+  onAdicionarVerso: () => void;
+  onRemoverVerso: () => void;
+  onLadoChange: (lado: 'frente' | 'verso') => void;
 }
 
 interface DragState {
@@ -43,12 +53,20 @@ export default function EncarteCanvas({
   produtos,
   estilo,
   formato,
+  grade,
+  ladoAtivo,
+  temVerso,
   produtoDetalhadoId,
   onAdicionarProdutos,
   onAbrirDetalhes,
   onMoverProduto,
+  onGradeChange,
+  onAdicionarVerso,
+  onRemoverVerso,
+  onLadoChange,
 }: EncarteCanvasProps) {
   const [exportando, setExportando] = useState(false);
+  const [gradeAberta, setGradeAberta] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
 
@@ -62,7 +80,7 @@ export default function EncarteCanvas({
         scale: 3,
       });
       const link = document.createElement('a');
-      link.download = `encarte-${formato.id}-${Date.now()}.png`;
+      link.download = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch {
@@ -118,6 +136,70 @@ export default function EncarteCanvas({
           </button>
           <div className="w-px h-5 bg-zinc-800 mx-2" />
 
+          {/* Grade */}
+          <div className="relative">
+            <button
+              onClick={() => setGradeAberta((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              {getGrade(grade).nome}
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {gradeAberta && (
+              <div className="absolute top-full left-0 mt-1 w-40 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+                <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                  Produtos por página
+                </p>
+                {GRADES.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => { onGradeChange(g.id); setGradeAberta(false); }}
+                    className="w-full flex items-center justify-between gap-2 px-3.5 py-2 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
+                  >
+                    {g.nome}
+                    {grade === g.id && <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Frente / Verso */}
+          {temVerso ? (
+            <div className="flex items-center rounded-lg border border-zinc-700 overflow-hidden ml-1">
+              {(['frente', 'verso'] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => onLadoChange(l)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold capitalize transition-colors',
+                    ladoAtivo === l ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:bg-zinc-800',
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
+              <button
+                onClick={onRemoverVerso}
+                title="Remover verso"
+                className="px-2 py-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onAdicionarVerso}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Verso
+            </button>
+          )}
+
+          <div className="w-px h-5 bg-zinc-800 mx-2" />
+
           {TOOLBAR_ITEMS.map(({ icon: Icon, label }) => (
             <button
               key={label}
@@ -146,7 +228,10 @@ export default function EncarteCanvas({
       </div>
 
       {/* Área de preview */}
-      <div className="flex-grow overflow-auto flex items-center justify-center p-8 relative">
+      <div
+        className="flex-grow overflow-auto flex items-center justify-center p-8 relative"
+        onClick={() => gradeAberta && setGradeAberta(false)}
+      >
         {produtos.length > 0 && (
           <button
             onClick={onAdicionarProdutos}
@@ -208,11 +293,23 @@ export default function EncarteCanvas({
         </div>
       </div>
 
-      {/* Páginas */}
+      {/* Páginas / lados */}
       <div className="absolute top-[4.5rem] right-4 bg-zinc-900 border border-zinc-800 rounded-xl p-2 w-16">
         <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center mb-1.5">Páginas</p>
-        <div className={cn('rounded-lg border-2 border-emerald-500 bg-zinc-800 flex items-end justify-center pb-1')} style={{ aspectRatio: `${formato.ratio}` }}>
-          <span className="text-[10px] font-bold text-zinc-400">1</span>
+        <div className="space-y-1.5">
+          {(temVerso ? (['frente', 'verso'] as const) : (['frente'] as const)).map((l, i) => (
+            <button
+              key={l}
+              onClick={() => onLadoChange(l)}
+              className={cn(
+                'w-full rounded-lg border-2 bg-zinc-800 flex items-end justify-center pb-1 transition-colors',
+                ladoAtivo === l ? 'border-emerald-500' : 'border-zinc-700 hover:border-zinc-500',
+              )}
+              style={{ aspectRatio: `${formato.ratio}` }}
+            >
+              <span className="text-[10px] font-bold text-zinc-400">{i + 1}</span>
+            </button>
+          ))}
         </div>
       </div>
 

@@ -1,9 +1,6 @@
 import { Package } from 'lucide-react';
 import { getProxyUrl } from '../../lib/utils';
-import { EncarteProduto, EstiloEncarte } from './encarteProduto';
-
-/** largura base do card (px, na escala de exibição do canvas) */
-export const CARD_W = 200;
+import { EncarteProduto, EstiloEncarte, CARD_W } from './encarteProduto';
 
 interface EncarteProductCardProps {
   produto: EncarteProduto;

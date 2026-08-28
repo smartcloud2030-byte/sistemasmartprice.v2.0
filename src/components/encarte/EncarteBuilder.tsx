@@ -8,9 +8,19 @@ import FormatosTab from './FormatosTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
 import { Formato, FORMATO_PADRAO } from './formatos';
-import { EncarteProduto, EstiloEncarte, ESTILO_PADRAO, criarEncarteProduto } from './encarteProduto';
+import {
+  EncarteProduto,
+  EstiloEncarte,
+  GradeId,
+  LadoEncarte,
+  criarEncarteProduto,
+  criarLado,
+  clonarLado,
+  organizarEmGrade,
+} from './encarteProduto';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
+type Lado = 'frente' | 'verso';
 
 const MENU_ITEMS: { id: MenuItem; label: string; icon: React.ElementType }[] = [
   { id: 'temas', label: 'Temas', icon: Image },
@@ -22,38 +32,94 @@ const MENU_ITEMS: { id: MenuItem; label: string; icon: React.ElementType }[] = [
   { id: 'encartes', label: 'Encartes', icon: LayoutGrid },
 ];
 
+/** Reaplica a grade de um lado (usado quando produtos ou formato mudam). */
+function regridLado(lado: LadoEncarte, formato: Formato): LadoEncarte {
+  if (lado.grade === 'livre') return lado;
+  const { produtos, escalaCard } = organizarEmGrade(lado.produtos, lado.grade, formato);
+  return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
+}
+
 export default function EncarteBuilder() {
   const { setView } = useStore();
   const [activeMenu, setActiveMenu] = useState<MenuItem>('temas');
-  const [temaSelecionado, setTemaSelecionado] = useState<string | null>(null);
-  const [produtosSelecionados, setProdutosSelecionados] = useState<EncarteProduto[]>([]);
-  const [estilo, setEstilo] = useState<EstiloEncarte>(ESTILO_PADRAO);
   const [formato, setFormato] = useState<Formato>(FORMATO_PADRAO);
+  const [ladoFrente, setLadoFrente] = useState<LadoEncarte>(criarLado);
+  const [ladoVerso, setLadoVerso] = useState<LadoEncarte | null>(null);
+  const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
 
   const activeLabel = MENU_ITEMS.find((m) => m.id === activeMenu)?.label;
+  const lado = ladoAtivo === 'verso' && ladoVerso ? ladoVerso : ladoFrente;
+
+  /** Aplica um patch (objeto ou função) ao lado ativo. */
+  const atualizarLado = (patch: Partial<LadoEncarte> | ((l: LadoEncarte) => Partial<LadoEncarte>)) => {
+    const aplicar = (l: LadoEncarte): LadoEncarte => ({ ...l, ...(typeof patch === 'function' ? patch(l) : patch) });
+    if (ladoAtivo === 'verso') setLadoVerso((l) => (l ? aplicar(l) : l));
+    else setLadoFrente(aplicar);
+  };
 
   const adicionarProduto = (product: Product) => {
-    setProdutosSelecionados((prev) =>
-      prev.some((ep) => ep.product.id === product.id) ? prev : [...prev, criarEncarteProduto(product, prev.length)],
-    );
+    atualizarLado((l) => {
+      if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
+      const produtos = [...l.produtos, criarEncarteProduto(product, l.produtos.length)];
+      if (l.grade === 'livre') return { produtos };
+      const r = organizarEmGrade(produtos, l.grade, formato);
+      return { produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
+    });
   };
 
   const removerProduto = (id?: string | number) => {
-    setProdutosSelecionados((prev) => prev.filter((ep) => ep.product.id !== id));
+    atualizarLado((l) => {
+      const produtos = l.produtos.filter((ep) => ep.product.id !== id);
+      if (l.grade === 'livre') return { produtos };
+      const r = organizarEmGrade(produtos, l.grade, formato);
+      return { produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
+    });
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
   const atualizarProduto = (id: string | number | undefined, patch: Partial<EncarteProduto>) => {
-    setProdutosSelecionados((prev) => prev.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)));
+    atualizarLado((l) => ({ produtos: l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)) }));
   };
 
   const moverProduto = (id: string | number | undefined, xPct: number, yPct: number) =>
     atualizarProduto(id, { xPct, yPct });
 
-  const atualizarEstilo = (patch: Partial<EstiloEncarte>) => setEstilo((prev) => ({ ...prev, ...patch }));
+  const atualizarEstilo = (patch: Partial<EstiloEncarte>) =>
+    atualizarLado((l) => ({ estilo: { ...l.estilo, ...patch } }));
 
-  const produtoDetalhado = produtosSelecionados.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
+  const definirGrade = (grade: GradeId) => {
+    atualizarLado((l) => {
+      if (grade === 'livre') return { grade };
+      const r = organizarEmGrade(l.produtos, grade, formato);
+      return { grade, produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
+    });
+  };
+
+  const trocarFormato = (f: Formato) => {
+    setFormato(f);
+    setLadoFrente((l) => regridLado(l, f));
+    setLadoVerso((l) => (l ? regridLado(l, f) : l));
+  };
+
+  const adicionarVerso = () => {
+    setLadoVerso(clonarLado(ladoFrente));
+    setLadoAtivo('verso');
+    setProdutoDetalhadoId(null);
+  };
+
+  const removerVerso = () => {
+    setLadoVerso(null);
+    setLadoAtivo('frente');
+    setProdutoDetalhadoId(null);
+  };
+
+  const trocarLado = (l: Lado) => {
+    setLadoAtivo(l);
+    setProdutoDetalhadoId(null);
+  };
+
+  const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
@@ -87,23 +153,23 @@ export default function EncarteBuilder() {
           {produtoDetalhado ? (
             <ProdutoDetalhes
               produto={produtoDetalhado}
-              estilo={estilo}
+              estilo={lado.estilo}
               onAtualizar={(patch) => atualizarProduto(produtoDetalhado.product.id, patch)}
               onAtualizarEstilo={atualizarEstilo}
               onRemover={() => removerProduto(produtoDetalhado.product.id)}
               onVoltar={() => setProdutoDetalhadoId(null)}
             />
           ) : activeMenu === 'temas' ? (
-            <TemasTab selecionada={temaSelecionado} onSelecionar={setTemaSelecionado} />
+            <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url })} />
           ) : activeMenu === 'produtos' ? (
             <ProdutosTab
-              selecionados={produtosSelecionados}
+              selecionados={lado.produtos}
               onSelecionar={adicionarProduto}
               onRemover={removerProduto}
               onAbrirDetalhes={setProdutoDetalhadoId}
             />
           ) : activeMenu === 'formatos' ? (
-            <FormatosTab selecionado={formato.id} onSelecionar={setFormato} />
+            <FormatosTab selecionado={formato.id} onSelecionar={trocarFormato} />
           ) : (
             <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
               <LayoutGrid className="w-8 h-8 text-zinc-700" />
@@ -113,14 +179,21 @@ export default function EncarteBuilder() {
         </aside>
 
         <EncarteCanvas
-          backgroundUrl={temaSelecionado}
-          produtos={produtosSelecionados}
-          estilo={estilo}
+          backgroundUrl={lado.tema}
+          produtos={lado.produtos}
+          estilo={lado.estilo}
           formato={formato}
+          grade={lado.grade}
+          ladoAtivo={ladoAtivo}
+          temVerso={ladoVerso != null}
           produtoDetalhadoId={produtoDetalhadoId}
           onAdicionarProdutos={() => setActiveMenu('produtos')}
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
+          onGradeChange={definirGrade}
+          onAdicionarVerso={adicionarVerso}
+          onRemoverVerso={removerVerso}
+          onLadoChange={trocarLado}
         />
       </div>
     </div>
