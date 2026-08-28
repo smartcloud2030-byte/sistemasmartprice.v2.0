@@ -1,6 +1,6 @@
 import { ArrowLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
-import { EncarteProduto, EstiloEncarte } from './encarteProduto';
+import { EncarteProduto, EstiloEncarte, ModeloCard, MODELOS_CARD } from './encarteProduto';
 
 interface ProdutoDetalhesProps {
   produto: EncarteProduto;
@@ -71,8 +71,31 @@ export default function ProdutoDetalhes({
 
       <p className="flex items-start gap-1.5 text-[10px] text-amber-300/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
         <Crown className="w-3 h-3 mt-px flex-shrink-0" />
-        Cor e tamanho valem para todos os produtos do encarte.
+        Modelo, cor e tamanho valem para todos os produtos do encarte.
       </p>
+
+      {/* Modelo do card */}
+      <div className="space-y-2">
+        <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Modelo do card</label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {MODELOS_CARD.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => onAtualizarEstilo({ modeloCard: m.id })}
+              title={m.descricao}
+              className={cn(
+                'rounded-lg border p-2 flex flex-col items-center gap-1.5 transition-colors',
+                estilo.modeloCard === m.id
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500',
+              )}
+            >
+              <MiniModelo modelo={m.id} />
+              <span className="text-[10px] font-semibold">{m.nome}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Nome */}
       <Campo label="Nome">
@@ -227,6 +250,31 @@ function BotaoAcaoCor({
       />
       <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" />
     </label>
+  );
+}
+
+function MiniModelo({ modelo }: { modelo: ModeloCard }) {
+  const semFundo = modelo === 'destaque';
+  const fotoEsquerda = modelo === 'clean';
+  const foto = <div className="w-3 h-full rounded-sm bg-current/40 flex-shrink-0" />;
+  const linhas = (
+    <div className="flex-1 flex flex-col gap-0.5">
+      <div className="h-1 w-full rounded-full bg-current/50" />
+      <div className="h-1 w-2/3 rounded-full bg-current/30" />
+      <div className="h-1 w-1/3 rounded-full bg-current/50 mt-0.5" />
+    </div>
+  );
+  return (
+    <div
+      className={cn(
+        'w-full h-9 rounded flex items-center gap-1 p-1',
+        semFundo ? 'border border-dashed border-current/50' : 'border border-current/40 bg-current/10',
+      )}
+    >
+      {fotoEsquerda && foto}
+      {linhas}
+      {!fotoEsquerda && foto}
+    </div>
   );
 }
 

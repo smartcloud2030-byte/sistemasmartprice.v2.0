@@ -2,12 +2,21 @@ import { Product } from '../../store';
 
 export type EncarteProdutoTipo = 'simples';
 
+export type ModeloCard = 'padrao' | 'destaque' | 'clean';
+
+export const MODELOS_CARD: { id: ModeloCard; nome: string; descricao: string }[] = [
+  { id: 'padrao', nome: 'Padrão', descricao: 'Card branco · foto à direita · preço em etiqueta' },
+  { id: 'destaque', nome: 'Destaque', descricao: 'Sem card · nome grande · etiqueta grande com POR/UNI' },
+  { id: 'clean', nome: 'Clean', descricao: 'Card branco · foto à esquerda · preço em texto' },
+];
+
 /**
  * Estilo compartilhado por TODOS os produtos do encarte. O que o usuário
  * mexe no painel "Detalhes do produto" nesses campos vale para o encarte
  * inteiro, não só para o produto aberto.
  */
 export interface EstiloEncarte {
+  modeloCard: ModeloCard; // layout do card do produto
   corFundo: string; // fundo do card
   corEtiqueta: string; // caixa de preço
   escalaCard: number; // slider "Produto" — escala o card inteiro
@@ -15,6 +24,7 @@ export interface EstiloEncarte {
 }
 
 export const ESTILO_PADRAO: EstiloEncarte = {
+  modeloCard: 'padrao',
   corFundo: '#ffffff',
   corEtiqueta: '#059669', // emerald-600
   escalaCard: 1,
