@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
 import ProdutosTab from './ProdutosTab';
 import FormatosTab from './FormatosTab';
+import ElementosTab from './ElementosTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
 import { Formato, FORMATO_PADRAO } from './formatos';
@@ -16,6 +17,7 @@ import {
   criarEncarteProduto,
   criarLado,
   clonarLado,
+  criarDivisor,
   organizarEmGrade,
 } from './encarteProduto';
 
@@ -39,11 +41,18 @@ function regridLado(lado: LadoEncarte, formato: Formato): LadoEncarte {
   return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
 }
 
-export default function EncarteBuilder() {
+interface EncarteBuilderProps {
+  /** estado inicial da frente — usado só pelo preview isolado */
+  ladoInicial?: LadoEncarte;
+  formatoInicial?: Formato;
+  menuInicial?: MenuItem;
+}
+
+export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
   const { setView } = useStore();
-  const [activeMenu, setActiveMenu] = useState<MenuItem>('temas');
-  const [formato, setFormato] = useState<Formato>(FORMATO_PADRAO);
-  const [ladoFrente, setLadoFrente] = useState<LadoEncarte>(criarLado);
+  const [activeMenu, setActiveMenu] = useState<MenuItem>(menuInicial ?? 'temas');
+  const [formato, setFormato] = useState<Formato>(formatoInicial ?? FORMATO_PADRAO);
+  const [ladoFrente, setLadoFrente] = useState<LadoEncarte>(() => ladoInicial ?? criarLado());
   const [ladoVerso, setLadoVerso] = useState<LadoEncarte | null>(null);
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
@@ -119,6 +128,20 @@ export default function EncarteBuilder() {
     setProdutoDetalhadoId(null);
   };
 
+  const adicionarDivisor = () => atualizarLado((l) => ({ divisores: [...l.divisores, criarDivisor()] }));
+
+  const atualizarDivisor = (id: string, texto: string) =>
+    atualizarLado((l) => ({ divisores: l.divisores.map((d) => (d.id === id ? { ...d, texto } : d)) }));
+
+  const removerDivisor = (id: string) =>
+    atualizarLado((l) => ({ divisores: l.divisores.filter((d) => d.id !== id) }));
+
+  const moverDivisor = (id: string, yPct: number) =>
+    atualizarLado((l) => ({ divisores: l.divisores.map((d) => (d.id === id ? { ...d, yPct } : d)) }));
+
+  const atualizarRodape = (patch: Partial<{ ativo: boolean; texto: string }>) =>
+    atualizarLado((l) => ({ rodape: { ...l.rodape, ...patch } }));
+
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
 
   return (
@@ -170,6 +193,15 @@ export default function EncarteBuilder() {
             />
           ) : activeMenu === 'formatos' ? (
             <FormatosTab selecionado={formato.id} onSelecionar={trocarFormato} />
+          ) : activeMenu === 'elementos' ? (
+            <ElementosTab
+              divisores={lado.divisores}
+              rodape={lado.rodape}
+              onAdicionarDivisor={adicionarDivisor}
+              onAtualizarDivisor={atualizarDivisor}
+              onRemoverDivisor={removerDivisor}
+              onAtualizarRodape={atualizarRodape}
+            />
           ) : (
             <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
               <LayoutGrid className="w-8 h-8 text-zinc-700" />
@@ -184,12 +216,15 @@ export default function EncarteBuilder() {
           estilo={lado.estilo}
           formato={formato}
           grade={lado.grade}
+          divisores={lado.divisores}
+          rodape={lado.rodape}
           ladoAtivo={ladoAtivo}
           temVerso={ladoVerso != null}
           produtoDetalhadoId={produtoDetalhadoId}
           onAdicionarProdutos={() => setActiveMenu('produtos')}
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
+          onMoverDivisor={moverDivisor}
           onGradeChange={definirGrade}
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}

@@ -50,12 +50,24 @@ export interface EncarteProduto {
   medidaUnidade: string;
   tipo: EncarteProdutoTipo;
   precoOferta: string;
+  /** preço antigo, riscado (opcional) */
+  precoDe: string;
+  /** renderiza como card largo em evidência, ignorando o modelo do encarte */
+  emDestaque: boolean;
   /** posição do canto superior esquerdo do card, em % do canvas */
   xPct: number;
   yPct: number;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();
+
+/** Separa "10,99" em { inteiro: "10", centavos: "99" }. */
+export function partesPreco(preco: string): { inteiro: string; centavos: string } {
+  const s = (preco || '').trim();
+  const i = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
+  if (i === -1) return { inteiro: s, centavos: '' };
+  return { inteiro: s.slice(0, i), centavos: s.slice(i + 1) };
+}
 
 /** Posição inicial em cascata (2 colunas) para o card não nascer em cima dos outros. */
 function posicaoInicial(index: number): { xPct: number; yPct: number } {
@@ -76,6 +88,8 @@ export function criarEncarteProduto(product: Product, index = 0): EncarteProduto
     medidaUnidade: '',
     tipo: 'simples',
     precoOferta: soPreco(product.price),
+    precoDe: '',
+    emDestaque: false,
     ...posicaoInicial(index),
   };
 }
@@ -137,22 +151,55 @@ export function organizarEmGrade(
   return { produtos: novos, escalaCard };
 }
 
+// ── Fundos prontos (sem upload) ──────────────────────────────────────
+
+/** Fundos embutidos: a chave vai no campo `tema`, o valor é o CSS `background`. */
+export const FUNDOS_BUILTIN: Record<string, string> = {
+  creme: 'linear-gradient(180deg,#fdf3e6 0%,#fbebd8 45%,#fdf1e4 100%)',
+  branco: '#ffffff',
+};
+
+export const ehFundoBuiltin = (tema: string | null): tema is string =>
+  !!tema && Object.prototype.hasOwnProperty.call(FUNDOS_BUILTIN, tema);
+
+// ── Divisor de seção ─────────────────────────────────────────────────
+
+export interface DivisorEncarte {
+  id: string;
+  texto: string;
+  /** posição vertical, em % do canvas (ocupa a largura toda) */
+  yPct: number;
+}
+
+export function criarDivisor(texto = 'Genéricos e Similares'): DivisorEncarte {
+  return { id: `div_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, texto, yPct: 45 };
+}
+
 // ── Lado do encarte (frente / verso) ──────────────────────────────────
 
 /**
  * Um lado do encarte. Frente e verso são independentes: cada um tem seus
- * produtos, posições, tema, estilo e grade. O verso nasce como cópia da
- * frente e daí em diante é editado sozinho.
+ * produtos, posições, tema, estilo, grade, divisores e rodapé. O verso
+ * nasce como cópia da frente e daí em diante é editado sozinho.
  */
 export interface LadoEncarte {
   produtos: EncarteProduto[];
   estilo: EstiloEncarte;
   tema: string | null;
   grade: GradeId;
+  divisores: DivisorEncarte[];
+  rodape: { ativo: boolean; texto: string };
 }
 
 export function criarLado(): LadoEncarte {
-  return { produtos: [], estilo: { ...ESTILO_PADRAO }, tema: null, grade: 'livre' };
+  return {
+    produtos: [],
+    estilo: { ...ESTILO_PADRAO },
+    tema: null,
+    grade: 'livre',
+    divisores: [],
+    rodape: { ativo: false, texto: '5 unidades por cliente' },
+  };
 }
 
 export function clonarLado(l: LadoEncarte): LadoEncarte {
@@ -161,5 +208,7 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
     estilo: { ...l.estilo },
     tema: l.tema,
     grade: l.grade,
+    divisores: l.divisores.map((d) => ({ ...d })),
+    rodape: { ...l.rodape },
   };
 }

@@ -1,12 +1,20 @@
 import { Package } from 'lucide-react';
 import { getProxyUrl } from '../../lib/utils';
-import { EncarteProduto, EstiloEncarte, CARD_W } from './encarteProduto';
+import { EncarteProduto, EstiloEncarte, CARD_W, partesPreco } from './encarteProduto';
 
 interface EncarteProductCardProps {
   produto: EncarteProduto;
   estilo: EstiloEncarte;
   selecionado?: boolean;
 }
+
+/** degradê laranja → dourado, assinatura visual do preço em texto */
+const PRECO_LARANJA: React.CSSProperties = {
+  backgroundImage: 'linear-gradient(180deg,#f6c453 0%,#ef9d1c 55%,#e07d0a 100%)',
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  color: 'transparent',
+};
 
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
   const { product } = produto;
@@ -23,12 +31,16 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
     <Package className="w-6 h-6 text-zinc-300" />
   );
 
+  const largura = produto.emDestaque ? CARD_W * 2.2 : CARD_W;
+
   return (
     <div
       className="relative select-none"
-      style={{ width: CARD_W, transform: `scale(${estilo.escalaCard})`, transformOrigin: 'top left' }}
+      style={{ width: largura, transform: `scale(${estilo.escalaCard})`, transformOrigin: 'top left' }}
     >
-      {estilo.modeloCard === 'destaque' ? (
+      {produto.emDestaque ? (
+        <CardProdutoDestaque produto={produto} estilo={estilo} foto={foto} />
+      ) : estilo.modeloCard === 'destaque' ? (
         <CardDestaque produto={produto} estilo={estilo} medida={medida} foto={foto} />
       ) : estilo.modeloCard === 'clean' ? (
         <CardClean produto={produto} estilo={estilo} medida={medida} foto={foto} />
@@ -53,6 +65,61 @@ interface CardProps {
   foto: React.ReactNode;
 }
 
+/** Preço: "R$" pequeno + inteiro grande + centavos sobrescrito. */
+function Preco({
+  valor,
+  tamanho,
+  variante,
+  cor,
+}: {
+  valor: string;
+  tamanho: number;
+  variante: 'etiqueta' | 'texto';
+  cor?: string;
+}) {
+  const { inteiro, centavos } = partesPreco(valor);
+  const style =
+    variante === 'texto'
+      ? cor
+        ? { color: cor }
+        : PRECO_LARANJA
+      : { color: '#ffffff' };
+  return (
+    <span
+      className="inline-flex items-start font-black leading-none"
+      style={{ fontSize: tamanho, ...style }}
+    >
+      <span className="font-bold" style={{ fontSize: '0.42em', marginTop: '0.25em', marginRight: '0.1em' }}>
+        R$
+      </span>
+      <span>{inteiro}</span>
+      {centavos && (
+        <span className="font-bold" style={{ fontSize: '0.42em', marginTop: '0.18em' }}>
+          ,{centavos}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function PrecoDe({ valor, className }: { valor: string; className?: string }) {
+  if (!valor.trim()) return null;
+  return (
+    <span
+      className={className}
+      style={{
+        fontSize: '0.62em',
+        fontWeight: 700,
+        color: '#e8a86b',
+        textDecoration: 'line-through',
+        textDecorationColor: '#e07d0a',
+      }}
+    >
+      R$ {valor}
+    </span>
+  );
+}
+
 /** Modelo Padrão — card branco, texto à esquerda, foto à direita, preço em etiqueta. */
 function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   return (
@@ -69,12 +136,11 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 truncate">C/ {medida}</p>}
         </div>
-        <div
-          className="inline-flex items-baseline gap-0.5 rounded-lg px-2 py-1 w-fit origin-bottom-left flex-shrink-0"
-          style={{ backgroundColor: estilo.corEtiqueta, transform: `scale(${estilo.escalaEtiqueta})` }}
-        >
-          <span className="text-[8px] font-bold text-white/80">R$</span>
-          <span className="text-sm font-black text-white">{produto.precoOferta}</span>
+        <div className="flex flex-col items-start gap-0.5 origin-bottom-left" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
+          <PrecoDe valor={produto.precoDe} />
+          <span className="inline-flex rounded-lg px-2 py-1" style={{ backgroundColor: estilo.corEtiqueta }}>
+            <Preco valor={produto.precoOferta} tamanho={16} variante="etiqueta" />
+          </span>
         </div>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
@@ -98,16 +164,16 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] truncate">C/ {medida}</p>}
         </div>
-        <div
-          className="flex items-center gap-1 rounded-xl px-2 py-1 w-fit origin-bottom-left flex-shrink-0 mt-1"
-          style={{ backgroundColor: estilo.corEtiqueta, transform: `scale(${estilo.escalaEtiqueta})` }}
-        >
-          <div className="flex flex-col items-center leading-none">
-            <span className="text-[6px] font-bold text-white/80">POR</span>
-            <span className="text-[7px] font-bold text-white/80">R$</span>
-          </div>
-          <span className="text-lg font-black text-white leading-none">{produto.precoOferta}</span>
-          <span className="text-[6px] font-bold text-white/80 self-end">UNI</span>
+        <div className="flex flex-col items-start gap-0.5 origin-bottom-left mt-1" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
+          <PrecoDe valor={produto.precoDe} />
+          <span
+            className="inline-flex items-center gap-1 rounded-xl px-2 py-1"
+            style={{ backgroundColor: estilo.corEtiqueta }}
+          >
+            <span className="text-[7px] font-bold text-white/80 leading-none">POR</span>
+            <Preco valor={produto.precoOferta} tamanho={20} variante="etiqueta" />
+            <span className="text-[7px] font-bold text-white/80 self-end">UNI</span>
+          </span>
         </div>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
@@ -115,7 +181,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
   );
 }
 
-/** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em texto colorido. */
+/** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em laranja. */
 function CardClean({ produto, estilo, medida, foto }: CardProps) {
   return (
     <div className="rounded-2xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
@@ -133,14 +199,29 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
           {medida && <p className="text-[8px] font-medium text-zinc-400 mt-0.5 truncate">C/ {medida}</p>}
         </div>
         <div
-          className="flex items-baseline justify-end gap-0.5 origin-bottom-right flex-shrink-0"
+          className="flex flex-col items-end origin-bottom-right"
           style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
         >
-          <span className="text-[9px] font-black" style={{ color: estilo.corEtiqueta }}>R$</span>
-          <span className="text-lg font-black leading-none" style={{ color: estilo.corEtiqueta }}>
-            {produto.precoOferta}
-          </span>
+          <PrecoDe valor={produto.precoDe} />
+          <Preco valor={produto.precoOferta} tamanho={26} variante="texto" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Card em evidência — largo, foto à esquerda, nome ao centro, preço à direita. */
+function CardProdutoDestaque({ produto, estilo, foto }: Omit<CardProps, 'medida'>) {
+  return (
+    <div
+      className="rounded-2xl overflow-hidden grid items-center gap-3 shadow-lg px-4 py-3"
+      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '96px 1fr auto' }}
+    >
+      <div className="h-20 flex items-center justify-center overflow-hidden">{foto}</div>
+      <p className="text-[15px] font-bold text-zinc-600 leading-[1.15] line-clamp-3 break-words">{produto.nome}</p>
+      <div className="flex flex-col items-end origin-right" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
+        <PrecoDe valor={produto.precoDe} />
+        <Preco valor={produto.precoOferta} tamanho={40} variante="texto" />
       </div>
     </div>
   );

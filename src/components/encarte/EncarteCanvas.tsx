@@ -8,7 +8,10 @@ import {
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import { Formato } from './formatos';
-import { EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade } from './encarteProduto';
+import {
+  EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
+  DivisorEncarte, FUNDOS_BUILTIN, ehFundoBuiltin,
+} from './encarteProduto';
 
 const TOOLBAR_ITEMS = [
   { icon: Type, label: 'Fontes' },
@@ -26,12 +29,15 @@ interface EncarteCanvasProps {
   estilo: EstiloEncarte;
   formato: Formato;
   grade: GradeId;
+  divisores: DivisorEncarte[];
+  rodape: { ativo: boolean; texto: string };
   ladoAtivo: 'frente' | 'verso';
   temVerso: boolean;
   produtoDetalhadoId: string | number | null;
   onAdicionarProdutos: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
+  onMoverDivisor: (id: string, yPct: number) => void;
   onGradeChange: (grade: GradeId) => void;
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
@@ -39,6 +45,7 @@ interface EncarteCanvasProps {
 }
 
 interface DragState {
+  tipo: 'produto' | 'divisor';
   id: string | number | undefined;
   pointerId: number;
   startX: number;
@@ -54,12 +61,15 @@ export default function EncarteCanvas({
   estilo,
   formato,
   grade,
+  divisores,
+  rodape,
   ladoAtivo,
   temVerso,
   produtoDetalhadoId,
   onAdicionarProdutos,
   onAbrirDetalhes,
   onMoverProduto,
+  onMoverDivisor,
   onGradeChange,
   onAdicionarVerso,
   onRemoverVerso,
@@ -90,15 +100,22 @@ export default function EncarteCanvas({
     }
   };
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, ep: EncarteProduto) => {
+  const iniciarDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    tipo: 'produto' | 'divisor',
+    id: string | number | undefined,
+    xPct: number,
+    yPct: number,
+  ) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
-      id: ep.product.id,
+      tipo,
+      id,
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      origXPct: ep.xPct,
-      origYPct: ep.yPct,
+      origXPct: xPct,
+      origYPct: yPct,
       moved: false,
     };
   };
@@ -111,16 +128,20 @@ export default function EncarteCanvas({
     const dy = e.clientY - st.startY;
     if (!st.moved && Math.hypot(dx, dy) < 4) return;
     st.moved = true;
-    const xPct = clamp(st.origXPct + (dx / rect.width) * 100, 0, 92);
     const yPct = clamp(st.origYPct + (dy / rect.height) * 100, 0, 92);
-    onMoverProduto(st.id, xPct, yPct);
+    if (st.tipo === 'divisor') {
+      onMoverDivisor(String(st.id), yPct);
+    } else {
+      const xPct = clamp(st.origXPct + (dx / rect.width) * 100, 0, 92);
+      onMoverProduto(st.id, xPct, yPct);
+    }
   };
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>, ep: EncarteProduto) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>, aoClicar?: () => void) => {
     const st = dragRef.current;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     dragRef.current = null;
-    if (st && !st.moved) onAbrirDetalhes(ep.product.id);
+    if (st && !st.moved) aoClicar?.();
   };
 
   return (
@@ -249,7 +270,9 @@ export default function EncarteCanvas({
         >
           {/* Fundo — preenche a caixa toda, produtos ficam por cima */}
           <div className="absolute inset-0">
-            {backgroundUrl ? (
+            {ehFundoBuiltin(backgroundUrl) ? (
+              <div className="w-full h-full" style={{ background: FUNDOS_BUILTIN[backgroundUrl] }} />
+            ) : backgroundUrl ? (
               <img src={getProxyUrl(backgroundUrl)} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-zinc-900">
@@ -257,6 +280,25 @@ export default function EncarteCanvas({
               </div>
             )}
           </div>
+
+          {/* Divisores de seção — faixa da largura toda, arrastável na vertical */}
+          {divisores.map((d) => (
+            <div
+              key={d.id}
+              className="absolute left-0 right-0 touch-none cursor-ns-resize flex items-center gap-2 px-4"
+              style={{ top: `${d.yPct}%` }}
+              onPointerDown={(e) => iniciarDrag(e, 'divisor', d.id, 0, d.yPct)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={(e) => handlePointerUp(e)}
+              onPointerCancel={(e) => handlePointerUp(e)}
+            >
+              <span className="h-0.5 flex-1 rounded-full" style={{ background: '#e8850c', opacity: 0.5 }} />
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] whitespace-nowrap" style={{ color: '#e8850c' }}>
+                {d.texto || 'Seção'}
+              </span>
+              <span className="h-0.5 flex-1 rounded-full" style={{ background: '#e8850c', opacity: 0.5 }} />
+            </div>
+          ))}
 
           {produtos.length === 0 ? (
             <button
@@ -276,10 +318,10 @@ export default function EncarteCanvas({
                   key={ep.product.id}
                   className="absolute touch-none cursor-grab active:cursor-grabbing"
                   style={{ left: `${ep.xPct}%`, top: `${ep.yPct}%` }}
-                  onPointerDown={(e) => handlePointerDown(e, ep)}
+                  onPointerDown={(e) => iniciarDrag(e, 'produto', ep.product.id, ep.xPct, ep.yPct)}
                   onPointerMove={handlePointerMove}
-                  onPointerUp={(e) => handlePointerUp(e, ep)}
-                  onPointerCancel={(e) => handlePointerUp(e, ep)}
+                  onPointerUp={(e) => handlePointerUp(e, () => onAbrirDetalhes(ep.product.id))}
+                  onPointerCancel={(e) => handlePointerUp(e)}
                 >
                   <EncarteProductCard
                     produto={ep}
@@ -288,6 +330,16 @@ export default function EncarteCanvas({
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Rodapé */}
+          {rodape.ativo && (
+            <div
+              className="absolute bottom-0 left-0 right-0 text-center py-2 px-3 text-[10px] font-semibold tracking-wide"
+              style={{ color: '#e8850c', background: 'rgba(255,255,255,0.55)' }}
+            >
+              {rodape.texto}
             </div>
           )}
         </div>

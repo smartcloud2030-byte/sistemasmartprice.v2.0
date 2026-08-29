@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Upload, Check, Image } from 'lucide-react';
+import { Upload, Check, Image, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadBackgroundImage, listGalleryImages, GalleryImage } from '../../lib/gallery';
 import { getProxyUrl, cn } from '../../lib/utils';
+import { FUNDOS_BUILTIN } from './encarteProduto';
 
 const CATEGORIA = 'encarte-temas';
+
+const PRONTOS: { id: string; nome: string }[] = [
+  { id: 'creme', nome: 'Creme' },
+  { id: 'branco', nome: 'Branco' },
+];
 
 interface TemasTabProps {
   selecionada: string | null;
@@ -50,6 +56,40 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
         <div>
           <h2 className="text-sm font-black uppercase tracking-widest">Temas</h2>
           <p className="text-[11px] text-zinc-400 mt-0.5">Escolha o fundo do seu encarte</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Temas prontos</h3>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => onSelecionar('')}
+            className={cn(
+              'relative rounded-lg overflow-hidden border-2 aspect-[3/4] bg-zinc-800 flex items-center justify-center transition-colors',
+              !selecionada ? 'border-emerald-500' : 'border-transparent hover:border-zinc-600',
+            )}
+          >
+            <Ban className="w-4 h-4 text-zinc-500" />
+            <span className="absolute bottom-1 text-[8px] font-semibold text-zinc-400">Nenhum</span>
+          </button>
+          {PRONTOS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onSelecionar(p.id)}
+              className={cn(
+                'relative rounded-lg overflow-hidden border-2 aspect-[3/4] transition-colors',
+                selecionada === p.id ? 'border-emerald-500' : 'border-transparent hover:border-zinc-600',
+              )}
+              style={{ background: FUNDOS_BUILTIN[p.id] }}
+            >
+              {selecionada === p.id && (
+                <div className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 text-white" />
+                </div>
+              )}
+              <span className="absolute bottom-1 left-0 right-0 text-[8px] font-semibold text-zinc-600">{p.nome}</span>
+            </button>
+          ))}
         </div>
       </div>
 

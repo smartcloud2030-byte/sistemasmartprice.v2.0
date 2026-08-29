@@ -157,19 +157,48 @@ export default function ProdutoDetalhes({
         <p className="text-[11px] text-zinc-500 mt-1">Preço único</p>
       </Campo>
 
-      {/* Preço oferta */}
-      <Campo label="Preço oferta">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={produto.precoOferta}
-            onChange={(e) => onAtualizar({ precoOferta: e.target.value })}
-            className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
-          />
+      {/* Preços */}
+      <div className="grid grid-cols-2 gap-2">
+        <Campo label="Preço de">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="opcional"
+              value={produto.precoDe}
+              onChange={(e) => onAtualizar({ precoDe: e.target.value })}
+              className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 line-through focus:ring-2 focus:ring-emerald-500 outline-none"
+            />
+          </div>
+        </Campo>
+        <Campo label="Preço oferta">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={produto.precoOferta}
+              onChange={(e) => onAtualizar({ precoOferta: e.target.value })}
+              className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
+            />
+          </div>
+        </Campo>
+      </div>
+
+      {/* Produto em destaque */}
+      <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2.5 cursor-pointer">
+        <div>
+          <p className="text-xs font-semibold text-zinc-200">Produto em destaque</p>
+          <p className="text-[10px] text-zinc-500">Card largo, ignora o modelo do encarte</p>
         </div>
-      </Campo>
+        <input
+          type="checkbox"
+          checked={produto.emDestaque}
+          onChange={(e) => onAtualizar({ emDestaque: e.target.checked })}
+          className="w-4 h-4 accent-emerald-500"
+        />
+      </label>
 
       {/* Tamanhos */}
       <div className="space-y-3 pt-1">
