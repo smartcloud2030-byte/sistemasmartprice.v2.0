@@ -886,9 +886,8 @@ export default function App() {
                 </button>
               )}
 
-              {/* Encarte Online (impresso) — em standby enquanto o Encarte Digital é construído.
-                  Reative trocando `false &&` por `userRole === 'admin'`. */}
-              {false && userRole === 'admin' && (
+              {/* Encarte Online (impresso) */}
+              {userRole === 'admin' && (
                 <button
                   onClick={() => setView('encarte')}
                   className={cn(
