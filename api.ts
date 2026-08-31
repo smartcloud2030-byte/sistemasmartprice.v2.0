@@ -279,6 +279,106 @@ router.get('/barcode-image/:gtin', async (req: Request, res: Response) => {
   }
 });
 
+// ── Encarte Digital: busca de imagem na internet (Google Programmable Search) ──
+// Fallback quando o produto não está no catálogo. O CSE é configurado para
+// pesquisar só em sites de farmácia, então os resultados são packshots reais.
+
+/** Bloqueia hosts internos/privados para mitigar SSRF no proxy de imagem. */
+function hostBloqueado(host: string): boolean {
+  const h = host.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
+  if (h === '::1' || h === '[::1]' || h.startsWith('fc') || h.startsWith('fd')) return true;
+  if (h === '169.254.169.254' || h === 'metadata.google.internal') return true;
+  return false;
+}
+
+router.get('/encarte/image-search', apiAuth, async (req: Request, res: Response) => {
+  const key = process.env.GOOGLE_CSE_KEY;
+  const cx = process.env.GOOGLE_CSE_ID;
+  if (!key || !cx) return res.status(501).json({ error: 'GOOGLE_CSE_KEY / GOOGLE_CSE_ID não configurados no servidor' });
+
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!q) return res.status(400).json({ error: 'Informe o termo de busca (q)' });
+  const num = Math.min(Math.max(parseInt(String(req.query.limit || '6'), 10) || 6, 1), 10);
+
+  try {
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.searchParams.set('key', key);
+    url.searchParams.set('cx', cx);
+    url.searchParams.set('q', q);
+    url.searchParams.set('searchType', 'image');
+    url.searchParams.set('num', String(num));
+    url.searchParams.set('safe', 'active');
+    url.searchParams.set('imgType', 'photo');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const r = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timeout);
+
+    const json: any = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = json?.error?.message || `Google retornou HTTP ${r.status}`;
+      const status = r.status === 429 || json?.error?.errors?.[0]?.reason === 'dailyLimitExceeded' ? 429 : 502;
+      return res.status(status).json({ error: msg });
+    }
+
+    const itens = (json.items || []).map((it: any) => ({
+      title: it.title || '',
+      source: it.displayLink || it.image?.contextLink || '',
+      largura: it.image?.width || null,
+      altura: it.image?.height || null,
+      // servidas via nosso proxy pra não sujar o canvas na exportação
+      url: `/api/encarte/image-proxy?url=${encodeURIComponent(it.link)}`,
+      thumb: it.image?.thumbnailLink
+        ? `/api/encarte/image-proxy?url=${encodeURIComponent(it.image.thumbnailLink)}`
+        : `/api/encarte/image-proxy?url=${encodeURIComponent(it.link)}`,
+    }));
+
+    res.json({ q, itens });
+  } catch (err: any) {
+    res.status(502).json({ error: err?.message || 'Falha ao buscar imagens' });
+  }
+});
+
+// Proxy de imagem externa — <img crossOrigin=anonymous> só carrega same-origin
+// sem sujar o canvas; por isso a imagem escolhida passa por aqui.
+router.get('/encarte/image-proxy', async (req: Request, res: Response) => {
+  const raw = typeof req.query.url === 'string' ? req.query.url : '';
+  let alvo: URL;
+  try {
+    alvo = new URL(raw);
+  } catch {
+    return res.status(400).end();
+  }
+  if (alvo.protocol !== 'https:' || hostBloqueado(alvo.hostname)) return res.status(400).end();
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const r = await fetch(alvo.toString(), {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'SmartPrice/encarte (+https://sistemasmartprice.com.br)' },
+    });
+    clearTimeout(timeout);
+    if (!r.ok) return res.status(r.status).end();
+
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.startsWith('image/')) return res.status(415).end();
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 8 * 1024 * 1024) return res.status(413).end();
+
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch {
+    res.status(502).end();
+  }
+});
+
 // Buscar produto por ID
 router.get('/products/:id', async (req: Request, res: Response) => {
   try {

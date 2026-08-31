@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Sparkles, Download, Palette, Grid3x3, ShoppingCart, Trash2, ChevronUp, ChevronDown, Star } from 'lucide-react';
+import { ArrowLeft, Sparkles, Download, Palette, Grid3x3, ShoppingCart, Trash2, ChevronUp, ChevronDown, Star, Globe, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, Product } from '../../store';
 import { getProxyUrl, cn } from '../../lib/utils';
 import ProductSelector from '../ProductSelector';
+import { buscarImagensInternet, ImagemInternet } from './buscaImagem';
 import {
   Produto, TemaEncarte, LayoutGrade, TEMA_PADRAO, LAYOUT_PADRAO, GRADES_PRESET,
   capacidade, paginar, carregarImagens, desenharPagina, LARGURA, ALTURA,
@@ -37,6 +38,9 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
   const [produtos, setProdutos] = useState<Produto[]>(produtosIniciais ?? []);
   const [pagina, setPagina] = useState(0);
   const [baixando, setBaixando] = useState(false);
+  const [imgTermo, setImgTermo] = useState('');
+  const [imgResultados, setImgResultados] = useState<ImagemInternet[]>([]);
+  const [imgLoading, setImgLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const paginas = useMemo(() => paginar(produtos, capacidade(layout)), [produtos, layout]);
@@ -60,6 +64,33 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
             },
           ],
     );
+  };
+
+  const buscarImagens = async () => {
+    const q = imgTermo.trim();
+    if (!q || imgLoading) return;
+    setImgLoading(true);
+    setImgResultados([]);
+    try {
+      const itens = await buscarImagensInternet(q, 6);
+      setImgResultados(itens);
+      if (!itens.length) toast.info('Nenhuma imagem encontrada nos sites de farmácia.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha na busca de imagens.');
+    } finally {
+      setImgLoading(false);
+    }
+  };
+
+  const usarImagemInternet = (img: ImagemInternet) => {
+    const nome = imgTermo.trim();
+    setProdutos((prev) => [
+      ...prev,
+      { nome: nome || img.title || 'Produto', preco: 0, imagem: img.url, precoDe: null, unidade: '', destaque: false },
+    ]);
+    setImgResultados([]);
+    setImgTermo('');
+    toast.success('Produto adicionado — ajuste o preço na lista.');
   };
 
   const atualizarProduto = (i: number, patch: Partial<Produto>) =>
@@ -228,6 +259,52 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
             <>
               <Titulo icon={ShoppingCart} nome="Produtos" sub="Busque e ajuste cada item" />
               <ProductSelector onSelect={adicionarProduto} />
+
+              {/* Fallback: imagem da internet (sites de farmácia) */}
+              <div className="space-y-2 pt-3 border-t border-zinc-800">
+                <div className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    Não achou? Buscar imagem
+                  </h3>
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    value={imgTermo}
+                    onChange={(e) => setImgTermo(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && buscarImagens()}
+                    placeholder="Nome do produto"
+                    className="flex-grow bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={buscarImagens}
+                    disabled={imgLoading || !imgTermo.trim()}
+                    className="flex items-center gap-1 px-3 rounded-lg bg-zinc-700 text-zinc-200 text-xs font-semibold hover:bg-zinc-600 transition-colors disabled:opacity-50"
+                  >
+                    {imgLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                {imgResultados.length > 0 && (
+                  <>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {imgResultados.map((img, i) => (
+                        <button
+                          key={i}
+                          onClick={() => usarImagemInternet(img)}
+                          title={`${img.title} · ${img.source}`}
+                          className="aspect-square rounded-lg overflow-hidden border border-zinc-700 bg-white hover:border-emerald-500 transition-colors"
+                        >
+                          <img src={img.thumb} className="w-full h-full object-contain" loading="lazy" />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-zinc-500">
+                      Só sites de farmácia. Clique numa imagem pra adicionar o produto (preço em branco).
+                    </p>
+                  </>
+                )}
+              </div>
+
               {produtos.length > 0 && (
                 <div className="space-y-2 pt-3 border-t border-zinc-800">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
