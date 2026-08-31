@@ -321,7 +321,9 @@ router.get('/encarte/image-search', apiAuth, async (req: Request, res: Response)
     const json: any = await r.json().catch(() => ({}));
     if (!r.ok) {
       const msg = json?.error?.message || `Google retornou HTTP ${r.status}`;
-      const status = r.status === 429 || json?.error?.errors?.[0]?.reason === 'dailyLimitExceeded' ? 429 : 502;
+      // 4xx (não 5xx) pra o Cloudflare não trocar o corpo pela página "error code: 502"
+      // e a mensagem real do Google chegar na tela.
+      const status = r.status === 429 || json?.error?.errors?.[0]?.reason === 'dailyLimitExceeded' ? 429 : 422;
       return res.status(status).json({ error: msg });
     }
 
