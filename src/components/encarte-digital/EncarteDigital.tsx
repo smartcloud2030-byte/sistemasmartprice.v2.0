@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Sparkles, Download, Palette, Grid3x3, ShoppingCart, Trash2, ChevronUp, ChevronDown, Star } from 'lucide-react';
+import { ArrowLeft, Sparkles, Download, Palette, Grid3x3, ShoppingCart, Trash2, ChevronUp, ChevronDown, Star, ClipboardList, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, Product } from '../../store';
 import { getProxyUrl, cn } from '../../lib/utils';
 import ProductSelector from '../ProductSelector';
+import { parseLista } from './parseLista';
 import {
   Produto, TemaEncarte, LayoutGrade, TEMA_PADRAO, LAYOUT_PADRAO, GRADES_PRESET,
   capacidade, paginar, carregarImagens, desenharPagina, LARGURA, ALTURA,
@@ -22,6 +23,18 @@ function parsePreco(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Casa um nome (da lista colada) com um produto do catálogo por tokens. */
+function acharNoCatalogo(nome: string, produtos: Product[]): Product | undefined {
+  const tokens = nome.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+  if (!tokens.length) return undefined;
+  return produtos.find((p) => {
+    const hay = `${p.name || ''} ${p.category || ''} ${p.description || ''} ${p.barcode || ''}`.toLowerCase();
+    return tokens.every((t) => hay.includes(t));
+  });
+}
+
+const EXEMPLO_LISTA = 'Pão francês 9,90 kg\nCoca-Cola 2L 8,99\nDetergente - R$ 2,49\nBanana 5,99 kg';
+
 interface EncarteDigitalProps {
   /** estado inicial — usado só pelo preview isolado */
   produtosIniciais?: Produto[];
@@ -30,14 +43,20 @@ interface EncarteDigitalProps {
 }
 
 export default function EncarteDigital({ produtosIniciais, temaInicial, layoutInicial }: EncarteDigitalProps = {}) {
-  const { setView } = useStore();
+  const { setView, products, fetchProducts } = useStore();
   const [painel, setPainel] = useState<Painel>('produtos');
+  const [modoProd, setModoProd] = useState<'lista' | 'buscar'>('lista');
+  const [textoLista, setTextoLista] = useState('');
   const [tema, setTema] = useState<TemaEncarte>({ ...TEMA_PADRAO, ...temaInicial });
   const [layout, setLayout] = useState<LayoutGrade>(layoutInicial ?? LAYOUT_PADRAO);
   const [produtos, setProdutos] = useState<Produto[]>(produtosIniciais ?? []);
   const [pagina, setPagina] = useState(0);
   const [baixando, setBaixando] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    fetchProducts?.();
+  }, []);
 
   const paginas = useMemo(() => paginar(produtos, capacidade(layout)), [produtos, layout]);
   const paginaAtiva = Math.min(pagina, paginas.length - 1);
@@ -60,6 +79,37 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
             },
           ],
     );
+  };
+
+  const adicionarLista = () => {
+    const itens = parseLista(textoLista);
+    if (!itens.length) {
+      toast.error('Nenhum produto reconhecido na lista.');
+      return;
+    }
+    const catalogo = (products ?? []) as Product[];
+    setProdutos((prev) => {
+      const nomes = new Set(prev.map((p) => p.nome.toLowerCase()));
+      const novos: Produto[] = [];
+      for (const it of itens) {
+        const match = acharNoCatalogo(it.nome, catalogo);
+        const nome = (match?.name || it.nome).trim();
+        if (nomes.has(nome.toLowerCase())) continue;
+        nomes.add(nome.toLowerCase());
+        novos.push({
+          nome,
+          preco: it.preco,
+          imagem: match?.image ? getProxyUrl(match.thumb_image || match.image, { thumbnail: true }) : null,
+          precoDe: null,
+          unidade: it.unidade,
+          destaque: false,
+        });
+      }
+      return [...prev, ...novos];
+    });
+    const comImagem = itens.filter((it) => acharNoCatalogo(it.nome, catalogo)?.image).length;
+    toast.success(`${itens.length} ${itens.length === 1 ? 'item' : 'itens'} · ${comImagem} com imagem do catálogo`);
+    setTextoLista('');
   };
 
   const atualizarProduto = (i: number, patch: Partial<Produto>) =>
@@ -226,8 +276,58 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
 
           {painel === 'produtos' && (
             <>
-              <Titulo icon={ShoppingCart} nome="Produtos" sub="Busque e ajuste cada item" />
-              <ProductSelector onSelect={adicionarProduto} />
+              <Titulo icon={ShoppingCart} nome="Produtos" sub="Cole a lista ou busque item a item" />
+
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setModoProd('lista')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
+                    modoProd === 'lista' ? 'bg-emerald-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200',
+                  )}
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Colar lista
+                </button>
+                <button
+                  onClick={() => setModoProd('buscar')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
+                    modoProd === 'buscar' ? 'bg-emerald-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200',
+                  )}
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Buscar
+                </button>
+              </div>
+
+              {modoProd === 'lista' ? (
+                <div className="space-y-2">
+                  <textarea
+                    rows={7}
+                    value={textoLista}
+                    onChange={(e) => setTextoLista(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); adicionarLista(); }
+                    }}
+                    placeholder={`Cole a lista aqui — um produto por linha:\n\n${EXEMPLO_LISTA}`}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500 resize-none font-mono leading-relaxed"
+                  />
+                  <button
+                    onClick={adicionarLista}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors"
+                  >
+                    <ClipboardList className="w-3.5 h-3.5" />
+                    Adicionar lista
+                  </button>
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    Lê <b>nome</b>, <b>preço</b> e <b>unidade</b> de cada linha e busca a imagem no seu catálogo.
+                    Ajuste depois na lista abaixo. Atalho: Ctrl/⌘+Enter.
+                  </p>
+                </div>
+              ) : (
+                <ProductSelector onSelect={adicionarProduto} />
+              )}
               {produtos.length > 0 && (
                 <div className="space-y-2 pt-3 border-t border-zinc-800">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
