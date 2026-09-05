@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRightLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images, Ban } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import { EncarteProduto, EstiloEncarte, ModeloCard, MODELOS_CARD } from './encarteProduto';
 
@@ -67,7 +67,13 @@ export default function ProdutoDetalhes({
 
         <div className="flex flex-col gap-1.5">
           <BotaoAcao icon={Scissors} label="Remover fundo" premium disabled />
-          <BotaoAcaoCor icon={Palette} label="Cor de fundo" value={estilo.corFundo} onChange={(corFundo) => onAtualizarEstilo({ corFundo })} />
+          <BotaoAcaoCor
+            icon={Palette}
+            label="Cor de fundo"
+            value={estilo.corFundo}
+            onChange={(corFundo) => onAtualizarEstilo({ corFundo })}
+            permiteTransparente
+          />
           <BotaoAcaoCor icon={Tag} label="Cor da etiqueta" value={estilo.corEtiqueta} onChange={(corEtiqueta) => onAtualizarEstilo({ corEtiqueta })} />
           <BotaoAcao
             icon={ArrowRightLeft}
@@ -272,21 +278,45 @@ function BotaoAcaoCor({
   label,
   value,
   onChange,
+  permiteTransparente,
 }: {
   icon: React.ElementType;
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** mostra um botão no canto do swatch pra zerar a cor (fundo transparente) */
+  permiteTransparente?: boolean;
 }) {
+  const transparente = value === 'transparent';
   return (
     <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-zinc-700 text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 transition-colors cursor-pointer">
       <Icon className="w-3.5 h-3.5 flex-shrink-0" />
       <span className="truncate">{label}</span>
-      <span
-        className="ml-auto w-4 h-4 rounded border border-zinc-600 flex-shrink-0"
-        style={{ backgroundColor: value }}
+      <span className="relative ml-auto w-4 h-4 flex-shrink-0">
+        <span
+          className="absolute inset-0 rounded border border-zinc-600 bg-[linear-gradient(45deg,#71717a_25%,transparent_25%),linear-gradient(-45deg,#71717a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#71717a_75%),linear-gradient(-45deg,transparent_75%,#71717a_75%)] bg-[length:6px_6px] bg-[position:0_0,0_3px,3px_-3px,-3px_0px]"
+          style={transparente ? undefined : { backgroundColor: value, backgroundImage: 'none' }}
+        />
+        {permiteTransparente && (
+          <button
+            type="button"
+            title="Fundo transparente"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange('transparent'); }}
+            className={cn(
+              'absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full flex items-center justify-center bg-zinc-900 border',
+              transparente ? 'border-emerald-500 text-emerald-400' : 'border-zinc-600 text-zinc-500 hover:text-zinc-300',
+            )}
+          >
+            <Ban className="w-2 h-2" />
+          </button>
+        )}
+      </span>
+      <input
+        type="color"
+        value={transparente ? '#ffffff' : value}
+        onChange={(e) => onChange(e.target.value)}
+        className="sr-only"
       />
-      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" />
     </label>
   );
 }
