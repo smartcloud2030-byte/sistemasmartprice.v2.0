@@ -289,35 +289,39 @@ function BotaoAcaoCor({
 }) {
   const transparente = value === 'transparent';
   return (
-    <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-zinc-700 text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 transition-colors cursor-pointer">
-      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-      <span className="truncate">{label}</span>
-      <span className="relative ml-auto w-4 h-4 flex-shrink-0">
-        <span
-          className="absolute inset-0 rounded border border-zinc-600 bg-[linear-gradient(45deg,#71717a_25%,transparent_25%),linear-gradient(-45deg,#71717a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#71717a_75%),linear-gradient(-45deg,transparent_75%,#71717a_75%)] bg-[length:6px_6px] bg-[position:0_0,0_3px,3px_-3px,-3px_0px]"
-          style={transparente ? undefined : { backgroundColor: value, backgroundImage: 'none' }}
+    <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-zinc-700 text-xs font-semibold text-zinc-300">
+      <label className="flex items-center gap-2 flex-grow min-w-0 cursor-pointer hover:text-zinc-200 transition-colors">
+        <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="truncate">{label}</span>
+        <span className="relative ml-auto w-7 h-7 flex-shrink-0">
+          <span
+            className="absolute inset-0 rounded-md border border-zinc-600 bg-[linear-gradient(45deg,#71717a_25%,transparent_25%),linear-gradient(-45deg,#71717a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#71717a_75%),linear-gradient(-45deg,transparent_75%,#71717a_75%)] bg-[length:8px_8px] bg-[position:0_0,0_4px,4px_-4px,-4px_0px]"
+            style={transparente ? undefined : { backgroundColor: value, backgroundImage: 'none' }}
+          />
+        </span>
+        <input
+          type="color"
+          value={transparente ? '#ffffff' : value}
+          onChange={(e) => onChange(e.target.value)}
+          className="sr-only"
         />
-        {permiteTransparente && (
-          <button
-            type="button"
-            title="Fundo transparente"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange('transparent'); }}
-            className={cn(
-              'absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full flex items-center justify-center bg-zinc-900 border',
-              transparente ? 'border-emerald-500 text-emerald-400' : 'border-zinc-600 text-zinc-500 hover:text-zinc-300',
-            )}
-          >
-            <Ban className="w-2 h-2" />
-          </button>
-        )}
-      </span>
-      <input
-        type="color"
-        value={transparente ? '#ffffff' : value}
-        onChange={(e) => onChange(e.target.value)}
-        className="sr-only"
-      />
-    </label>
+      </label>
+      {permiteTransparente && (
+        <button
+          type="button"
+          title="Fundo transparente (sem cor)"
+          onClick={() => onChange('transparent')}
+          className={cn(
+            'flex-shrink-0 w-7 h-7 rounded-md border flex items-center justify-center transition-colors',
+            transparente
+              ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+              : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300',
+          )}
+        >
+          <Ban className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 
