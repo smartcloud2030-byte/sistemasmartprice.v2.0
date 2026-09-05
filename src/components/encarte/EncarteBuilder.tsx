@@ -10,6 +10,7 @@ import ElementosTab from './ElementosTab';
 import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
+import { useHistoricoEdicao, OpcoesSet } from './useHistoricoEdicao';
 import { Formato, FORMATO_PADRAO, FormatoId, getFormato } from './formatos';
 import {
   EncarteProduto,
@@ -17,11 +18,15 @@ import {
   GradeId,
   LadoEncarte,
   ElementoImagem,
+  FormaEncarte,
+  FormaTipo,
   criarEncarteProduto,
   criarLado,
   clonarLado,
+  comFormas,
   criarDivisor,
   criarElementoImagem,
+  criarForma,
   organizarEmGrade,
 } from './encarteProduto';
 import {
@@ -60,13 +65,36 @@ interface EncarteBuilderProps {
   menuInicial?: MenuItem;
 }
 
+/** Tudo que o desfazer/refazer acompanha: formato + os dois lados do encarte. */
+interface EncarteDoc {
+  formatoId: FormatoId;
+  ladoFrente: LadoEncarte;
+  ladoVerso: LadoEncarte | null;
+}
+
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
   const { setView, currentUser } = useStore();
   const cnpj = currentUser?.cnpj?.replace(/[^\d]/g, '');
   const [activeMenu, setActiveMenu] = useState<MenuItem>(menuInicial ?? 'temas');
-  const [formato, setFormato] = useState<Formato>(formatoInicial ?? FORMATO_PADRAO);
-  const [ladoFrente, setLadoFrente] = useState<LadoEncarte>(() => ladoInicial ?? criarLado());
-  const [ladoVerso, setLadoVerso] = useState<LadoEncarte | null>(null);
+
+  const {
+    presente: doc,
+    set: setDoc,
+    resetar: resetarDoc,
+    desfazer,
+    refazer,
+    podeDesfazer,
+    podeRefazer,
+  } = useHistoricoEdicao<EncarteDoc>(() => ({
+    formatoId: (formatoInicial ?? FORMATO_PADRAO).id,
+    ladoFrente: comFormas(ladoInicial ?? criarLado()),
+    ladoVerso: null,
+  }));
+
+  const formato = getFormato(doc.formatoId);
+  const ladoFrente = doc.ladoFrente;
+  const ladoVerso = doc.ladoVerso;
+
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
@@ -86,9 +114,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         const [rascunho, hist] = await Promise.all([carregarRascunho(cnpj), carregarHistorico(cnpj)]);
         if (cancelado) return;
         if (rascunho) {
-          setFormato(getFormato(rascunho.formato as FormatoId));
-          setLadoFrente(rascunho.ladoFrente);
-          setLadoVerso(rascunho.ladoVerso);
+          resetarDoc({
+            formatoId: rascunho.formato as FormatoId,
+            ladoFrente: comFormas(rascunho.ladoFrente),
+            ladoVerso: rascunho.ladoVerso ? comFormas(rascunho.ladoVerso) : null,
+          });
         }
         setHistorico(hist);
       } catch (err) {
@@ -106,21 +136,43 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   useEffect(() => {
     if (!prontoParaAutoSalvar.current || !cnpj) return;
     const t = setTimeout(() => {
-      salvarRascunho(cnpj, { formato: formato.id, ladoFrente, ladoVerso }).catch((err) => {
+      salvarRascunho(cnpj, { formato: doc.formatoId, ladoFrente, ladoVerso }).catch((err) => {
         console.error('Erro ao salvar rascunho do encarte:', err);
       });
     }, 1200);
     return () => clearTimeout(t);
-  }, [cnpj, formato, ladoFrente, ladoVerso]);
+  }, [cnpj, doc, ladoFrente, ladoVerso]);
+
+  // Atalhos de teclado: Ctrl/Cmd+Z desfaz, Ctrl/Cmd+Shift+Z (ou Ctrl+Y) refaz.
+  // Não intercepta quando o foco está num campo de texto (deixa o undo nativo do campo).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'z' && k !== 'y') return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+      e.preventDefault();
+      if (k === 'y' || (k === 'z' && e.shiftKey)) refazer();
+      else desfazer();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [desfazer, refazer]);
 
   const activeLabel = MENU_ITEMS.find((m) => m.id === activeMenu)?.label;
   const lado = ladoAtivo === 'verso' && ladoVerso ? ladoVerso : ladoFrente;
 
-  /** Aplica um patch (objeto ou função) ao lado ativo. */
-  const atualizarLado = (patch: Partial<LadoEncarte> | ((l: LadoEncarte) => Partial<LadoEncarte>)) => {
+  /** Aplica um patch (objeto ou função) ao lado ativo, passando pelo histórico. */
+  const atualizarLado = (
+    patch: Partial<LadoEncarte> | ((l: LadoEncarte) => Partial<LadoEncarte>),
+    opcoes?: OpcoesSet,
+  ) => {
     const aplicar = (l: LadoEncarte): LadoEncarte => ({ ...l, ...(typeof patch === 'function' ? patch(l) : patch) });
-    if (ladoAtivo === 'verso') setLadoVerso((l) => (l ? aplicar(l) : l));
-    else setLadoFrente(aplicar);
+    setDoc((d) => {
+      if (ladoAtivo === 'verso') return d.ladoVerso ? { ...d, ladoVerso: aplicar(d.ladoVerso) } : d;
+      return { ...d, ladoFrente: aplicar(d.ladoFrente) };
+    }, opcoes);
   };
 
   const adicionarProduto = (product: Product) => {
@@ -145,31 +197,46 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   /** Move um produto do lado ativo pro outro (cria o verso vazio se ainda não existir). */
   const enviarProdutoParaOutroLado = (id: string | number | undefined) => {
-    const produto = lado.produtos.find((ep) => ep.product.id === id);
-    if (!produto) return;
+    setDoc((d) => {
+      const origem = ladoAtivo === 'verso' && d.ladoVerso ? d.ladoVerso : d.ladoFrente;
+      const produto = origem.produtos.find((ep) => ep.product.id === id);
+      if (!produto) return d;
 
-    const inserirNoDestino = (destino: LadoEncarte): LadoEncarte => {
-      if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
-      const produtos = [...destino.produtos, produto];
-      if (destino.grade === 'livre') return { ...destino, produtos };
-      const r = organizarEmGrade(produtos, destino.grade, formato);
-      return { ...destino, produtos: r.produtos, estilo: { ...destino.estilo, escalaCard: r.escalaCard } };
-    };
+      const inserir = (destino: LadoEncarte): LadoEncarte => {
+        if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
+        const produtos = [...destino.produtos, produto];
+        if (destino.grade === 'livre') return { ...destino, produtos };
+        const r = organizarEmGrade(produtos, destino.grade, formato);
+        return { ...destino, produtos: r.produtos, estilo: { ...destino.estilo, escalaCard: r.escalaCard } };
+      };
+      const tirar = (l: LadoEncarte): LadoEncarte => {
+        const produtos = l.produtos.filter((ep) => ep.product.id !== id);
+        if (l.grade === 'livre') return { ...l, produtos };
+        const r = organizarEmGrade(produtos, l.grade, formato);
+        return { ...l, produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
+      };
 
-    if (ladoAtivo === 'frente') {
-      setLadoVerso((v) => inserirNoDestino(v ?? criarLado()));
-    } else {
-      setLadoFrente((f) => inserirNoDestino(f));
-    }
-    removerProduto(id);
+      if (ladoAtivo === 'frente') {
+        return { ...d, ladoFrente: tirar(d.ladoFrente), ladoVerso: inserir(d.ladoVerso ?? criarLado()) };
+      }
+      return { ...d, ladoVerso: d.ladoVerso ? tirar(d.ladoVerso) : d.ladoVerso, ladoFrente: inserir(d.ladoFrente) };
+    });
+    setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
-  const atualizarProduto = (id: string | number | undefined, patch: Partial<EncarteProduto>) => {
-    atualizarLado((l) => ({ produtos: l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)) }));
+  const atualizarProduto = (
+    id: string | number | undefined,
+    patch: Partial<EncarteProduto>,
+    opcoes?: OpcoesSet,
+  ) => {
+    atualizarLado(
+      (l) => ({ produtos: l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)) }),
+      opcoes,
+    );
   };
 
   const moverProduto = (id: string | number | undefined, xPct: number, yPct: number) =>
-    atualizarProduto(id, { xPct, yPct });
+    atualizarProduto(id, { xPct, yPct }, { coalesce: `mover-produto-${id ?? 'x'}` });
 
   const atualizarEstilo = (patch: Partial<EstiloEncarte>) =>
     atualizarLado((l) => ({ estilo: { ...l.estilo, ...patch } }));
@@ -183,19 +250,22 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   const trocarFormato = (f: Formato) => {
-    setFormato(f);
-    setLadoFrente((l) => regridLado(l, f));
-    setLadoVerso((l) => (l ? regridLado(l, f) : l));
+    setDoc((d) => ({
+      ...d,
+      formatoId: f.id,
+      ladoFrente: regridLado(d.ladoFrente, f),
+      ladoVerso: d.ladoVerso ? regridLado(d.ladoVerso, f) : null,
+    }));
   };
 
   const adicionarVerso = () => {
-    setLadoVerso(clonarLado(ladoFrente));
+    setDoc((d) => ({ ...d, ladoVerso: clonarLado(d.ladoFrente) }));
     setLadoAtivo('verso');
     setProdutoDetalhadoId(null);
   };
 
   const removerVerso = () => {
-    setLadoVerso(null);
+    setDoc((d) => ({ ...d, ladoVerso: null }));
     setLadoAtivo('frente');
     setProdutoDetalhadoId(null);
   };
@@ -214,7 +284,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado((l) => ({ divisores: l.divisores.filter((d) => d.id !== id) }));
 
   const moverDivisor = (id: string, yPct: number) =>
-    atualizarLado((l) => ({ divisores: l.divisores.map((d) => (d.id === id ? { ...d, yPct } : d)) }));
+    atualizarLado(
+      (l) => ({ divisores: l.divisores.map((d) => (d.id === id ? { ...d, yPct } : d)) }),
+      { coalesce: `mover-divisor-${id}` },
+    );
 
   const atualizarRodape = (patch: Partial<{ ativo: boolean; texto: string }>) =>
     atualizarLado((l) => ({ rodape: { ...l.rodape, ...patch } }));
@@ -243,10 +316,39 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const removerImagemDoEncartePorUrl = (categoria: string, url: string) =>
     atualizarLado((l) => ({ imagens: l.imagens.filter((im) => !(im.categoria === categoria && im.url === url)) }));
 
-  const atualizarImagem = (id: string, patch: Partial<ElementoImagem>) =>
-    atualizarLado((l) => ({ imagens: l.imagens.map((im) => (im.id === id ? { ...im, ...patch } : im)) }));
+  const atualizarImagem = (id: string, patch: Partial<ElementoImagem>, opcoes?: OpcoesSet) =>
+    atualizarLado(
+      (l) => ({ imagens: l.imagens.map((im) => (im.id === id ? { ...im, ...patch } : im)) }),
+      opcoes,
+    );
 
-  const moverImagem = (id: string, xPct: number, yPct: number) => atualizarImagem(id, { xPct, yPct });
+  const moverImagem = (id: string, xPct: number, yPct: number) =>
+    atualizarImagem(id, { xPct, yPct }, { coalesce: `mover-imagem-${id}` });
+
+  const redimensionarImagem = (id: string, patch: Partial<ElementoImagem>) =>
+    atualizarImagem(id, patch, { coalesce: `redim-imagem-${id}` });
+
+  // ── Formas (quadrado, retângulo, círculo) ───────────────────────────
+  const adicionarForma = (tipo: FormaTipo) =>
+    atualizarLado((l) => ({ formas: [...(l.formas ?? []), criarForma(tipo)] }));
+
+  const atualizarForma = (id: string, patch: Partial<FormaEncarte>, opcoes?: OpcoesSet) =>
+    atualizarLado(
+      (l) => ({ formas: (l.formas ?? []).map((f) => (f.id === id ? { ...f, ...patch } : f)) }),
+      opcoes,
+    );
+
+  const moverForma = (id: string, xPct: number, yPct: number) =>
+    atualizarForma(id, { xPct, yPct }, { coalesce: `mover-forma-${id}` });
+
+  const redimensionarForma = (id: string, patch: Partial<FormaEncarte>) =>
+    atualizarForma(id, patch, { coalesce: `redim-forma-${id}` });
+
+  const definirCorForma = (id: string, cor: string) =>
+    atualizarForma(id, { cor }, { coalesce: `cor-forma-${id}` });
+
+  const removerForma = (id: string) =>
+    atualizarLado((l) => ({ formas: (l.formas ?? []).filter((f) => f.id !== id) }));
 
   /** Chamado pelo EncarteCanvas depois de um download bem-sucedido — grava no histórico. */
   const registrarNoHistorico = (imagemPreview: string) => {
@@ -254,7 +356,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     salvarNoHistorico(cnpj, {
       nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`,
       imagemPreview,
-      formato: formato.id,
+      formato: doc.formatoId,
       ladoFrente,
       ladoVerso,
     })
@@ -263,9 +365,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   const abrirDoHistorico = (entry: EncarteSalvo) => {
-    setFormato(getFormato(entry.formato as FormatoId));
-    setLadoFrente(entry.ladoFrente);
-    setLadoVerso(entry.ladoVerso);
+    resetarDoc({
+      formatoId: entry.formato as FormatoId,
+      ladoFrente: comFormas(entry.ladoFrente),
+      ladoVerso: entry.ladoVerso ? comFormas(entry.ladoVerso) : null,
+    });
     setLadoAtivo('frente');
     setProdutoDetalhadoId(null);
   };
@@ -377,17 +481,27 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           grade={lado.grade}
           divisores={lado.divisores}
           imagens={lado.imagens}
+          formas={lado.formas ?? []}
           rodape={lado.rodape}
           ladoAtivo={ladoAtivo}
           temVerso={ladoVerso != null}
           produtoDetalhadoId={produtoDetalhadoId}
+          podeDesfazer={podeDesfazer}
+          podeRefazer={podeRefazer}
+          onDesfazer={desfazer}
+          onRefazer={refazer}
           onAdicionarProdutos={() => setActiveMenu('produtos')}
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
           onMoverDivisor={moverDivisor}
           onMoverImagem={moverImagem}
-          onRedimensionarImagem={atualizarImagem}
+          onRedimensionarImagem={redimensionarImagem}
           onRemoverImagem={removerImagem}
+          onAdicionarForma={adicionarForma}
+          onMoverForma={moverForma}
+          onRedimensionarForma={redimensionarForma}
+          onDefinirCorForma={definirCorForma}
+          onRemoverForma={removerForma}
           onGradeChange={definirGrade}
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}

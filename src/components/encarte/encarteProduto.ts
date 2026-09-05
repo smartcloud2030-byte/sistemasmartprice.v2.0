@@ -209,6 +209,45 @@ export function criarElementoImagem(url: string, categoria: string): ElementoIma
   };
 }
 
+// ── Forma geométrica (quadrado, retângulo, círculo) ───────────────────
+
+export type FormaTipo = 'quadrado' | 'retangulo' | 'circulo';
+
+export const FORMAS_DISPONIVEIS: { tipo: FormaTipo; nome: string }[] = [
+  { tipo: 'quadrado', nome: 'Quadrado' },
+  { tipo: 'retangulo', nome: 'Retângulo' },
+  { tipo: 'circulo', nome: 'Círculo' },
+];
+
+/** Forma solta sobre o encarte — arrastável, redimensionável e com cor própria. */
+export interface FormaEncarte {
+  id: string;
+  tipo: FormaTipo;
+  /** canto superior esquerdo e tamanho, em % do canvas */
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+  cor: string;
+}
+
+const TAMANHO_INICIAL_FORMA: Record<FormaTipo, { wPct: number; hPct: number }> = {
+  quadrado: { wPct: 22, hPct: 22 },
+  retangulo: { wPct: 34, hPct: 16 },
+  circulo: { wPct: 22, hPct: 22 },
+};
+
+export function criarForma(tipo: FormaTipo): FormaEncarte {
+  return {
+    id: `forma_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    tipo,
+    xPct: 39,
+    yPct: 39,
+    ...TAMANHO_INICIAL_FORMA[tipo],
+    cor: '#e8850c', // laranja Ultra Popular (mesmo dos divisores)
+  };
+}
+
 // ── Lado do encarte (frente / verso) ──────────────────────────────────
 
 /**
@@ -223,6 +262,7 @@ export interface LadoEncarte {
   grade: GradeId;
   divisores: DivisorEncarte[];
   imagens: ElementoImagem[];
+  formas: FormaEncarte[];
   rodape: { ativo: boolean; texto: string };
 }
 
@@ -234,6 +274,7 @@ export function criarLado(): LadoEncarte {
     grade: 'livre',
     divisores: [],
     imagens: [],
+    formas: [],
     rodape: { ativo: false, texto: '5 unidades por cliente' },
   };
 }
@@ -246,6 +287,10 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
     grade: l.grade,
     divisores: l.divisores.map((d) => ({ ...d })),
     imagens: l.imagens.map((im) => ({ ...im })),
+    formas: (l.formas ?? []).map((f) => ({ ...f })),
     rodape: { ...l.rodape },
   };
 }
+
+/** Garante `formas: []` em lados vindos de rascunhos/histórico salvos antes das formas existirem. */
+export const comFormas = (l: LadoEncarte): LadoEncarte => (l.formas ? l : { ...l, formas: [] });
