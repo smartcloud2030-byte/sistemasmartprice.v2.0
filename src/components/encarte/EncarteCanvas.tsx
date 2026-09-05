@@ -10,8 +10,10 @@ import EncarteProductCard from './EncarteProductCard';
 import { Formato } from './formatos';
 import {
   EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
-  DivisorEncarte, FUNDOS_BUILTIN, ehFundoBuiltin,
+  DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin,
 } from './encarteProduto';
+
+const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
 
 const TOOLBAR_ITEMS = [
   { icon: Type, label: 'Fontes' },
@@ -30,6 +32,7 @@ interface EncarteCanvasProps {
   formato: Formato;
   grade: GradeId;
   divisores: DivisorEncarte[];
+  imagens: ElementoImagem[];
   rodape: { ativo: boolean; texto: string };
   ladoAtivo: 'frente' | 'verso';
   temVerso: boolean;
@@ -38,6 +41,9 @@ interface EncarteCanvasProps {
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
   onMoverDivisor: (id: string, yPct: number) => void;
+  onMoverImagem: (id: string, xPct: number, yPct: number) => void;
+  onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
+  onRemoverImagem: (id: string) => void;
   onGradeChange: (grade: GradeId) => void;
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
@@ -55,6 +61,18 @@ interface DragState {
   moved: boolean;
 }
 
+type Canto = 'nw' | 'ne' | 'sw' | 'se';
+
+interface ImagemDragState {
+  tipo: 'mover' | 'resize';
+  canto?: Canto;
+  id: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  orig: ElementoImagem;
+}
+
 export default function EncarteCanvas({
   backgroundUrl,
   produtos,
@@ -62,6 +80,7 @@ export default function EncarteCanvas({
   formato,
   grade,
   divisores,
+  imagens,
   rodape,
   ladoAtivo,
   temVerso,
@@ -70,6 +89,9 @@ export default function EncarteCanvas({
   onAbrirDetalhes,
   onMoverProduto,
   onMoverDivisor,
+  onMoverImagem,
+  onRedimensionarImagem,
+  onRemoverImagem,
   onGradeChange,
   onAdicionarVerso,
   onRemoverVerso,
@@ -79,6 +101,7 @@ export default function EncarteCanvas({
   const [gradeAberta, setGradeAberta] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const imgDragRef = useRef<ImagemDragState | null>(null);
 
   const handleDownload = async () => {
     if (!canvasRef.current || exportando) return;
@@ -142,6 +165,59 @@ export default function EncarteCanvas({
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     dragRef.current = null;
     if (st && !st.moved) aoClicar?.();
+  };
+
+  const iniciarImagemDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    tipo: 'mover' | 'resize',
+    im: ElementoImagem,
+    canto?: Canto,
+  ) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    imgDragRef.current = { tipo, canto, id: im.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: im };
+  };
+
+  const handleImagemPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = imgDragRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!st || !rect || e.pointerId !== st.pointerId) return;
+    const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
+    const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
+    const o = st.orig;
+
+    if (st.tipo === 'mover') {
+      onMoverImagem(
+        st.id,
+        clamp(o.xPct + dxPct, 0, 100 - o.wPct),
+        clamp(o.yPct + dyPct, 0, 100 - o.hPct),
+      );
+      return;
+    }
+
+    let { xPct, yPct, wPct, hPct } = o;
+    const oesteMax = o.xPct + o.wPct - MIN_ELEMENTO;
+    const norteMax = o.yPct + o.hPct - MIN_ELEMENTO;
+    if (st.canto === 'nw' || st.canto === 'sw') {
+      xPct = clamp(o.xPct + dxPct, 0, oesteMax);
+      wPct = o.xPct + o.wPct - xPct;
+    }
+    if (st.canto === 'ne' || st.canto === 'se') {
+      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 - o.xPct);
+    }
+    if (st.canto === 'nw' || st.canto === 'ne') {
+      yPct = clamp(o.yPct + dyPct, 0, norteMax);
+      hPct = o.yPct + o.hPct - yPct;
+    }
+    if (st.canto === 'sw' || st.canto === 'se') {
+      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 100 - o.yPct);
+    }
+    onRedimensionarImagem(st.id, { xPct, yPct, wPct, hPct });
+  };
+
+  const handleImagemPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    imgDragRef.current = null;
   };
 
   return (
@@ -332,6 +408,57 @@ export default function EncarteCanvas({
               ))}
             </div>
           )}
+
+          {/* Imagens livres — logos, selos, adesivos: arrastar e redimensionar pelos cantos */}
+          {imagens.map((im) => (
+            <div
+              key={im.id}
+              className="absolute group touch-none"
+              style={{ left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%` }}
+            >
+              <div
+                className="w-full h-full cursor-grab active:cursor-grabbing"
+                onPointerDown={(e) => iniciarImagemDrag(e, 'mover', im)}
+                onPointerMove={handleImagemPointerMove}
+                onPointerUp={handleImagemPointerUp}
+                onPointerCancel={handleImagemPointerUp}
+              >
+                <img
+                  src={getProxyUrl(im.url)}
+                  className="w-full h-full object-contain pointer-events-none"
+                  draggable={false}
+                />
+              </div>
+
+              <button
+                onClick={() => onRemoverImagem(im.id)}
+                onPointerDown={(e) => e.stopPropagation()}
+                data-html2canvas-ignore="true"
+                title="Remover imagem"
+                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3" />
+              </button>
+
+              {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
+                <div
+                  key={canto}
+                  onPointerDown={(e) => iniciarImagemDrag(e, 'resize', im, canto)}
+                  onPointerMove={handleImagemPointerMove}
+                  onPointerUp={handleImagemPointerUp}
+                  onPointerCancel={handleImagemPointerUp}
+                  data-html2canvas-ignore="true"
+                  className={cn(
+                    'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow opacity-0 group-hover:opacity-100 transition-opacity',
+                    canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+                    canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+                    canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+                    canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+                  )}
+                />
+              ))}
+            </div>
+          ))}
 
           {/* Rodapé */}
           {rodape.ativo && (

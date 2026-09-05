@@ -14,10 +14,12 @@ import {
   EstiloEncarte,
   GradeId,
   LadoEncarte,
+  ElementoImagem,
   criarEncarteProduto,
   criarLado,
   clonarLado,
   criarDivisor,
+  criarElementoImagem,
   organizarEmGrade,
 } from './encarteProduto';
 
@@ -142,6 +144,17 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const atualizarRodape = (patch: Partial<{ ativo: boolean; texto: string }>) =>
     atualizarLado((l) => ({ rodape: { ...l.rodape, ...patch } }));
 
+  const adicionarImagem = (url: string) =>
+    atualizarLado((l) => ({ imagens: [...l.imagens, criarElementoImagem(url)] }));
+
+  const removerImagem = (id: string) =>
+    atualizarLado((l) => ({ imagens: l.imagens.filter((im) => im.id !== id) }));
+
+  const atualizarImagem = (id: string, patch: Partial<ElementoImagem>) =>
+    atualizarLado((l) => ({ imagens: l.imagens.map((im) => (im.id === id ? { ...im, ...patch } : im)) }));
+
+  const moverImagem = (id: string, xPct: number, yPct: number) => atualizarImagem(id, { xPct, yPct });
+
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
 
   return (
@@ -183,7 +196,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onVoltar={() => setProdutoDetalhadoId(null)}
             />
           ) : activeMenu === 'temas' ? (
-            <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url })} />
+            <TemasTab
+              selecionada={lado.tema}
+              onSelecionar={(url) => atualizarLado({ tema: url })}
+              onAdicionarImagem={adicionarImagem}
+            />
           ) : activeMenu === 'produtos' ? (
             <ProdutosTab
               selecionados={lado.produtos}
@@ -217,6 +234,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           formato={formato}
           grade={lado.grade}
           divisores={lado.divisores}
+          imagens={lado.imagens}
           rodape={lado.rodape}
           ladoAtivo={ladoAtivo}
           temVerso={ladoVerso != null}
@@ -225,6 +243,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
           onMoverDivisor={moverDivisor}
+          onMoverImagem={moverImagem}
+          onRedimensionarImagem={atualizarImagem}
+          onRemoverImagem={removerImagem}
           onGradeChange={definirGrade}
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}

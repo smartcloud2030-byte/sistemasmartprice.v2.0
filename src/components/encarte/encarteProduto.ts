@@ -175,12 +175,36 @@ export function criarDivisor(texto = 'Genéricos e Similares'): DivisorEncarte {
   return { id: `div_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, texto, yPct: 45 };
 }
 
+// ── Imagem livre (logo, selo, adesivo etc.) ────────────────────────────
+
+/** Imagem solta sobre o encarte — arrastável e redimensionável livremente. */
+export interface ElementoImagem {
+  id: string;
+  url: string;
+  /** canto superior esquerdo e tamanho, em % do canvas */
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
+export function criarElementoImagem(url: string): ElementoImagem {
+  return {
+    id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    url,
+    xPct: 32,
+    yPct: 32,
+    wPct: 28,
+    hPct: 28,
+  };
+}
+
 // ── Lado do encarte (frente / verso) ──────────────────────────────────
 
 /**
  * Um lado do encarte. Frente e verso são independentes: cada um tem seus
- * produtos, posições, tema, estilo, grade, divisores e rodapé. O verso
- * nasce como cópia da frente e daí em diante é editado sozinho.
+ * produtos, posições, tema, estilo, grade, divisores, imagens e rodapé. O
+ * verso nasce como cópia da frente e daí em diante é editado sozinho.
  */
 export interface LadoEncarte {
   produtos: EncarteProduto[];
@@ -188,6 +212,7 @@ export interface LadoEncarte {
   tema: string | null;
   grade: GradeId;
   divisores: DivisorEncarte[];
+  imagens: ElementoImagem[];
   rodape: { ativo: boolean; texto: string };
 }
 
@@ -198,6 +223,7 @@ export function criarLado(): LadoEncarte {
     tema: null,
     grade: 'livre',
     divisores: [],
+    imagens: [],
     rodape: { ativo: false, texto: '5 unidades por cliente' },
   };
 }
@@ -209,6 +235,7 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
     tema: l.tema,
     grade: l.grade,
     divisores: l.divisores.map((d) => ({ ...d })),
+    imagens: l.imagens.map((im) => ({ ...im })),
     rodape: { ...l.rodape },
   };
 }
