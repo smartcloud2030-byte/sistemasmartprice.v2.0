@@ -219,11 +219,29 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const atualizarRodape = (patch: Partial<{ ativo: boolean; texto: string }>) =>
     atualizarLado((l) => ({ rodape: { ...l.rodape, ...patch } }));
 
-  const adicionarImagem = (url: string) =>
-    atualizarLado((l) => ({ imagens: [...l.imagens, criarElementoImagem(url)] }));
+  /**
+   * Sem "múltiplo": substitui a imagem já colocada por essa aba/categoria
+   * (mesma posição e tamanho de antes) — só troca a figura. Com "múltiplo"
+   * ativado, ou se ainda não tinha nenhuma dessa categoria, adiciona uma nova.
+   */
+  const adicionarImagem = (url: string, categoria: string, multiplo: boolean) => {
+    atualizarLado((l) => {
+      if (!multiplo) {
+        const existente = l.imagens.find((im) => im.categoria === categoria);
+        if (existente) {
+          return { imagens: l.imagens.map((im) => (im.id === existente.id ? { ...im, url } : im)) };
+        }
+      }
+      return { imagens: [...l.imagens, criarElementoImagem(url, categoria)] };
+    });
+  };
 
   const removerImagem = (id: string) =>
     atualizarLado((l) => ({ imagens: l.imagens.filter((im) => im.id !== id) }));
+
+  /** Tira do encarte a(s) imagem(ns) dessa categoria com essa URL, sem apagar da galeria. */
+  const removerImagemDoEncartePorUrl = (categoria: string, url: string) =>
+    atualizarLado((l) => ({ imagens: l.imagens.filter((im) => !(im.categoria === categoria && im.url === url)) }));
 
   const atualizarImagem = (id: string, patch: Partial<ElementoImagem>) =>
     atualizarLado((l) => ({ imagens: l.imagens.map((im) => (im.id === id ? { ...im, ...patch } : im)) }));
@@ -309,7 +327,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               subtitulo="Imagens soltas sobre o encarte"
               icon={Tag}
               categoria="encarte-elementos"
-              onAdicionarImagem={adicionarImagem}
+              elementosAtivos={lado.imagens.filter((im) => im.categoria === 'encarte-elementos')}
+              onAdicionarImagem={(url, multiplo) => adicionarImagem(url, 'encarte-elementos', multiplo)}
+              onRemoverDoEncarte={(url) => removerImagemDoEncartePorUrl('encarte-elementos', url)}
             />
           ) : activeMenu === 'marca' ? (
             <GaleriaImagensTab
@@ -317,7 +337,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               subtitulo="Logos e imagens da marca"
               icon={Building2}
               categoria="encarte-marca"
-              onAdicionarImagem={adicionarImagem}
+              elementosAtivos={lado.imagens.filter((im) => im.categoria === 'encarte-marca')}
+              onAdicionarImagem={(url, multiplo) => adicionarImagem(url, 'encarte-marca', multiplo)}
+              onRemoverDoEncarte={(url) => removerImagemDoEncartePorUrl('encarte-marca', url)}
             />
           ) : activeMenu === 'produtos' ? (
             <ProdutosTab

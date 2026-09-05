@@ -186,6 +186,10 @@ export function criarDivisor(texto = 'Genéricos e Similares'): DivisorEncarte {
 export interface ElementoImagem {
   id: string;
   url: string;
+  /** categoria da galeria que colocou essa imagem (ex.: 'encarte-elementos' de Tags,
+   *  'encarte-marca' de Marca) — usada pra saber qual imagem substituir quando a
+   *  aba está no modo "uma imagem só". */
+  categoria: string;
   /** canto superior esquerdo e tamanho, em % do canvas */
   xPct: number;
   yPct: number;
@@ -193,10 +197,11 @@ export interface ElementoImagem {
   hPct: number;
 }
 
-export function criarElementoImagem(url: string): ElementoImagem {
+export function criarElementoImagem(url: string, categoria: string): ElementoImagem {
   return {
     id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     url,
+    categoria,
     xPct: 32,
     yPct: 32,
     wPct: 28,
