@@ -3,7 +3,7 @@ import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGr
 import { useStore, Product } from '../../store';
 import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
-import TagsTab from './TagsTab';
+import GaleriaImagensTab from './GaleriaImagensTab';
 import ProdutosTab from './ProdutosTab';
 import FormatosTab from './FormatosTab';
 import ElementosTab from './ElementosTab';
@@ -304,7 +304,21 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           ) : activeMenu === 'temas' ? (
             <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url })} />
           ) : activeMenu === 'tags' ? (
-            <TagsTab onAdicionarImagem={adicionarImagem} />
+            <GaleriaImagensTab
+              titulo="Tags"
+              subtitulo="Imagens soltas sobre o encarte"
+              icon={Tag}
+              categoria="encarte-elementos"
+              onAdicionarImagem={adicionarImagem}
+            />
+          ) : activeMenu === 'marca' ? (
+            <GaleriaImagensTab
+              titulo="Marca"
+              subtitulo="Logos e imagens da marca"
+              icon={Building2}
+              categoria="encarte-marca"
+              onAdicionarImagem={adicionarImagem}
+            />
           ) : activeMenu === 'produtos' ? (
             <ProdutosTab
               selecionados={lado.produtos}
