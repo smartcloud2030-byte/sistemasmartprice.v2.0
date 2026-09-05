@@ -6,7 +6,6 @@ import { getProxyUrl, cn } from '../../lib/utils';
 import { FUNDOS_BUILTIN } from './encarteProduto';
 
 const CATEGORIA = 'encarte-temas';
-const CATEGORIA_IMAGENS = 'encarte-elementos';
 const API_SECRET = import.meta.env.VITE_API_SECRET;
 
 const PRONTOS: { id: string; nome: string }[] = [
@@ -17,10 +16,9 @@ const PRONTOS: { id: string; nome: string }[] = [
 interface TemasTabProps {
   selecionada: string | null;
   onSelecionar: (url: string) => void;
-  onAdicionarImagem: (url: string) => void;
 }
 
-export default function TemasTab({ selecionada, onSelecionar, onAdicionarImagem }: TemasTabProps) {
+export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const [imagens, setImagens] = useState<GalleryImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -30,10 +28,6 @@ export default function TemasTab({ selecionada, onSelecionar, onAdicionarImagem 
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
-
-  const [imagensElementos, setImagensElementos] = useState<GalleryImage[]>([]);
-  const [isLoadingElementos, setIsLoadingElementos] = useState(true);
-  const [isUploadingElemento, setIsUploadingElemento] = useState(false);
 
   const carregarImagens = async () => {
     try {
@@ -46,18 +40,7 @@ export default function TemasTab({ selecionada, onSelecionar, onAdicionarImagem 
     }
   };
 
-  const carregarImagensElementos = async () => {
-    try {
-      const lista = await listGalleryImages(CATEGORIA_IMAGENS);
-      setImagensElementos(lista);
-    } catch {
-      toast.error('Não foi possível carregar as imagens salvas.');
-    } finally {
-      setIsLoadingElementos(false);
-    }
-  };
-
-  useEffect(() => { carregarImagens(); carregarImagensElementos(); }, []);
+  useEffect(() => { carregarImagens(); }, []);
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
@@ -70,19 +53,6 @@ export default function TemasTab({ selecionada, onSelecionar, onAdicionarImagem 
       toast.error('Falha ao enviar o fundo. Tente novamente.');
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  const handleUploadElemento = async (file: File) => {
-    setIsUploadingElemento(true);
-    try {
-      await uploadBackgroundImage(file, CATEGORIA_IMAGENS);
-      await carregarImagensElementos();
-      toast.success('Imagem enviada!');
-    } catch {
-      toast.error('Falha ao enviar a imagem. Tente novamente.');
-    } finally {
-      setIsUploadingElemento(false);
     }
   };
 
@@ -254,46 +224,6 @@ export default function TemasTab({ selecionada, onSelecionar, onAdicionarImagem 
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="pt-3 border-t border-zinc-800 space-y-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Imagens</h3>
-          <label
-            title="Enviar imagem"
-            className="ml-auto flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-dashed border-zinc-700 text-zinc-500 hover:border-emerald-500/50 hover:text-emerald-500 transition-colors cursor-pointer"
-          >
-            {isUploadingElemento ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={isUploadingElemento}
-              onChange={(e) => e.target.files?.[0] && handleUploadElemento(e.target.files[0])}
-            />
-          </label>
-        </div>
-        <p className="text-[10px] text-zinc-500 leading-relaxed">
-          Clique numa imagem pra adicionar ao encarte — depois é só arrastar e redimensionar pelos cantos.
-        </p>
-        {isLoadingElementos ? (
-          <p className="text-xs text-zinc-500 text-center py-6">Carregando...</p>
-        ) : imagensElementos.length === 0 ? (
-          <p className="text-xs text-zinc-500 text-center py-6">Nenhuma imagem enviada ainda.</p>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {imagensElementos.map((img) => (
-              <button
-                key={img.fullPath}
-                title="Adicionar ao encarte"
-                onClick={() => { onAdicionarImagem(img.url); toast.success('Imagem adicionada ao encarte!'); }}
-                className="relative rounded-lg overflow-hidden border-2 border-transparent hover:border-emerald-500 aspect-square bg-zinc-800 transition-colors"
-              >
-                <img src={getProxyUrl(img.url, { thumbnail: true })} className="w-full h-full object-contain" />
-              </button>
             ))}
           </div>
         )}
