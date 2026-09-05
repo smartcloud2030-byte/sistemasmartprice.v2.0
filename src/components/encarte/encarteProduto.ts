@@ -223,12 +223,14 @@ export const FORMAS_DISPONIVEIS: { tipo: FormaTipo; nome: string }[] = [
 export interface FormaEncarte {
   id: string;
   tipo: FormaTipo;
-  /** canto superior esquerdo e tamanho, em % do canvas */
+  /** canto superior esquerdo e tamanho, em % do canvas (pode passar das bordas — o encarte recorta) */
   xPct: number;
   yPct: number;
   wPct: number;
   hPct: number;
   cor: string;
+  /** true = renderiza atrás dos produtos/imagens; padrão (false) = na frente de tudo */
+  atras?: boolean;
 }
 
 const TAMANHO_INICIAL_FORMA: Record<FormaTipo, { wPct: number; hPct: number }> = {
@@ -245,6 +247,7 @@ export function criarForma(tipo: FormaTipo): FormaEncarte {
     yPct: 39,
     ...TAMANHO_INICIAL_FORMA[tipo],
     cor: '#e8850c', // laranja Ultra Popular (mesmo dos divisores)
+    atras: false,
   };
 }
 

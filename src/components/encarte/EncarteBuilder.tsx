@@ -347,6 +347,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const definirCorForma = (id: string, cor: string) =>
     atualizarForma(id, { cor }, { coalesce: `cor-forma-${id}` });
 
+  const alternarCamadaForma = (id: string) =>
+    atualizarLado((l) => ({
+      formas: (l.formas ?? []).map((f) => (f.id === id ? { ...f, atras: !f.atras } : f)),
+    }));
+
   const removerForma = (id: string) =>
     atualizarLado((l) => ({ formas: (l.formas ?? []).filter((f) => f.id !== id) }));
 
@@ -501,6 +506,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onMoverForma={moverForma}
           onRedimensionarForma={redimensionarForma}
           onDefinirCorForma={definirCorForma}
+          onAlternarCamadaForma={alternarCamadaForma}
           onRemoverForma={removerForma}
           onGradeChange={definirGrade}
           onAdicionarVerso={adicionarVerso}

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Undo2, Redo2, Type, Palette, Shapes, CalendarDays, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
-  MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2,
+  MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, SendToBack, BringToFront,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -93,6 +93,7 @@ interface EncarteCanvasProps {
   onMoverForma: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarForma: (id: string, patch: Partial<FormaEncarte>) => void;
   onDefinirCorForma: (id: string, cor: string) => void;
+  onAlternarCamadaForma: (id: string) => void;
   onRemoverForma: (id: string) => void;
   onGradeChange: (grade: GradeId) => void;
   onAdicionarVerso: () => void;
@@ -162,6 +163,7 @@ export default function EncarteCanvas({
   onMoverForma,
   onRedimensionarForma,
   onDefinirCorForma,
+  onAlternarCamadaForma,
   onRemoverForma,
   onGradeChange,
   onAdicionarVerso,
@@ -405,30 +407,34 @@ export default function EncarteCanvas({
     const o = st.orig;
 
     if (st.tipo === 'mover') {
+      // Liberdade total: a forma pode sair pelas bordas (sangria) — o encarte
+      // recorta o excesso. Só trava com uma alça mínima ainda dentro pra não
+      // sumir e ficar impossível de pegar de volta.
       onMoverForma(
         st.id,
-        clamp(o.xPct + dxPct, 0, 100 - o.wPct),
-        clamp(o.yPct + dyPct, 0, 100 - o.hPct),
+        clamp(o.xPct + dxPct, MIN_ELEMENTO - o.wPct, 100 - MIN_ELEMENTO),
+        clamp(o.yPct + dyPct, MIN_ELEMENTO - o.hPct, 100 - MIN_ELEMENTO),
       );
       return;
     }
 
+    // Redimensionar também pode passar das bordas e ficar maior que o encarte.
     let { xPct, yPct, wPct, hPct } = o;
     const oesteMax = o.xPct + o.wPct - MIN_ELEMENTO;
     const norteMax = o.yPct + o.hPct - MIN_ELEMENTO;
     if (st.canto === 'nw' || st.canto === 'sw') {
-      xPct = clamp(o.xPct + dxPct, 0, oesteMax);
+      xPct = clamp(o.xPct + dxPct, -60, oesteMax);
       wPct = o.xPct + o.wPct - xPct;
     }
     if (st.canto === 'ne' || st.canto === 'se') {
-      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 - o.xPct);
+      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 160 - o.xPct);
     }
     if (st.canto === 'nw' || st.canto === 'ne') {
-      yPct = clamp(o.yPct + dyPct, 0, norteMax);
+      yPct = clamp(o.yPct + dyPct, -60, norteMax);
       hPct = o.yPct + o.hPct - yPct;
     }
     if (st.canto === 'sw' || st.canto === 'se') {
-      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 100 - o.yPct);
+      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 160 - o.yPct);
     }
     onRedimensionarForma(st.id, { xPct, yPct, wPct, hPct });
   };
@@ -437,6 +443,89 @@ export default function EncarteCanvas({
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     formaDragRef.current = null;
   };
+
+  /** Uma forma no canvas — arrastar pelo corpo, redimensionar pelos 4 cantos. */
+  const renderForma = (fm: FormaEncarte) => {
+    const selecionada = fm.id === formaSelecionadaId;
+    return (
+      <div
+        key={fm.id}
+        className="absolute touch-none"
+        style={{
+          left: `${fm.xPct}%`,
+          top: `${fm.yPct}%`,
+          width: `${fm.wPct}%`,
+          height: `${fm.hPct}%`,
+          // a forma selecionada sobe acima de tudo pra as alças ficarem sempre alcançáveis
+          zIndex: selecionada ? 40 : undefined,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="w-full h-full cursor-grab active:cursor-grabbing"
+          style={{ background: fm.cor, borderRadius: fm.tipo === 'circulo' ? '50%' : 0 }}
+          onPointerDown={(e) => iniciarFormaDrag(e, 'mover', fm)}
+          onPointerMove={handleFormaPointerMove}
+          onPointerUp={handleFormaPointerUp}
+          onPointerCancel={handleFormaPointerUp}
+        />
+
+        {selecionada && (
+          <>
+            {/* Barra de cor / camada / remover — não entra no PNG exportado */}
+            <div
+              data-html2canvas-ignore="true"
+              className="absolute -top-9 left-0 flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg px-1.5 py-1 shadow-lg"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <input
+                type="color"
+                value={fm.cor}
+                onChange={(e) => onDefinirCorForma(fm.id, e.target.value)}
+                title="Cor da forma"
+                className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+              />
+              <button
+                onClick={() => onAlternarCamadaForma(fm.id)}
+                title={fm.atras ? 'Trazer pra frente dos produtos' : 'Enviar pra trás dos produtos'}
+                className="p-1 text-zinc-400 hover:text-emerald-400 transition-colors"
+              >
+                {fm.atras ? <BringToFront className="w-3.5 h-3.5" /> : <SendToBack className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={() => { onRemoverForma(fm.id); setFormaSelecionadaId(null); }}
+                title="Remover forma"
+                className="p-1 text-zinc-400 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
+              <div
+                key={canto}
+                onPointerDown={(e) => iniciarFormaDrag(e, 'resize', fm, canto)}
+                onPointerMove={handleFormaPointerMove}
+                onPointerUp={handleFormaPointerUp}
+                onPointerCancel={handleFormaPointerUp}
+                data-html2canvas-ignore="true"
+                className={cn(
+                  'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow',
+                  canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+                  canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+                  canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+                  canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+                )}
+              />
+            ))}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const formasAtras = formas.filter((f) => f.atras);
+  const formasFrente = formas.filter((f) => !f.atras);
 
   return (
     <div className="flex-grow flex flex-col bg-zinc-950 relative">
@@ -698,77 +787,8 @@ export default function EncarteCanvas({
             )}
           </div>
 
-          {/* Formas — blocos de cor arrastáveis e redimensionáveis */}
-          {formas.map((fm) => {
-            const selecionada = fm.id === formaSelecionadaId;
-            return (
-              <div
-                key={fm.id}
-                className="absolute group touch-none"
-                style={{
-                  left: `${fm.xPct}%`,
-                  top: `${fm.yPct}%`,
-                  width: `${fm.wPct}%`,
-                  height: `${fm.hPct}%`,
-                  zIndex: selecionada ? 20 : undefined,
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div
-                  className="w-full h-full cursor-grab active:cursor-grabbing"
-                  style={{ background: fm.cor, borderRadius: fm.tipo === 'circulo' ? '50%' : 0 }}
-                  onPointerDown={(e) => iniciarFormaDrag(e, 'mover', fm)}
-                  onPointerMove={handleFormaPointerMove}
-                  onPointerUp={handleFormaPointerUp}
-                  onPointerCancel={handleFormaPointerUp}
-                />
-
-                {selecionada && (
-                  <>
-                    {/* Barra de cor + remover — não entra no PNG exportado */}
-                    <div
-                      data-html2canvas-ignore="true"
-                      className="absolute -top-9 left-0 flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg px-1.5 py-1 shadow-lg"
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="color"
-                        value={fm.cor}
-                        onChange={(e) => onDefinirCorForma(fm.id, e.target.value)}
-                        title="Cor da forma"
-                        className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
-                      />
-                      <button
-                        onClick={() => { onRemoverForma(fm.id); setFormaSelecionadaId(null); }}
-                        title="Remover forma"
-                        className="p-1 text-zinc-400 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
-                      <div
-                        key={canto}
-                        onPointerDown={(e) => iniciarFormaDrag(e, 'resize', fm, canto)}
-                        onPointerMove={handleFormaPointerMove}
-                        onPointerUp={handleFormaPointerUp}
-                        onPointerCancel={handleFormaPointerUp}
-                        data-html2canvas-ignore="true"
-                        className={cn(
-                          'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow',
-                          canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
-                          canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
-                          canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
-                          canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
-                        )}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-            );
-          })}
+          {/* Formas marcadas como "atrás" — abaixo de produtos e imagens */}
+          {formasAtras.map(renderForma)}
 
           {/* Divisores de seção — faixa da largura toda, arrastável na vertical */}
           {divisores.map((d) => (
@@ -874,6 +894,9 @@ export default function EncarteCanvas({
               ))}
             </div>
           ))}
+
+          {/* Formas na frente (padrão) — acima de produtos e imagens */}
+          {formasFrente.map(renderForma)}
 
           {/* Rodapé */}
           {rodape.ativo && (
