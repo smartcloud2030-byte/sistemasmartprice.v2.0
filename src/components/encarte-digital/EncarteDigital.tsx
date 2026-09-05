@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Sparkles, Download, Palette, Grid3x3, ShoppingCart, Trash2, ChevronUp, ChevronDown, Star, Globe, Loader2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Download, Palette, Frame, ShoppingCart, Trash2, ChevronUp, ChevronDown, Star, Globe, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, Product } from '../../store';
 import { getProxyUrl, cn } from '../../lib/utils';
 import ProductSelector from '../ProductSelector';
 import { buscarImagensInternet, ImagemInternet } from './buscaImagem';
+import AreaOverlay from './AreaOverlay';
 import {
-  Produto, TemaEncarte, LayoutGrade, TEMA_PADRAO, LAYOUT_PADRAO, GRADES_PRESET,
-  capacidade, paginar, carregarImagens, desenharPagina, LARGURA, ALTURA,
+  Produto, TemaEncarte, AreaProdutos, TEMA_PADRAO, AREA_PADRAO,
+  COLUNAS_PADRAO, COLUNAS_MIN, COLUNAS_MAX,
+  paginar, carregarImagens, desenharPagina, LARGURA, ALTURA,
 } from './gerador';
 
-type Painel = 'tema' | 'grade' | 'produtos';
+type Painel = 'tema' | 'area' | 'produtos';
 
 const PAINEIS: { id: Painel; label: string; icon: React.ElementType }[] = [
   { id: 'tema', label: 'Tema', icon: Palette },
-  { id: 'grade', label: 'Grade', icon: Grid3x3 },
+  { id: 'area', label: 'Área', icon: Frame },
   { id: 'produtos', label: 'Produtos', icon: ShoppingCart },
 ];
 
@@ -27,14 +29,15 @@ interface EncarteDigitalProps {
   /** estado inicial — usado só pelo preview isolado */
   produtosIniciais?: Produto[];
   temaInicial?: Partial<TemaEncarte>;
-  layoutInicial?: LayoutGrade;
+  areaInicial?: AreaProdutos;
 }
 
-export default function EncarteDigital({ produtosIniciais, temaInicial, layoutInicial }: EncarteDigitalProps = {}) {
+export default function EncarteDigital({ produtosIniciais, temaInicial, areaInicial }: EncarteDigitalProps = {}) {
   const { setView } = useStore();
   const [painel, setPainel] = useState<Painel>('produtos');
   const [tema, setTema] = useState<TemaEncarte>({ ...TEMA_PADRAO, ...temaInicial });
-  const [layout, setLayout] = useState<LayoutGrade>(layoutInicial ?? LAYOUT_PADRAO);
+  const [area, setArea] = useState<AreaProdutos>(areaInicial ?? AREA_PADRAO);
+  const [colunas, setColunas] = useState(COLUNAS_PADRAO);
   const [produtos, setProdutos] = useState<Produto[]>(produtosIniciais ?? []);
   const [pagina, setPagina] = useState(0);
   const [baixando, setBaixando] = useState(false);
@@ -43,7 +46,8 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
   const [imgLoading, setImgLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const paginas = useMemo(() => paginar(produtos, capacidade(layout)), [produtos, layout]);
+  // uma página só — a grade auto-ajusta o tamanho dos cards pra caber tudo
+  const paginas = useMemo(() => paginar(produtos, 9999), [produtos]);
   const paginaAtiva = Math.min(pagina, paginas.length - 1);
 
   const setT = (patch: Partial<TemaEncarte>) => setTema((t) => ({ ...t, ...patch }));
@@ -86,7 +90,14 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
     const nome = imgTermo.trim();
     setProdutos((prev) => [
       ...prev,
-      { nome: nome || img.title || 'Produto', preco: 0, imagem: img.url, precoDe: null, unidade: '', destaque: false },
+      {
+        nome: nome || img.title || 'Produto',
+        preco: 0,
+        imagem: img.url,
+        precoDe: null,
+        unidade: '',
+        destaque: false,
+      },
     ]);
     setImgResultados([]);
     setImgTermo('');
@@ -113,16 +124,18 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
     const lista = paginas[paginaAtiva] ?? [];
     carregarImagens(lista.map((p) => p.imagem)).then((imagens) => {
       if (cancelado) return;
-      desenharPagina(ctx, lista, tema, layout, {
+      desenharPagina(ctx, lista, tema, {
         numPagina: paginaAtiva + 1,
         totalPaginas: paginas.length,
         imagens,
+        area,
+        colunas,
       });
     });
     return () => {
       cancelado = true;
     };
-  }, [tema, layout, paginas, paginaAtiva]);
+  }, [tema, area, colunas, paginas, paginaAtiva]);
 
   const baixar = async (todas: boolean) => {
     const canvas = canvasRef.current;
@@ -134,7 +147,7 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
       for (const i of alvos) {
         const lista = paginas[i] ?? [];
         const imagens = await carregarImagens(lista.map((p) => p.imagem));
-        desenharPagina(ctx, lista, tema, layout, { numPagina: i + 1, totalPaginas: paginas.length, imagens });
+        desenharPagina(ctx, lista, tema, { numPagina: i + 1, totalPaginas: paginas.length, imagens, area, colunas });
         const link = document.createElement('a');
         link.download = `encarte_pagina_${i + 1}.png`;
         link.href = canvas.toDataURL('image/png');
@@ -160,6 +173,9 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
           <h1 className="text-lg font-black tracking-tighter uppercase">Encarte Digital</h1>
         </div>
         <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">1080 × 1350</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-500/80">
+          {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'}
+        </span>
 
         <div className="ml-auto flex items-center gap-2">
           {paginas.length > 1 && (
@@ -229,29 +245,48 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
             </>
           )}
 
-          {painel === 'grade' && (
+          {painel === 'area' && (
             <>
-              <Titulo icon={Grid3x3} nome="Grade" sub="Produtos por página" />
-              <div className="grid grid-cols-3 gap-2">
-                {GRADES_PRESET.map((g) => {
-                  const ativo = g.colunas === layout.colunas && g.linhas === layout.linhas;
-                  return (
-                    <button
-                      key={g.label}
-                      onClick={() => { setLayout({ colunas: g.colunas, linhas: g.linhas }); setPagina(0); }}
-                      className={cn(
-                        'rounded-lg border py-3 text-xs font-bold transition-colors',
-                        ativo ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500',
-                      )}
-                    >
-                      {g.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-zinc-500">
-                {capacidade(layout)} produtos por página · {paginas.length} {paginas.length === 1 ? 'página' : 'páginas'} no total
+              <Titulo icon={Frame} nome="Área dos produtos" sub="A caixa onde os produtos ficam" />
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                No canvas, <b>arraste a caixa tracejada</b> pra mover e as <b>alças verdes dos cantos</b> pra
+                redimensionar. Os produtos se ajustam sozinhos pra caber todos, alinhados e sem sobrepor.
               </p>
+
+              <Campo label={`Produtos por linha — ${colunas}`}>
+                <input
+                  type="range"
+                  min={COLUNAS_MIN}
+                  max={COLUNAS_MAX}
+                  step={1}
+                  value={colunas}
+                  onChange={(e) => setColunas(Number(e.target.value))}
+                  className="w-full accent-emerald-500"
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Só define quantos ficam lado a lado. <b>Não limita o total</b> — adicione quantos
+                  produtos quiser; o resto vai pra novas linhas e os cards encolhem pra caber tudo.
+                </p>
+              </Campo>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-800/40 px-2.5 py-2">
+                  <span className="text-zinc-500">Posição</span>
+                  <div className="text-zinc-200 tabular-nums">{Math.round(area.xPct)}% · {Math.round(area.yPct)}%</div>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-800/40 px-2.5 py-2">
+                  <span className="text-zinc-500">Tamanho</span>
+                  <div className="text-zinc-200 tabular-nums">{Math.round(area.wPct)}% × {Math.round(area.hPct)}%</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setArea(AREA_PADRAO)}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Redefinir área
+              </button>
             </>
           )}
 
@@ -355,13 +390,16 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, layoutIn
         </aside>
 
         <div className="flex-grow flex flex-col items-center justify-center bg-zinc-950 p-8 overflow-auto gap-3">
-          <canvas
-            ref={canvasRef}
-            width={LARGURA}
-            height={ALTURA}
-            className="rounded-lg shadow-2xl bg-white"
-            style={{ width: 'auto', height: 'min(78vh, 900px)', maxWidth: '100%' }}
-          />
+          <div className="relative inline-block">
+            <canvas
+              ref={canvasRef}
+              width={LARGURA}
+              height={ALTURA}
+              className="rounded-lg shadow-2xl bg-white block"
+              style={{ height: 'min(78vh, 900px)', width: 'auto', maxWidth: '100%' }}
+            />
+            <AreaOverlay area={area} onAreaChange={setArea} />
+          </div>
           {paginas.length > 1 && (
             <div className="flex items-center gap-1.5">
               {paginas.map((_, i) => (

@@ -19,6 +19,103 @@ export interface Produto {
   destaque?: boolean;
 }
 
+/** Caixa onde os produtos ficam. Redimensionável; os cards não saem dela. */
+export interface AreaProdutos {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
+export const AREA_PADRAO: AreaProdutos = { xPct: 4, yPct: 16, wPct: 92, hPct: 66 };
+
+/** proporção altura/largura do card, mantida ao redimensionar */
+export const CARD_BASE_W = 300;
+export const CARD_BASE_H = 380;
+export const CARD_ASPECT = CARD_BASE_H / CARD_BASE_W;
+
+/** produtos por linha — divide a largura da caixa e define o tamanho do card.
+ *  NÃO limita a quantidade total de produtos: o que passa vai pra novas linhas. */
+export const COLUNAS_PADRAO = 3;
+export const COLUNAS_MIN = 1;
+export const COLUNAS_MAX = 10;
+
+/** espaço entre cards, em px do canvas */
+export const GAP = 16;
+
+export const areaPx = (a: AreaProdutos) => ({
+  x: (a.xPct / 100) * LARGURA,
+  y: (a.yPct / 100) * ALTURA,
+  w: (a.wPct / 100) * LARGURA,
+  h: (a.hPct / 100) * ALTURA,
+});
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+
+const colunasClamp = (colunas: number) =>
+  clamp(Math.round(colunas) || COLUNAS_PADRAO, COLUNAS_MIN, COLUNAS_MAX);
+
+export interface GradeLayout {
+  /** caixa em px */
+  a: { x: number; y: number; w: number; h: number };
+  /** colunas realmente usadas (≤ colunas pedidas, ≤ nº de produtos) */
+  cols: number;
+  /** linhas ocupadas */
+  rows: number;
+  /** tamanho do card em px */
+  w: number;
+  h: number;
+  /** deslocamento vertical pra centralizar a grade na caixa */
+  offY: number;
+}
+
+/**
+ * Grade que faz TODOS os `qtd` produtos caberem na caixa, alinhados e sem
+ * sobrepor: a largura vem de dividir a caixa em colunas, a altura de dividir
+ * pela quantidade de linhas — o card usa o menor dos dois (mantendo a
+ * proporção). Adicionar produto ⇒ mais linhas ⇒ card menor, automaticamente.
+ */
+export function gradeLayout(area: AreaProdutos, colunas: number, qtd: number): GradeLayout {
+  const a = areaPx(area);
+  const n = Math.max(1, Math.floor(qtd));
+  const cols = Math.min(colunasClamp(colunas), n);
+  const rows = Math.max(1, Math.ceil(n / cols));
+
+  const wPorLargura = (a.w - GAP * (cols - 1)) / cols;
+  const hPorAltura = (a.h - GAP * (rows - 1)) / rows;
+  const w = Math.max(24, Math.min(wPorLargura, hPorAltura / CARD_ASPECT));
+  const h = w * CARD_ASPECT;
+
+  const gradeH = rows * h + GAP * (rows - 1);
+  const offY = a.y + Math.max(0, (a.h - gradeH) / 2);
+
+  return { a, cols, rows, w, h, offY };
+}
+
+/** Tamanho do card para `qtd` produtos na caixa. */
+export function cardPx(area: AreaProdutos, colunas: number, qtd: number) {
+  const { w, h } = gradeLayout(area, colunas, qtd);
+  return { w, h };
+}
+
+/**
+ * Canto superior-esquerdo do card `indice` (em % do canvas). Cada linha é
+ * centralizada na largura da caixa, então a última linha (incompleta) também
+ * fica alinhada ao centro.
+ */
+export function posicaoNaGrade(indice: number, area: AreaProdutos, colunas: number, qtd: number) {
+  const g = gradeLayout(area, colunas, qtd);
+  const n = Math.max(1, Math.floor(qtd));
+  const row = Math.floor(indice / g.cols);
+  const col = indice % g.cols;
+  const nEstaLinha = Math.min(g.cols, n - row * g.cols);
+  const larguraLinha = nEstaLinha * g.w + GAP * (nEstaLinha - 1);
+  const offX = g.a.x + Math.max(0, (g.a.w - larguraLinha) / 2);
+  const x = offX + col * (g.w + GAP);
+  const y = g.offY + row * (g.h + GAP);
+  return { xPct: (x / LARGURA) * 100, yPct: (y / ALTURA) * 100 };
+}
+
 export interface TemaEncarte {
   titulo: string;
   subtitulo: string;
@@ -174,13 +271,14 @@ interface OpcoesPagina {
   numPagina: number;
   totalPaginas: number;
   imagens: MapaImagens;
+  area: AreaProdutos;
+  colunas: number;
 }
 
 export function desenharPagina(
   ctx: CanvasRenderingContext2D,
   produtos: Produto[],
   tema: TemaEncarte,
-  layout: LayoutGrade,
   opts: OpcoesPagina,
 ) {
   ctx.save();
@@ -191,16 +289,14 @@ export function desenharPagina(
   ctx.fillStyle = tema.corFundo;
   ctx.fillRect(0, 0, LARGURA, ALTURA);
 
-  const yCabecalho = desenharCabecalho(ctx, tema);
+  desenharCabecalho(ctx, tema);
   const temRodape = !!(tema.nomeEmpresa || tema.slogan);
-  const yRodape = ALTURA - (temRodape ? 70 : 20);
 
-  desenharGrade(ctx, produtos, tema, layout, {
-    x0: 24,
-    y0: yCabecalho + 16,
-    x1: LARGURA - 24,
-    y1: yRodape - 16,
-    imagens: opts.imagens,
+  // grade auto-ajustável: todos os produtos cabem, alinhados, sem sobrepor
+  const c = cardPx(opts.area, opts.colunas, produtos.length);
+  produtos.forEach((p, i) => {
+    const { xPct, yPct } = posicaoNaGrade(i, opts.area, opts.colunas, produtos.length);
+    desenharCard(ctx, p, tema, opts.imagens, (xPct / 100) * LARGURA, (yPct / 100) * ALTURA, c.w, c.h);
   });
 
   if (opts.totalPaginas > 1) {
@@ -249,37 +345,6 @@ function quebrarLinhasSimples(texto: string, width: number): string[] {
   }
   if (atual) linhas.push(atual);
   return linhas.length ? linhas : [''];
-}
-
-interface AreaGrade {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  imagens: MapaImagens;
-}
-
-function desenharGrade(
-  ctx: CanvasRenderingContext2D,
-  produtos: Produto[],
-  tema: TemaEncarte,
-  layout: LayoutGrade,
-  area: AreaGrade,
-) {
-  const { x0, y0, x1, y1, imagens } = area;
-  const cols = layout.colunas;
-  const rows = layout.linhas;
-  const gap = 14;
-  const celW = (x1 - x0 - gap * (cols - 1)) / cols;
-  const celH = (y1 - y0 - gap * (rows - 1)) / rows;
-
-  produtos.slice(0, cols * rows).forEach((produto, idx) => {
-    const col = idx % cols;
-    const row = Math.floor(idx / cols);
-    const cx0 = x0 + col * (celW + gap);
-    const cy0 = y0 + row * (celH + gap);
-    desenharCard(ctx, produto, tema, imagens, cx0, cy0, celW, celH);
-  });
 }
 
 function desenharCard(
