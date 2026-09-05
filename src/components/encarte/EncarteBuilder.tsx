@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid } from 'lucide-react';
 import { useStore, Product } from '../../store';
 import { cn } from '../../lib/utils';
@@ -7,9 +7,10 @@ import TagsTab from './TagsTab';
 import ProdutosTab from './ProdutosTab';
 import FormatosTab from './FormatosTab';
 import ElementosTab from './ElementosTab';
+import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
-import { Formato, FORMATO_PADRAO } from './formatos';
+import { Formato, FORMATO_PADRAO, FormatoId, getFormato } from './formatos';
 import {
   EncarteProduto,
   EstiloEncarte,
@@ -23,6 +24,14 @@ import {
   criarElementoImagem,
   organizarEmGrade,
 } from './encarteProduto';
+import {
+  EncarteSalvo,
+  carregarHistorico,
+  salvarNoHistorico,
+  apagarDoHistorico,
+  carregarRascunho,
+  salvarRascunho,
+} from './persistencia';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
 type Lado = 'frente' | 'verso';
@@ -52,13 +61,57 @@ interface EncarteBuilderProps {
 }
 
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
-  const { setView } = useStore();
+  const { setView, currentUser } = useStore();
+  const cnpj = currentUser?.cnpj?.replace(/[^\d]/g, '');
   const [activeMenu, setActiveMenu] = useState<MenuItem>(menuInicial ?? 'temas');
   const [formato, setFormato] = useState<Formato>(formatoInicial ?? FORMATO_PADRAO);
   const [ladoFrente, setLadoFrente] = useState<LadoEncarte>(() => ladoInicial ?? criarLado());
   const [ladoVerso, setLadoVerso] = useState<LadoEncarte | null>(null);
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
+  const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
+  const prontoParaAutoSalvar = useRef(false);
+
+  // Ao montar: recupera o rascunho salvo (se tiver) pra não perder o
+  // trabalho ao recarregar a página, e carrega o histórico de encartes.
+  // Só roda no app real — o preview isolado (ladoInicial) fica de fora.
+  useEffect(() => {
+    if (ladoInicial || !cnpj) {
+      prontoParaAutoSalvar.current = true;
+      return;
+    }
+    let cancelado = false;
+    (async () => {
+      try {
+        const [rascunho, hist] = await Promise.all([carregarRascunho(cnpj), carregarHistorico(cnpj)]);
+        if (cancelado) return;
+        if (rascunho) {
+          setFormato(getFormato(rascunho.formato as FormatoId));
+          setLadoFrente(rascunho.ladoFrente);
+          setLadoVerso(rascunho.ladoVerso);
+        }
+        setHistorico(hist);
+      } catch (err) {
+        console.error('Erro ao carregar rascunho/histórico do encarte:', err);
+      } finally {
+        if (!cancelado) prontoParaAutoSalvar.current = true;
+      }
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save (debounced) do rascunho atual — roda a cada mudança de
+  // conteúdo, só depois que o carregamento inicial já terminou.
+  useEffect(() => {
+    if (!prontoParaAutoSalvar.current || !cnpj) return;
+    const t = setTimeout(() => {
+      salvarRascunho(cnpj, { formato: formato.id, ladoFrente, ladoVerso }).catch((err) => {
+        console.error('Erro ao salvar rascunho do encarte:', err);
+      });
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [cnpj, formato, ladoFrente, ladoVerso]);
 
   const activeLabel = MENU_ITEMS.find((m) => m.id === activeMenu)?.label;
   const lado = ladoAtivo === 'verso' && ladoVerso ? ladoVerso : ladoFrente;
@@ -177,6 +230,35 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   const moverImagem = (id: string, xPct: number, yPct: number) => atualizarImagem(id, { xPct, yPct });
 
+  /** Chamado pelo EncarteCanvas depois de um download bem-sucedido — grava no histórico. */
+  const registrarNoHistorico = (imagemPreview: string) => {
+    if (!cnpj) return;
+    salvarNoHistorico(cnpj, {
+      nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`,
+      imagemPreview,
+      formato: formato.id,
+      ladoFrente,
+      ladoVerso,
+    })
+      .then(setHistorico)
+      .catch((err) => console.error('Erro ao salvar encarte no histórico:', err));
+  };
+
+  const abrirDoHistorico = (entry: EncarteSalvo) => {
+    setFormato(getFormato(entry.formato as FormatoId));
+    setLadoFrente(entry.ladoFrente);
+    setLadoVerso(entry.ladoVerso);
+    setLadoAtivo('frente');
+    setProdutoDetalhadoId(null);
+  };
+
+  const apagarHistoricoItem = (id: string) => {
+    if (!cnpj) return;
+    apagarDoHistorico(cnpj, id)
+      .then(setHistorico)
+      .catch((err) => console.error('Erro ao apagar encarte do histórico:', err));
+  };
+
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
 
   return (
@@ -241,6 +323,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onRemoverDivisor={removerDivisor}
               onAtualizarRodape={atualizarRodape}
             />
+          ) : activeMenu === 'encartes' ? (
+            <EncartesTab historico={historico} onAbrir={abrirDoHistorico} onApagar={apagarHistoricoItem} />
           ) : (
             <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
               <LayoutGrid className="w-8 h-8 text-zinc-700" />
@@ -272,6 +356,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}
           onLadoChange={trocarLado}
+          onExportado={registrarNoHistorico}
         />
       </div>
     </div>

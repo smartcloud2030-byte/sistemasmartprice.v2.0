@@ -25,6 +25,18 @@ const TOOLBAR_ITEMS = [
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
+/** Miniatura leve (redimensiona no canvas, sem re-renderizar o DOM) pro histórico de encartes. */
+function gerarThumbnail(canvas: HTMLCanvasElement, maxW = 300): string {
+  const escala = Math.min(1, maxW / canvas.width);
+  const w = Math.round(canvas.width * escala);
+  const h = Math.round(canvas.height * escala);
+  const off = document.createElement('canvas');
+  off.width = w;
+  off.height = h;
+  off.getContext('2d')?.drawImage(canvas, 0, 0, w, h);
+  return off.toDataURL('image/png');
+}
+
 interface EncarteCanvasProps {
   backgroundUrl: string | null;
   produtos: EncarteProduto[];
@@ -48,6 +60,7 @@ interface EncarteCanvasProps {
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
   onLadoChange: (lado: 'frente' | 'verso') => void;
+  onExportado?: (imagemPreview: string) => void;
 }
 
 interface DragState {
@@ -96,6 +109,7 @@ export default function EncarteCanvas({
   onAdicionarVerso,
   onRemoverVerso,
   onLadoChange,
+  onExportado,
 }: EncarteCanvasProps) {
   const [exportando, setExportando] = useState(false);
   const [gradeAberta, setGradeAberta] = useState(false);
@@ -116,6 +130,7 @@ export default function EncarteCanvas({
       link.download = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+      onExportado?.(gerarThumbnail(canvas));
     } catch {
       toast.error('Não foi possível gerar a imagem do encarte. Tente novamente.');
     } finally {
