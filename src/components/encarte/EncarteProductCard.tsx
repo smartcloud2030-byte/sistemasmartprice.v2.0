@@ -150,17 +150,17 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   );
 }
 
-/** Modelo Destaque — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
+/** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
 function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
   return (
-    <div className="flex h-32 gap-1.5">
+    <div className="flex min-h-32 gap-1.5">
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
         <div className="min-w-0">
-          <p className="text-[13px] font-black uppercase leading-[1] text-red-600 line-clamp-2 break-words drop-shadow-sm">
+          <p className="text-[13px] font-black uppercase leading-[1.15] text-red-600 break-words drop-shadow-sm">
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] mt-0.5 line-clamp-1 break-words">
+            <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.15] mt-0.5 break-words">
               {produto.descricao}
             </p>
           )}

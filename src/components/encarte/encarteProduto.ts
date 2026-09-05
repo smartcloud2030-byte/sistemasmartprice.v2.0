@@ -12,7 +12,7 @@ export type ModeloCard = 'padrao' | 'destaque' | 'clean';
 
 export const MODELOS_CARD: { id: ModeloCard; nome: string; descricao: string }[] = [
   { id: 'padrao', nome: 'Padrão', descricao: 'Card branco · foto à direita · preço em etiqueta' },
-  { id: 'destaque', nome: 'Destaque', descricao: 'Sem card · nome grande · etiqueta grande com POR/UNI' },
+  { id: 'destaque', nome: 'Tradicional', descricao: 'Sem card · nome grande · etiqueta grande com POR/UNI' },
   { id: 'clean', nome: 'Clean', descricao: 'Card branco · foto à esquerda · preço em texto' },
 ];
 
