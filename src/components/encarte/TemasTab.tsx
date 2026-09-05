@@ -6,7 +6,6 @@ import { getProxyUrl, cn } from '../../lib/utils';
 import { FUNDOS_BUILTIN } from './encarteProduto';
 
 const CATEGORIA = 'encarte-temas';
-const API_SECRET = import.meta.env.VITE_API_SECRET;
 
 const PRONTOS: { id: string; nome: string }[] = [
   { id: 'creme', nome: 'Creme' },
@@ -24,10 +23,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [substituindo, setSubstituindo] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<GalleryImage | null>(null);
-  const [authUsername, setAuthUsername] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const carregarImagens = async () => {
     try {
@@ -73,32 +69,13 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
 
   const closeDeleteConfirm = () => {
     setPendingDelete(null);
-    setAuthUsername('');
-    setAuthPassword('');
-    setAuthError('');
-    setIsVerifyingAuth(false);
+    setIsDeleting(false);
   };
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) return;
-    if (!authUsername.trim() || !authPassword) {
-      setAuthError('Informe usuário e senha de administrador.');
-      return;
-    }
-    setIsVerifyingAuth(true);
-    setAuthError('');
+    setIsDeleting(true);
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
-        body: JSON.stringify({ username: authUsername.trim(), password: authPassword }),
-      });
-      const data = await res.json();
-      if (!data?.success) {
-        setAuthError('Usuário ou senha de administrador incorretos.');
-        setIsVerifyingAuth(false);
-        return;
-      }
       const img = pendingDelete;
       await deleteGalleryImage(img.url);
       await carregarImagens();
@@ -106,8 +83,8 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
       toast.success('Fundo apagado!');
       closeDeleteConfirm();
     } catch {
-      setAuthError('Erro ao verificar credenciais.');
-      setIsVerifyingAuth(false);
+      toast.error('Falha ao apagar o fundo. Tente novamente.');
+      setIsDeleting(false);
     }
   };
 
@@ -234,44 +211,24 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
             <div className="flex items-center gap-3 text-red-500">
               <Trash2 className="w-6 h-6" />
-              <h3 className="text-lg font-bold text-zinc-100">Apagar fundo</h3>
+              <h3 className="text-lg font-bold text-zinc-100">Apagar fundo?</h3>
             </div>
             <p className="text-sm text-zinc-400">
-              Essa imagem some da galeria pra sempre. Digite a senha de administrador para confirmar.
+              Deseja realmente apagar esse fundo? Essa ação é irreversível.
             </p>
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Usuário administrador"
-                autoComplete="off"
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-red-500 outline-none"
-                value={authUsername}
-                onChange={(e) => { setAuthUsername(e.target.value); setAuthError(''); }}
-              />
-              <input
-                type="password"
-                placeholder="Senha do administrador"
-                autoComplete="off"
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-red-500 outline-none"
-                value={authPassword}
-                onChange={(e) => { setAuthPassword(e.target.value); setAuthError(''); }}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmDelete(); }}
-              />
-              {authError && <p className="text-xs font-bold text-red-500">{authError}</p>}
-            </div>
             <div className="flex gap-3">
               <button
                 onClick={closeDeleteConfirm}
                 className="flex-1 px-4 py-2 border border-zinc-700 rounded-lg hover:bg-zinc-800 text-sm font-bold text-zinc-200"
               >
-                Cancelar
+                Não
               </button>
               <button
                 onClick={handleConfirmDelete}
-                disabled={isVerifyingAuth}
+                disabled={isDeleting}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold disabled:opacity-50"
               >
-                {isVerifyingAuth ? 'Verificando...' : 'Apagar'}
+                {isDeleting ? 'Apagando...' : 'Sim'}
               </button>
             </div>
           </div>

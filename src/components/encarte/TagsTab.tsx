@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Upload, Tag, Loader2 } from 'lucide-react';
+import { Upload, Tag, Loader2, Repeat, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadBackgroundImage, listGalleryImages, GalleryImage } from '../../lib/gallery';
+import { uploadBackgroundImage, listGalleryImages, deleteGalleryImage, GalleryImage } from '../../lib/gallery';
 import { getProxyUrl } from '../../lib/utils';
 
 const CATEGORIA = 'encarte-elementos';
@@ -14,6 +14,9 @@ export default function TagsTab({ onAdicionarImagem }: TagsTabProps) {
   const [imagens, setImagens] = useState<GalleryImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [substituindo, setSubstituindo] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<GalleryImage | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const carregarImagens = async () => {
     try {
@@ -38,6 +41,39 @@ export default function TagsTab({ onAdicionarImagem }: TagsTabProps) {
       toast.error('Falha ao enviar a imagem. Tente novamente.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleSubstituir = async (img: GalleryImage, file: File) => {
+    setSubstituindo(img.fullPath);
+    try {
+      await uploadBackgroundImage(file, CATEGORIA);
+      await deleteGalleryImage(img.url);
+      await carregarImagens();
+      toast.success('Imagem substituída!');
+    } catch {
+      toast.error('Falha ao substituir a imagem. Tente novamente.');
+    } finally {
+      setSubstituindo(null);
+    }
+  };
+
+  const closeDeleteConfirm = () => {
+    setPendingDelete(null);
+    setIsDeleting(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteGalleryImage(pendingDelete.url);
+      await carregarImagens();
+      toast.success('Imagem apagada!');
+      closeDeleteConfirm();
+    } catch {
+      toast.error('Falha ao apagar a imagem. Tente novamente.');
+      setIsDeleting(false);
     }
   };
 
@@ -75,18 +111,79 @@ export default function TagsTab({ onAdicionarImagem }: TagsTabProps) {
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {imagens.map((img) => (
-              <button
+              <div
                 key={img.fullPath}
-                title="Adicionar ao encarte"
                 onClick={() => { onAdicionarImagem(img.url); toast.success('Imagem adicionada ao encarte!'); }}
-                className="relative rounded-lg overflow-hidden border-2 border-transparent hover:border-emerald-500 aspect-square bg-zinc-800 transition-colors"
+                title="Adicionar ao encarte"
+                className="group relative rounded-lg overflow-hidden border-2 border-transparent hover:border-emerald-500 aspect-square bg-zinc-800 transition-colors cursor-pointer"
               >
                 <img src={getProxyUrl(img.url, { thumbnail: true })} className="w-full h-full object-contain" />
-              </button>
+
+                <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <label
+                    title="Substituir"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-6 h-6 rounded bg-zinc-900/80 text-zinc-200 hover:text-emerald-400 cursor-pointer"
+                  >
+                    {substituindo === img.fullPath ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Repeat className="w-3.5 h-3.5" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={substituindo === img.fullPath}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) handleSubstituir(img, file);
+                      }}
+                    />
+                  </label>
+                  <button
+                    title="Apagar"
+                    onClick={(e) => { e.stopPropagation(); setPendingDelete(img); }}
+                    className="flex items-center justify-center w-6 h-6 rounded bg-zinc-900/80 text-zinc-200 hover:text-red-400"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      {pendingDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center gap-3 text-red-500">
+              <Trash2 className="w-6 h-6" />
+              <h3 className="text-lg font-bold text-zinc-100">Apagar imagem?</h3>
+            </div>
+            <p className="text-sm text-zinc-400">
+              Deseja realmente apagar essa imagem? Essa ação é irreversível.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={closeDeleteConfirm}
+                className="flex-1 px-4 py-2 border border-zinc-700 rounded-lg hover:bg-zinc-800 text-sm font-bold text-zinc-200"
+              >
+                Não
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold disabled:opacity-50"
+              >
+                {isDeleting ? 'Apagando...' : 'Sim'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
