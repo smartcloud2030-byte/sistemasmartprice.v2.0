@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import {
   Undo2, Redo2, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
+  MessageCircle, Mail, Instagram,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -15,6 +16,26 @@ import {
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
+
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
+
+/** Para onde o botão "Compartilhar" pode mandar o PNG em alta qualidade. */
+const DESTINOS_COMPARTILHAR = {
+  whatsapp: { nome: 'WhatsApp', url: 'https://web.whatsapp.com/' },
+  email: {
+    nome: 'e-mail',
+    url:
+      'https://mail.google.com/mail/?view=cm&fs=1&su=' +
+      encodeURIComponent('Encarte') +
+      '&body=' +
+      encodeURIComponent('Segue o encarte em anexo.'),
+  },
+  instagram: { nome: 'Instagram', url: 'https://www.instagram.com/' },
+} as const;
+
+type DestinoCompartilhar = keyof typeof DESTINOS_COMPARTILHAR;
 
 const TOOLBAR_ITEMS = [
   { icon: Type, label: 'Fontes' },
@@ -119,22 +140,33 @@ export default function EncarteCanvas({
   const imgDragRef = useRef<ImagemDragState | null>(null);
 
   const [downloadAberto, setDownloadAberto] = useState(false);
+  const [compartilharAberto, setCompartilharAberto] = useState(false);
+  const [zoom, setZoom] = useState(1);
+
+  const ajustarZoom = (delta: number) =>
+    setZoom((z) => clamp(Math.round((z + delta) * 100) / 100, ZOOM_MIN, ZOOM_MAX));
+
+  /**
+   * Renderiza o canvas do encarte em alta resolução. O preview em tela é sempre
+   * CANVAS_W (480px) de largura, não importa o formato — a escala leva pra
+   * resolução nominal de cada formato (formatos.ts), não um valor fixo. É isso
+   * que garante alta qualidade de verdade: A4 sai em ~2480px, não ~1440px.
+   * O `zoom` da visualização não entra aqui: ele fica numa camada acima do
+   * `canvasRef`, então o arquivo gerado sai sempre no tamanho real.
+   */
+  const renderParaCanvas = () =>
+    html2canvas(canvasRef.current as HTMLElement, {
+      useCORS: true,
+      backgroundColor: '#000000',
+      scale: formato.width / CANVAS_W,
+    });
 
   const baixar = async (tipo: 'png' | 'pdf') => {
     if (!canvasRef.current || exportando) return;
     setDownloadAberto(false);
     setExportando(true);
     try {
-      // O preview em tela é sempre CANVAS_W (480px) de largura, não importa o
-      // formato — a escala de exportação escala pra bater com a resolução
-      // nominal de cada formato (formatos.ts), não um valor fixo. É isso que
-      // garante alta qualidade de verdade: A4 sai em ~2480px, não ~1440px.
-      const escala = formato.width / CANVAS_W;
-      const canvas = await html2canvas(canvasRef.current, {
-        useCORS: true,
-        backgroundColor: '#000000',
-        scale: escala,
-      });
+      const canvas = await renderParaCanvas();
       const nomeBase = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}`;
 
       if (tipo === 'png') {
@@ -156,6 +188,60 @@ export default function EncarteCanvas({
       toast.success(tipo === 'png' ? 'PNG baixado em alta qualidade!' : 'PDF baixado em alta qualidade!');
     } catch {
       toast.error('Não foi possível gerar o arquivo do encarte. Tente novamente.');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const compartilhar = async (destino: DestinoCompartilhar) => {
+    if (!canvasRef.current || exportando) return;
+    setCompartilharAberto(false);
+    // A aba precisa abrir no próprio gesto do clique — se abrisse depois do
+    // `await` do html2canvas, o bloqueador de pop-up mataria ela.
+    const aba = window.open('about:blank', '_blank');
+    setExportando(true);
+    try {
+      const canvas = await renderParaCanvas();
+      const dataUrl = canvas.toDataURL('image/png');
+      const blob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('sem blob'))), 'image/png');
+      });
+      const nome = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}.png`;
+      const file = new File([blob], nome, { type: 'image/png' });
+      onExportado?.(gerarThumbnail(canvas));
+
+      // Caminho ideal (celular e parte dos desktops): compartilhamento nativo
+      // com o PNG já anexado — o sistema mostra WhatsApp, Instagram, e-mail etc.
+      // e o usuário escolhe pra onde vai.
+      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Encarte', text: 'Encarte gerado no SmartPrice' });
+          aba?.close();
+          toast.success('Encarte pronto pra compartilhar!');
+          return;
+        } catch (err) {
+          if ((err as DOMException)?.name === 'AbortError') {
+            aba?.close();
+            return; // usuário cancelou a folha de compartilhamento
+          }
+          // qualquer outro erro: cai no fluxo de baixar + abrir o site
+        }
+      }
+
+      // Fallback (WhatsApp Web / Instagram Web / Gmail no navegador): baixa o
+      // PNG em alta e abre o site escolhido em outra aba pra anexar o arquivo.
+      const link = document.createElement('a');
+      link.download = nome;
+      link.href = dataUrl;
+      link.click();
+
+      const { nome: nomeDestino, url } = DESTINOS_COMPARTILHAR[destino];
+      if (aba) aba.location.href = url;
+      else window.open(url, '_blank', 'noopener');
+      toast.success(`PNG em alta qualidade baixado! Anexe o arquivo no ${nomeDestino} que abrimos em outra aba.`);
+    } catch {
+      aba?.close();
+      toast.error('Não foi possível preparar o encarte pra compartilhar.');
     } finally {
       setExportando(false);
     }
@@ -376,17 +462,56 @@ export default function EncarteCanvas({
               </div>
             )}
           </div>
-          <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors">
-            <Share2 className="w-3.5 h-3.5" />
-            Compartilhar
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setCompartilharAberto((v) => !v)}
+              disabled={exportando}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              Compartilhar
+              <ChevronDown className="w-3 h-3 opacity-80" />
+            </button>
+            {compartilharAberto && (
+              <div className="absolute top-full right-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+                <p className="px-3.5 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                  Mandar PNG em alta pra
+                </p>
+                <button
+                  onClick={() => compartilhar('whatsapp')}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  WhatsApp
+                </button>
+                <button
+                  onClick={() => compartilhar('email')}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200 border-t border-zinc-800"
+                >
+                  <Mail className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  E-mail
+                </button>
+                <button
+                  onClick={() => compartilhar('instagram')}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200 border-t border-zinc-800"
+                >
+                  <Instagram className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  Instagram
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Área de preview */}
       <div
-        className="flex-grow overflow-auto flex items-center justify-center p-8 relative"
-        onClick={() => { if (gradeAberta) setGradeAberta(false); if (downloadAberto) setDownloadAberto(false); }}
+        className="flex-grow overflow-auto p-8 relative"
+        onClick={() => {
+          if (gradeAberta) setGradeAberta(false);
+          if (downloadAberto) setDownloadAberto(false);
+          if (compartilharAberto) setCompartilharAberto(false);
+        }}
       >
         {produtos.length > 0 && (
           <button
@@ -398,11 +523,25 @@ export default function EncarteCanvas({
           </button>
         )}
 
-        <div
-          ref={canvasRef}
-          className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
-          style={{ width: 480, aspectRatio: `${formato.ratio}` }}
-        >
+        {/* Centraliza o canvas e, quando ampliado, cresce junto pra rolagem
+            alcançar todas as bordas (min-w-full mantém centralizado no zoom baixo). */}
+        <div className="min-h-full min-w-full w-max flex items-center justify-center">
+          {/* Reserva o espaço já no tamanho ampliado — transform não empurra layout sozinho. */}
+          <div
+            style={{
+              width: 480 * zoom,
+              height: (480 / formato.ratio) * zoom,
+              flexShrink: 0,
+            }}
+          >
+            {/* Camada de zoom: só visual. O canvasRef abaixo fica sem transform,
+                então o PNG/PDF sempre sai no tamanho real. */}
+            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+              <div
+                ref={canvasRef}
+                className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
+                style={{ width: 480, aspectRatio: `${formato.ratio}` }}
+              >
           {/* Fundo — preenche a caixa toda, produtos ficam por cima */}
           <div className="absolute inset-0">
             {ehFundoBuiltin(backgroundUrl) ? (
@@ -535,6 +674,9 @@ export default function EncarteCanvas({
               {rodape.texto}
             </div>
           )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -560,11 +702,27 @@ export default function EncarteCanvas({
 
       {/* Zoom */}
       <div className="absolute bottom-4 right-4 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center gap-1 px-2 py-1.5">
-        <button className="p-1 rounded text-zinc-400 hover:text-zinc-200 transition-colors">
+        <button
+          onClick={() => ajustarZoom(-ZOOM_STEP)}
+          disabled={zoom <= ZOOM_MIN}
+          title="Diminuir zoom"
+          className="p-1 rounded text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
-        <span className="text-[10px] font-bold text-zinc-400 w-9 text-center">100%</span>
-        <button className="p-1 rounded text-zinc-400 hover:text-zinc-200 transition-colors">
+        <button
+          onClick={() => setZoom(1)}
+          title="Restaurar zoom (100%)"
+          className="text-[10px] font-bold text-zinc-400 hover:text-zinc-200 transition-colors w-9 text-center"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+        <button
+          onClick={() => ajustarZoom(ZOOM_STEP)}
+          disabled={zoom >= ZOOM_MAX}
+          title="Aumentar zoom"
+          className="p-1 rounded text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
           <ZoomIn className="w-3.5 h-3.5" />
         </button>
       </div>
