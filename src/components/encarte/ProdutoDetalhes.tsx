@@ -1,13 +1,15 @@
-import { ArrowLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import { EncarteProduto, EstiloEncarte, ModeloCard, MODELOS_CARD } from './encarteProduto';
 
 interface ProdutoDetalhesProps {
   produto: EncarteProduto;
   estilo: EstiloEncarte;
+  ladoAtivo: 'frente' | 'verso';
   onAtualizar: (patch: Partial<EncarteProduto>) => void;
   onAtualizarEstilo: (patch: Partial<EstiloEncarte>) => void;
   onRemover: () => void;
+  onEnviarParaOutroLado: () => void;
   onVoltar: () => void;
 }
 
@@ -16,9 +18,11 @@ const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'cx', 'pct', 'fardo'];
 export default function ProdutoDetalhes({
   produto,
   estilo,
+  ladoAtivo,
   onAtualizar,
   onAtualizarEstilo,
   onRemover,
+  onEnviarParaOutroLado,
   onVoltar,
 }: ProdutoDetalhesProps) {
   const { product } = produto;
@@ -65,6 +69,11 @@ export default function ProdutoDetalhes({
           <BotaoAcao icon={Scissors} label="Remover fundo" premium disabled />
           <BotaoAcaoCor icon={Palette} label="Cor de fundo" value={estilo.corFundo} onChange={(corFundo) => onAtualizarEstilo({ corFundo })} />
           <BotaoAcaoCor icon={Tag} label="Cor da etiqueta" value={estilo.corEtiqueta} onChange={(corEtiqueta) => onAtualizarEstilo({ corEtiqueta })} />
+          <BotaoAcao
+            icon={ArrowRightLeft}
+            label={ladoAtivo === 'frente' ? 'Enviar pro verso' : 'Enviar pra frente'}
+            onClick={onEnviarParaOutroLado}
+          />
           <BotaoAcao icon={Trash2} label="Remover produto" danger onClick={onRemover} />
         </div>
       </div>

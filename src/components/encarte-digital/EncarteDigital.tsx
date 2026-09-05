@@ -293,7 +293,7 @@ export default function EncarteDigital({ produtosIniciais, temaInicial, areaInic
           {painel === 'produtos' && (
             <>
               <Titulo icon={ShoppingCart} nome="Produtos" sub="Busque e ajuste cada item" />
-              <ProductSelector onSelect={adicionarProduto} />
+              <ProductSelector onSelect={adicionarProduto} mostrarTodosSemBusca />
 
               {/* Fallback: imagem da internet (sites de farmácia) */}
               <div className="space-y-2 pt-3 border-t border-zinc-800">

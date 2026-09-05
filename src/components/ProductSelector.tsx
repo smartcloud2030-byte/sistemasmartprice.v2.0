@@ -3,7 +3,10 @@ import { useStore, Product, isThreeProduct } from '../store';
 import { Search, Package, Check, X, RefreshCw } from 'lucide-react';
 import { getProxyUrl } from '../lib/utils';
 
-const ProductSelector: React.FC<{ onSelect?: (product: Product) => void }> = ({ onSelect }) => {
+const ProductSelector: React.FC<{ onSelect?: (product: Product) => void; mostrarTodosSemBusca?: boolean }> = ({
+  onSelect,
+  mostrarTodosSemBusca = false,
+}) => {
   const {
     products, fetchProducts, selectProduct,
     textElements1, textElements2, textElements3,
@@ -52,8 +55,8 @@ const ProductSelector: React.FC<{ onSelect?: (product: Product) => void }> = ({ 
   const filteredProducts2 = useMemo(() => filterProducts(searchTerm2), [searchTerm2, products]);
   const filteredProducts3 = useMemo(() => filterProducts(searchTerm3), [searchTerm3, products]);
   const generalFilteredProducts = useMemo(() => filterProducts(generalSearchTerm), [generalSearchTerm, products]);
-  // no modo de adição (onSelect), sem busca lista todos — senão a lista fica vazia
-  const generalList = generalSearchTerm.trim() ? generalFilteredProducts : products;
+  // por padrão só lista ao buscar; mostrarTodosSemBusca inverte isso pra quem precisa do catálogo inteiro visível
+  const generalList = mostrarTodosSemBusca && !generalSearchTerm.trim() ? products : generalFilteredProducts;
 
   if (onSelect) {
     return (
@@ -105,7 +108,7 @@ const ProductSelector: React.FC<{ onSelect?: (product: Product) => void }> = ({ 
           ))}
           {generalList.length === 0 && (
             <div className="text-center py-12 text-zinc-400 text-sm">
-              Nenhum produto encontrado.
+              {generalSearchTerm.trim() ? 'Nenhum produto encontrado.' : 'Digite para buscar produtos.'}
             </div>
           )}
         </div>

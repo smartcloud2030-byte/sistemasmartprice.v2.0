@@ -112,9 +112,14 @@ export const getGrade = (id: GradeId) => GRADES.find((g) => g.id === id) ?? GRAD
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 /**
- * Distribui os produtos numa grade cols×rows, centralizando cada card na
- * sua célula e devolvendo a escala de card que faz tudo caber. Depois
- * disso o usuário ainda pode arrastar cada card livremente.
+ * Distribui os produtos numa grade de `g.cols` colunas, centralizando cada
+ * card na sua célula e devolvendo a escala de card que faz tudo caber.
+ * Depois disso o usuário ainda pode arrastar cada card livremente.
+ *
+ * Ajuste inteligente: as linhas da grade (`g.rows`) são só o ponto de
+ * partida — se tiver mais produtos do que cabe nelas, cresce em linhas
+ * (nunca volta pro início) e encolhe o card na mesma proporção, então os
+ * produtos nunca ficam empilhados uns em cima dos outros.
  */
 export function organizarEmGrade(
   produtos: EncarteProduto[],
@@ -126,21 +131,21 @@ export function organizarEmGrade(
 
   const canvasH = CANVAS_W / formato.ratio;
   const usable = 0.9;
-  const cellWpx = (CANVAS_W * usable) / g.cols;
-  const cellHpx = (canvasH * usable) / g.rows;
-  const escalaCard = clamp(Math.min(cellWpx / (CARD_W + 6), cellHpx / (CARD_H + 6)), 0.35, 1);
+  const cols = g.cols;
+  const rows = Math.max(g.rows, Math.ceil(produtos.length / cols) || 1);
+  const cellWpx = (CANVAS_W * usable) / cols;
+  const cellHpx = (canvasH * usable) / rows;
+  const escalaCard = clamp(Math.min(cellWpx / (CARD_W + 6), cellHpx / (CARD_H + 6)), 0.15, 1);
 
   const cardWpct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
   const cardHpct = ((CARD_H * escalaCard) / canvasH) * 100;
-  const cellWpct = (100 * usable) / g.cols;
-  const cellHpct = (100 * usable) / g.rows;
+  const cellWpct = (100 * usable) / cols;
+  const cellHpct = (100 * usable) / rows;
   const origem = ((1 - usable) / 2) * 100;
-  const capacidade = g.cols * g.rows;
 
   const novos = produtos.map((p, i) => {
-    const slot = i % capacidade;
-    const col = slot % g.cols;
-    const row = Math.floor(slot / g.cols);
+    const col = i % cols;
+    const row = Math.floor(i / cols);
     return {
       ...p,
       xPct: origem + col * cellWpct + (cellWpct - cardWpct) / 2,

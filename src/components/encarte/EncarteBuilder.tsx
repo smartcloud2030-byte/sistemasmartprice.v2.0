@@ -90,6 +90,27 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
+  /** Move um produto do lado ativo pro outro (cria o verso vazio se ainda não existir). */
+  const enviarProdutoParaOutroLado = (id: string | number | undefined) => {
+    const produto = lado.produtos.find((ep) => ep.product.id === id);
+    if (!produto) return;
+
+    const inserirNoDestino = (destino: LadoEncarte): LadoEncarte => {
+      if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
+      const produtos = [...destino.produtos, produto];
+      if (destino.grade === 'livre') return { ...destino, produtos };
+      const r = organizarEmGrade(produtos, destino.grade, formato);
+      return { ...destino, produtos: r.produtos, estilo: { ...destino.estilo, escalaCard: r.escalaCard } };
+    };
+
+    if (ladoAtivo === 'frente') {
+      setLadoVerso((v) => inserirNoDestino(v ?? criarLado()));
+    } else {
+      setLadoFrente((f) => inserirNoDestino(f));
+    }
+    removerProduto(id);
+  };
+
   const atualizarProduto = (id: string | number | undefined, patch: Partial<EncarteProduto>) => {
     atualizarLado((l) => ({ produtos: l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)) }));
   };
@@ -191,9 +212,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
             <ProdutoDetalhes
               produto={produtoDetalhado}
               estilo={lado.estilo}
+              ladoAtivo={ladoAtivo}
               onAtualizar={(patch) => atualizarProduto(produtoDetalhado.product.id, patch)}
               onAtualizarEstilo={atualizarEstilo}
               onRemover={() => removerProduto(produtoDetalhado.product.id)}
+              onEnviarParaOutroLado={() => enviarProdutoParaOutroLado(produtoDetalhado.product.id)}
               onVoltar={() => setProdutoDetalhadoId(null)}
             />
           ) : activeMenu === 'temas' ? (
