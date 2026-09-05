@@ -20,9 +20,11 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
 
+  // Sem thumbnail aqui de propósito: o card é exportado em alta qualidade
+  // (scale 3x no download), e a miniatura de 400px ficaria borrada ampliada.
   const foto = product.image ? (
     <img
-      src={getProxyUrl(product.thumb_image || product.image, { thumbnail: true })}
+      src={getProxyUrl(product.image || product.thumb_image)}
       className="w-full h-full object-contain"
       referrerPolicy="no-referrer"
       crossOrigin="anonymous"

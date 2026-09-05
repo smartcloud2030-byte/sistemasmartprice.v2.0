@@ -1,16 +1,17 @@
 import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
+import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import {
   Undo2, Redo2, Type, Palette, Maximize2, CalendarDays, Download, Share2, Package, Plus,
-  ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X,
+  ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import { Formato } from './formatos';
 import {
   EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
-  DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin,
+  DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin, CANVAS_W,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
@@ -117,22 +118,44 @@ export default function EncarteCanvas({
   const dragRef = useRef<DragState | null>(null);
   const imgDragRef = useRef<ImagemDragState | null>(null);
 
-  const handleDownload = async () => {
+  const [downloadAberto, setDownloadAberto] = useState(false);
+
+  const baixar = async (tipo: 'png' | 'pdf') => {
     if (!canvasRef.current || exportando) return;
+    setDownloadAberto(false);
     setExportando(true);
     try {
+      // O preview em tela é sempre CANVAS_W (480px) de largura, não importa o
+      // formato — a escala de exportação escala pra bater com a resolução
+      // nominal de cada formato (formatos.ts), não um valor fixo. É isso que
+      // garante alta qualidade de verdade: A4 sai em ~2480px, não ~1440px.
+      const escala = formato.width / CANVAS_W;
       const canvas = await html2canvas(canvasRef.current, {
         useCORS: true,
         backgroundColor: '#000000',
-        scale: 3,
+        scale: escala,
       });
-      const link = document.createElement('a');
-      link.download = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      const nomeBase = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}`;
+
+      if (tipo === 'png') {
+        const link = document.createElement('a');
+        link.download = `${nomeBase}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } else {
+        const pdf = new jsPDF({
+          orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height],
+        });
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
+        pdf.save(`${nomeBase}.pdf`);
+      }
+
       onExportado?.(gerarThumbnail(canvas));
+      toast.success(tipo === 'png' ? 'PNG baixado em alta qualidade!' : 'PDF baixado em alta qualidade!');
     } catch {
-      toast.error('Não foi possível gerar a imagem do encarte. Tente novamente.');
+      toast.error('Não foi possível gerar o arquivo do encarte. Tente novamente.');
     } finally {
       setExportando(false);
     }
@@ -324,14 +347,35 @@ export default function EncarteCanvas({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleDownload}
-            disabled={exportando}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-            {exportando ? 'Gerando...' : 'Download'}
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setDownloadAberto((v) => !v)}
+              disabled={exportando}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {exportando ? 'Gerando...' : 'Download'}
+              {!exportando && <ChevronDown className="w-3 h-3 opacity-80" />}
+            </button>
+            {downloadAberto && (
+              <div className="absolute top-full right-0 mt-1 w-52 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+                <button
+                  onClick={() => baixar('png')}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  PNG em alta qualidade
+                </button>
+                <button
+                  onClick={() => baixar('pdf')}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200 border-t border-zinc-800"
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  PDF em alta qualidade
+                </button>
+              </div>
+            )}
+          </div>
           <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors">
             <Share2 className="w-3.5 h-3.5" />
             Compartilhar
@@ -342,7 +386,7 @@ export default function EncarteCanvas({
       {/* Área de preview */}
       <div
         className="flex-grow overflow-auto flex items-center justify-center p-8 relative"
-        onClick={() => gradeAberta && setGradeAberta(false)}
+        onClick={() => { if (gradeAberta) setGradeAberta(false); if (downloadAberto) setDownloadAberto(false); }}
       >
         {produtos.length > 0 && (
           <button
@@ -364,7 +408,12 @@ export default function EncarteCanvas({
             {ehFundoBuiltin(backgroundUrl) ? (
               <div className="w-full h-full" style={{ background: FUNDOS_BUILTIN[backgroundUrl] }} />
             ) : backgroundUrl ? (
-              <img src={getProxyUrl(backgroundUrl)} className="w-full h-full object-cover" />
+              <img
+                src={getProxyUrl(backgroundUrl)}
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-zinc-900">
                 <p className="text-[10px] text-zinc-600 font-semibold">Escolha um fundo na aba Temas</p>
@@ -442,6 +491,8 @@ export default function EncarteCanvas({
                   src={getProxyUrl(im.url)}
                   className="w-full h-full object-contain pointer-events-none"
                   draggable={false}
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
                 />
               </div>
 
