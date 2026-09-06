@@ -20,6 +20,12 @@ export interface Message {
 
 let socket: Socket | null = null;
 
+// `useSupportSocket` roda em dois lugares (App e SupportChat), então cada
+// evento `message:receive` chega duas vezes. Sem isso, o contador de não
+// lidas soma +2 por mensagem. Guardamos os ids já tratados pra processar
+// cada mensagem uma vez só, não importa quantas instâncias do hook existam.
+const mensagensRecebidas = new Set<string>();
+
 export function getSocket(): Socket {
   if (!socket) {
     socket = io({ path: '/socket.io/', transports: ['websocket', 'polling'] });
@@ -35,6 +41,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     socket?.disconnect();
     socket = null;
+    mensagensRecebidas.clear();
   });
 }
 
@@ -95,19 +102,25 @@ export function useSupportSocket() {
     };
 
     const onReceive = (payload: { cnpj: string; message: Message }) => {
+      const msgId = payload?.message?.id;
+      // O hook roda em 2 lugares → cada evento chega 2x. Trata cada mensagem
+      // uma vez só (senão o contador de não lidas soma dobrado).
+      if (!msgId || mensagensRecebidas.has(msgId)) return;
+      mensagensRecebidas.add(msgId);
+      if (mensagensRecebidas.size > 800) mensagensRecebidas.clear();
+
       const state = useStore.getState();
+      const cnpjMsg = String(payload.cnpj || '').replace(/[^\d]/g, '');
       const isViewingThisConv = state.userRole === 'admin'
-        ? state.selectedUserCnpj === payload.cnpj
+        ? String(state.selectedUserCnpj || '').replace(/[^\d]/g, '') === cnpjMsg
         : true;
       const isChatOpen = state.isSupportChatOpen;
       const isFromOther = state.userRole === 'admin'
         ? payload.message.sender_type === 'user'
         : payload.message.sender_type === 'admin';
 
-      // Protege contra entrega duplicada (ex.: conexões antigas ainda vivas
-      // durante hot-reload em desenvolvimento) ignorando IDs já conhecidos.
-      const isDuplicate = state.messages.some((m: Message) => m.id === payload.message.id);
-      if (isDuplicate) return;
+      // Guarda extra: se a mensagem já está na lista aberta, não repete.
+      if (state.messages.some((m: Message) => m.id === msgId)) return;
 
       if (isViewingThisConv) {
         setMessages(prev => [...prev, payload.message]);
@@ -116,24 +129,22 @@ export function useSupportSocket() {
       if (isFromOther && (!isViewingThisConv || !isChatOpen)) {
         setUnreadSupportCount(prev => (typeof prev === 'number' ? prev : 0) + 1);
         if (state.userRole === 'admin') {
-          setUnreadPerUser(payload.cnpj, (prev) => (typeof prev === 'number' ? prev : 0) + 1);
+          setUnreadPerUser(cnpjMsg, (prev) => (typeof prev === 'number' ? prev : 0) + 1);
         }
       }
 
       if (state.userRole === 'admin') {
+        // Move a conversa que recebeu mensagem pro topo da lista.
         setConversations((prev: any[]) => {
-          const idx = prev.findIndex((c) => c.user_id === payload.cnpj);
+          const idx = prev.findIndex((c) => String(c.user_id).replace(/[^\d]/g, '') === cnpjMsg);
           if (idx === -1) {
-            // Primeira mensagem desta loja — ainda não existe entrada na lista
-            // (o backend só lista conversas com pelo menos uma mensagem).
             return [
-              { user_id: payload.cnpj, user_name: payload.message.sender_name, bandeira: undefined, updated_at: payload.message.timestamp, unread_count: 0 },
+              { user_id: cnpjMsg, user_name: payload.message.sender_name, bandeira: undefined, updated_at: payload.message.timestamp, unread_count: 0 },
               ...prev,
             ];
           }
-          const updated = [...prev];
-          updated[idx] = { ...updated[idx], updated_at: payload.message.timestamp };
-          return updated;
+          const atualizada = { ...prev[idx], updated_at: payload.message.timestamp };
+          return [atualizada, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
         });
       }
     };

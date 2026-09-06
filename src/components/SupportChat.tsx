@@ -186,7 +186,11 @@ export default function SupportChat() {
       }
     });
 
-    return Object.values(uniqueUsers).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const ms = (v: any) => {
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    return Object.values(uniqueUsers).sort((a, b) => ms(b.timestamp) - ms(a.timestamp));
   }, [conversations, allowedStores, unreadPerUser, userRole]);
 
   const handleClearChat = () => {
@@ -307,8 +311,20 @@ export default function SupportChat() {
                       <div className="flex justify-between items-start">
                         <p className="text-xs font-bold truncate text-black dark:text-white select-text cursor-text">{user.name}</p>
                         {user.timestamp && !isNaN(new Date(user.timestamp).getTime()) && (
-                          <span className="text-[7px] text-zinc-400 dark:text-zinc-500">
-                            {new Date(user.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <span className="text-[7px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 ml-1">
+                            {(() => {
+                              const d = new Date(user.timestamp);
+                              const hoje = new Date();
+                              const mesmoDia =
+                                d.getDate() === hoje.getDate() &&
+                                d.getMonth() === hoje.getMonth() &&
+                                d.getFullYear() === hoje.getFullYear();
+                              return mesmoDia
+                                ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
+                                    ' ' +
+                                    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            })()}
                           </span>
                         )}
                       </div>
