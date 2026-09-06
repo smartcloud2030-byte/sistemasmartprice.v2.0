@@ -6,6 +6,7 @@ import {
   Undo2, Redo2, Type, Palette, Shapes, CalendarDays, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, SendToBack, BringToFront, Ruler,
+  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -15,6 +16,7 @@ import {
   DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin, CANVAS_W,
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
+  TextoEncarte, TextoAlinhamento, criarTexto, FONTES_ENCARTE,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
@@ -40,11 +42,23 @@ const DESTINOS_COMPARTILHAR = {
 type DestinoCompartilhar = keyof typeof DESTINOS_COMPARTILHAR;
 
 const TOOLBAR_ITEMS = [
-  { icon: Type, label: 'Fontes' },
-  { icon: Type, label: 'Texto' },
   { icon: Palette, label: 'Cores' },
   { icon: CalendarDays, label: 'Validade' },
 ];
+
+const TAMANHO_TEXTO_MIN = 8;
+const TAMANHO_TEXTO_MAX = 120;
+
+const ICONE_ALINHAMENTO: Record<TextoAlinhamento, typeof AlignLeft> = {
+  left: AlignLeft,
+  center: AlignCenter,
+  right: AlignRight,
+};
+const PROXIMO_ALINHAMENTO: Record<TextoAlinhamento, TextoAlinhamento> = {
+  left: 'center',
+  center: 'right',
+  right: 'left',
+};
 
 const ICONE_FORMA: Record<FormaTipo, typeof Square> = {
   quadrado: Square,
@@ -94,6 +108,7 @@ interface EncarteCanvasProps {
   divisores: DivisorEncarte[];
   imagens: ElementoImagem[];
   formas: FormaEncarte[];
+  textos: TextoEncarte[];
   guias: GuiaEncarte[];
   rodape: { ativo: boolean; texto: string };
   ladoAtivo: 'frente' | 'verso';
@@ -116,6 +131,12 @@ interface EncarteCanvasProps {
   onDefinirCorForma: (id: string, cor: string) => void;
   onAlternarCamadaForma: (id: string) => void;
   onRemoverForma: (id: string) => void;
+  onAdicionarTexto: (texto: TextoEncarte) => void;
+  onMoverTexto: (id: string, xPct: number, yPct: number) => void;
+  onRedimensionarTexto: (id: string, wPct: number) => void;
+  onEditarTexto: (id: string, conteudo: string) => void;
+  onEstilizarTexto: (id: string, patch: Partial<TextoEncarte>) => void;
+  onRemoverTexto: (id: string) => void;
   onAdicionarGuia: (guia: GuiaEncarte) => void;
   onMoverGuia: (id: string, pos: number) => void;
   onRemoverGuia: (id: string) => void;
@@ -157,6 +178,16 @@ interface GuiaDragState {
   ultimaPos: number;
 }
 
+interface TextoDragState {
+  tipo: 'mover' | 'resize-e' | 'resize-w';
+  id: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  orig: TextoEncarte;
+  moved: boolean;
+}
+
 interface FormaDragState {
   tipo: 'mover' | 'resize';
   canto?: Canto;
@@ -176,6 +207,7 @@ export default function EncarteCanvas({
   divisores,
   imagens,
   formas,
+  textos,
   rodape,
   ladoAtivo,
   temVerso,
@@ -197,6 +229,12 @@ export default function EncarteCanvas({
   onDefinirCorForma,
   onAlternarCamadaForma,
   onRemoverForma,
+  onAdicionarTexto,
+  onMoverTexto,
+  onRedimensionarTexto,
+  onEditarTexto,
+  onEstilizarTexto,
+  onRemoverTexto,
   guias,
   onAdicionarGuia,
   onMoverGuia,
@@ -213,11 +251,16 @@ export default function EncarteCanvas({
   const [formasAberta, setFormasAberta] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
   const [reguasVisiveis, setReguasVisiveis] = useState(false);
+  const [fontesAberta, setFontesAberta] = useState(false);
+  const [fonteNova, setFonteNova] = useState('Montserrat');
+  const [textoSelecionadoId, setTextoSelecionadoId] = useState<string | null>(null);
+  const [textoEditandoId, setTextoEditandoId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const imgDragRef = useRef<ImagemDragState | null>(null);
   const guiaDragRef = useRef<GuiaDragState | null>(null);
   const formaDragRef = useRef<FormaDragState | null>(null);
+  const textoDragRef = useRef<TextoDragState | null>(null);
 
   const [downloadAberto, setDownloadAberto] = useState(false);
   const [compartilharAberto, setCompartilharAberto] = useState(false);
@@ -606,6 +649,161 @@ export default function EncarteCanvas({
     );
   };
 
+  // ── Textos ─────────────────────────────────────────────────────────
+  const iniciarTextoDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    tipo: TextoDragState['tipo'],
+    t: TextoEncarte,
+  ) => {
+    e.stopPropagation();
+    setTextoSelecionadoId(t.id);
+    setFormaSelecionadaId(null);
+    if (textoEditandoId && textoEditandoId !== t.id) setTextoEditandoId(null);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    textoDragRef.current = {
+      tipo, id: t.id, pointerId: e.pointerId,
+      startX: e.clientX, startY: e.clientY, orig: t, moved: false,
+    };
+  };
+
+  const handleTextoPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = textoDragRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!st || !rect || e.pointerId !== st.pointerId) return;
+    const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
+    const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
+    if (!st.moved && Math.abs(e.clientX - st.startX) + Math.abs(e.clientY - st.startY) < 3) return;
+    st.moved = true;
+    const o = st.orig;
+    if (st.tipo === 'mover') {
+      onMoverTexto(
+        st.id,
+        clamp(o.xPct + dxPct, MIN_ELEMENTO - o.wPct, 100 - MIN_ELEMENTO),
+        clamp(o.yPct + dyPct, -10, 100 - MIN_ELEMENTO),
+      );
+    } else {
+      // resize-e: largura pela borda direita (altura acompanha o texto)
+      onRedimensionarTexto(st.id, clamp(o.wPct + dxPct, MIN_ELEMENTO, 140 - o.xPct));
+    }
+  };
+
+  const handleTextoPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    textoDragRef.current = null;
+  };
+
+  const ajustarTamanhoTexto = (t: TextoEncarte, delta: number) =>
+    onEstilizarTexto(t.id, { tamanho: clamp(t.tamanho + delta, TAMANHO_TEXTO_MIN, TAMANHO_TEXTO_MAX) });
+
+  const estiloDoTexto = (t: TextoEncarte): React.CSSProperties => ({
+    fontFamily: `'${t.fontFamily}', sans-serif`,
+    fontSize: t.tamanho,
+    lineHeight: 1.15,
+    color: t.cor,
+    fontWeight: t.negrito ? 800 : 400,
+    fontStyle: t.italico ? 'italic' : 'normal',
+    textAlign: t.alinhamento,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+  });
+
+  /** Uma caixa de texto no canvas — mover pelo corpo, editar com 2 cliques, largura pela borda direita. */
+  const renderTexto = (t: TextoEncarte) => {
+    const selecionada = t.id === textoSelecionadoId;
+    const editando = t.id === textoEditandoId;
+    return (
+      <div
+        key={t.id}
+        className="absolute"
+        style={{ left: `${t.xPct}%`, top: `${t.yPct}%`, width: `${t.wPct}%`, zIndex: selecionada ? 40 : 30 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {editando ? (
+          <textarea
+            data-html2canvas-ignore="true"
+            autoFocus
+            value={t.texto}
+            onChange={(e) => onEditarTexto(t.id, e.target.value)}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${el.scrollHeight}px`;
+            }}
+            onBlur={() => {
+              setTextoEditandoId(null);
+              if (!t.texto.trim()) onRemoverTexto(t.id);
+            }}
+            onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.blur(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="w-full bg-white/10 outline outline-1 outline-emerald-400 rounded-sm resize-none block"
+            style={{ ...estiloDoTexto(t), minHeight: t.tamanho * 2.4 }}
+          />
+        ) : (
+          <div
+            className="w-full cursor-move select-none"
+            style={{ ...estiloDoTexto(t), minHeight: t.tamanho }}
+            onPointerDown={(e) => iniciarTextoDrag(e, 'mover', t)}
+            onPointerMove={handleTextoPointerMove}
+            onPointerUp={handleTextoPointerUp}
+            onPointerCancel={handleTextoPointerUp}
+            onDoubleClick={() => { setTextoSelecionadoId(t.id); setTextoEditandoId(t.id); }}
+          >
+            {t.texto || ' '}
+          </div>
+        )}
+
+        {selecionada && !editando && (
+          <>
+            {/* Barra de formatação — não entra no PNG/PDF */}
+            <div
+              data-html2canvas-ignore="true"
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute -top-9 left-0 flex items-center gap-0.5 bg-zinc-900 border border-zinc-700 rounded-lg px-1 py-1 shadow-lg whitespace-nowrap"
+            >
+              <button onClick={() => ajustarTamanhoTexto(t, -2)} title="Diminuir" className="p-1 text-zinc-400 hover:text-zinc-100"><Minus className="w-3.5 h-3.5" /></button>
+              <span className="text-[9px] font-bold text-zinc-400 w-5 text-center">{Math.round(t.tamanho)}</span>
+              <button onClick={() => ajustarTamanhoTexto(t, 2)} title="Aumentar" className="p-1 text-zinc-400 hover:text-zinc-100"><Plus className="w-3.5 h-3.5" /></button>
+              <span className="w-px h-4 bg-zinc-700 mx-0.5" />
+              <button onClick={() => onEstilizarTexto(t.id, { negrito: !t.negrito })} title="Negrito" className={cn('p-1 hover:text-zinc-100', t.negrito ? 'text-emerald-400' : 'text-zinc-400')}><Bold className="w-3.5 h-3.5" /></button>
+              <button onClick={() => onEstilizarTexto(t.id, { italico: !t.italico })} title="Itálico" className={cn('p-1 hover:text-zinc-100', t.italico ? 'text-emerald-400' : 'text-zinc-400')}><Italic className="w-3.5 h-3.5" /></button>
+              <button
+                onClick={() => onEstilizarTexto(t.id, { alinhamento: PROXIMO_ALINHAMENTO[t.alinhamento] })}
+                title="Alinhamento"
+                className="p-1 text-zinc-400 hover:text-zinc-100"
+              >
+                {(() => { const Ali = ICONE_ALINHAMENTO[t.alinhamento]; return <Ali className="w-3.5 h-3.5" />; })()}
+              </button>
+              <label className="p-1 cursor-pointer flex" title="Cor do texto">
+                <input
+                  type="color"
+                  value={t.cor}
+                  onChange={(e) => onEstilizarTexto(t.id, { cor: e.target.value })}
+                  className="w-4 h-4 rounded cursor-pointer bg-transparent border-0 p-0"
+                />
+              </label>
+              <span className="w-px h-4 bg-zinc-700 mx-0.5" />
+              <button onClick={() => setTextoEditandoId(t.id)} title="Editar texto" className="p-1 text-zinc-400 hover:text-emerald-400"><Pencil className="w-3.5 h-3.5" /></button>
+              <button onClick={() => { onRemoverTexto(t.id); setTextoSelecionadoId(null); }} title="Remover" className="p-1 text-zinc-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+            </div>
+
+            {/* Contorno + alça de largura na borda direita */}
+            <div data-html2canvas-ignore="true" className="absolute inset-0 outline outline-1 outline-emerald-400/70 pointer-events-none" />
+            <div
+              data-html2canvas-ignore="true"
+              onPointerDown={(e) => iniciarTextoDrag(e, 'resize-e', t)}
+              onPointerMove={handleTextoPointerMove}
+              onPointerUp={handleTextoPointerUp}
+              onPointerCancel={handleTextoPointerUp}
+              className="absolute top-1/2 right-0 w-3 h-3 -translate-y-1/2 translate-x-1/2 rounded-sm bg-emerald-500 border-2 border-white shadow cursor-ew-resize"
+            />
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const textoAtivo = textos.find((t) => t.id === textoSelecionadoId) ?? null;
+
   const formasAtras = formas.filter((f) => f.atras);
   const formasFrente = formas.filter((f) => !f.atras);
 
@@ -733,6 +931,62 @@ export default function EncarteCanvas({
             )}
           </div>
 
+          {/* Texto */}
+          <button
+            onClick={() => {
+              const t = criarTexto(fonteNova);
+              onAdicionarTexto(t);
+              setTextoSelecionadoId(t.id);
+              setTextoEditandoId(t.id);
+              setFormaSelecionadaId(null);
+            }}
+            title="Adicionar caixa de texto"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+          >
+            <Type className="w-3.5 h-3.5" />
+            Texto
+          </button>
+
+          {/* Fontes */}
+          <div className="relative">
+            <button
+              onClick={() => setFontesAberta((v) => !v)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors text-xs font-semibold',
+                fontesAberta ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              )}
+            >
+              <Type className="w-3.5 h-3.5" />
+              Fontes
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {fontesAberta && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50 max-h-80 overflow-y-auto">
+                <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                  {textoAtivo ? 'Fonte do texto selecionado' : 'Fonte dos próximos textos'}
+                </p>
+                {FONTES_ENCARTE.map((f) => {
+                  const atual = textoAtivo ? textoAtivo.fontFamily === f : fonteNova === f;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => {
+                        if (textoAtivo) onEstilizarTexto(textoAtivo.id, { fontFamily: f });
+                        else setFonteNova(f);
+                        setFontesAberta(false);
+                      }}
+                      className="w-full flex items-center justify-between gap-2 px-3.5 py-2 hover:bg-zinc-800 transition-colors text-left text-sm text-zinc-200"
+                      style={{ fontFamily: `'${f}', sans-serif` }}
+                    >
+                      {f}
+                      {atual && <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Réguas / guias */}
           <button
             onClick={() => setReguasVisiveis((v) => !v)}
@@ -837,9 +1091,12 @@ export default function EncarteCanvas({
         onClick={() => {
           if (gradeAberta) setGradeAberta(false);
           if (formasAberta) setFormasAberta(false);
+          if (fontesAberta) setFontesAberta(false);
           if (downloadAberto) setDownloadAberto(false);
           if (compartilharAberto) setCompartilharAberto(false);
           if (formaSelecionadaId) setFormaSelecionadaId(null);
+          if (textoSelecionadoId) setTextoSelecionadoId(null);
+          if (textoEditandoId) setTextoEditandoId(null);
         }}
       >
         {produtos.length > 0 && (
@@ -1056,6 +1313,9 @@ export default function EncarteCanvas({
 
           {/* Formas na frente (padrão) — acima de produtos e imagens */}
           {formasFrente.map(renderForma)}
+
+          {/* Textos — sempre por cima */}
+          {textos.map(renderTexto)}
 
           {/* Rodapé */}
           {rodape.ativo && (

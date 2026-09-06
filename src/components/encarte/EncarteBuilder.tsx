@@ -21,6 +21,7 @@ import {
   FormaEncarte,
   FormaTipo,
   GuiaEncarte,
+  TextoEncarte,
   criarEncarteProduto,
   criarLado,
   clonarLado,
@@ -28,6 +29,7 @@ import {
   criarDivisor,
   criarElementoImagem,
   criarForma,
+  criarTexto,
   organizarEmGrade,
 } from './encarteProduto';
 import {
@@ -356,6 +358,31 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const removerForma = (id: string) =>
     atualizarLado((l) => ({ formas: (l.formas ?? []).filter((f) => f.id !== id) }));
 
+  // ── Textos ─────────────────────────────────────────────────────────
+  const adicionarTexto = (texto: TextoEncarte) =>
+    atualizarLado((l) => ({ textos: [...(l.textos ?? []), texto] }));
+
+  const atualizarTexto = (id: string, patch: Partial<TextoEncarte>, opcoes?: OpcoesSet) =>
+    atualizarLado(
+      (l) => ({ textos: (l.textos ?? []).map((t) => (t.id === id ? { ...t, ...patch } : t)) }),
+      opcoes,
+    );
+
+  const moverTexto = (id: string, xPct: number, yPct: number) =>
+    atualizarTexto(id, { xPct, yPct }, { coalesce: `mover-texto-${id}` });
+
+  const redimensionarTexto = (id: string, wPct: number) =>
+    atualizarTexto(id, { wPct }, { coalesce: `redim-texto-${id}` });
+
+  const editarTexto = (id: string, conteudo: string) =>
+    atualizarTexto(id, { texto: conteudo }, { coalesce: `conteudo-texto-${id}` });
+
+  const estilizarTexto = (id: string, patch: Partial<TextoEncarte>) =>
+    atualizarTexto(id, patch, { coalesce: `estilo-texto-${id}` });
+
+  const removerTexto = (id: string) =>
+    atualizarLado((l) => ({ textos: (l.textos ?? []).filter((t) => t.id !== id) }));
+
   // ── Guias / réguas ─────────────────────────────────────────────────
   // Fora do histórico (semHistorico): guia é auxílio de montagem, não
   // deve gastar passo de desfazer nem some com Ctrl+Z. Continua salvando
@@ -507,6 +534,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           divisores={lado.divisores}
           imagens={lado.imagens}
           formas={lado.formas ?? []}
+          textos={lado.textos ?? []}
           guias={lado.guias ?? []}
           rodape={lado.rodape}
           ladoAtivo={ladoAtivo}
@@ -529,6 +557,12 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onDefinirCorForma={definirCorForma}
           onAlternarCamadaForma={alternarCamadaForma}
           onRemoverForma={removerForma}
+          onAdicionarTexto={adicionarTexto}
+          onMoverTexto={moverTexto}
+          onRedimensionarTexto={redimensionarTexto}
+          onEditarTexto={editarTexto}
+          onEstilizarTexto={estilizarTexto}
+          onRemoverTexto={removerTexto}
           onAdicionarGuia={adicionarGuia}
           onMoverGuia={moverGuia}
           onRemoverGuia={removerGuia}

@@ -267,6 +267,58 @@ export function criarGuia(orientacao: GuiaOrientacao, pos: number): GuiaEncarte 
   return { id: `guia_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, orientacao, pos };
 }
 
+// ── Texto livre ──────────────────────────────────────────────────────
+
+/** Fontes já carregadas globalmente em `src/index.css` (Google Fonts). */
+export const FONTES_ENCARTE = [
+  'Montserrat',
+  'Inter',
+  'Poppins',
+  'Roboto',
+  'Lato',
+  'Raleway',
+  'Oswald',
+  'Anton',
+  'Bebas Neue',
+  'Playfair Display',
+];
+
+export type TextoAlinhamento = 'left' | 'center' | 'right';
+
+/** Caixa de texto solta sobre o encarte — arrastável, largura ajustável, fonte/cor/estilo próprios. */
+export interface TextoEncarte {
+  id: string;
+  texto: string;
+  /** canto superior esquerdo, em % do canvas */
+  xPct: number;
+  yPct: number;
+  /** largura da caixa em % do canvas (altura acompanha o conteúdo) */
+  wPct: number;
+  /** tamanho da fonte em px no espaço do canvas (CANVAS_W = 480); escala no export */
+  tamanho: number;
+  fontFamily: string;
+  cor: string;
+  negrito: boolean;
+  italico: boolean;
+  alinhamento: TextoAlinhamento;
+}
+
+export function criarTexto(fontFamily = 'Montserrat'): TextoEncarte {
+  return {
+    id: `txt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    texto: 'Novo texto',
+    xPct: 28,
+    yPct: 30,
+    wPct: 44,
+    tamanho: 24,
+    fontFamily,
+    cor: '#ffffff',
+    negrito: true,
+    italico: false,
+    alinhamento: 'center',
+  };
+}
+
 // ── Lado do encarte (frente / verso) ──────────────────────────────────
 
 /**
@@ -282,6 +334,7 @@ export interface LadoEncarte {
   divisores: DivisorEncarte[];
   imagens: ElementoImagem[];
   formas: FormaEncarte[];
+  textos: TextoEncarte[];
   guias: GuiaEncarte[];
   rodape: { ativo: boolean; texto: string };
 }
@@ -295,6 +348,7 @@ export function criarLado(): LadoEncarte {
     divisores: [],
     imagens: [],
     formas: [],
+    textos: [],
     guias: [],
     rodape: { ativo: false, texto: '5 unidades por cliente' },
   };
@@ -309,11 +363,14 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
     divisores: l.divisores.map((d) => ({ ...d })),
     imagens: l.imagens.map((im) => ({ ...im })),
     formas: (l.formas ?? []).map((f) => ({ ...f })),
+    textos: (l.textos ?? []).map((t) => ({ ...t })),
     guias: (l.guias ?? []).map((g) => ({ ...g })),
     rodape: { ...l.rodape },
   };
 }
 
-/** Preenche campos novos (`formas`, `guias`) em lados vindos de rascunhos/histórico antigos. */
+/** Preenche campos novos (`formas`, `textos`, `guias`) em lados vindos de rascunhos/histórico antigos. */
 export const normalizarLado = (l: LadoEncarte): LadoEncarte =>
-  l.formas && l.guias ? l : { ...l, formas: l.formas ?? [], guias: l.guias ?? [] };
+  l.formas && l.textos && l.guias
+    ? l
+    : { ...l, formas: l.formas ?? [], textos: l.textos ?? [], guias: l.guias ?? [] };
