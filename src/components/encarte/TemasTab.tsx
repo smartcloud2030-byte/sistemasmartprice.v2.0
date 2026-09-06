@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadBackgroundImage, listGalleryImages, deleteGalleryImage, GalleryImage } from '../../lib/gallery';
+import { uploadBackgroundImage, listGalleryImages, deleteGalleryImage, GalleryImage, nomeClassificacao } from '../../lib/gallery';
 import { getProxyUrl, cn } from '../../lib/utils';
 import { FUNDOS_BUILTIN } from './encarteProduto';
+import ClassificacaoBar from './ClassificacaoBar';
 
 const CATEGORIA = 'encarte-temas';
 
@@ -18,6 +19,7 @@ interface TemasTabProps {
 }
 
 export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
+  const [classificacao, setClassificacao] = useState(CATEGORIA);
   const [imagens, setImagens] = useState<GalleryImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -26,8 +28,9 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const carregarImagens = async () => {
+    setIsLoading(true);
     try {
-      const lista = await listGalleryImages(CATEGORIA);
+      const lista = await listGalleryImages(classificacao);
       setImagens(lista);
     } catch {
       toast.error('Não foi possível carregar os fundos salvos.');
@@ -36,12 +39,12 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     }
   };
 
-  useEffect(() => { carregarImagens(); }, []);
+  useEffect(() => { carregarImagens(); /* eslint-disable-next-line */ }, [classificacao]);
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      const { url } = await uploadBackgroundImage(file, CATEGORIA);
+      const { url } = await uploadBackgroundImage(file, classificacao);
       await carregarImagens();
       onSelecionar(url);
       toast.success('Fundo enviado!');
@@ -55,7 +58,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const handleSubstituir = async (img: GalleryImage, file: File) => {
     setSubstituindo(img.fullPath);
     try {
-      const { url } = await uploadBackgroundImage(file, CATEGORIA);
+      const { url } = await uploadBackgroundImage(file, classificacao);
       await deleteGalleryImage(img.url);
       await carregarImagens();
       if (selecionada === img.url) onSelecionar(url);
@@ -145,12 +148,24 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Fundos já enviados</h3>
+
+        <ClassificacaoBar
+          base={CATEGORIA}
+          ativa={classificacao}
+          onMudar={setClassificacao}
+          onEstruturaMudou={carregarImagens}
+        />
+
+        <p className="text-[10px] text-zinc-500">
+          Classificação <b className="text-zinc-300">{nomeClassificacao(classificacao, CATEGORIA)}</b>.
+        </p>
+
         {isLoading ? (
           <p className="text-xs text-zinc-500 text-center py-8">Carregando...</p>
         ) : imagens.length === 0 ? (
-          <p className="text-xs text-zinc-500 text-center py-8">Nenhum fundo enviado ainda.</p>
+          <p className="text-xs text-zinc-500 text-center py-8">Nenhum fundo nesta classificação ainda.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {imagens.map((img) => (

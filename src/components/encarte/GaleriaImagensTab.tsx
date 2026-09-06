@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Upload, Loader2, Repeat, Trash2, Check, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadBackgroundImage, listGalleryImages, deleteGalleryImage, GalleryImage } from '../../lib/gallery';
+import { uploadBackgroundImage, listGalleryImages, deleteGalleryImage, GalleryImage, nomeClassificacao } from '../../lib/gallery';
 import { getProxyUrl } from '../../lib/utils';
 import { ElementoImagem } from './encarteProduto';
+import ClassificacaoBar from './ClassificacaoBar';
 
 interface GaleriaImagensTabProps {
   titulo: string;
   subtitulo: string;
   icon: React.ElementType;
-  /** categoria da galeria — cada aba guarda suas imagens separadas das outras */
+  /** categoria-base da galeria — cada aba guarda suas imagens separadas das outras */
   categoria: string;
   /** elementos dessa categoria que já estão no encarte agora (pra marcar como ativos) */
   elementosAtivos: ElementoImagem[];
@@ -35,6 +36,7 @@ export default function GaleriaImagensTab({
   onAdicionarImagem,
   onRemoverDoEncarte,
 }: GaleriaImagensTabProps) {
+  const [classificacao, setClassificacao] = useState(categoria);
   const [imagens, setImagens] = useState<GalleryImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -46,8 +48,9 @@ export default function GaleriaImagensTab({
   const urlsAtivas = new Set(elementosAtivos.map((im) => im.url));
 
   const carregarImagens = async () => {
+    setIsLoading(true);
     try {
-      const lista = await listGalleryImages(categoria);
+      const lista = await listGalleryImages(classificacao);
       setImagens(lista);
     } catch {
       toast.error('Não foi possível carregar as imagens salvas.');
@@ -56,12 +59,14 @@ export default function GaleriaImagensTab({
     }
   };
 
-  useEffect(() => { carregarImagens(); }, [categoria]);
+  // volta pra "Geral" se a aba mudar de base, e recarrega ao trocar de classificação
+  useEffect(() => { setClassificacao(categoria); }, [categoria]);
+  useEffect(() => { carregarImagens(); /* eslint-disable-next-line */ }, [classificacao]);
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      await uploadBackgroundImage(file, categoria);
+      await uploadBackgroundImage(file, classificacao);
       await carregarImagens();
       toast.success('Imagem enviada!');
     } catch {
@@ -74,7 +79,7 @@ export default function GaleriaImagensTab({
   const handleSubstituir = async (img: GalleryImage, file: File) => {
     setSubstituindo(img.fullPath);
     try {
-      await uploadBackgroundImage(file, categoria);
+      await uploadBackgroundImage(file, classificacao);
       await deleteGalleryImage(img.url);
       await carregarImagens();
       toast.success('Imagem substituída!');
@@ -127,6 +132,13 @@ export default function GaleriaImagensTab({
         </label>
       </div>
 
+      <ClassificacaoBar
+        base={categoria}
+        ativa={classificacao}
+        onMudar={setClassificacao}
+        onEstruturaMudou={carregarImagens}
+      />
+
       <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2.5 cursor-pointer">
         <div>
           <p className="text-xs font-semibold text-zinc-200">Permitir várias imagens</p>
@@ -144,12 +156,13 @@ export default function GaleriaImagensTab({
 
       <div className="space-y-2">
         <p className="text-[10px] text-zinc-500 leading-relaxed">
+          Enviando pra classificação <b className="text-zinc-300">{nomeClassificacao(classificacao, categoria)}</b>.
           Clique numa imagem pra adicionar ao encarte — depois é só arrastar e redimensionar pelos cantos.
         </p>
         {isLoading ? (
           <p className="text-xs text-zinc-500 text-center py-8">Carregando...</p>
         ) : imagens.length === 0 ? (
-          <p className="text-xs text-zinc-500 text-center py-8">Nenhuma imagem enviada ainda.</p>
+          <p className="text-xs text-zinc-500 text-center py-8">Nenhuma imagem nesta classificação ainda.</p>
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {imagens.map((img) => {
