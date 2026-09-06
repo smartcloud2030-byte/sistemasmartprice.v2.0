@@ -611,6 +611,8 @@ export default function EncarteCanvas({
 
   const marcasX = reguasVisiveis ? marcasRegua(formato.width) : [];
   const marcasY = reguasVisiveis ? marcasRegua(formato.height) : [];
+  // margem externa que as réguas ocupam ao redor do encarte (0 quando escondidas)
+  const reguaExtra = reguasVisiveis ? REGUA_PX : 0;
 
   return (
     <div className="flex-grow flex flex-col bg-zinc-950 relative">
@@ -853,17 +855,74 @@ export default function EncarteCanvas({
         {/* Centraliza o canvas e, quando ampliado, cresce junto pra rolagem
             alcançar todas as bordas (min-w-full mantém centralizado no zoom baixo). */}
         <div className="min-h-full min-w-full w-max flex items-center justify-center">
-          {/* Reserva o espaço já no tamanho ampliado — transform não empurra layout sozinho. */}
+          {/* Reserva o espaço já no tamanho ampliado — transform não empurra layout sozinho.
+              Soma a faixa das réguas pra rolagem alcançar tudo quando ampliado. */}
           <div
             style={{
-              width: 480 * zoom,
-              height: (480 / formato.ratio) * zoom,
+              width: (480 + reguaExtra) * zoom,
+              height: (480 / formato.ratio + reguaExtra) * zoom,
               flexShrink: 0,
             }}
           >
             {/* Camada de zoom: só visual. O canvasRef abaixo fica sem transform,
                 então o PNG/PDF sempre sai no tamanho real. */}
             <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+              {/* Wrapper com margem pras réguas ficarem FORA do encarte */}
+              <div
+                className="relative"
+                style={reguasVisiveis ? { paddingTop: REGUA_PX, paddingLeft: REGUA_PX } : undefined}
+              >
+                {reguasVisiveis && (
+                  <>
+                    {/* Régua do topo — arraste dela pra puxar guia vertical */}
+                    <div
+                      data-html2canvas-ignore="true"
+                      className="absolute top-0 cursor-ew-resize select-none overflow-hidden bg-zinc-900 border border-zinc-700 rounded-tr-md"
+                      style={{ left: REGUA_PX, right: 0, height: REGUA_PX }}
+                      onPointerDown={(e) => iniciarNovaGuia(e, 'vertical')}
+                      onPointerMove={handleGuiaPointerMove}
+                      onPointerUp={handleGuiaPointerUp}
+                      onPointerCancel={handleGuiaPointerUp}
+                    >
+                      {marcasX.map((m) => (
+                        <div key={m.label} className="absolute top-0 bottom-0" style={{ left: `${m.pct}%` }}>
+                          <div className="absolute bottom-0 left-0 w-px bg-zinc-500" style={{ height: 5 }} />
+                          <span className="absolute top-0 text-[6px] leading-none text-zinc-400" style={{ left: 2 }}>{m.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Régua da lateral — arraste dela pra puxar guia horizontal */}
+                    <div
+                      data-html2canvas-ignore="true"
+                      className="absolute left-0 cursor-ns-resize select-none overflow-hidden bg-zinc-900 border border-zinc-700 rounded-bl-md"
+                      style={{ top: REGUA_PX, bottom: 0, width: REGUA_PX }}
+                      onPointerDown={(e) => iniciarNovaGuia(e, 'horizontal')}
+                      onPointerMove={handleGuiaPointerMove}
+                      onPointerUp={handleGuiaPointerUp}
+                      onPointerCancel={handleGuiaPointerUp}
+                    >
+                      {marcasY.map((m) => (
+                        <div key={m.label} className="absolute left-0 right-0" style={{ top: `${m.pct}%` }}>
+                          <div className="absolute right-0 top-0 h-px bg-zinc-500" style={{ width: 5 }} />
+                          <span
+                            className="absolute top-0 text-[6px] leading-none text-zinc-400"
+                            style={{ left: 1, writingMode: 'vertical-rl' }}
+                          >
+                            {m.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Cantinho onde as duas réguas se encontram */}
+                    <div
+                      data-html2canvas-ignore="true"
+                      className="absolute top-0 left-0 bg-zinc-800 border border-zinc-700 rounded-tl-md"
+                      style={{ width: REGUA_PX, height: REGUA_PX }}
+                    />
+                  </>
+                )}
               <div
                 ref={canvasRef}
                 className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
@@ -1008,7 +1067,7 @@ export default function EncarteCanvas({
             </div>
           )}
 
-          {/* Réguas + guias de alinhamento — nunca entram no PNG/PDF */}
+          {/* Guias de alinhamento — nunca entram no PNG/PDF. As réguas ficam fora do encarte. */}
           {reguasVisiveis && (
             <div data-html2canvas-ignore="true" className="absolute inset-0 z-40 pointer-events-none">
               {/* Guias já colocadas — arrastar pra mover, soltar na borda pra apagar */}
@@ -1017,7 +1076,7 @@ export default function EncarteCanvas({
                   <div
                     key={g.id}
                     className="absolute pointer-events-auto cursor-ew-resize"
-                    style={{ top: REGUA_PX, bottom: 0, left: `${g.pos}%`, width: 9, transform: 'translateX(-50%)' }}
+                    style={{ top: 0, bottom: 0, left: `${g.pos}%`, width: 9, transform: 'translateX(-50%)' }}
                     onPointerDown={(e) => iniciarGuiaDrag(e, g)}
                     onPointerMove={handleGuiaPointerMove}
                     onPointerUp={handleGuiaPointerUp}
@@ -1029,7 +1088,7 @@ export default function EncarteCanvas({
                   <div
                     key={g.id}
                     className="absolute pointer-events-auto cursor-ns-resize"
-                    style={{ left: REGUA_PX, right: 0, top: `${g.pos}%`, height: 9, transform: 'translateY(-50%)' }}
+                    style={{ left: 0, right: 0, top: `${g.pos}%`, height: 9, transform: 'translateY(-50%)' }}
                     onPointerDown={(e) => iniciarGuiaDrag(e, g)}
                     onPointerMove={handleGuiaPointerMove}
                     onPointerUp={handleGuiaPointerUp}
@@ -1040,57 +1099,12 @@ export default function EncarteCanvas({
                 ),
               )}
 
-              {/* Régua do topo — puxa guia vertical */}
-              <div
-                className="absolute top-0 pointer-events-auto cursor-ew-resize select-none overflow-hidden bg-zinc-900/85 border-b border-zinc-700"
-                style={{ left: REGUA_PX, right: 0, height: REGUA_PX }}
-                onPointerDown={(e) => iniciarNovaGuia(e, 'vertical')}
-                onPointerMove={handleGuiaPointerMove}
-                onPointerUp={handleGuiaPointerUp}
-                onPointerCancel={handleGuiaPointerUp}
-              >
-                {marcasX.map((m) => (
-                  <div key={m.label} className="absolute top-0 bottom-0" style={{ left: `${m.pct}%` }}>
-                    <div className="absolute bottom-0 left-0 w-px bg-zinc-500" style={{ height: 5 }} />
-                    <span className="absolute top-0 text-[6px] leading-none text-zinc-400" style={{ left: 2 }}>{m.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Régua da lateral — puxa guia horizontal */}
-              <div
-                className="absolute left-0 pointer-events-auto cursor-ns-resize select-none overflow-hidden bg-zinc-900/85 border-r border-zinc-700"
-                style={{ top: REGUA_PX, bottom: 0, width: REGUA_PX }}
-                onPointerDown={(e) => iniciarNovaGuia(e, 'horizontal')}
-                onPointerMove={handleGuiaPointerMove}
-                onPointerUp={handleGuiaPointerUp}
-                onPointerCancel={handleGuiaPointerUp}
-              >
-                {marcasY.map((m) => (
-                  <div key={m.label} className="absolute left-0 right-0" style={{ top: `${m.pct}%` }}>
-                    <div className="absolute right-0 top-0 h-px bg-zinc-500" style={{ width: 5 }} />
-                    <span
-                      className="absolute top-0 text-[6px] leading-none text-zinc-400"
-                      style={{ left: 1, writingMode: 'vertical-rl' }}
-                    >
-                      {m.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Cantinho onde as duas réguas se encontram */}
-              <div
-                className="absolute top-0 left-0 bg-zinc-800 border-b border-r border-zinc-700"
-                style={{ width: REGUA_PX, height: REGUA_PX }}
-              />
-
               {guias.length > 0 && (
                 <button
                   onClick={onLimparGuias}
                   title="Apagar todas as guias"
                   className="absolute pointer-events-auto flex items-center gap-0.5 bg-zinc-900/90 border border-zinc-700 rounded-md px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-zinc-300 hover:text-red-300 hover:border-red-500/50"
-                  style={{ top: REGUA_PX + 4, right: 4 }}
+                  style={{ top: 4, right: 4 }}
                 >
                   <X className="w-2.5 h-2.5" />
                   guias
@@ -1098,6 +1112,7 @@ export default function EncarteCanvas({
               )}
             </div>
           )}
+              </div>
               </div>
             </div>
           </div>
