@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
@@ -253,6 +253,10 @@ export default function EncarteCanvas({
   const [reguasVisiveis, setReguasVisiveis] = useState(false);
   const [fontesAberta, setFontesAberta] = useState(false);
   const [fonteNova, setFonteNova] = useState('Montserrat');
+  // Barra de ferramentas: encolhe pra só ícones quando falta largura
+  // (janela menor, ou o usuário alargou o painel lateral).
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [tbCompacta, setTbCompacta] = useState(false);
   const [textoSelecionadoId, setTextoSelecionadoId] = useState<string | null>(null);
   const [textoEditandoId, setTextoEditandoId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -268,6 +272,20 @@ export default function EncarteCanvas({
 
   const ajustarZoom = (delta: number) =>
     setZoom((z) => clamp(Math.round((z + delta) * 100) / 100, ZOOM_MIN, ZOOM_MAX));
+
+  // Observa a largura real da barra e alterna pro modo compacto (só ícones)
+  // com histerese, pra não ficar piscando exatamente no limite.
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      // histerese: vira compacta abaixo de 1120, volta a mostrar rótulos só acima de 1220
+      setTbCompacta((atual) => (atual ? w < 1220 : w < 1120));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   /**
    * Renderiza o canvas do encarte em alta resolução. O preview em tela é sempre
@@ -814,9 +832,12 @@ export default function EncarteCanvas({
 
   return (
     <div className="flex-grow flex flex-col bg-zinc-950 relative">
-      {/* Barra de ferramentas */}
-      <div className="h-14 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between px-4">
-        <div className="flex items-center gap-1">
+      {/* Barra de ferramentas — encolhe pra só ícones e quebra linha se faltar espaço */}
+      <div
+        ref={toolbarRef}
+        className="min-h-14 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between gap-2 px-3 py-1.5"
+      >
+        <div className="flex flex-1 min-w-0 flex-wrap items-center gap-1">
           <button
             onClick={onDesfazer}
             disabled={!podeDesfazer}
@@ -833,13 +854,17 @@ export default function EncarteCanvas({
           >
             <Redo2 className="w-4 h-4" />
           </button>
-          <div className="w-px h-5 bg-zinc-800 mx-2" />
+          {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-2" />}
 
           {/* Grade */}
           <div className="relative">
             <button
               onClick={() => setGradeAberta((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                tbCompacta ? 'px-2' : 'px-3',
+              )}
+              title="Produtos por página"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               {getGrade(grade).nome}
@@ -890,23 +915,31 @@ export default function EncarteCanvas({
           ) : (
             <button
               onClick={onAdicionarVerso}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1"
+              title="Adicionar verso"
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1',
+                tbCompacta ? 'px-2' : 'px-3',
+              )}
             >
               <Copy className="w-3.5 h-3.5" />
-              Verso
+              {!tbCompacta && 'Verso'}
             </button>
           )}
 
-          <div className="w-px h-5 bg-zinc-800 mx-2" />
+          {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-2" />}
 
           {/* Formas */}
           <div className="relative">
             <button
               onClick={() => setFormasAberta((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+              title="Adicionar forma"
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                tbCompacta ? 'px-2' : 'px-3',
+              )}
             >
               <Shapes className="w-3.5 h-3.5" />
-              Formas
+              {!tbCompacta && 'Formas'}
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {formasAberta && (
@@ -941,23 +974,28 @@ export default function EncarteCanvas({
               setFormaSelecionadaId(null);
             }}
             title="Adicionar caixa de texto"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+            className={cn(
+              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+              tbCompacta ? 'px-2' : 'px-3',
+            )}
           >
             <Type className="w-3.5 h-3.5" />
-            Texto
+            {!tbCompacta && 'Texto'}
           </button>
 
           {/* Fontes */}
           <div className="relative">
             <button
               onClick={() => setFontesAberta((v) => !v)}
+              title="Fontes do texto"
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors text-xs font-semibold',
+                'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+                tbCompacta ? 'px-2' : 'px-3',
                 fontesAberta ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               )}
             >
               <Type className="w-3.5 h-3.5" />
-              Fontes
+              {!tbCompacta && 'Fontes'}
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {fontesAberta && (
@@ -992,36 +1030,45 @@ export default function EncarteCanvas({
             onClick={() => setReguasVisiveis((v) => !v)}
             title="Réguas e guias de alinhamento — arraste da régua pra criar uma linha"
             className={cn(
-              'flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors text-xs font-semibold',
+              'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+              tbCompacta ? 'px-2' : 'px-3',
               reguasVisiveis
                 ? 'bg-cyan-500/15 text-cyan-300'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
             )}
           >
             <Ruler className="w-3.5 h-3.5" />
-            Réguas
+            {!tbCompacta && 'Réguas'}
           </button>
 
           {TOOLBAR_ITEMS.map(({ icon: Icon, label }) => (
             <button
               key={label}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold"
+              title={label}
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                tbCompacta ? 'px-2' : 'px-3',
+              )}
             >
               <Icon className="w-3.5 h-3.5" />
-              {label}
+              {!tbCompacta && label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <div className="relative">
             <button
               onClick={() => setDownloadAberto((v) => !v)}
               disabled={exportando}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Download"
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+                tbCompacta ? 'px-2.5' : 'px-3.5',
+              )}
             >
               {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {exportando ? 'Gerando...' : 'Download'}
+              {exportando ? 'Gerando...' : (!tbCompacta && 'Download')}
               {!exportando && <ChevronDown className="w-3 h-3 opacity-80" />}
             </button>
             {downloadAberto && (
@@ -1047,10 +1094,14 @@ export default function EncarteCanvas({
             <button
               onClick={() => setCompartilharAberto((v) => !v)}
               disabled={exportando}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Compartilhar"
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+                tbCompacta ? 'px-2.5' : 'px-3.5',
+              )}
             >
               <Share2 className="w-3.5 h-3.5" />
-              Compartilhar
+              {!tbCompacta && 'Compartilhar'}
               <ChevronDown className="w-3 h-3 opacity-80" />
             </button>
             {compartilharAberto && (
