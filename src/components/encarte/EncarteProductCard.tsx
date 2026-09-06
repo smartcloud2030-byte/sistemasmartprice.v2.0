@@ -130,9 +130,9 @@ function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number
       style={{ fontSize: tamanho, color: cor }}
     >
       {/* POR + R$ juntos, no topo à esquerda */}
-      <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.08em] gap-[0.04em]">
-        <span className="leading-none" style={{ fontSize: '0.44em', letterSpacing: '0.02em' }}>POR</span>
-        <span className="leading-none" style={{ fontSize: '0.44em' }}>R$</span>
+      <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.03em]">
+        <span className="leading-none" style={{ fontSize: '0.5em', letterSpacing: '0.02em' }}>POR</span>
+        <span className="leading-none" style={{ fontSize: '0.48em' }}>R$</span>
       </span>
 
       {/* número inteiro — dominante */}
@@ -172,7 +172,7 @@ function EtiquetaPreco({
   tamanho: number;
   alinharDireita?: boolean;
 }) {
-  const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'arredondada';
+  const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'retangulo';
   const acab = estilo.acabamentoEtiqueta ?? 'solida';
   const cor = estilo.corEtiqueta;
   const contorno = acab === 'contorno';
@@ -195,10 +195,10 @@ function EtiquetaPreco({
     );
   }
 
-  // padding enxuto: o preço deve preencher a etiqueta, não nadar nela
-  const padX = compacta ? 13 : forma === 'arredondada' ? 11 : forma === 'fita' ? 15 : forma === 'retangulo' ? 7 : 9;
-  const padY = compacta ? 11 : 2;
-  const padLeft = forma === 'tag' ? 19 : forma === 'fita' ? 17 : padX;
+  // padding mínimo: o preço preenche a etiqueta (igual ao modelo impresso)
+  const padX = compacta ? 12 : forma === 'arredondada' ? 9 : forma === 'fita' ? 13 : forma === 'retangulo' ? 5 : 7;
+  const padY = compacta ? 10 : 1;
+  const padLeft = forma === 'tag' ? 17 : forma === 'fita' ? 15 : padX;
 
   const estiloCaixa: React.CSSProperties = {
     paddingTop: padY,
@@ -289,7 +289,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 break-words">C/ {medida}</p>}
         </div>
-        <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={23} />
+        <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
     </div>
@@ -313,7 +313,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
         </div>
         <div className="mt-1">
-          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={32} />
+          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
         </div>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>

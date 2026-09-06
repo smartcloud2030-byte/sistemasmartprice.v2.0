@@ -108,7 +108,7 @@ export const ESTILO_PADRAO: EstiloEncarte = {
   modeloCard: 'padrao',
   corFundo: '#ffffff',
   corEtiqueta: '#059669', // emerald-600
-  formaEtiqueta: 'arredondada',
+  formaEtiqueta: 'retangulo', // caixa cheia, igual ao modelo impresso
   acabamentoEtiqueta: 'solida',
   escalaCard: 1,
   escalaEtiqueta: 1,

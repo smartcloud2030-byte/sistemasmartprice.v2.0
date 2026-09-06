@@ -132,7 +132,7 @@ export default function ProdutoDetalhes({
               title={f.nome}
               className={cn(
                 'rounded-lg border p-1.5 flex flex-col items-center gap-1 transition-colors',
-                (estilo.formaEtiqueta ?? 'arredondada') === f.id
+                (estilo.formaEtiqueta ?? 'retangulo') === f.id
                   ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
                   : 'border-zinc-700 text-zinc-400 hover:border-zinc-500',
               )}
