@@ -14,6 +14,53 @@ interface MensagemSuporte {
 let ctxAudio: AudioContext | null = null;
 let notificacoesLigadas = false;
 
+const temNotificacaoSistema = () => typeof window !== 'undefined' && 'Notification' in window;
+
+/** Pede permissão pro navegador mostrar notificações do sistema (idempotente). */
+export function pedirPermissaoNotificacoes() {
+  try {
+    if (!temNotificacaoSistema() || Notification.permission !== 'default') return;
+    Notification.requestPermission().catch(() => {});
+  } catch {
+    /* alguns navegadores ainda usam callback — ignora */
+  }
+}
+
+/**
+ * Notificação nativa do computador (aparece na central de notificações do SO,
+ * mesmo com a aba em segundo plano). Clicar foca a janela e abre a conversa.
+ */
+function mostrarNotificacaoSistema(opts: {
+  titulo: string;
+  corpo: string;
+  cnpj: string;
+  ehAdmin: boolean;
+}) {
+  try {
+    if (!temNotificacaoSistema() || Notification.permission !== 'granted') return;
+    const n = new Notification(opts.titulo, {
+      body: opts.corpo,
+      tag: `suporte-${opts.cnpj || 'geral'}`,
+      icon: '/favicon-32x32.png',
+      // re-alerta quando chega outra mensagem da mesma conversa (mesma tag)
+      renotify: true,
+    } as NotificationOptions & { renotify?: boolean });
+    n.onclick = () => {
+      try {
+        window.focus();
+        const st = useStore.getState();
+        if (opts.ehAdmin) st.setSelectedUserCnpj(opts.cnpj);
+        st.setSupportChatOpen(true);
+      } catch {
+        /* ignora */
+      }
+      n.close();
+    };
+  } catch {
+    /* ignora */
+  }
+}
+
 /** "Ding" curto de duas notas via Web Audio — sem depender de arquivo de áudio. */
 export function tocarSomSuporte() {
   try {
@@ -68,15 +115,15 @@ export function ligarNotificacoesSuporte(s: Socket) {
     const vendoEssaConversa =
       st.userRole === 'admin' ? (st.selectedUserCnpj || '').replace(/\D/g, '') === cnpjMsg : true;
     const abaVisivel = typeof document === 'undefined' || document.visibilityState === 'visible';
+    // Já está de olho exatamente nessa conversa, com a aba na frente → não incomoda.
     if (st.isSupportChatOpen && vendoEssaConversa && abaVisivel) return;
 
     jaAvisados.add(msg.id);
     if (jaAvisados.size > 300) jaAvisados.clear();
 
-    tocarSomSuporte();
-
-    const titulo = st.userRole === 'admin' ? 'Nova mensagem no suporte' : 'Resposta do suporte';
-    const remetente = msg.sender_name || (st.userRole === 'admin' ? 'Usuário' : 'Suporte');
+    const ehAdmin = st.userRole === 'admin';
+    const titulo = ehAdmin ? 'Nova mensagem no suporte' : 'Resposta do suporte';
+    const remetente = msg.sender_name || (ehAdmin ? 'Usuário' : 'Suporte');
     const txt = (msg.text || '').trim();
     const previa = txt
       ? txt.length > 140
@@ -85,6 +132,9 @@ export function ligarNotificacoesSuporte(s: Socket) {
       : msg.attachment_url
         ? '📎 Imagem'
         : 'Nova mensagem';
+
+    tocarSomSuporte();
+    mostrarNotificacaoSistema({ titulo, corpo: `${remetente}: ${previa}`, cnpj: cnpjMsg, ehAdmin });
 
     toast.custom(
       (id) => (

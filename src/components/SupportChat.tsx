@@ -4,6 +4,7 @@ import { useSupportSocket, Message } from '../hooks/useSupportSocket';
 import { MessageCircle, Send, X, User, Trash2, AlertCircle, RefreshCw, Image as ImageIcon, Smile } from 'lucide-react';
 import { cn, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
+import { pedirPermissaoNotificacoes } from '../lib/notificacaoSuporte';
 
 const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
 
@@ -137,6 +138,12 @@ export default function SupportChat() {
       setUnreadSupportCount(0);
     }
   }, [isSupportChatOpen, userRole, setUnreadSupportCount]);
+
+  // Abrir o chat é um clique do usuário — bom momento pra pedir permissão de
+  // notificação do sistema (Safari/Firefox só pedem com gesto).
+  useEffect(() => {
+    if (isSupportChatOpen) pedirPermissaoNotificacoes();
+  }, [isSupportChatOpen]);
 
   useEffect(() => {
     if (selectedUserCnpj && userRole === 'admin') {

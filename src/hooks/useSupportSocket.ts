@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useStore } from '../store';
-import { ligarNotificacoesSuporte } from '../lib/notificacaoSuporte';
+import { ligarNotificacoesSuporte, pedirPermissaoNotificacoes } from '../lib/notificacaoSuporte';
 
 export interface Message {
   id: string;
@@ -64,8 +64,9 @@ export function useSupportSocket() {
     if (!currentUser || !userRole) return;
     const s = getSocket();
 
-    // Pop-up + som quando chega mensagem de suporte do outro lado (uma vez só).
+    // Pop-up + som + notificação do sistema quando chega mensagem do outro lado.
     ligarNotificacoesSuporte(s);
+    pedirPermissaoNotificacoes();
 
     const onConnect = () => {
       setIsChatConnected(true);
