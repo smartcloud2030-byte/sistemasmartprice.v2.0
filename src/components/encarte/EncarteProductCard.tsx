@@ -146,8 +146,11 @@ function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number
         </span>
       )}
 
-      {/* UNI colado na base, à direita */}
-      <span className="self-stretch flex flex-col items-start justify-end leading-none pl-[0.06em]">
+      {/* UNI colado na base, puxado pra esquerda (bem perto dos centavos) */}
+      <span
+        className="self-stretch flex flex-col items-start justify-end leading-none"
+        style={{ marginLeft: '-0.16em' }}
+      >
         <span className="leading-none" style={{ fontSize: '0.32em', letterSpacing: '0.04em' }}>UNI</span>
       </span>
     </span>
