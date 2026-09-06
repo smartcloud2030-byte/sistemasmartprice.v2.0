@@ -245,15 +245,15 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
     <div className="rounded-xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
       <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-between gap-1">
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase leading-[1.1] text-red-600 line-clamp-2 break-words">
+          <p className="text-[11px] font-black uppercase leading-[1.1] text-red-600 break-words">
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[8px] font-semibold text-zinc-600 leading-[1.15] mt-0.5 line-clamp-2 break-words">
+            <p className="text-[8px] font-semibold text-zinc-600 leading-[1.15] mt-0.5 break-words">
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 truncate">C/ {medida}</p>}
+          {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 break-words">C/ {medida}</p>}
         </div>
         <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={16} />
       </div>
@@ -265,8 +265,8 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
 /** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
 function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
   return (
-    <div className="flex min-h-32 gap-1.5">
-      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+    <div className="flex h-32 gap-1.5 overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col justify-between gap-1">
         <div className="min-w-0">
           <p className="text-[13px] font-black uppercase leading-[1.15] text-red-600 break-words drop-shadow-sm">
             {produto.nome}
@@ -276,7 +276,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] truncate">C/ {medida}</p>}
+          {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
         </div>
         <div className="mt-1">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={20} comPorUni />
@@ -294,15 +294,15 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1.5">{foto}</div>
       <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-between gap-1">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-zinc-700 leading-[1.15] line-clamp-3 break-words">
+          <p className="text-[11px] font-semibold text-zinc-700 leading-[1.15] break-words">
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[8px] font-medium text-zinc-400 leading-[1.15] mt-0.5 line-clamp-2 break-words">
+            <p className="text-[8px] font-medium text-zinc-400 leading-[1.15] mt-0.5 break-words">
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[8px] font-medium text-zinc-400 mt-0.5 truncate">C/ {medida}</p>}
+          {medida && <p className="text-[8px] font-medium text-zinc-400 mt-0.5 break-words">C/ {medida}</p>}
         </div>
         <div
           className="flex flex-col items-end origin-bottom-right"
@@ -324,7 +324,7 @@ function CardProdutoDestaque({ produto, estilo, foto }: Omit<CardProps, 'medida'
       style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '96px 1fr auto' }}
     >
       <div className="h-20 flex items-center justify-center overflow-hidden">{foto}</div>
-      <p className="text-[15px] font-bold text-zinc-600 leading-[1.15] line-clamp-3 break-words">{produto.nome}</p>
+      <p className="text-[15px] font-bold text-zinc-600 leading-[1.15] break-words">{produto.nome}</p>
       <div className="flex flex-col items-end origin-right" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
         <PrecoDe valor={produto.precoDe} />
         <Preco valor={produto.precoOferta} tamanho={40} variante="texto" />
