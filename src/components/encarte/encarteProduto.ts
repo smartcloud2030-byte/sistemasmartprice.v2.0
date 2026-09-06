@@ -16,6 +16,79 @@ export const MODELOS_CARD: { id: ModeloCard; nome: string; descricao: string }[]
   { id: 'clean', nome: 'Clean', descricao: 'Card branco · foto à esquerda · preço em texto' },
 ];
 
+// ── Etiqueta de preço: formas e estilos ──────────────────────────────
+
+export type FormaEtiqueta =
+  | 'retangulo'
+  | 'arredondada'
+  | 'circulo'
+  | 'selo'
+  | 'explosao'
+  | 'fita'
+  | 'tag'
+  | 'nenhuma';
+
+export const FORMAS_ETIQUETA: { id: FormaEtiqueta; nome: string }[] = [
+  { id: 'retangulo', nome: 'Retângulo' },
+  { id: 'arredondada', nome: 'Pílula' },
+  { id: 'circulo', nome: 'Círculo' },
+  { id: 'selo', nome: 'Selo' },
+  { id: 'explosao', nome: 'Explosão' },
+  { id: 'fita', nome: 'Fita' },
+  { id: 'tag', nome: 'Tag' },
+  { id: 'nenhuma', nome: 'Só preço' },
+];
+
+/** Acabamento visual da etiqueta. */
+export type AcabamentoEtiqueta = 'solida' | 'degrade' | 'contorno';
+
+export const ACABAMENTOS_ETIQUETA: { id: AcabamentoEtiqueta; nome: string }[] = [
+  { id: 'solida', nome: 'Sólida' },
+  { id: 'degrade', nome: 'Degradê' },
+  { id: 'contorno', nome: 'Contorno' },
+];
+
+/** Escurece um hex (#rrggbb) multiplicando os canais — usado no degradê da etiqueta. */
+export function escureceHex(hex: string, fator = 0.72): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = Math.round(((n >> 16) & 255) * fator);
+  const g = Math.round(((n >> 8) & 255) * fator);
+  const b = Math.round((n & 255) * fator);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
+/** Polígono de estrela/roseta centrado em 50,50 (viewBox 0 0 100). */
+function pathEstrela(pontas: number, rOut: number, rIn: number): string {
+  const passo = Math.PI / pontas;
+  const pts: string[] = [];
+  for (let i = 0; i < pontas * 2; i++) {
+    const r = i % 2 === 0 ? rOut : rIn;
+    const a = i * passo - Math.PI / 2;
+    pts.push(`${(50 + r * Math.cos(a)).toFixed(1)},${(50 + r * Math.sin(a)).toFixed(1)}`);
+  }
+  return `M${pts.join(' L')} Z`;
+}
+
+const EXPLOSAO_RAIOS = [50, 27, 46, 24, 50, 22, 44, 30, 49, 25, 45, 28, 48, 23];
+function pathExplosao(): string {
+  const passo = (Math.PI * 2) / EXPLOSAO_RAIOS.length;
+  const pts = EXPLOSAO_RAIOS.map((r, i) => {
+    const a = i * passo - Math.PI / 2;
+    return `${(50 + r * Math.cos(a)).toFixed(1)},${(50 + r * Math.sin(a)).toFixed(1)}`;
+  });
+  return `M${pts.join(' L')} Z`;
+}
+
+/** Path SVG (viewBox 0 0 100 100, preserveAspectRatio none) das formas que não são só border-radius. */
+export const SVG_ETIQUETA: Partial<Record<FormaEtiqueta, string>> = {
+  selo: pathEstrela(18, 50, 39),
+  explosao: pathExplosao(),
+  fita: 'M0,0 L100,0 L88,50 L100,100 L0,100 L12,50 Z',
+  tag: 'M20,3 L97,3 L97,97 L20,97 L3,50 Z',
+};
+
 /**
  * Estilo compartilhado por TODOS os produtos do encarte. O que o usuário
  * mexe no painel "Detalhes do produto" nesses campos vale para o encarte
@@ -25,6 +98,8 @@ export interface EstiloEncarte {
   modeloCard: ModeloCard; // layout do card do produto
   corFundo: string; // fundo do card
   corEtiqueta: string; // caixa de preço
+  formaEtiqueta: FormaEtiqueta; // forma da caixa de preço
+  acabamentoEtiqueta: AcabamentoEtiqueta; // sólida / degradê / contorno
   escalaCard: number; // slider "Produto" — escala o card inteiro
   escalaEtiqueta: number; // slider "Etiqueta" — escala extra da caixa de preço
 }
@@ -33,6 +108,8 @@ export const ESTILO_PADRAO: EstiloEncarte = {
   modeloCard: 'padrao',
   corFundo: '#ffffff',
   corEtiqueta: '#059669', // emerald-600
+  formaEtiqueta: 'arredondada',
+  acabamentoEtiqueta: 'solida',
   escalaCard: 1,
   escalaEtiqueta: 1,
 };
@@ -369,8 +446,11 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
   };
 }
 
-/** Preenche campos novos (`formas`, `textos`, `guias`) em lados vindos de rascunhos/histórico antigos. */
-export const normalizarLado = (l: LadoEncarte): LadoEncarte =>
-  l.formas && l.textos && l.guias
-    ? l
-    : { ...l, formas: l.formas ?? [], textos: l.textos ?? [], guias: l.guias ?? [] };
+/** Preenche campos novos (`formas`, `textos`, `guias`, opções de etiqueta) em lados antigos. */
+export const normalizarLado = (l: LadoEncarte): LadoEncarte => ({
+  ...l,
+  formas: l.formas ?? [],
+  textos: l.textos ?? [],
+  guias: l.guias ?? [],
+  estilo: { ...ESTILO_PADRAO, ...l.estilo },
+});

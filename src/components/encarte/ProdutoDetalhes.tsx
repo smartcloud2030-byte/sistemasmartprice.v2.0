@@ -1,6 +1,15 @@
 import { ArrowLeft, ArrowRightLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images, Ban } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
-import { EncarteProduto, EstiloEncarte, ModeloCard, MODELOS_CARD } from './encarteProduto';
+import {
+  EncarteProduto,
+  EstiloEncarte,
+  ModeloCard,
+  MODELOS_CARD,
+  FormaEtiqueta,
+  FORMAS_ETIQUETA,
+  ACABAMENTOS_ETIQUETA,
+  SVG_ETIQUETA,
+} from './encarteProduto';
 
 interface ProdutoDetalhesProps {
   produto: EncarteProduto;
@@ -107,6 +116,45 @@ export default function ProdutoDetalhes({
             >
               <MiniModelo modelo={m.id} />
               <span className="text-[10px] font-semibold">{m.nome}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Etiqueta de preço — forma + acabamento */}
+      <div className="space-y-2">
+        <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Forma da etiqueta</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {FORMAS_ETIQUETA.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => onAtualizarEstilo({ formaEtiqueta: f.id })}
+              title={f.nome}
+              className={cn(
+                'rounded-lg border p-1.5 flex flex-col items-center gap-1 transition-colors',
+                (estilo.formaEtiqueta ?? 'arredondada') === f.id
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500',
+              )}
+            >
+              <MiniEtiqueta forma={f.id} cor={estilo.corEtiqueta} />
+              <span className="text-[8px] font-semibold leading-none">{f.nome}</span>
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {ACABAMENTOS_ETIQUETA.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => onAtualizarEstilo({ acabamentoEtiqueta: a.id })}
+              className={cn(
+                'rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-colors',
+                (estilo.acabamentoEtiqueta ?? 'solida') === a.id
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500',
+              )}
+            >
+              {a.nome}
             </button>
           ))}
         </div>
@@ -347,6 +395,26 @@ function MiniModelo({ modelo }: { modelo: ModeloCard }) {
       {linhas}
       {!fotoEsquerda && foto}
     </div>
+  );
+}
+
+function MiniEtiqueta({ forma, cor }: { forma: FormaEtiqueta; cor: string }) {
+  if (forma === 'nenhuma') {
+    return <span className="text-[11px] font-black leading-none" style={{ color: cor }}>R$</span>;
+  }
+  const path = SVG_ETIQUETA[forma];
+  if (path) {
+    return (
+      <svg viewBox="0 0 100 100" className="w-7 h-5" preserveAspectRatio="none">
+        <path d={path} fill={cor} strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <span
+      className="block w-7 h-4"
+      style={{ backgroundColor: cor, borderRadius: forma === 'retangulo' ? 3 : 9999 }}
+    />
   );
 }
 

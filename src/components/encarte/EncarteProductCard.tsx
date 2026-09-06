@@ -1,6 +1,14 @@
 import { Package } from 'lucide-react';
 import { getProxyUrl } from '../../lib/utils';
-import { EncarteProduto, EstiloEncarte, CARD_W, partesPreco } from './encarteProduto';
+import {
+  EncarteProduto,
+  EstiloEncarte,
+  FormaEtiqueta,
+  CARD_W,
+  partesPreco,
+  escureceHex,
+  SVG_ETIQUETA,
+} from './encarteProduto';
 
 interface EncarteProductCardProps {
   produto: EncarteProduto;
@@ -85,7 +93,7 @@ function Preco({
       ? cor
         ? { color: cor }
         : PRECO_LARANJA
-      : { color: '#ffffff' };
+      : { color: cor || '#ffffff' };
   return (
     <span
       className="inline-flex items-start font-black leading-none"
@@ -100,6 +108,115 @@ function Preco({
           ,{centavos}
         </span>
       )}
+    </span>
+  );
+}
+
+// ── Etiqueta de preço — formas + acabamentos ────────────────────────
+
+function EtiquetaPreco({
+  estilo,
+  precoOferta,
+  precoDe,
+  tamanho,
+  comPorUni,
+  alinharDireita,
+}: {
+  estilo: EstiloEncarte;
+  precoOferta: string;
+  precoDe: string;
+  tamanho: number;
+  comPorUni?: boolean;
+  alinharDireita?: boolean;
+}) {
+  const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'arredondada';
+  const acab = estilo.acabamentoEtiqueta ?? 'solida';
+  const cor = estilo.corEtiqueta;
+  const contorno = acab === 'contorno';
+  const corTexto = contorno ? cor : '#ffffff';
+  const svgPath = SVG_ETIQUETA[forma];
+  const compacta = forma === 'selo' || forma === 'explosao' || forma === 'circulo';
+
+  const wrapCls = alinharDireita
+    ? 'inline-flex flex-col items-end gap-0.5'
+    : 'inline-flex flex-col items-start gap-0.5';
+  const origem = alinharDireita ? 'bottom right' : 'bottom left';
+
+  // "Só preço" — sem caixa
+  if (forma === 'nenhuma') {
+    return (
+      <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
+        <PrecoDe valor={precoDe} />
+        <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={cor} />
+      </span>
+    );
+  }
+
+  const padX = compacta ? 16 : forma === 'arredondada' ? 14 : forma === 'fita' ? 18 : forma === 'retangulo' ? 9 : 12;
+  const padY = compacta ? 13 : 5;
+  const padLeft = forma === 'tag' ? 22 : forma === 'fita' ? 20 : padX;
+
+  const estiloCaixa: React.CSSProperties = {
+    paddingTop: padY,
+    paddingBottom: padY,
+    paddingLeft: padLeft,
+    paddingRight: padX,
+    minWidth: compacta ? 56 : undefined,
+  };
+
+  if (!svgPath) {
+    // retângulo / pílula / círculo → só border-radius
+    estiloCaixa.borderRadius = forma === 'retangulo' ? 6 : 9999;
+    if (contorno) {
+      estiloCaixa.border = `2px solid ${cor}`;
+      estiloCaixa.background = 'transparent';
+    } else if (acab === 'degrade') {
+      estiloCaixa.backgroundImage = `linear-gradient(160deg, ${cor}, ${escureceHex(cor)})`;
+    } else {
+      estiloCaixa.backgroundColor = cor;
+    }
+  }
+
+  const gid = `etq-grad-${forma}`;
+
+  return (
+    <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
+      <PrecoDe valor={precoDe} />
+      <span className="relative inline-flex items-center justify-center" style={estiloCaixa}>
+        {svgPath && (
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }}>
+            {acab === 'degrade' && (
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={cor} />
+                  <stop offset="100%" stopColor={escureceHex(cor)} />
+                </linearGradient>
+              </defs>
+            )}
+            <path
+              d={svgPath}
+              fill={contorno ? 'none' : acab === 'degrade' ? `url(#${gid})` : cor}
+              stroke={contorno ? cor : 'none'}
+              strokeWidth={contorno ? 4 : 0}
+              strokeLinejoin="round"
+            />
+            {forma === 'tag' && <circle cx="14" cy="50" r="4.5" fill="#ffffff" />}
+          </svg>
+        )}
+        <span className="relative inline-flex items-center gap-1" style={{ zIndex: 1 }}>
+          {comPorUni && (
+            <span className="text-[7px] font-bold leading-none self-center" style={{ color: corTexto, opacity: 0.85 }}>
+              POR
+            </span>
+          )}
+          <Preco valor={precoOferta} tamanho={tamanho} variante="etiqueta" cor={corTexto} />
+          {comPorUni && (
+            <span className="text-[7px] font-bold self-end" style={{ color: corTexto, opacity: 0.85 }}>
+              UNI
+            </span>
+          )}
+        </span>
+      </span>
     </span>
   );
 }
@@ -138,12 +255,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 truncate">C/ {medida}</p>}
         </div>
-        <div className="flex flex-col items-start gap-0.5 origin-bottom-left" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
-          <PrecoDe valor={produto.precoDe} />
-          <span className="inline-flex rounded-lg px-2 py-1" style={{ backgroundColor: estilo.corEtiqueta }}>
-            <Preco valor={produto.precoOferta} tamanho={16} variante="etiqueta" />
-          </span>
-        </div>
+        <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={16} />
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
     </div>
@@ -166,16 +278,8 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] truncate">C/ {medida}</p>}
         </div>
-        <div className="flex flex-col items-start gap-0.5 origin-bottom-left mt-1" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
-          <PrecoDe valor={produto.precoDe} />
-          <span
-            className="inline-flex items-center gap-1 rounded-xl px-2 py-1"
-            style={{ backgroundColor: estilo.corEtiqueta }}
-          >
-            <span className="text-[7px] font-bold text-white/80 leading-none">POR</span>
-            <Preco valor={produto.precoOferta} tamanho={20} variante="etiqueta" />
-            <span className="text-[7px] font-bold text-white/80 self-end">UNI</span>
-          </span>
+        <div className="mt-1">
+          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={20} comPorUni />
         </div>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
