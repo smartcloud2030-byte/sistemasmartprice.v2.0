@@ -34,11 +34,14 @@ import {
 } from './encarteProduto';
 import {
   EncarteSalvo,
+  RascunhoSemData,
   carregarHistorico,
   salvarNoHistorico,
   apagarDoHistorico,
   carregarRascunho,
   salvarRascunho,
+  salvarRascunhoKeepalive,
+  gravarRascunhoLocal,
 } from './persistencia';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
@@ -78,6 +81,7 @@ interface EncarteDoc {
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
   const { setView, currentUser } = useStore();
   const cnpj = currentUser?.cnpj?.replace(/[^\d]/g, '');
+  const username = currentUser?.username ?? '';
   const [activeMenu, setActiveMenu] = useState<MenuItem>(menuInicial ?? 'temas');
 
   const {
@@ -102,6 +106,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
   const prontoParaAutoSalvar = useRef(false);
+
+  // Foto sempre atualizada do estado, pra salvar na hora de fechar/recarregar a aba.
+  const snapshotRef = useRef<RascunhoSemData>({ formato: doc.formatoId, ladoFrente, ladoVerso });
+  snapshotRef.current = { formato: doc.formatoId, ladoFrente, ladoVerso };
 
   // Largura do painel lateral — ajustável pelo usuário arrastando a divisória.
   const PAINEL_MIN = 240;
@@ -143,7 +151,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     let cancelado = false;
     (async () => {
       try {
-        const [rascunho, hist] = await Promise.all([carregarRascunho(cnpj), carregarHistorico(cnpj)]);
+        const [rascunho, hist] = await Promise.all([carregarRascunho(cnpj, username), carregarHistorico(cnpj)]);
         if (cancelado) return;
         if (rascunho) {
           resetarDoc({
@@ -163,17 +171,38 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-save (debounced) do rascunho atual — roda a cada mudança de
-  // conteúdo, só depois que o carregamento inicial já terminou.
+  // Auto-save do rascunho a cada mudança (depois do carregamento inicial):
+  // localStorage quase na hora (300ms) e servidor com folga maior (1s).
   useEffect(() => {
     if (!prontoParaAutoSalvar.current || !cnpj) return;
-    const t = setTimeout(() => {
-      salvarRascunho(cnpj, { formato: doc.formatoId, ladoFrente, ladoVerso }).catch((err) => {
-        console.error('Erro ao salvar rascunho do encarte:', err);
-      });
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [cnpj, doc, ladoFrente, ladoVerso]);
+    const snap: RascunhoSemData = { formato: doc.formatoId, ladoFrente, ladoVerso };
+    const tLocal = setTimeout(() => gravarRascunhoLocal(cnpj, username, snap), 300);
+    const tServidor = setTimeout(() => {
+      salvarRascunho(cnpj, snap).catch((err) => console.error('Erro ao salvar rascunho do encarte:', err));
+    }, 1000);
+    return () => { clearTimeout(tLocal); clearTimeout(tServidor); };
+  }, [cnpj, username, doc, ladoFrente, ladoVerso]);
+
+  // Flush ao sair: fechar a aba, recarregar (F5) ou trocar de tela do app.
+  // Grava o localStorage na hora (síncrono) e tenta o servidor com keepalive.
+  useEffect(() => {
+    if (!cnpj || ladoInicial) return;
+    const flush = () => {
+      if (!prontoParaAutoSalvar.current) return;
+      gravarRascunhoLocal(cnpj, username, snapshotRef.current);
+      salvarRascunhoKeepalive(cnpj, snapshotRef.current);
+    };
+    const onVisibilidade = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', onVisibilidade);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('beforeunload', flush);
+      document.removeEventListener('visibilitychange', onVisibilidade);
+      flush(); // também salva ao desmontar (usuário voltou pro editor de plaquinha, etc.)
+    };
+  }, [cnpj, username, ladoInicial]);
 
   // Atalhos de teclado: Ctrl/Cmd+Z desfaz, Ctrl/Cmd+Shift+Z (ou Ctrl+Y) refaz.
   // Não intercepta quando o foco está num campo de texto (deixa o undo nativo do campo).
