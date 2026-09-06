@@ -113,54 +113,43 @@ function Preco({
 }
 
 /**
- * Preço da etiqueta no arranjo do encarte: coluna "POR / R$" à esquerda
- * (POR no topo, R$ na base do número), número inteiro grande, vírgula na
- * base e centavos elevados, e "UNI" na base à direita.
+ * Preço da etiqueta no arranjo do encarte (igual ao modelo impresso):
+ *
+ *   POR            2 4  , ⁶⁹
+ *   R$                     UNI
+ *
+ * Coluna "POR / R$" à esquerda (POR no topo, R$ colado na base do número),
+ * número inteiro grande dominante, vírgula na base + centavos elevados,
+ * e "UNI" colado na base à direita. Sempre com POR e UNI.
  */
-function PrecoEtiqueta({
-  valor,
-  tamanho,
-  cor,
-  comPorUni,
-}: {
-  valor: string;
-  tamanho: number;
-  cor: string;
-  comPorUni?: boolean;
-}) {
+function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number; cor: string }) {
   const { inteiro, centavos } = partesPreco(valor);
   return (
     <span
-      className="inline-flex items-stretch font-black leading-none"
+      className="inline-flex items-stretch font-black uppercase leading-none"
       style={{ fontSize: tamanho, color: cor }}
     >
-      {/* POR (topo) + R$ (base do número) */}
-      <span className="flex flex-col justify-end items-start leading-none pr-[0.12em]">
-        {comPorUni && (
-          <span className="font-black leading-none mb-auto" style={{ fontSize: '0.34em', letterSpacing: '0.03em' }}>
-            POR
-          </span>
-        )}
-        <span className="font-black leading-none" style={{ fontSize: '0.46em' }}>R$</span>
+      {/* POR (topo) + R$ (colado na base do número) */}
+      <span className="self-stretch flex flex-col justify-between items-start leading-none pr-[0.12em] py-[0.03em]">
+        <span className="leading-none" style={{ fontSize: '0.48em', letterSpacing: '0.02em' }}>POR</span>
+        <span className="leading-none" style={{ fontSize: '0.46em' }}>R$</span>
       </span>
 
-      {/* número grande */}
+      {/* número inteiro grande */}
       <span className="leading-none">{inteiro}</span>
 
-      {/* vírgula na base + centavos elevados */}
+      {/* vírgula (meio) + centavos elevados */}
       {centavos && (
-        <span className="flex items-stretch leading-none font-black" style={{ fontSize: '0.5em' }}>
-          <span className="self-end">,</span>
+        <span className="self-stretch flex leading-none" style={{ fontSize: '0.55em' }}>
+          <span className="self-center">,</span>
           <span className="self-start">{centavos}</span>
         </span>
       )}
 
-      {/* UNI na base, à direita */}
-      {comPorUni && (
-        <span className="flex flex-col justify-end pl-[0.1em] leading-none">
-          <span className="font-black leading-none" style={{ fontSize: '0.3em', letterSpacing: '0.06em' }}>UNI</span>
-        </span>
-      )}
+      {/* UNI colado na base, à direita */}
+      <span className="self-stretch flex flex-col justify-end items-start leading-none pl-[0.1em] pb-[0.05em]">
+        <span className="leading-none" style={{ fontSize: '0.34em', letterSpacing: '0.05em' }}>UNI</span>
+      </span>
     </span>
   );
 }
@@ -172,14 +161,12 @@ function EtiquetaPreco({
   precoOferta,
   precoDe,
   tamanho,
-  comPorUni,
   alinharDireita,
 }: {
   estilo: EstiloEncarte;
   precoOferta: string;
   precoDe: string;
   tamanho: number;
-  comPorUni?: boolean;
   alinharDireita?: boolean;
 }) {
   const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'arredondada';
@@ -257,7 +244,7 @@ function EtiquetaPreco({
           </svg>
         )}
         <span className="relative" style={{ zIndex: 1 }}>
-          <PrecoEtiqueta valor={precoOferta} tamanho={tamanho} cor={corTexto} comPorUni={comPorUni} />
+          <PrecoEtiqueta valor={precoOferta} tamanho={tamanho} cor={corTexto} />
         </span>
       </span>
     </span>
@@ -322,7 +309,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
         </div>
         <div className="mt-1">
-          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={20} comPorUni />
+          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={22} />
         </div>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
