@@ -112,6 +112,59 @@ function Preco({
   );
 }
 
+/**
+ * Preço da etiqueta no arranjo do encarte: coluna "POR / R$" à esquerda
+ * (POR no topo, R$ na base do número), número inteiro grande, vírgula na
+ * base e centavos elevados, e "UNI" na base à direita.
+ */
+function PrecoEtiqueta({
+  valor,
+  tamanho,
+  cor,
+  comPorUni,
+}: {
+  valor: string;
+  tamanho: number;
+  cor: string;
+  comPorUni?: boolean;
+}) {
+  const { inteiro, centavos } = partesPreco(valor);
+  return (
+    <span
+      className="inline-flex items-stretch font-black leading-none"
+      style={{ fontSize: tamanho, color: cor }}
+    >
+      {/* POR (topo) + R$ (base do número) */}
+      <span className="flex flex-col justify-end items-start leading-none pr-[0.12em]">
+        {comPorUni && (
+          <span className="font-black leading-none mb-auto" style={{ fontSize: '0.34em', letterSpacing: '0.03em' }}>
+            POR
+          </span>
+        )}
+        <span className="font-black leading-none" style={{ fontSize: '0.46em' }}>R$</span>
+      </span>
+
+      {/* número grande */}
+      <span className="leading-none">{inteiro}</span>
+
+      {/* vírgula na base + centavos elevados */}
+      {centavos && (
+        <span className="flex items-stretch leading-none font-black" style={{ fontSize: '0.5em' }}>
+          <span className="self-end">,</span>
+          <span className="self-start">{centavos}</span>
+        </span>
+      )}
+
+      {/* UNI na base, à direita */}
+      {comPorUni && (
+        <span className="flex flex-col justify-end pl-[0.1em] leading-none">
+          <span className="font-black leading-none" style={{ fontSize: '0.3em', letterSpacing: '0.06em' }}>UNI</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 // ── Etiqueta de preço — formas + acabamentos ────────────────────────
 
 function EtiquetaPreco({
@@ -203,18 +256,8 @@ function EtiquetaPreco({
             {forma === 'tag' && <circle cx="14" cy="50" r="4.5" fill="#ffffff" />}
           </svg>
         )}
-        <span className="relative inline-flex items-center gap-1" style={{ zIndex: 1 }}>
-          {comPorUni && (
-            <span className="text-[7px] font-bold leading-none self-center" style={{ color: corTexto, opacity: 0.85 }}>
-              POR
-            </span>
-          )}
-          <Preco valor={precoOferta} tamanho={tamanho} variante="etiqueta" cor={corTexto} />
-          {comPorUni && (
-            <span className="text-[7px] font-bold self-end" style={{ color: corTexto, opacity: 0.85 }}>
-              UNI
-            </span>
-          )}
+        <span className="relative" style={{ zIndex: 1 }}>
+          <PrecoEtiqueta valor={precoOferta} tamanho={tamanho} cor={corTexto} comPorUni={comPorUni} />
         </span>
       </span>
     </span>
