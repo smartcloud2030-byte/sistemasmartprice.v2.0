@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutGrid, Trash2, FolderOpen } from 'lucide-react';
+import { LayoutGrid, Trash2, Pencil } from 'lucide-react';
 import { EncarteSalvo } from './persistencia';
 
 interface EncartesTabProps {
@@ -17,13 +17,14 @@ export default function EncartesTab({ historico, onAbrir, onApagar }: EncartesTa
         <LayoutGrid className="w-4 h-4 text-emerald-500" />
         <div>
           <h2 className="text-sm font-black uppercase tracking-widest">Encartes</h2>
-          <p className="text-[11px] text-zinc-400 mt-0.5">Histórico dos últimos encartes baixados</p>
+          <p className="text-[11px] text-zinc-400 mt-0.5">Encartes salvos — clique em Editar pra continuar de onde parou</p>
         </div>
       </div>
 
       {historico.length === 0 ? (
         <p className="text-xs text-zinc-500 text-center py-8">
-          Nenhum encarte no histórico ainda — aparece aqui assim que você baixar um.
+          Nenhum encarte salvo ainda — use o botão <b className="text-zinc-300">Salvar</b> no topo pra guardar
+          o encarte (fundo, produtos, tags, marca, formas e textos, frente e verso).
         </p>
       ) : (
         <div className="space-y-2">
@@ -41,14 +42,15 @@ export default function EncartesTab({ historico, onAbrir, onApagar }: EncartesTa
               </div>
               <button
                 onClick={() => onAbrir(entry)}
-                title="Recuperar este encarte"
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-zinc-300 hover:bg-zinc-700 transition-colors flex-shrink-0"
+                title="Abrir este encarte no editor"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors flex-shrink-0"
               >
-                <FolderOpen className="w-3.5 h-3.5" />
+                <Pencil className="w-3.5 h-3.5" />
+                Editar
               </button>
               <button
                 onClick={() => setPendingDelete(entry)}
-                title="Apagar do histórico"
+                title="Apagar este encarte"
                 className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-700 transition-colors flex-shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -63,10 +65,10 @@ export default function EncartesTab({ historico, onAbrir, onApagar }: EncartesTa
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
             <div className="flex items-center gap-3 text-red-500">
               <Trash2 className="w-6 h-6" />
-              <h3 className="text-lg font-bold text-zinc-100">Apagar do histórico?</h3>
+              <h3 className="text-lg font-bold text-zinc-100">Apagar encarte</h3>
             </div>
             <p className="text-sm text-zinc-400">
-              Deseja realmente apagar "{pendingDelete.nome}" do histórico? Essa ação é irreversível.
+              Você deseja realmente apagar esse encarte? Essa ação é irreversível.
             </p>
             <div className="flex gap-3">
               <button

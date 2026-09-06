@@ -3,7 +3,7 @@ import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import {
-  Undo2, Redo2, Type, Palette, Shapes, CalendarDays, Download, Share2, Package, Plus,
+  Undo2, Redo2, Type, Palette, Shapes, Save, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, SendToBack, BringToFront, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus,
@@ -43,7 +43,6 @@ type DestinoCompartilhar = keyof typeof DESTINOS_COMPARTILHAR;
 
 const TOOLBAR_ITEMS = [
   { icon: Palette, label: 'Cores' },
-  { icon: CalendarDays, label: 'Validade' },
 ];
 
 const TAMANHO_TEXTO_MIN = 8;
@@ -145,6 +144,8 @@ interface EncarteCanvasProps {
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
   onLadoChange: (lado: 'frente' | 'verso') => void;
+  /** "Salvar": manda o encarte (frente + verso) pra aba Encartes pra editar depois. */
+  onSalvarEncarte: (imagemPreview: string) => Promise<void>;
   onExportado?: (imagemPreview: string) => void;
 }
 
@@ -244,9 +245,11 @@ export default function EncarteCanvas({
   onAdicionarVerso,
   onRemoverVerso,
   onLadoChange,
+  onSalvarEncarte,
   onExportado,
 }: EncarteCanvasProps) {
   const [exportando, setExportando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   const [gradeAberta, setGradeAberta] = useState(false);
   const [formasAberta, setFormasAberta] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
@@ -301,6 +304,25 @@ export default function EncarteCanvas({
       backgroundColor: '#000000',
       scale: formato.width / CANVAS_W,
     });
+
+  /** "Salvar": gera uma miniatura leve e manda o encarte inteiro pra aba Encartes. */
+  const salvarEncarte = async () => {
+    if (!canvasRef.current || salvando || exportando) return;
+    setSalvando(true);
+    try {
+      const canvas = await html2canvas(canvasRef.current, {
+        useCORS: true,
+        backgroundColor: '#000000',
+        scale: 320 / CANVAS_W,
+      });
+      await onSalvarEncarte(canvas.toDataURL('image/png'));
+      toast.success('Encarte salvo! Veja na aba Encartes pra editar depois.');
+    } catch {
+      toast.error('Não foi possível salvar o encarte agora. Tente de novo.');
+    } finally {
+      setSalvando(false);
+    }
+  };
 
   const baixar = async (tipo: 'png' | 'pdf') => {
     if (!canvasRef.current || exportando) return;
@@ -1054,6 +1076,20 @@ export default function EncarteCanvas({
               {!tbCompacta && label}
             </button>
           ))}
+
+          {/* Salvar — manda o encarte pra aba Encartes */}
+          <button
+            onClick={salvarEncarte}
+            disabled={salvando || exportando}
+            title="Salvar na aba Encartes pra editar depois"
+            className={cn(
+              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed',
+              tbCompacta ? 'px-2' : 'px-3',
+            )}
+          >
+            {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {!tbCompacta && (salvando ? 'Salvando...' : 'Salvar')}
+          </button>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">

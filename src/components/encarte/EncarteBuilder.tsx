@@ -460,18 +460,20 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const limparGuias = () =>
     atualizarLado(() => ({ guias: [] }), { semHistorico: true });
 
-  /** Chamado pelo EncarteCanvas depois de um download bem-sucedido — grava no histórico. */
-  const registrarNoHistorico = (imagemPreview: string) => {
-    if (!cnpj) return;
-    salvarNoHistorico(cnpj, {
-      nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`,
+  /**
+   * Grava o encarte inteiro (formato + frente + verso, com fundo/tema,
+   * produtos, formas, textos, tags, marca e guias) na aba Encartes.
+   * Usado pelo botão "Salvar" e também depois de um download.
+   */
+  const gravarEncarte = (imagemPreview: string): Promise<void> => {
+    if (!cnpj) return Promise.resolve();
+    return salvarNoHistorico(cnpj, {
+      nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
       imagemPreview,
       formato: doc.formatoId,
       ladoFrente,
       ladoVerso,
-    })
-      .then(setHistorico)
-      .catch((err) => console.error('Erro ao salvar encarte no histórico:', err));
+    }).then(setHistorico);
   };
 
   const abrirDoHistorico = (entry: EncarteSalvo) => {
@@ -643,7 +645,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}
           onLadoChange={trocarLado}
-          onExportado={registrarNoHistorico}
+          onSalvarEncarte={gravarEncarte}
+          onExportado={(preview) => { gravarEncarte(preview).catch((err) => console.error('Erro ao salvar encarte:', err)); }}
         />
       </div>
     </div>
