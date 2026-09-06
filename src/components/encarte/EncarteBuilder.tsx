@@ -20,10 +20,11 @@ import {
   ElementoImagem,
   FormaEncarte,
   FormaTipo,
+  GuiaEncarte,
   criarEncarteProduto,
   criarLado,
   clonarLado,
-  comFormas,
+  normalizarLado,
   criarDivisor,
   criarElementoImagem,
   criarForma,
@@ -87,7 +88,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     podeRefazer,
   } = useHistoricoEdicao<EncarteDoc>(() => ({
     formatoId: (formatoInicial ?? FORMATO_PADRAO).id,
-    ladoFrente: comFormas(ladoInicial ?? criarLado()),
+    ladoFrente: normalizarLado(ladoInicial ?? criarLado()),
     ladoVerso: null,
   }));
 
@@ -116,8 +117,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         if (rascunho) {
           resetarDoc({
             formatoId: rascunho.formato as FormatoId,
-            ladoFrente: comFormas(rascunho.ladoFrente),
-            ladoVerso: rascunho.ladoVerso ? comFormas(rascunho.ladoVerso) : null,
+            ladoFrente: normalizarLado(rascunho.ladoFrente),
+            ladoVerso: rascunho.ladoVerso ? normalizarLado(rascunho.ladoVerso) : null,
           });
         }
         setHistorico(hist);
@@ -355,6 +356,25 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const removerForma = (id: string) =>
     atualizarLado((l) => ({ formas: (l.formas ?? []).filter((f) => f.id !== id) }));
 
+  // ── Guias / réguas ─────────────────────────────────────────────────
+  // Fora do histórico (semHistorico): guia é auxílio de montagem, não
+  // deve gastar passo de desfazer nem some com Ctrl+Z. Continua salvando
+  // no rascunho (o auto-save observa o doc inteiro).
+  const adicionarGuia = (guia: GuiaEncarte) =>
+    atualizarLado((l) => ({ guias: [...(l.guias ?? []), guia] }), { semHistorico: true });
+
+  const moverGuia = (id: string, pos: number) =>
+    atualizarLado(
+      (l) => ({ guias: (l.guias ?? []).map((g) => (g.id === id ? { ...g, pos } : g)) }),
+      { semHistorico: true },
+    );
+
+  const removerGuia = (id: string) =>
+    atualizarLado((l) => ({ guias: (l.guias ?? []).filter((g) => g.id !== id) }), { semHistorico: true });
+
+  const limparGuias = () =>
+    atualizarLado(() => ({ guias: [] }), { semHistorico: true });
+
   /** Chamado pelo EncarteCanvas depois de um download bem-sucedido — grava no histórico. */
   const registrarNoHistorico = (imagemPreview: string) => {
     if (!cnpj) return;
@@ -372,8 +392,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const abrirDoHistorico = (entry: EncarteSalvo) => {
     resetarDoc({
       formatoId: entry.formato as FormatoId,
-      ladoFrente: comFormas(entry.ladoFrente),
-      ladoVerso: entry.ladoVerso ? comFormas(entry.ladoVerso) : null,
+      ladoFrente: normalizarLado(entry.ladoFrente),
+      ladoVerso: entry.ladoVerso ? normalizarLado(entry.ladoVerso) : null,
     });
     setLadoAtivo('frente');
     setProdutoDetalhadoId(null);
@@ -487,6 +507,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           divisores={lado.divisores}
           imagens={lado.imagens}
           formas={lado.formas ?? []}
+          guias={lado.guias ?? []}
           rodape={lado.rodape}
           ladoAtivo={ladoAtivo}
           temVerso={ladoVerso != null}
@@ -508,6 +529,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onDefinirCorForma={definirCorForma}
           onAlternarCamadaForma={alternarCamadaForma}
           onRemoverForma={removerForma}
+          onAdicionarGuia={adicionarGuia}
+          onMoverGuia={moverGuia}
+          onRemoverGuia={removerGuia}
+          onLimparGuias={limparGuias}
           onGradeChange={definirGrade}
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}

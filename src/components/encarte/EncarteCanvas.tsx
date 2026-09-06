@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Undo2, Redo2, Type, Palette, Shapes, CalendarDays, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
-  MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, SendToBack, BringToFront,
+  MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, SendToBack, BringToFront, Ruler,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -14,6 +14,7 @@ import {
   EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
   DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin, CANVAS_W,
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
+  GuiaEncarte, GuiaOrientacao, criarGuia,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
@@ -51,6 +52,25 @@ const ICONE_FORMA: Record<FormaTipo, typeof Square> = {
   circulo: Circle,
 };
 
+const REGUA_PX = 15; // espessura da régua em px (na escala 1x do canvas)
+
+/** Passo "redondo" das marcas da régua, mirando ~20 divisões no eixo. */
+function passoRegua(dimNominal: number): number {
+  const alvo = dimNominal / 20;
+  const escalas = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000];
+  return escalas.find((e) => e >= alvo) ?? 2000;
+}
+
+/** Marcas da régua num eixo: posição em % do canvas + rótulo em px nominais. */
+function marcasRegua(dimNominal: number): { pct: number; label: number }[] {
+  const passo = passoRegua(dimNominal);
+  const marcas: { pct: number; label: number }[] = [];
+  for (let v = 0; v <= dimNominal + 0.5; v += passo) {
+    marcas.push({ pct: (v / dimNominal) * 100, label: Math.round(v) });
+  }
+  return marcas;
+}
+
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 /** Miniatura leve (redimensiona no canvas, sem re-renderizar o DOM) pro histórico de encartes. */
@@ -74,6 +94,7 @@ interface EncarteCanvasProps {
   divisores: DivisorEncarte[];
   imagens: ElementoImagem[];
   formas: FormaEncarte[];
+  guias: GuiaEncarte[];
   rodape: { ativo: boolean; texto: string };
   ladoAtivo: 'frente' | 'verso';
   temVerso: boolean;
@@ -95,6 +116,10 @@ interface EncarteCanvasProps {
   onDefinirCorForma: (id: string, cor: string) => void;
   onAlternarCamadaForma: (id: string) => void;
   onRemoverForma: (id: string) => void;
+  onAdicionarGuia: (guia: GuiaEncarte) => void;
+  onMoverGuia: (id: string, pos: number) => void;
+  onRemoverGuia: (id: string) => void;
+  onLimparGuias: () => void;
   onGradeChange: (grade: GradeId) => void;
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
@@ -123,6 +148,13 @@ interface ImagemDragState {
   startX: number;
   startY: number;
   orig: ElementoImagem;
+}
+
+interface GuiaDragState {
+  id: string;
+  orientacao: GuiaOrientacao;
+  pointerId: number;
+  ultimaPos: number;
 }
 
 interface FormaDragState {
@@ -165,6 +197,11 @@ export default function EncarteCanvas({
   onDefinirCorForma,
   onAlternarCamadaForma,
   onRemoverForma,
+  guias,
+  onAdicionarGuia,
+  onMoverGuia,
+  onRemoverGuia,
+  onLimparGuias,
   onGradeChange,
   onAdicionarVerso,
   onRemoverVerso,
@@ -175,9 +212,11 @@ export default function EncarteCanvas({
   const [gradeAberta, setGradeAberta] = useState(false);
   const [formasAberta, setFormasAberta] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
+  const [reguasVisiveis, setReguasVisiveis] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const imgDragRef = useRef<ImagemDragState | null>(null);
+  const guiaDragRef = useRef<GuiaDragState | null>(null);
   const formaDragRef = useRef<FormaDragState | null>(null);
 
   const [downloadAberto, setDownloadAberto] = useState(false);
@@ -444,6 +483,49 @@ export default function EncarteCanvas({
     formaDragRef.current = null;
   };
 
+  // ── Guias / réguas ─────────────────────────────────────────────────
+  /** Posição do ponteiro no eixo pedido, em % do canvas (pode passar de 0..100). */
+  const posPonteiroPct = (e: React.PointerEvent, eixo: 'x' | 'y') => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return 0;
+    return eixo === 'x'
+      ? ((e.clientX - rect.left) / rect.width) * 100
+      : ((e.clientY - rect.top) / rect.height) * 100;
+  };
+
+  /** Puxou uma guia nova da régua (topo = vertical, lateral = horizontal). */
+  const iniciarNovaGuia = (e: React.PointerEvent<HTMLDivElement>, orientacao: GuiaOrientacao) => {
+    e.stopPropagation();
+    const pos = clamp(posPonteiroPct(e, orientacao === 'vertical' ? 'x' : 'y'), 0, 100);
+    const guia = criarGuia(orientacao, pos);
+    onAdicionarGuia(guia);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    guiaDragRef.current = { id: guia.id, orientacao, pointerId: e.pointerId, ultimaPos: pos };
+  };
+
+  /** Pegou uma guia já existente pra reposicionar. */
+  const iniciarGuiaDrag = (e: React.PointerEvent<HTMLDivElement>, guia: GuiaEncarte) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    guiaDragRef.current = { id: guia.id, orientacao: guia.orientacao, pointerId: e.pointerId, ultimaPos: guia.pos };
+  };
+
+  const handleGuiaPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = guiaDragRef.current;
+    if (!st || e.pointerId !== st.pointerId) return;
+    // deixa passar um pouco das bordas: solta fora = apaga a guia
+    const pos = clamp(posPonteiroPct(e, st.orientacao === 'vertical' ? 'x' : 'y'), -4, 104);
+    st.ultimaPos = pos;
+    onMoverGuia(st.id, pos);
+  };
+
+  const handleGuiaPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = guiaDragRef.current;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    guiaDragRef.current = null;
+    if (st && (st.ultimaPos < 0.5 || st.ultimaPos > 99.5)) onRemoverGuia(st.id);
+  };
+
   /** Uma forma no canvas — arrastar pelo corpo, redimensionar pelos 4 cantos. */
   const renderForma = (fm: FormaEncarte) => {
     const selecionada = fm.id === formaSelecionadaId;
@@ -526,6 +608,9 @@ export default function EncarteCanvas({
 
   const formasAtras = formas.filter((f) => f.atras);
   const formasFrente = formas.filter((f) => !f.atras);
+
+  const marcasX = reguasVisiveis ? marcasRegua(formato.width) : [];
+  const marcasY = reguasVisiveis ? marcasRegua(formato.height) : [];
 
   return (
     <div className="flex-grow flex flex-col bg-zinc-950 relative">
@@ -645,6 +730,21 @@ export default function EncarteCanvas({
               </div>
             )}
           </div>
+
+          {/* Réguas / guias */}
+          <button
+            onClick={() => setReguasVisiveis((v) => !v)}
+            title="Réguas e guias de alinhamento — arraste da régua pra criar uma linha"
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors text-xs font-semibold',
+              reguasVisiveis
+                ? 'bg-cyan-500/15 text-cyan-300'
+                : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+            )}
+          >
+            <Ruler className="w-3.5 h-3.5" />
+            Réguas
+          </button>
 
           {TOOLBAR_ITEMS.map(({ icon: Icon, label }) => (
             <button
@@ -905,6 +1005,97 @@ export default function EncarteCanvas({
               style={{ color: '#e8850c', background: 'rgba(255,255,255,0.55)' }}
             >
               {rodape.texto}
+            </div>
+          )}
+
+          {/* Réguas + guias de alinhamento — nunca entram no PNG/PDF */}
+          {reguasVisiveis && (
+            <div data-html2canvas-ignore="true" className="absolute inset-0 z-40 pointer-events-none">
+              {/* Guias já colocadas — arrastar pra mover, soltar na borda pra apagar */}
+              {guias.map((g) =>
+                g.orientacao === 'vertical' ? (
+                  <div
+                    key={g.id}
+                    className="absolute pointer-events-auto cursor-ew-resize"
+                    style={{ top: REGUA_PX, bottom: 0, left: `${g.pos}%`, width: 9, transform: 'translateX(-50%)' }}
+                    onPointerDown={(e) => iniciarGuiaDrag(e, g)}
+                    onPointerMove={handleGuiaPointerMove}
+                    onPointerUp={handleGuiaPointerUp}
+                    onPointerCancel={handleGuiaPointerUp}
+                  >
+                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2" style={{ width: 1, background: '#06b6d4' }} />
+                  </div>
+                ) : (
+                  <div
+                    key={g.id}
+                    className="absolute pointer-events-auto cursor-ns-resize"
+                    style={{ left: REGUA_PX, right: 0, top: `${g.pos}%`, height: 9, transform: 'translateY(-50%)' }}
+                    onPointerDown={(e) => iniciarGuiaDrag(e, g)}
+                    onPointerMove={handleGuiaPointerMove}
+                    onPointerUp={handleGuiaPointerUp}
+                    onPointerCancel={handleGuiaPointerUp}
+                  >
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2" style={{ height: 1, background: '#06b6d4' }} />
+                  </div>
+                ),
+              )}
+
+              {/* Régua do topo — puxa guia vertical */}
+              <div
+                className="absolute top-0 pointer-events-auto cursor-ew-resize select-none overflow-hidden bg-zinc-900/85 border-b border-zinc-700"
+                style={{ left: REGUA_PX, right: 0, height: REGUA_PX }}
+                onPointerDown={(e) => iniciarNovaGuia(e, 'vertical')}
+                onPointerMove={handleGuiaPointerMove}
+                onPointerUp={handleGuiaPointerUp}
+                onPointerCancel={handleGuiaPointerUp}
+              >
+                {marcasX.map((m) => (
+                  <div key={m.label} className="absolute top-0 bottom-0" style={{ left: `${m.pct}%` }}>
+                    <div className="absolute bottom-0 left-0 w-px bg-zinc-500" style={{ height: 5 }} />
+                    <span className="absolute top-0 text-[6px] leading-none text-zinc-400" style={{ left: 2 }}>{m.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Régua da lateral — puxa guia horizontal */}
+              <div
+                className="absolute left-0 pointer-events-auto cursor-ns-resize select-none overflow-hidden bg-zinc-900/85 border-r border-zinc-700"
+                style={{ top: REGUA_PX, bottom: 0, width: REGUA_PX }}
+                onPointerDown={(e) => iniciarNovaGuia(e, 'horizontal')}
+                onPointerMove={handleGuiaPointerMove}
+                onPointerUp={handleGuiaPointerUp}
+                onPointerCancel={handleGuiaPointerUp}
+              >
+                {marcasY.map((m) => (
+                  <div key={m.label} className="absolute left-0 right-0" style={{ top: `${m.pct}%` }}>
+                    <div className="absolute right-0 top-0 h-px bg-zinc-500" style={{ width: 5 }} />
+                    <span
+                      className="absolute top-0 text-[6px] leading-none text-zinc-400"
+                      style={{ left: 1, writingMode: 'vertical-rl' }}
+                    >
+                      {m.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cantinho onde as duas réguas se encontram */}
+              <div
+                className="absolute top-0 left-0 bg-zinc-800 border-b border-r border-zinc-700"
+                style={{ width: REGUA_PX, height: REGUA_PX }}
+              />
+
+              {guias.length > 0 && (
+                <button
+                  onClick={onLimparGuias}
+                  title="Apagar todas as guias"
+                  className="absolute pointer-events-auto flex items-center gap-0.5 bg-zinc-900/90 border border-zinc-700 rounded-md px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-zinc-300 hover:text-red-300 hover:border-red-500/50"
+                  style={{ top: REGUA_PX + 4, right: 4 }}
+                >
+                  <X className="w-2.5 h-2.5" />
+                  guias
+                </button>
+              )}
             </div>
           )}
               </div>

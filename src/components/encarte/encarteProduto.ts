@@ -251,6 +251,22 @@ export function criarForma(tipo: FormaTipo): FormaEncarte {
   };
 }
 
+// ── Guias / réguas (linhas de alinhamento, só ajudam a montar) ────────
+
+export type GuiaOrientacao = 'horizontal' | 'vertical';
+
+/** Linha de alinhamento arrastada da régua. Não aparece no PNG/PDF exportado. */
+export interface GuiaEncarte {
+  id: string;
+  orientacao: GuiaOrientacao;
+  /** posição em % do canvas — horizontal usa o eixo Y, vertical usa o eixo X */
+  pos: number;
+}
+
+export function criarGuia(orientacao: GuiaOrientacao, pos: number): GuiaEncarte {
+  return { id: `guia_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, orientacao, pos };
+}
+
 // ── Lado do encarte (frente / verso) ──────────────────────────────────
 
 /**
@@ -266,6 +282,7 @@ export interface LadoEncarte {
   divisores: DivisorEncarte[];
   imagens: ElementoImagem[];
   formas: FormaEncarte[];
+  guias: GuiaEncarte[];
   rodape: { ativo: boolean; texto: string };
 }
 
@@ -278,6 +295,7 @@ export function criarLado(): LadoEncarte {
     divisores: [],
     imagens: [],
     formas: [],
+    guias: [],
     rodape: { ativo: false, texto: '5 unidades por cliente' },
   };
 }
@@ -291,9 +309,11 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
     divisores: l.divisores.map((d) => ({ ...d })),
     imagens: l.imagens.map((im) => ({ ...im })),
     formas: (l.formas ?? []).map((f) => ({ ...f })),
+    guias: (l.guias ?? []).map((g) => ({ ...g })),
     rodape: { ...l.rodape },
   };
 }
 
-/** Garante `formas: []` em lados vindos de rascunhos/histórico salvos antes das formas existirem. */
-export const comFormas = (l: LadoEncarte): LadoEncarte => (l.formas ? l : { ...l, formas: [] });
+/** Preenche campos novos (`formas`, `guias`) em lados vindos de rascunhos/histórico antigos. */
+export const normalizarLado = (l: LadoEncarte): LadoEncarte =>
+  l.formas && l.guias ? l : { ...l, formas: l.formas ?? [], guias: l.guias ?? [] };
