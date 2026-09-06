@@ -103,6 +103,35 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
   const prontoParaAutoSalvar = useRef(false);
 
+  // Largura do painel lateral — ajustável pelo usuário arrastando a divisória.
+  const PAINEL_MIN = 240;
+  const PAINEL_MAX = 640;
+  const [larguraPainel, setLarguraPainel] = useState<number>(() => {
+    try {
+      const salvo = Number(localStorage.getItem('encarte:larguraPainel'));
+      if (salvo >= PAINEL_MIN && salvo <= PAINEL_MAX) return salvo;
+    } catch { /* ignora */ }
+    return 288;
+  });
+  const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  const iniciarResizePainel = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    resizeRef.current = { startX: e.clientX, startW: larguraPainel };
+  };
+  const arrastarResizePainel = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = resizeRef.current;
+    if (!st) return;
+    const teto = Math.min(PAINEL_MAX, (typeof window !== 'undefined' ? window.innerWidth : 1280) - 360);
+    const nova = Math.max(PAINEL_MIN, Math.min(teto, st.startW + (e.clientX - st.startX)));
+    setLarguraPainel(nova);
+  };
+  const fimResizePainel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    resizeRef.current = null;
+    try { localStorage.setItem('encarte:larguraPainel', String(Math.round(larguraPainel))); } catch { /* ignora */ }
+  };
+
   // Ao montar: recupera o rascunho salvo (se tiver) pra não perder o
   // trabalho ao recarregar a página, e carrega o histórico de encartes.
   // Só roda no app real — o preview isolado (ladoInicial) fica de fora.
@@ -463,7 +492,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           ))}
         </nav>
 
-        <aside className="w-72 flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto">
+        <aside
+          style={{ width: larguraPainel }}
+          className="flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto"
+        >
           {produtoDetalhado ? (
             <ProdutoDetalhes
               produto={produtoDetalhado}
@@ -524,6 +556,17 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
             </div>
           )}
         </aside>
+
+        {/* Divisória arrastável — ajusta a largura do painel lateral */}
+        <div
+          onPointerDown={iniciarResizePainel}
+          onPointerMove={arrastarResizePainel}
+          onPointerUp={fimResizePainel}
+          onPointerCancel={fimResizePainel}
+          onDoubleClick={() => setLarguraPainel(288)}
+          title="Arraste pra ajustar a largura do painel (2 cliques volta ao padrão)"
+          className="w-1.5 flex-shrink-0 cursor-col-resize bg-zinc-800 hover:bg-emerald-500/60 active:bg-emerald-500 transition-colors touch-none"
+        />
 
         <EncarteCanvas
           backgroundUrl={lado.tema}
