@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useStore } from '../store';
+import { ligarNotificacoesSuporte } from '../lib/notificacaoSuporte';
 
 export interface Message {
   id: string;
@@ -55,6 +56,9 @@ export function useSupportSocket() {
   useEffect(() => {
     if (!currentUser || !userRole) return;
     const s = getSocket();
+
+    // Pop-up + som quando chega mensagem de suporte do outro lado (uma vez só).
+    ligarNotificacoesSuporte(s);
 
     const onConnect = () => {
       setIsChatConnected(true);
