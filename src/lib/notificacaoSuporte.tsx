@@ -1,5 +1,3 @@
-import { toast } from 'sonner';
-import { MessageCircle } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
 import { useStore } from '../store';
 
@@ -89,10 +87,10 @@ export function tocarSomSuporte() {
 }
 
 /**
- * Liga (uma vez só) o pop-up + som quando chega mensagem de suporte do
- * OUTRO lado — vale pros dois sentidos: usuário → admin e admin → usuário.
- * Clicar no pop-up abre a conversa direto. Não incomoda se a pessoa já está
- * com o chat aberto naquela conversa e a aba visível.
+ * Liga (uma vez só) o som + notificação do sistema quando chega mensagem de
+ * suporte do OUTRO lado — vale pros dois sentidos: usuário → admin e admin →
+ * usuário. Não incomoda se a pessoa já está com o chat aberto naquela
+ * conversa e a aba visível.
  */
 export function ligarNotificacoesSuporte(s: Socket) {
   if (notificacoesLigadas) return;
@@ -135,34 +133,6 @@ export function ligarNotificacoesSuporte(s: Socket) {
 
     tocarSomSuporte();
     mostrarNotificacaoSistema({ titulo, corpo: `${remetente}: ${previa}`, cnpj: cnpjMsg, ehAdmin });
-
-    toast.custom(
-      (id) => (
-        <button
-          type="button"
-          onClick={() => {
-            const s2 = useStore.getState();
-            if (s2.userRole === 'admin') s2.setSelectedUserCnpj(cnpjMsg);
-            s2.setSupportChatOpen(true);
-            toast.dismiss(id);
-          }}
-          className="w-[340px] max-w-[88vw] text-left flex gap-3 items-start rounded-xl border border-emerald-500/50 bg-zinc-900 px-4 py-3 shadow-2xl hover:border-emerald-400 transition-colors"
-        >
-          <MessageCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-black uppercase tracking-widest text-emerald-300">
-              {titulo}
-            </span>
-            <span className="block text-[13px] font-bold text-zinc-100 truncate">{remetente}</span>
-            <span className="block text-xs text-zinc-400 whitespace-pre-wrap break-words line-clamp-3">
-              {previa}
-            </span>
-            <span className="block text-[10px] text-zinc-600 mt-1">clique pra abrir a conversa</span>
-          </span>
-        </button>
-      ),
-      { duration: 9000 },
-    );
   });
 }
 
