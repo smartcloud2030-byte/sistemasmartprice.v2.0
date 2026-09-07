@@ -13,7 +13,7 @@ import EncarteProductCard from './EncarteProductCard';
 import { Formato } from './formatos';
 import {
   EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
-  DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin, CANVAS_W,
+  DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin, CANVAS_W, CARD_W, CARD_H,
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto, FONTES_ENCARTE,
@@ -85,6 +85,177 @@ function marcasRegua(dimNominal: number): { pct: number; label: number }[] {
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+// ── Alinhamento inteligente (snap) ao arrastar produtos ──────────────
+const SNAP_ALINHA = 1.3; // % do canvas: tolerância pra "grudar" numa borda/centro
+const SNAP_DIST = 1.1; // % do canvas: tolerância pra igualar espaçamento
+
+interface MarcaEspaco {
+  eixo: 'x' | 'y';
+  /** coordenada perpendicular (%) onde desenhar as barras */
+  perp: number;
+  /** trechos [inicio, fim] em % ao longo do eixo — os dois vãos que ficaram iguais */
+  segs: [number, number][];
+}
+interface ResultadoSnap {
+  x: number;
+  y: number;
+  guiasV: number[];
+  guiasH: number[];
+  marcas: MarcaEspaco[];
+}
+
+/**
+ * Dado o alvo do arraste (canto sup. esq. do card, em %), encaixa em:
+ * bordas/centro dos outros produtos e do canvas; e iguala o espaçamento
+ * quando o produto fica entre dois, ou repete o vão do par vizinho.
+ */
+function calcularSnapProduto(
+  alvoX: number,
+  alvoY: number,
+  arrastado: EncarteProduto,
+  outros: EncarteProduto[],
+  larguraPct: (p: EncarteProduto) => number,
+  alturaPct: number,
+): ResultadoSnap {
+  const cwA = larguraPct(arrastado);
+  const chA = alturaPct;
+  let x = alvoX;
+  let y = alvoY;
+  const guiasV: number[] = [];
+  const guiasH: number[] = [];
+  const marcas: MarcaEspaco[] = [];
+
+  // pares (minha-linha, linha-de-referência) pra encaixar borda↔borda / centro↔centro
+  const paresX: [number, number][] = [
+    [alvoX, 0], [alvoX + cwA / 2, 50], [alvoX + cwA, 100],
+  ];
+  const paresY: [number, number][] = [
+    [alvoY, 0], [alvoY + chA / 2, 50], [alvoY + chA, 100],
+  ];
+  for (const p of outros) {
+    const w = larguraPct(p);
+    paresX.push([alvoX, p.xPct], [alvoX + cwA / 2, p.xPct + w / 2], [alvoX + cwA, p.xPct + w]);
+    paresY.push([alvoY, p.yPct], [alvoY + chA / 2, p.yPct + chA / 2], [alvoY + chA, p.yPct + chA]);
+  }
+
+  const encaixar = (pares: [number, number][]) => {
+    let melhor = SNAP_ALINHA;
+    let ajuste = 0;
+    let ref = 0;
+    for (const [meu, r] of pares) {
+      const d = Math.abs(meu - r);
+      if (d < melhor) { melhor = d; ajuste = r - meu; ref = r; }
+    }
+    return melhor < SNAP_ALINHA ? { ajuste, ref } : null;
+  };
+
+  const snapX = encaixar(paresX);
+  const alinhouX = !!snapX;
+  if (snapX) { x = alvoX + snapX.ajuste; guiasV.push(snapX.ref); }
+
+  const snapY = encaixar(paresY);
+  const alinhouY = !!snapY;
+  if (snapY) { y = alvoY + snapY.ajuste; guiasH.push(snapY.ref); }
+
+  // — espaçamento igual no eixo X (só se não alinhou em X) —
+  if (!alinhouX) {
+    const cy = y + chA / 2;
+    const linha = outros
+      .filter((p) => Math.abs(p.yPct + chA / 2 - cy) < chA * 0.9)
+      .map((p) => ({ l: p.xPct, r: p.xPct + larguraPct(p), c: p.xPct + larguraPct(p) / 2 }))
+      .sort((a, b) => a.c - b.c);
+    const cx = alvoX + cwA / 2;
+    let ok = false;
+    for (let i = 0; i < linha.length - 1 && !ok; i++) {
+      const A = linha[i];
+      const B = linha[i + 1];
+      if (A.c < cx && cx < B.c && B.l - A.r > cwA) {
+        const centro = (A.r + B.l) / 2;
+        if (Math.abs(cx - centro) < SNAP_DIST) {
+          x = centro - cwA / 2;
+          marcas.push({ eixo: 'x', perp: cy, segs: [[A.r, x], [x + cwA, B.l]] });
+          ok = true;
+        }
+      }
+    }
+    if (!ok) {
+      const esq = linha.filter((v) => v.r <= alvoX + 0.5).sort((a, b) => b.r - a.r);
+      if (esq.length >= 2) {
+        const L = esq[0];
+        const LL = esq[1];
+        const g = L.l - LL.r;
+        if (g > 0 && Math.abs(alvoX - (L.r + g)) < SNAP_DIST) {
+          x = L.r + g;
+          marcas.push({ eixo: 'x', perp: cy, segs: [[LL.r, L.l], [L.r, x]] });
+          ok = true;
+        }
+      }
+      if (!ok) {
+        const dir = linha.filter((v) => v.l >= alvoX + cwA - 0.5).sort((a, b) => a.l - b.l);
+        if (dir.length >= 2) {
+          const R = dir[0];
+          const RR = dir[1];
+          const g = RR.l - R.r;
+          if (g > 0 && Math.abs(alvoX + cwA - (R.l - g)) < SNAP_DIST) {
+            x = R.l - g - cwA;
+            marcas.push({ eixo: 'x', perp: cy, segs: [[x + cwA, R.l], [R.r, RR.l]] });
+          }
+        }
+      }
+    }
+  }
+
+  // — espaçamento igual no eixo Y (só se não alinhou em Y) —
+  if (!alinhouY) {
+    const cx = x + cwA / 2;
+    const col = outros
+      .filter((p) => Math.abs(p.xPct + larguraPct(p) / 2 - cx) < cwA * 0.9)
+      .map((p) => ({ t: p.yPct, b: p.yPct + chA, c: p.yPct + chA / 2 }))
+      .sort((a, b) => a.c - b.c);
+    const cy = alvoY + chA / 2;
+    let ok = false;
+    for (let i = 0; i < col.length - 1 && !ok; i++) {
+      const A = col[i];
+      const B = col[i + 1];
+      if (A.c < cy && cy < B.c && B.t - A.b > chA) {
+        const centro = (A.b + B.t) / 2;
+        if (Math.abs(cy - centro) < SNAP_DIST) {
+          y = centro - chA / 2;
+          marcas.push({ eixo: 'y', perp: cx, segs: [[A.b, y], [y + chA, B.t]] });
+          ok = true;
+        }
+      }
+    }
+    if (!ok) {
+      const cima = col.filter((v) => v.b <= alvoY + 0.5).sort((a, b) => b.b - a.b);
+      if (cima.length >= 2) {
+        const T = cima[0];
+        const TT = cima[1];
+        const g = T.t - TT.b;
+        if (g > 0 && Math.abs(alvoY - (T.b + g)) < SNAP_DIST) {
+          y = T.b + g;
+          marcas.push({ eixo: 'y', perp: cx, segs: [[TT.b, T.t], [T.b, y]] });
+          ok = true;
+        }
+      }
+      if (!ok) {
+        const baixo = col.filter((v) => v.t >= alvoY + chA - 0.5).sort((a, b) => a.t - b.t);
+        if (baixo.length >= 2) {
+          const Bv = baixo[0];
+          const BB = baixo[1];
+          const g = BB.t - Bv.b;
+          if (g > 0 && Math.abs(alvoY + chA - (Bv.t - g)) < SNAP_DIST) {
+            y = Bv.t - g - chA;
+            marcas.push({ eixo: 'y', perp: cx, segs: [[y + chA, Bv.t], [Bv.b, BB.t]] });
+          }
+        }
+      }
+    }
+  }
+
+  return { x, y, guiasV, guiasH, marcas };
+}
 
 /** Miniatura leve (redimensiona no canvas, sem re-renderizar o DOM) pro histórico de encartes. */
 function gerarThumbnail(canvas: HTMLCanvasElement, maxW = 300): string {
@@ -262,6 +433,12 @@ export default function EncarteCanvas({
   const [tbCompacta, setTbCompacta] = useState(false);
   const [textoSelecionadoId, setTextoSelecionadoId] = useState<string | null>(null);
   const [textoEditandoId, setTextoEditandoId] = useState<string | null>(null);
+  // Linhas/marcas do alinhamento inteligente, mostradas só enquanto arrasta.
+  const [snapVisual, setSnapVisual] = useState<{ v: number[]; h: number[]; marcas: MarcaEspaco[] }>({
+    v: [],
+    h: [],
+    marcas: [],
+  });
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const imgDragRef = useRef<ImagemDragState | null>(null);
@@ -430,6 +607,12 @@ export default function EncarteCanvas({
     };
   };
 
+  // Dimensões do card em % do canvas — pro alinhamento inteligente.
+  const canvasHpx = CANVAS_W / formato.ratio;
+  const cardWbasePct = ((CARD_W * estilo.escalaCard) / CANVAS_W) * 100;
+  const cardHpct = ((CARD_H * estilo.escalaCard) / canvasHpx) * 100;
+  const larguraProdutoPct = (p: EncarteProduto) => (p.emDestaque ? cardWbasePct * 2.2 : cardWbasePct);
+
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const st = dragRef.current;
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -438,12 +621,27 @@ export default function EncarteCanvas({
     const dy = e.clientY - st.startY;
     if (!st.moved && Math.hypot(dx, dy) < 4) return;
     st.moved = true;
-    const yPct = clamp(st.origYPct + (dy / rect.height) * 100, 0, 92);
+
     if (st.tipo === 'divisor') {
-      onMoverDivisor(String(st.id), yPct);
+      onMoverDivisor(String(st.id), clamp(st.origYPct + (dy / rect.height) * 100, 0, 92));
+      return;
+    }
+
+    const alvoX = clamp(st.origXPct + (dx / rect.width) * 100, 0, 96);
+    const alvoY = clamp(st.origYPct + (dy / rect.height) * 100, 0, 96);
+    const arrastado = produtos.find((p) => p.product.id === st.id);
+
+    // Segurar Shift durante o arraste desliga o alinhamento inteligente.
+    if (arrastado && !e.shiftKey) {
+      const outros = produtos.filter((p) => p.product.id !== st.id);
+      const r = calcularSnapProduto(alvoX, alvoY, arrastado, outros, larguraProdutoPct, cardHpct);
+      setSnapVisual({ v: r.guiasV, h: r.guiasH, marcas: r.marcas });
+      onMoverProduto(st.id, clamp(r.x, 0, 96), clamp(r.y, 0, 96));
     } else {
-      const xPct = clamp(st.origXPct + (dx / rect.width) * 100, 0, 92);
-      onMoverProduto(st.id, xPct, yPct);
+      if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
+        setSnapVisual({ v: [], h: [], marcas: [] });
+      }
+      onMoverProduto(st.id, clamp(alvoX, 0, 92), clamp(alvoY, 0, 92));
     }
   };
 
@@ -451,6 +649,9 @@ export default function EncarteCanvas({
     const st = dragRef.current;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     dragRef.current = null;
+    if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
+      setSnapVisual({ v: [], h: [], marcas: [] });
+    }
     if (st && !st.moved) aoClicar?.();
   };
 
@@ -1342,6 +1543,35 @@ export default function EncarteCanvas({
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Guias do alinhamento inteligente — só durante o arraste, fora do PNG */}
+          {(snapVisual.v.length > 0 || snapVisual.h.length > 0 || snapVisual.marcas.length > 0) && (
+            <div data-html2canvas-ignore="true" className="absolute inset-0 z-40 pointer-events-none">
+              {snapVisual.v.map((x, i) => (
+                <div key={`sv${i}`} className="absolute top-0 bottom-0" style={{ left: `${x}%`, width: 1, marginLeft: -0.5, background: '#f43f5e' }} />
+              ))}
+              {snapVisual.h.map((y, i) => (
+                <div key={`sh${i}`} className="absolute left-0 right-0" style={{ top: `${y}%`, height: 1, marginTop: -0.5, background: '#f43f5e' }} />
+              ))}
+              {snapVisual.marcas.map((m, i) =>
+                m.segs.map(([a, b], j) =>
+                  m.eixo === 'x' ? (
+                    <div
+                      key={`smx${i}-${j}`}
+                      className="absolute"
+                      style={{ top: `${m.perp}%`, left: `${Math.min(a, b)}%`, width: `${Math.abs(b - a)}%`, height: 3, marginTop: -1.5, background: '#f59e0b' }}
+                    />
+                  ) : (
+                    <div
+                      key={`smy${i}-${j}`}
+                      className="absolute"
+                      style={{ left: `${m.perp}%`, top: `${Math.min(a, b)}%`, height: `${Math.abs(b - a)}%`, width: 3, marginLeft: -1.5, background: '#f59e0b' }}
+                    />
+                  ),
+                ),
+              )}
             </div>
           )}
 
