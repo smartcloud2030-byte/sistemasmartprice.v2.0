@@ -31,10 +31,13 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
 
   // Sem thumbnail aqui de propósito: o card é exportado em alta qualidade
   // (scale 3x no download), e a miniatura de 400px ficaria borrada ampliada.
+  // Sombra igual à do editor de plaquinhas (Konva: blur 16 / offsetY 10 /
+  // opacity 0.35 num produto de ~250px) — reproporcionada pro tamanho do card.
   const foto = product.image ? (
     <img
       src={getProxyUrl(product.image || product.thumb_image)}
       className="w-full h-full object-contain"
+      style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.35))' }}
       referrerPolicy="no-referrer"
       crossOrigin="anonymous"
     />
@@ -348,7 +351,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
         </AutoAjuste>
       </div>
-      <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
+      <div className="w-24 flex-shrink-0 flex items-center justify-center p-1">{foto}</div>
     </div>
   );
 }
@@ -375,7 +378,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
         </AutoAjuste>
       </div>
-      <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
+      <div className="w-24 flex-shrink-0 flex items-center justify-center p-1">{foto}</div>
     </div>
   );
 }
@@ -385,7 +388,7 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="rounded-2xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
-      <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1.5">{foto}</div>
+      <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
       <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           <p className="text-[11px] font-semibold text-zinc-700 leading-[1.15] break-words">
@@ -417,7 +420,7 @@ function CardProdutoDestaque({ produto, estilo, foto }: Omit<CardProps, 'medida'
       className="rounded-2xl overflow-hidden grid items-center gap-3 shadow-lg px-4 py-3"
       style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '96px 1fr auto' }}
     >
-      <div className="h-20 flex items-center justify-center overflow-hidden">{foto}</div>
+      <div className="h-20 flex items-center justify-center">{foto}</div>
       <p className="text-[15px] font-bold text-zinc-600 leading-[1.15] break-words">{produto.nome}</p>
       <div className="flex flex-col items-end origin-right" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
         <PrecoDe valor={produto.precoDe} />
