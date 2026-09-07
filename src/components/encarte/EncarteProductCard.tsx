@@ -1,5 +1,6 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
-import { getProxyUrl } from '../../lib/utils';
+import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
   EstiloEncarte,
@@ -73,6 +74,58 @@ interface CardProps {
   estilo: EstiloEncarte;
   medida: string;
   foto: React.ReactNode;
+}
+
+/**
+ * Encolhe o conteúdo só o quanto precisar pra caber no espaço disponível
+ * (largura e altura) — o texto aparece inteiro, sem "..." e sem cortar, e
+ * a etiqueta nunca estoura a caixa.
+ */
+function AutoAjuste({
+  sig,
+  origem = 'top left',
+  min = 0.4,
+  className,
+  children,
+}: {
+  sig: string;
+  origem?: string;
+  min?: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [escala, setEscala] = useState(1);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const inner = innerRef.current;
+    if (!wrap || !inner) return;
+    const medir = () => {
+      // dimensões naturais do conteúdo (o transform não afeta scroll*)
+      const dh = wrap.clientHeight;
+      const nh = inner.scrollHeight;
+      const dw = wrap.clientWidth;
+      const nw = inner.scrollWidth;
+      const rH = dh > 0 && nh > dh + 0.5 ? dh / nh : 1;
+      const rW = dw > 0 && nw > dw + 0.5 ? dw / nw : 1;
+      const alvo = Math.max(min, Math.min(rH, rW));
+      setEscala((p) => (Math.abs(p - alvo) > 0.02 ? alvo : p));
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [sig, min]);
+
+  return (
+    <div ref={wrapRef} className={cn('overflow-hidden', className)}>
+      <div ref={innerRef} style={{ transformOrigin: origem, transform: escala < 1 ? `scale(${escala})` : undefined }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 /** Preço: "R$" pequeno + inteiro grande + centavos sobrescrito. */
@@ -275,10 +328,12 @@ function PrecoDe({ valor, className }: { valor: string; className?: string }) {
 
 /** Modelo Padrão — card branco, texto à esquerda, foto à direita, preço em etiqueta. */
 function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
+  const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="rounded-xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
-      <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-between gap-1">
-        <div className="min-w-0">
+      <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
+        <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           <p className="text-[11px] font-black uppercase leading-[1.1] text-red-600 break-words">
             {produto.nome}
           </p>
@@ -288,8 +343,10 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
             </p>
           )}
           {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 break-words">C/ {medida}</p>}
-        </div>
-        <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
+        </AutoAjuste>
+        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} className="flex-shrink-0">
+          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
+        </AutoAjuste>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
     </div>
@@ -298,10 +355,12 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
 
 /** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
 function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
+  const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="flex h-32 gap-1.5 overflow-hidden">
-      <div className="flex-1 min-w-0 flex flex-col justify-between gap-1">
-        <div className="min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
+        <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           <p className="text-[13px] font-black uppercase leading-[1.15] text-red-600 break-words drop-shadow-sm">
             {produto.nome}
           </p>
@@ -311,10 +370,10 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
             </p>
           )}
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
-        </div>
-        <div className="mt-1">
+        </AutoAjuste>
+        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} className="flex-shrink-0">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
-        </div>
+        </AutoAjuste>
       </div>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1">{foto}</div>
     </div>
@@ -323,11 +382,12 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
 
 /** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em laranja. */
 function CardClean({ produto, estilo, medida, foto }: CardProps) {
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="rounded-2xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
       <div className="w-24 flex-shrink-0 flex items-center justify-center overflow-hidden p-1.5">{foto}</div>
-      <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-between gap-1">
-        <div className="min-w-0">
+      <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
+        <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           <p className="text-[11px] font-semibold text-zinc-700 leading-[1.15] break-words">
             {produto.nome}
           </p>
@@ -337,9 +397,9 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
             </p>
           )}
           {medida && <p className="text-[8px] font-medium text-zinc-400 mt-0.5 break-words">C/ {medida}</p>}
-        </div>
+        </AutoAjuste>
         <div
-          className="flex flex-col items-end origin-bottom-right"
+          className="flex-shrink-0 flex flex-col items-end origin-bottom-right"
           style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
         >
           <PrecoDe valor={produto.precoDe} />
