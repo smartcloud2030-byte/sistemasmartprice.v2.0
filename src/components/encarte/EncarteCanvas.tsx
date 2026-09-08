@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import {
-  Undo2, Redo2, Type, Palette, Shapes, Save, Download, Share2, Package, Plus,
+  Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
-  MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, SendToBack, BringToFront, Ruler,
+  MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
@@ -17,6 +17,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto, FONTES_ENCARTE,
+  CamadaTipo,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
@@ -40,10 +41,6 @@ const DESTINOS_COMPARTILHAR = {
 } as const;
 
 type DestinoCompartilhar = keyof typeof DESTINOS_COMPARTILHAR;
-
-const TOOLBAR_ITEMS = [
-  { icon: Palette, label: 'Cores' },
-];
 
 const TAMANHO_TEXTO_MIN = 8;
 const TAMANHO_TEXTO_MAX = 120;
@@ -299,8 +296,9 @@ interface EncarteCanvasProps {
   onMoverForma: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarForma: (id: string, patch: Partial<FormaEncarte>) => void;
   onDefinirCorForma: (id: string, cor: string) => void;
-  onAlternarCamadaForma: (id: string) => void;
   onRemoverForma: (id: string) => void;
+  /** Trazer pra frente / mandar pra trás um passo — vale pra produto, imagem, forma e texto. */
+  onReordenarCamada: (alvo: { tipo: CamadaTipo; id: string | number }, direcao: 'frente' | 'tras') => void;
   onAdicionarTexto: (texto: TextoEncarte) => void;
   onMoverTexto: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarTexto: (id: string, wPct: number) => void;
@@ -399,8 +397,8 @@ export default function EncarteCanvas({
   onMoverForma,
   onRedimensionarForma,
   onDefinirCorForma,
-  onAlternarCamadaForma,
   onRemoverForma,
+  onReordenarCamada,
   onAdicionarTexto,
   onMoverTexto,
   onRedimensionarTexto,
@@ -424,6 +422,7 @@ export default function EncarteCanvas({
   const [gradeAberta, setGradeAberta] = useState(false);
   const [formasAberta, setFormasAberta] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
+  const [imagemSelecionadaId, setImagemSelecionadaId] = useState<string | null>(null);
   const [reguasVisiveis, setReguasVisiveis] = useState(false);
   const [fontesAberta, setFontesAberta] = useState(false);
   const [fonteNova, setFonteNova] = useState('Montserrat');
@@ -594,6 +593,12 @@ export default function EncarteCanvas({
     xPct: number,
     yPct: number,
   ) => {
+    if (tipo === 'produto') {
+      // produto vira o "selecionado" pras setas de camada; larga forma/texto/imagem
+      setFormaSelecionadaId(null);
+      setTextoSelecionadoId(null);
+      setImagemSelecionadaId(null);
+    }
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
       tipo,
@@ -662,6 +667,9 @@ export default function EncarteCanvas({
     canto?: Canto,
   ) => {
     e.stopPropagation();
+    setImagemSelecionadaId(im.id);
+    setFormaSelecionadaId(null);
+    setTextoSelecionadoId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     imgDragRef.current = { tipo, canto, id: im.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: im };
   };
@@ -717,6 +725,8 @@ export default function EncarteCanvas({
   ) => {
     e.stopPropagation();
     setFormaSelecionadaId(fm.id);
+    setTextoSelecionadoId(null);
+    setImagemSelecionadaId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     formaDragRef.current = { tipo, canto, id: fm.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: fm };
   };
@@ -838,7 +848,8 @@ export default function EncarteCanvas({
 
         {selecionada && (
           <>
-            {/* Barra de cor / camada / remover — não entra no PNG exportado */}
+            {/* Barra de cor / remover — não entra no PNG exportado.
+                A ordem de camada é pelas setas ↑ ↓ da barra de ferramentas. */}
             <div
               data-html2canvas-ignore="true"
               className="absolute -top-9 left-0 flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg px-1.5 py-1 shadow-lg"
@@ -851,13 +862,6 @@ export default function EncarteCanvas({
                 title="Cor da forma"
                 className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
               />
-              <button
-                onClick={() => onAlternarCamadaForma(fm.id)}
-                title={fm.atras ? 'Trazer pra frente dos produtos' : 'Enviar pra trás dos produtos'}
-                className="p-1 text-zinc-400 hover:text-emerald-400 transition-colors"
-              >
-                {fm.atras ? <BringToFront className="w-3.5 h-3.5" /> : <SendToBack className="w-3.5 h-3.5" />}
-              </button>
               <button
                 onClick={() => { onRemoverForma(fm.id); setFormaSelecionadaId(null); }}
                 title="Remover forma"
@@ -899,6 +903,7 @@ export default function EncarteCanvas({
     e.stopPropagation();
     setTextoSelecionadoId(t.id);
     setFormaSelecionadaId(null);
+    setImagemSelecionadaId(null);
     if (textoEditandoId && textoEditandoId !== t.id) setTextoEditandoId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     textoDragRef.current = {
@@ -1045,8 +1050,101 @@ export default function EncarteCanvas({
 
   const textoAtivo = textos.find((t) => t.id === textoSelecionadoId) ?? null;
 
-  const formasAtras = formas.filter((f) => f.atras);
-  const formasFrente = formas.filter((f) => !f.atras);
+  /** Um produto no canvas — arrastar pelo corpo, clicar (sem arrastar) abre os detalhes. */
+  const renderProduto = (ep: EncarteProduto) => (
+    <div
+      key={`p:${ep.product.id}`}
+      className="absolute touch-none cursor-grab active:cursor-grabbing"
+      style={{ left: `${ep.xPct}%`, top: `${ep.yPct}%` }}
+      onPointerDown={(e) => iniciarDrag(e, 'produto', ep.product.id, ep.xPct, ep.yPct)}
+      onPointerMove={handlePointerMove}
+      onPointerUp={(e) => handlePointerUp(e, () => onAbrirDetalhes(ep.product.id))}
+      onPointerCancel={(e) => handlePointerUp(e)}
+    >
+      <EncarteProductCard produto={ep} estilo={estilo} selecionado={ep.product.id === produtoDetalhadoId} />
+    </div>
+  );
+
+  /** Uma imagem livre no canvas — arrastar pelo corpo, redimensionar pelos 4 cantos. */
+  const renderImagem = (im: ElementoImagem) => {
+    const selecionada = im.id === imagemSelecionadaId;
+    return (
+      <div
+        key={`i:${im.id}`}
+        className="absolute group touch-none"
+        style={{
+          left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%`,
+          zIndex: selecionada ? 40 : undefined,
+        }}
+      >
+        <div
+          className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
+          onPointerDown={(e) => iniciarImagemDrag(e, 'mover', im)}
+          onPointerMove={handleImagemPointerMove}
+          onPointerUp={handleImagemPointerUp}
+          onPointerCancel={handleImagemPointerUp}
+        >
+          <img
+            src={getProxyUrl(im.url)}
+            className="w-full h-full object-contain pointer-events-none"
+            draggable={false}
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+          />
+        </div>
+
+        <button
+          onClick={() => { onRemoverImagem(im.id); setImagemSelecionadaId(null); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          data-html2canvas-ignore="true"
+          title="Remover imagem"
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <X className="w-3 h-3" />
+        </button>
+
+        {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
+          <div
+            key={canto}
+            onPointerDown={(e) => iniciarImagemDrag(e, 'resize', im, canto)}
+            onPointerMove={handleImagemPointerMove}
+            onPointerUp={handleImagemPointerUp}
+            onPointerCancel={handleImagemPointerUp}
+            data-html2canvas-ignore="true"
+            className={cn(
+              'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow opacity-0 group-hover:opacity-100 transition-opacity',
+              canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+              canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+              canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+              canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+            )}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Pilha única: produtos, imagens, formas e textos empilhados pelo `z`
+  // (maior = mais pra frente), em vez de camadas fixas por tipo.
+  const camadas: { chave: string; z: number; el: React.ReactNode }[] = [
+    ...produtos.map((ep) => ({ chave: `p:${ep.product.id}`, z: ep.z ?? 0, el: renderProduto(ep) })),
+    ...imagens.map((im) => ({ chave: `i:${im.id}`, z: im.z ?? 0, el: renderImagem(im) })),
+    ...formas.map((fm) => ({ chave: `f:${fm.id}`, z: fm.z ?? 0, el: renderForma(fm) })),
+    ...textos.map((t) => ({ chave: `t:${t.id}`, z: t.z ?? 0, el: renderTexto(t) })),
+  ].sort((a, b) => (a.z - b.z) || (a.chave < b.chave ? -1 : 1));
+
+  // Elemento que as setas ↑ ↓ de camada vão mexer (o último selecionado).
+  const alvoCamada: { tipo: CamadaTipo; id: string | number } | null =
+    formaSelecionadaId ? { tipo: 'forma', id: formaSelecionadaId }
+    : textoSelecionadoId ? { tipo: 'texto', id: textoSelecionadoId }
+    : imagemSelecionadaId ? { tipo: 'imagem', id: imagemSelecionadaId }
+    : produtoDetalhadoId != null ? { tipo: 'produto', id: produtoDetalhadoId }
+    : null;
+  const idxAlvoCamada = alvoCamada
+    ? camadas.findIndex((c) => c.chave === `${alvoCamada.tipo[0]}:${alvoCamada.id}`)
+    : -1;
+  const podeCamadaFrente = idxAlvoCamada >= 0 && idxAlvoCamada < camadas.length - 1;
+  const podeCamadaTras = idxAlvoCamada > 0;
 
   const marcasX = reguasVisiveis ? marcasRegua(formato.width) : [];
   const marcasY = reguasVisiveis ? marcasRegua(formato.height) : [];
@@ -1195,6 +1293,7 @@ export default function EncarteCanvas({
               setTextoSelecionadoId(t.id);
               setTextoEditandoId(t.id);
               setFormaSelecionadaId(null);
+              setImagemSelecionadaId(null);
             }}
             title="Adicionar caixa de texto"
             className={cn(
@@ -1264,19 +1363,31 @@ export default function EncarteCanvas({
             {!tbCompacta && 'Réguas'}
           </button>
 
-          {TOOLBAR_ITEMS.map(({ icon: Icon, label }) => (
-            <button
-              key={label}
-              title={label}
-              className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
-                tbCompacta ? 'px-2' : 'px-3',
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {!tbCompacta && label}
-            </button>
-          ))}
+          {/* Camada: trazer pra frente / mandar pra trás o elemento selecionado */}
+          <button
+            onClick={() => alvoCamada && onReordenarCamada(alvoCamada, 'frente')}
+            disabled={!podeCamadaFrente}
+            title={alvoCamada ? 'Trazer pra frente (um passo)' : 'Selecione um elemento pra mudar a camada'}
+            className={cn(
+              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+              tbCompacta ? 'px-2' : 'px-3',
+            )}
+          >
+            <ArrowUp className="w-3.5 h-3.5" />
+            {!tbCompacta && 'Frente'}
+          </button>
+          <button
+            onClick={() => alvoCamada && onReordenarCamada(alvoCamada, 'tras')}
+            disabled={!podeCamadaTras}
+            title={alvoCamada ? 'Mandar pra trás (um passo)' : 'Selecione um elemento pra mudar a camada'}
+            className={cn(
+              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+              tbCompacta ? 'px-2' : 'px-3',
+            )}
+          >
+            <ArrowDown className="w-3.5 h-3.5" />
+            {!tbCompacta && 'Trás'}
+          </button>
 
           {/* Salvar — manda o encarte pra aba Encartes */}
           <button
@@ -1384,6 +1495,7 @@ export default function EncarteCanvas({
           if (compartilharAberto) setCompartilharAberto(false);
           if (formaSelecionadaId) setFormaSelecionadaId(null);
           if (textoSelecionadoId) setTextoSelecionadoId(null);
+          if (imagemSelecionadaId) setImagemSelecionadaId(null);
           if (textoEditandoId) setTextoEditandoId(null);
         }}
       >
@@ -1491,10 +1603,8 @@ export default function EncarteCanvas({
             )}
           </div>
 
-          {/* Formas marcadas como "atrás" — abaixo de produtos e imagens */}
-          {formasAtras.map(renderForma)}
-
-          {/* Divisores de seção — faixa da largura toda, arrastável na vertical */}
+          {/* Divisores de seção — faixa da largura toda, arrastável na vertical.
+              Ficam atrás de produtos/imagens/formas/textos (que se empilham pelo `z`). */}
           {divisores.map((d) => (
             <div
               key={d.id}
@@ -1513,7 +1623,7 @@ export default function EncarteCanvas({
             </div>
           ))}
 
-          {produtos.length === 0 ? (
+          {produtos.length === 0 && formas.length === 0 && imagens.length === 0 && textos.length === 0 && (
             <button
               onClick={onAdicionarProdutos}
               data-html2canvas-ignore="true"
@@ -1524,27 +1634,14 @@ export default function EncarteCanvas({
               </div>
               <p className="text-xs font-semibold text-white drop-shadow">Adicionar produtos no encarte</p>
             </button>
-          ) : (
-            <div className="absolute inset-0">
-              {produtos.map((ep) => (
-                <div
-                  key={ep.product.id}
-                  className="absolute touch-none cursor-grab active:cursor-grabbing"
-                  style={{ left: `${ep.xPct}%`, top: `${ep.yPct}%` }}
-                  onPointerDown={(e) => iniciarDrag(e, 'produto', ep.product.id, ep.xPct, ep.yPct)}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={(e) => handlePointerUp(e, () => onAbrirDetalhes(ep.product.id))}
-                  onPointerCancel={(e) => handlePointerUp(e)}
-                >
-                  <EncarteProductCard
-                    produto={ep}
-                    estilo={estilo}
-                    selecionado={ep.product.id === produtoDetalhadoId}
-                  />
-                </div>
-              ))}
-            </div>
           )}
+
+          {/* Produtos, imagens, formas e textos — uma pilha só, ordenada pelo `z` */}
+          <div className="absolute inset-0">
+            {camadas.map((c) => (
+              <Fragment key={c.chave}>{c.el}</Fragment>
+            ))}
+          </div>
 
           {/* Guias do alinhamento inteligente — só durante o arraste, fora do PNG */}
           {(snapVisual.v.length > 0 || snapVisual.h.length > 0 || snapVisual.marcas.length > 0) && (
@@ -1574,65 +1671,6 @@ export default function EncarteCanvas({
               )}
             </div>
           )}
-
-          {/* Imagens livres — logos, selos, adesivos: arrastar e redimensionar pelos cantos */}
-          {imagens.map((im) => (
-            <div
-              key={im.id}
-              className="absolute group touch-none"
-              style={{ left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%` }}
-            >
-              <div
-                className="w-full h-full cursor-grab active:cursor-grabbing"
-                onPointerDown={(e) => iniciarImagemDrag(e, 'mover', im)}
-                onPointerMove={handleImagemPointerMove}
-                onPointerUp={handleImagemPointerUp}
-                onPointerCancel={handleImagemPointerUp}
-              >
-                <img
-                  src={getProxyUrl(im.url)}
-                  className="w-full h-full object-contain pointer-events-none"
-                  draggable={false}
-                  referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
-                />
-              </div>
-
-              <button
-                onClick={() => onRemoverImagem(im.id)}
-                onPointerDown={(e) => e.stopPropagation()}
-                data-html2canvas-ignore="true"
-                title="Remover imagem"
-                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-3 h-3" />
-              </button>
-
-              {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
-                <div
-                  key={canto}
-                  onPointerDown={(e) => iniciarImagemDrag(e, 'resize', im, canto)}
-                  onPointerMove={handleImagemPointerMove}
-                  onPointerUp={handleImagemPointerUp}
-                  onPointerCancel={handleImagemPointerUp}
-                  data-html2canvas-ignore="true"
-                  className={cn(
-                    'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow opacity-0 group-hover:opacity-100 transition-opacity',
-                    canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
-                    canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
-                    canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
-                    canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
-                  )}
-                />
-              ))}
-            </div>
-          ))}
-
-          {/* Formas na frente (padrão) — acima de produtos e imagens */}
-          {formasFrente.map(renderForma)}
-
-          {/* Textos — sempre por cima */}
-          {textos.map(renderTexto)}
 
           {/* Rodapé */}
           {rodape.ativo && (

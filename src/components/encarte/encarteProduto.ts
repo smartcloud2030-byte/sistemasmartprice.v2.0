@@ -134,6 +134,8 @@ export interface EncarteProduto {
   /** posição do canto superior esquerdo do card, em % do canvas */
   xPct: number;
   yPct: number;
+  /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com imagens, formas e textos. */
+  z?: number;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();
@@ -272,6 +274,8 @@ export interface ElementoImagem {
   yPct: number;
   wPct: number;
   hPct: number;
+  /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com produtos, formas e textos. */
+  z?: number;
 }
 
 export function criarElementoImagem(url: string, categoria: string): ElementoImagem {
@@ -306,8 +310,10 @@ export interface FormaEncarte {
   wPct: number;
   hPct: number;
   cor: string;
-  /** true = renderiza atrás dos produtos/imagens; padrão (false) = na frente de tudo */
+  /** LEGADO: só usado pra migrar rascunhos antigos pro campo `z` em `normalizarLado`. */
   atras?: boolean;
+  /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com produtos, imagens e textos. */
+  z?: number;
 }
 
 const TAMANHO_INICIAL_FORMA: Record<FormaTipo, { wPct: number; hPct: number }> = {
@@ -378,6 +384,8 @@ export interface TextoEncarte {
   negrito: boolean;
   italico: boolean;
   alinhamento: TextoAlinhamento;
+  /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com produtos, imagens e formas. */
+  z?: number;
 }
 
 export function criarTexto(fontFamily = 'Montserrat'): TextoEncarte {
@@ -446,11 +454,64 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
   };
 }
 
-/** Preenche campos novos (`formas`, `textos`, `guias`, opções de etiqueta) em lados antigos. */
-export const normalizarLado = (l: LadoEncarte): LadoEncarte => ({
-  ...l,
-  formas: l.formas ?? [],
-  textos: l.textos ?? [],
-  guias: l.guias ?? [],
-  estilo: { ...ESTILO_PADRAO, ...l.estilo },
-});
+// ── Camadas (ordem de empilhamento compartilhada) ────────────────────
+
+/**
+ * Todo elemento reordenável (produto, imagem, forma, texto) carrega um `z`.
+ * O canvas empilha tudo por esse número — maior = mais pra frente — em vez de
+ * usar camadas fixas por tipo. Divisores, rodapé e guias ficam fora disso.
+ */
+export type CamadaTipo = 'produto' | 'imagem' | 'forma' | 'texto';
+
+/** Maior `z` entre os elementos reordenáveis do lado; -1 se não houver nenhum. */
+export function maiorZ(l: LadoEncarte): number {
+  const zs = [
+    ...l.produtos.map((p) => p.z ?? 0),
+    ...l.imagens.map((im) => im.z ?? 0),
+    ...(l.formas ?? []).map((f) => f.z ?? 0),
+    ...(l.textos ?? []).map((t) => t.z ?? 0),
+  ];
+  return zs.length ? Math.max(...zs) : -1;
+}
+
+/**
+ * Rascunho/encarte antigo não tem `z`. Distribui um `z` sequencial seguindo
+ * exatamente a pilha visual de antes — formas "atrás", produtos, imagens,
+ * formas da frente, textos por cima — pra nada pular de lugar ao abrir.
+ * Se todos os elementos já têm `z`, não mexe.
+ */
+function comCamadasNormalizadas(l: LadoEncarte): LadoEncarte {
+  const formas = l.formas ?? [];
+  const textos = l.textos ?? [];
+  const jaTem = [...l.produtos, ...l.imagens, ...formas, ...textos].every(
+    (e) => typeof (e as { z?: number }).z === 'number',
+  );
+  if (jaTem) return l;
+
+  const ordem: string[] = [
+    ...formas.filter((f) => f.atras).map((f) => `forma:${f.id}`),
+    ...l.produtos.map((p) => `produto:${p.product.id}`),
+    ...l.imagens.map((im) => `imagem:${im.id}`),
+    ...formas.filter((f) => !f.atras).map((f) => `forma:${f.id}`),
+    ...textos.map((t) => `texto:${t.id}`),
+  ];
+  const rank = new Map(ordem.map((chave, i) => [chave, i]));
+
+  return {
+    ...l,
+    produtos: l.produtos.map((p) => ({ ...p, z: rank.get(`produto:${p.product.id}`) ?? 0 })),
+    imagens: l.imagens.map((im) => ({ ...im, z: rank.get(`imagem:${im.id}`) ?? 0 })),
+    formas: formas.map((f) => ({ ...f, z: rank.get(`forma:${f.id}`) ?? 0 })),
+    textos: textos.map((t) => ({ ...t, z: rank.get(`texto:${t.id}`) ?? 0 })),
+  };
+}
+
+/** Preenche campos novos (`formas`, `textos`, `guias`, opções de etiqueta, camadas `z`) em lados antigos. */
+export const normalizarLado = (l: LadoEncarte): LadoEncarte =>
+  comCamadasNormalizadas({
+    ...l,
+    formas: l.formas ?? [],
+    textos: l.textos ?? [],
+    guias: l.guias ?? [],
+    estilo: { ...ESTILO_PADRAO, ...l.estilo },
+  });

@@ -22,6 +22,7 @@ import {
   FormaTipo,
   GuiaEncarte,
   TextoEncarte,
+  CamadaTipo,
   criarEncarteProduto,
   criarLado,
   clonarLado,
@@ -30,6 +31,7 @@ import {
   criarElementoImagem,
   criarForma,
   criarTexto,
+  maiorZ,
   organizarEmGrade,
 } from './encarteProduto';
 import {
@@ -239,7 +241,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const adicionarProduto = (product: Product) => {
     atualizarLado((l) => {
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
-      const produtos = [...l.produtos, criarEncarteProduto(product, l.produtos.length)];
+      const produtos = [...l.produtos, { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 }];
       if (l.grade === 'livre') return { produtos };
       const r = organizarEmGrade(produtos, l.grade, formato);
       return { produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
@@ -265,7 +267,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
       const inserir = (destino: LadoEncarte): LadoEncarte => {
         if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
-        const produtos = [...destino.produtos, produto];
+        const produtos = [...destino.produtos, { ...produto, z: maiorZ(destino) + 1 }];
         if (destino.grade === 'livre') return { ...destino, produtos };
         const r = organizarEmGrade(produtos, destino.grade, formato);
         return { ...destino, produtos: r.produtos, estilo: { ...destino.estilo, escalaCard: r.escalaCard } };
@@ -366,7 +368,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           return { imagens: l.imagens.map((im) => (im.id === existente.id ? { ...im, url } : im)) };
         }
       }
-      return { imagens: [...l.imagens, criarElementoImagem(url, categoria)] };
+      return { imagens: [...l.imagens, { ...criarElementoImagem(url, categoria), z: maiorZ(l) + 1 }] };
     });
   };
 
@@ -391,7 +393,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   // ── Formas (quadrado, retângulo, círculo) ───────────────────────────
   const adicionarForma = (tipo: FormaTipo) =>
-    atualizarLado((l) => ({ formas: [...(l.formas ?? []), criarForma(tipo)] }));
+    atualizarLado((l) => ({ formas: [...(l.formas ?? []), { ...criarForma(tipo), z: maiorZ(l) + 1 }] }));
 
   const atualizarForma = (id: string, patch: Partial<FormaEncarte>, opcoes?: OpcoesSet) =>
     atualizarLado(
@@ -408,17 +410,46 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const definirCorForma = (id: string, cor: string) =>
     atualizarForma(id, { cor }, { coalesce: `cor-forma-${id}` });
 
-  const alternarCamadaForma = (id: string) =>
-    atualizarLado((l) => ({
-      formas: (l.formas ?? []).map((f) => (f.id === id ? { ...f, atras: !f.atras } : f)),
-    }));
-
   const removerForma = (id: string) =>
     atualizarLado((l) => ({ formas: (l.formas ?? []).filter((f) => f.id !== id) }));
 
   // ── Textos ─────────────────────────────────────────────────────────
   const adicionarTexto = (texto: TextoEncarte) =>
-    atualizarLado((l) => ({ textos: [...(l.textos ?? []), texto] }));
+    atualizarLado((l) => ({ textos: [...(l.textos ?? []), { ...texto, z: maiorZ(l) + 1 }] }));
+
+  // ── Camadas: trazer pra frente / mandar pra trás um passo por clique ──
+  // O `z` é compartilhado por produtos, imagens, formas e textos, então
+  // qualquer um pode passar na frente (ou atrás) de qualquer outro. Cada
+  // clique troca de lugar com o vizinho imediato; nos extremos, não faz nada.
+  const reordenarCamada = (alvo: { tipo: CamadaTipo; id: string | number }, direcao: 'frente' | 'tras') => {
+    atualizarLado((l) => {
+      const itens: { tipo: CamadaTipo; id: string | number; z: number }[] = [
+        ...l.produtos.map((p) => ({ tipo: 'produto' as const, id: p.product.id, z: p.z ?? 0 })),
+        ...l.imagens.map((im) => ({ tipo: 'imagem' as const, id: im.id, z: im.z ?? 0 })),
+        ...(l.formas ?? []).map((f) => ({ tipo: 'forma' as const, id: f.id, z: f.z ?? 0 })),
+        ...(l.textos ?? []).map((t) => ({ tipo: 'texto' as const, id: t.id, z: t.z ?? 0 })),
+      ].sort((a, b) => a.z - b.z);
+
+      const i = itens.findIndex((it) => it.tipo === alvo.tipo && String(it.id) === String(alvo.id));
+      const j = direcao === 'frente' ? i + 1 : i - 1;
+      if (i < 0 || j < 0 || j >= itens.length) return {}; // fora da lista ou já no extremo
+
+      // Densifica o z pra 0..n-1 (sem números fugindo) e troca os dois vizinhos.
+      const rank = itens.map((_, k) => k);
+      rank[i] = j;
+      rank[j] = i;
+      const zDe = (tipo: CamadaTipo, id: string | number) => {
+        const k = itens.findIndex((it) => it.tipo === tipo && String(it.id) === String(id));
+        return k >= 0 ? rank[k] : 0;
+      };
+      return {
+        produtos: l.produtos.map((p) => ({ ...p, z: zDe('produto', p.product.id) })),
+        imagens: l.imagens.map((im) => ({ ...im, z: zDe('imagem', im.id) })),
+        formas: (l.formas ?? []).map((f) => ({ ...f, z: zDe('forma', f.id) })),
+        textos: (l.textos ?? []).map((t) => ({ ...t, z: zDe('texto', t.id) })),
+      };
+    });
+  };
 
   const atualizarTexto = (id: string, patch: Partial<TextoEncarte>, opcoes?: OpcoesSet) =>
     atualizarLado(
@@ -629,8 +660,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onMoverForma={moverForma}
           onRedimensionarForma={redimensionarForma}
           onDefinirCorForma={definirCorForma}
-          onAlternarCamadaForma={alternarCamadaForma}
           onRemoverForma={removerForma}
+          onReordenarCamada={reordenarCamada}
           onAdicionarTexto={adicionarTexto}
           onMoverTexto={moverTexto}
           onRedimensionarTexto={redimensionarTexto}
