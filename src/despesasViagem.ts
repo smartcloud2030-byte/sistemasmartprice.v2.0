@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { CATEGORIAS_VALIDAS, STATUS_VALIDOS } from './lib/despesasViagemReport';
+import { extrairRecibo, IANaoConfiguradaError } from './lib/reciboExtract';
 
 const router = Router();
 
@@ -271,6 +272,25 @@ router.delete('/despesas/:id', apiAuth, async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Extração de nota por foto (stateless: não cria despesa nem guarda imagem) ──
+router.post('/extrair', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const { imagemBase64, mediaType, dica } = req.body || {};
+    if (!imagemBase64 || typeof imagemBase64 !== 'string') {
+      return res.status(400).json({ error: 'imagemBase64 é obrigatória' });
+    }
+    const tipo = typeof mediaType === 'string' && mediaType.startsWith('image/') ? mediaType : 'image/jpeg';
+    const resultado = await extrairRecibo(imagemBase64, tipo, typeof dica === 'string' ? dica : undefined);
+    res.json(resultado);
+  } catch (err: any) {
+    if (err instanceof IANaoConfiguradaError) {
+      return res.status(503).json({ error: err.message });
+    }
+    console.error('[despesas-viagem] falha na extração:', err);
+    res.status(502).json({ error: `Não consegui ler a nota: ${err.message}` });
   }
 });
 
