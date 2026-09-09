@@ -85,6 +85,18 @@ function parseCentavos(v: unknown): number | null {
   return null;
 }
 
+// Colunas explícitas nos SELECT de leitura: `::text` formata a DATE no
+// Postgres (YYYY-MM-DD) e evita o Date do driver `pg` + shift de fuso no
+// JSON.stringify.
+const VIAGEM_SELECT = `id, titulo, destino, motivo, empresa,
+  data_inicio::text AS data_inicio, data_fim::text AS data_fim,
+  status, criada_por, observacoes, total_centavos, created_at, updated_at`;
+
+const DESPESA_SELECT = `id, viagem_id, categoria, descricao, valor_centavos,
+  data_despesa::text AS data_despesa, estabelecimento, documento_numero,
+  km_veiculo, litros, recibo_key, origem, ia_status, ia_confianca, ia_raw,
+  criado_por, created_at, updated_at`;
+
 // ── Viagens ──────────────────────────────
 
 router.get('/viagens', apiAuth, async (req: Request, res: Response) => {
@@ -94,14 +106,14 @@ router.get('/viagens', apiAuth, async (req: Request, res: Response) => {
     let where = '';
     if (typeof status === 'string' && (STATUS_VALIDOS as readonly string[]).includes(status)) {
       params.push(status);
-      where = 'WHERE v.status = $1';
+      where = 'WHERE status = $1';
     }
     const result = await pool.query(
-      `SELECT v.*,
-              (SELECT COUNT(*)::int FROM despesas_viagem d WHERE d.viagem_id = v.id) AS qtd_despesas
-         FROM viagens_despesa v
+      `SELECT ${VIAGEM_SELECT},
+              (SELECT COUNT(*)::int FROM despesas_viagem d WHERE d.viagem_id = viagens_despesa.id) AS qtd_despesas
+         FROM viagens_despesa
          ${where}
-        ORDER BY v.created_at DESC`,
+        ORDER BY created_at DESC`,
       params
     );
     res.json(result.rows);
@@ -130,10 +142,10 @@ router.post('/viagens', apiAuth, async (req: Request, res: Response) => {
 
 router.get('/viagens/:id', apiAuth, async (req: Request, res: Response) => {
   try {
-    const viagem = await pool.query('SELECT * FROM viagens_despesa WHERE id = $1', [req.params.id]);
+    const viagem = await pool.query(`SELECT ${VIAGEM_SELECT} FROM viagens_despesa WHERE id = $1`, [req.params.id]);
     if (viagem.rowCount === 0) return res.status(404).json({ error: 'Viagem não encontrada' });
     const despesas = await pool.query(
-      'SELECT * FROM despesas_viagem WHERE viagem_id = $1 ORDER BY data_despesa ASC, created_at ASC',
+      `SELECT ${DESPESA_SELECT} FROM despesas_viagem WHERE viagem_id = $1 ORDER BY data_despesa ASC, created_at ASC`,
       [req.params.id]
     );
     res.json({ ...viagem.rows[0], despesas: despesas.rows });
