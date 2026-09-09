@@ -1067,6 +1067,7 @@ export default function EncarteCanvas({
       onPointerMove={handlePointerMove}
       onPointerUp={(e) => handlePointerUp(e, () => onAbrirDetalhes(ep.product.id))}
       onPointerCancel={(e) => handlePointerUp(e)}
+      onClick={(e) => e.stopPropagation()}
     >
       <EncarteProductCard
         produto={ep}
@@ -1084,6 +1085,7 @@ export default function EncarteCanvas({
         key={`i:${im.id}`}
         className="absolute group touch-none"
         style={{ left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%` }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div
           className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
