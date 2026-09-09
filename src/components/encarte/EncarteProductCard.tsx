@@ -53,7 +53,7 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
       style={{ width: largura, transform: `scale(${estilo.escalaCard})`, transformOrigin: 'top left' }}
     >
       {produto.emDestaque ? (
-        <CardProdutoDestaque produto={produto} estilo={estilo} foto={foto} />
+        <CardProdutoDestaque produto={produto} estilo={estilo} medida={medida} foto={foto} />
       ) : estilo.modeloCard === 'destaque' ? (
         <CardDestaque produto={produto} estilo={estilo} medida={medida} foto={foto} />
       ) : estilo.modeloCard === 'clean' ? (
@@ -423,18 +423,48 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
   );
 }
 
-/** Card em evidência — largo, foto à esquerda, nome ao centro, preço à direita. */
-function CardProdutoDestaque({ produto, estilo, foto }: Omit<CardProps, 'medida'>) {
+/**
+ * Card em evidência — banner largo. Foto grande ancorada no chão do card e
+ * transbordando pra cima (sai da caixa branca), nome + descrição completa
+ * alinhados à esquerda no centro, e preço grande à direita com POR / R$ / UNI.
+ */
+function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div
-      className="rounded-2xl overflow-hidden grid items-center gap-3 shadow-lg px-4 py-3"
-      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '96px 1fr auto' }}
+      className="relative rounded-2xl grid items-center gap-2.5 shadow-lg pl-2.5 pr-4 py-3"
+      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto' }}
     >
-      <div className="h-20 flex items-center justify-center">{foto}</div>
-      <p className="text-[15px] font-bold text-zinc-600 leading-[1.15] break-words">{produto.nome}</p>
-      <div className="flex flex-col items-end origin-right" style={{ transform: `scale(${estilo.escalaEtiqueta})` }}>
+      {/* Foto: maior, encostada na base e saindo pra cima do card */}
+      <div
+        className="relative z-10 self-end flex items-end justify-center"
+        style={{ height: 160, marginTop: -58, marginBottom: -6 }}
+      >
+        {foto}
+      </div>
+
+      {/* Nome + descrição completa, alinhados à esquerda */}
+      <AutoAjuste sig={sigT} className="self-center max-h-[92px]">
+        <p className="text-[15px] font-black uppercase leading-[1.12] text-zinc-700 break-words">
+          {produto.nome}
+        </p>
+        {produto.descricao && (
+          <p className="text-[10px] font-semibold text-zinc-500 leading-[1.2] mt-1 break-words">
+            {produto.descricao}
+          </p>
+        )}
+        {medida && (
+          <p className="text-[10px] font-semibold text-zinc-400 leading-[1.2] mt-0.5 break-words">C/ {medida}</p>
+        )}
+      </AutoAjuste>
+
+      {/* Preço grande com todas as informações: POR / R$ / número / centavos / UNI */}
+      <div
+        className="relative z-10 flex flex-col items-end origin-right"
+        style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
+      >
         <PrecoDe valor={produto.precoDe} />
-        <Preco valor={produto.precoOferta} tamanho={40} variante="texto" />
+        <PrecoEtiqueta valor={produto.precoOferta} tamanho={50} cor="#e8850c" />
       </div>
     </div>
   );
