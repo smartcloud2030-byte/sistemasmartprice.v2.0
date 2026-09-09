@@ -15,6 +15,72 @@ interface EncarteProductCardProps {
   produto: EncarteProduto;
   estilo: EstiloEncarte;
   selecionado?: boolean;
+  /** ajuste manual da posição da foto dentro do card (só ativo com o produto selecionado) */
+  onAjustarFoto?: (xPct: number, yPct: number) => void;
+}
+
+const clampFoto = (n: number) => Math.max(-80, Math.min(80, n));
+
+/**
+ * Envolve a foto do produto e, quando `editavel`, deixa arrastar pra ajustar a
+ * posição dela dentro do card. O delta do ponteiro é convertido pra % do
+ * tamanho renderizado da própria foto (getBoundingClientRect já considera o
+ * zoom do canvas e a escala do card), então o arraste bate com o mouse.
+ */
+function FotoAjustavel({
+  xPct,
+  yPct,
+  editavel,
+  onAjustar,
+  children,
+}: {
+  xPct: number;
+  yPct: number;
+  editavel: boolean;
+  onAjustar?: (xPct: number, yPct: number) => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
+
+  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!editavel || !onAjustar) return;
+    e.stopPropagation(); // não deixa virar arraste do card inteiro
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { px: e.clientX, py: e.clientY, x: xPct, y: yPct };
+  };
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = ref.current;
+    if (!d || !el || !onAjustar) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return;
+    onAjustar(
+      clampFoto(d.x + ((e.clientX - d.px) / r.width) * 100),
+      clampFoto(d.y + ((e.clientY - d.py) / r.height) * 100),
+    );
+  };
+  const onUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (drag.current) e.stopPropagation(); // não deixa virar "clique" que abre os detalhes
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    drag.current = null;
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={cn('w-full h-full flex items-center justify-center', editavel && 'cursor-move')}
+      style={{ touchAction: editavel ? 'none' : undefined }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
+      <div className="w-full h-full flex items-center justify-center" style={{ transform: `translate(${xPct}%, ${yPct}%)` }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 /** degradê laranja → dourado, assinatura visual do preço em texto */
@@ -25,7 +91,7 @@ const PRECO_LARANJA: React.CSSProperties = {
   color: 'transparent',
 };
 
-export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
+export default function EncarteProductCard({ produto, estilo, selecionado, onAjustarFoto }: EncarteProductCardProps) {
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
 
@@ -33,7 +99,7 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
   // (scale 3x no download), e a miniatura de 400px ficaria borrada ampliada.
   // Sombra igual à do editor de plaquinhas (Konva: blur 16 / offsetY 10 /
   // opacity 0.35 num produto de ~250px) — reproporcionada pro tamanho do card.
-  const foto = product.image ? (
+  const conteudoFoto = product.image ? (
     <img
       src={getProxyUrl(product.image || product.thumb_image)}
       className="w-full h-full object-contain"
@@ -43,6 +109,17 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
     />
   ) : (
     <Package className="w-6 h-6 text-zinc-300" />
+  );
+
+  const foto = (
+    <FotoAjustavel
+      xPct={produto.imgXPct ?? 0}
+      yPct={produto.imgYPct ?? 0}
+      editavel={!!selecionado && !!onAjustarFoto}
+      onAjustar={onAjustarFoto}
+    >
+      {conteudoFoto}
+    </FotoAjustavel>
   );
 
   const largura = produto.emDestaque ? CARD_W * 2.2 : CARD_W;

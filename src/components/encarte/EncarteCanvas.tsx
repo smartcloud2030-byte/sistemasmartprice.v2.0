@@ -9,7 +9,9 @@ import {
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
+import { Product } from '../../store';
 import EncarteProductCard from './EncarteProductCard';
+import SeletorProdutosModal from './SeletorProdutosModal';
 import { Formato } from './formatos';
 import {
   EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
@@ -296,9 +298,12 @@ interface EncarteCanvasProps {
   podeRefazer: boolean;
   onDesfazer: () => void;
   onRefazer: () => void;
-  onAdicionarProdutos: () => void;
+  onAdicionarProduto: (product: Product) => void;
+  onRemoverProduto: (id?: string | number) => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
+  /** ajuste manual da posição da foto dentro do card */
+  onAjustarFotoProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
   onMoverDivisor: (id: string, yPct: number) => void;
   onMoverImagem: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
@@ -397,9 +402,11 @@ export default function EncarteCanvas({
   podeRefazer,
   onDesfazer,
   onRefazer,
-  onAdicionarProdutos,
+  onAdicionarProduto,
+  onRemoverProduto,
   onAbrirDetalhes,
   onMoverProduto,
+  onAjustarFotoProduto,
   onMoverDivisor,
   onMoverImagem,
   onRedimensionarImagem,
@@ -430,6 +437,7 @@ export default function EncarteCanvas({
 }: EncarteCanvasProps) {
   const [exportando, setExportando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [seletorProdutosAberto, setSeletorProdutosAberto] = useState(false);
   const [gradeAberta, setGradeAberta] = useState(false);
   const [formasAberta, setFormasAberta] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
@@ -1084,6 +1092,7 @@ export default function EncarteCanvas({
         produto={ep}
         estilo={estilo}
         selecionado={ep.product.id === produtoDetalhadoId || ep.product.id === produtoSelecionadoId}
+        onAjustarFoto={(x, y) => onAjustarFotoProduto(ep.product.id, x, y)}
       />
     </div>
   );
@@ -1527,7 +1536,7 @@ export default function EncarteCanvas({
       >
         {produtos.length > 0 && (
           <button
-            onClick={onAdicionarProdutos}
+            onClick={() => setSeletorProdutosAberto(true)}
             className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -1651,7 +1660,7 @@ export default function EncarteCanvas({
 
           {produtos.length === 0 && formas.length === 0 && imagens.length === 0 && textos.length === 0 && (
             <button
-              onClick={onAdicionarProdutos}
+              onClick={() => setSeletorProdutosAberto(true)}
               data-html2canvas-ignore="true"
               className="absolute inset-0 flex flex-col items-center justify-center gap-3 hover:bg-black/20 transition-colors"
             >
@@ -1779,6 +1788,16 @@ export default function EncarteCanvas({
           ))}
         </div>
       </div>
+
+      {/* Atalho pra adicionar produtos (botão vazio + botão "+") */}
+      {seletorProdutosAberto && (
+        <SeletorProdutosModal
+          selecionados={produtos}
+          onSelecionar={onAdicionarProduto}
+          onRemover={onRemoverProduto}
+          onFechar={() => setSeletorProdutosAberto(false)}
+        />
+      )}
 
       {/* Zoom */}
       <div className="absolute bottom-4 right-4 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center gap-1 px-2 py-1.5">

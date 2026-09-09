@@ -138,6 +138,9 @@ export interface EncarteProduto {
   /** posição do canto superior esquerdo do card, em % do canvas */
   xPct: number;
   yPct: number;
+  /** deslocamento manual da foto DENTRO do card, em % do tamanho da foto (0 = centralizada) */
+  imgXPct?: number;
+  imgYPct?: number;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com imagens, formas e textos. */
   z?: number;
 }
@@ -173,6 +176,8 @@ export function criarEncarteProduto(product: Product, index = 0): EncarteProduto
     precoOferta: soPreco(product.price),
     precoDe: '',
     emDestaque: false,
+    imgXPct: 0,
+    imgYPct: 0,
     ...posicaoInicial(index),
   };
 }
