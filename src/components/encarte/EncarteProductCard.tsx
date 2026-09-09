@@ -187,7 +187,21 @@ function Preco({
  * número inteiro grande dominante, vírgula na base + centavos elevados,
  * e "UNI" colado na base à direita. Sempre com POR e UNI.
  */
-function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number; cor: string }) {
+function PrecoEtiqueta({
+  valor,
+  tamanho,
+  cor,
+  escalaRotulos = 1,
+  escalaCentavos = 0.54,
+}: {
+  valor: string;
+  tamanho: number;
+  cor: string;
+  /** Multiplica o tamanho de POR / R$ / UNI. < 1 diminui os rótulos e deixa o preço em evidência. */
+  escalaRotulos?: number;
+  /** Tamanho dos centavos em `em` (relativo ao inteiro). Padrão 0.54. */
+  escalaCentavos?: number;
+}) {
   const { inteiro, centavos } = partesPreco(valor);
   return (
     <span
@@ -196,8 +210,8 @@ function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number
     >
       {/* POR + R$ juntos, no topo à esquerda */}
       <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.03em]">
-        <span className="leading-none" style={{ fontSize: '0.5em', letterSpacing: '0.02em' }}>POR</span>
-        <span className="leading-none" style={{ fontSize: '0.48em' }}>R$</span>
+        <span className="leading-none" style={{ fontSize: `${0.5 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
+        <span className="leading-none" style={{ fontSize: `${0.48 * escalaRotulos}em` }}>R$</span>
       </span>
 
       {/* número inteiro — dominante */}
@@ -205,7 +219,7 @@ function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number
 
       {/* vírgula (meio) + centavos elevados */}
       {centavos && (
-        <span className="self-stretch flex leading-none" style={{ fontSize: '0.54em' }}>
+        <span className="self-stretch flex leading-none" style={{ fontSize: `${escalaCentavos}em` }}>
           <span className="self-center">,</span>
           <span className="self-start">{centavos}</span>
         </span>
@@ -216,7 +230,7 @@ function PrecoEtiqueta({ valor, tamanho, cor }: { valor: string; tamanho: number
         className="self-stretch flex flex-col items-start justify-end leading-none"
         style={{ marginLeft: '-0.16em' }}
       >
-        <span className="leading-none" style={{ fontSize: '0.32em', letterSpacing: '0.04em' }}>UNI</span>
+        <span className="leading-none" style={{ fontSize: `${0.32 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UNI</span>
       </span>
     </span>
   );
@@ -464,7 +478,14 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
         style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
       >
         <PrecoDe valor={produto.precoDe} />
-        <PrecoEtiqueta valor={produto.precoOferta} tamanho={50} cor="#e8850c" />
+        {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
+        <PrecoEtiqueta
+          valor={produto.precoOferta}
+          tamanho={58}
+          cor="#e8850c"
+          escalaRotulos={0.58}
+          escalaCentavos={0.6}
+        />
       </div>
     </div>
   );
