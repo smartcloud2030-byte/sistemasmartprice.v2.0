@@ -26,6 +26,7 @@ import {
   criarEncarteProduto,
   criarLado,
   clonarLado,
+  ladoVazio,
   normalizarLado,
   criarDivisor,
   criarElementoImagem,
@@ -44,6 +45,7 @@ import {
   salvarRascunho,
   salvarRascunhoKeepalive,
   gravarRascunhoLocal,
+  chaveArmazenamento,
 } from './persistencia';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
@@ -82,8 +84,11 @@ interface EncarteDoc {
 
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
   const { setView, currentUser } = useStore();
-  const cnpj = currentUser?.cnpj?.replace(/[^\d]/g, '');
   const username = currentUser?.username ?? '';
+  // Chave de armazenamento do rascunho/histórico. A tela de Encarte é só de
+  // admin e admin não tem CNPJ ('Administrativo' → '') — sem isto, toda a
+  // persistência ficava travada no `if (!cnpj)`. Ver `chaveArmazenamento`.
+  const cnpj = chaveArmazenamento(currentUser?.cnpj, username);
   const [activeMenu, setActiveMenu] = useState<MenuItem>(menuInicial ?? 'temas');
 
   const {
@@ -107,7 +112,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
+  // O auto-save só liga depois que o rascunho salvo foi restaurado (ou que
+  // sabemos, pelo servidor, que não há nenhum). Enquanto isso a "casca" inicial
+  // do editor não pode gravar por cima do trabalho que está no servidor.
   const prontoParaAutoSalvar = useRef(false);
+  const carregouRascunho = useRef(false);    // a restauração terminou com sucesso
+  const carregandoRascunho = useRef(false);  // a restauração está rodando agora
+  const restaurouRascunho = useRef(false);   // achamos um rascunho e recolocamos ele
+  const [tentativaCarregar, setTentativaCarregar] = useState(0); // re-tenta se o servidor falhar
 
   // Foto sempre atualizada do estado, pra salvar na hora de fechar/recarregar a aba.
   const snapshotRef = useRef<RascunhoSemData>({ formato: doc.formatoId, ladoFrente, ladoVerso });
@@ -142,20 +154,32 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     try { localStorage.setItem('encarte:larguraPainel', String(Math.round(larguraPainel))); } catch { /* ignora */ }
   };
 
-  // Ao montar: recupera o rascunho salvo (se tiver) pra não perder o
-  // trabalho ao recarregar a página, e carrega o histórico de encartes.
-  // Só roda no app real — o preview isolado (ladoInicial) fica de fora.
+  // Ao montar (e assim que o CNPJ estiver disponível): recupera o rascunho
+  // salvo pra não perder o trabalho ao recarregar a página ou voltar do editor
+  // de plaquinha, e carrega o histórico de encartes. Roda só no app real — o
+  // preview isolado (ladoInicial) fica de fora.
+  //
+  // Antes isto rodava uma única vez (deps []) e desistia se o CNPJ ainda não
+  // tivesse hidratado — aí o auto-save ligava, a casca vazia sobrescrevia o
+  // rascunho bom e "voltava tudo do zero". Agora espera o CNPJ, e se a leitura
+  // do servidor falhar não liga o auto-save: re-tenta em 4s.
   useEffect(() => {
-    if (ladoInicial || !cnpj) {
+    if (ladoInicial) {
       prontoParaAutoSalvar.current = true;
       return;
     }
+    if (!cnpj || carregouRascunho.current || carregandoRascunho.current) return;
+    carregandoRascunho.current = true;
     let cancelado = false;
     (async () => {
       try {
-        const [rascunho, hist] = await Promise.all([carregarRascunho(cnpj, username), carregarHistorico(cnpj)]);
+        const [{ rascunho, servidorLido }, hist] = await Promise.all([
+          carregarRascunho(cnpj, username),
+          carregarHistorico(cnpj).catch(() => [] as EncarteSalvo[]),
+        ]);
         if (cancelado) return;
         if (rascunho) {
+          restaurouRascunho.current = true;
           resetarDoc({
             formatoId: rascunho.formato as FormatoId,
             ladoFrente: normalizarLado(rascunho.ladoFrente),
@@ -163,20 +187,36 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           });
         }
         setHistorico(hist);
+        if (servidorLido || rascunho) {
+          // Sabemos o estado real (ou já restauramos algo do localStorage) —
+          // pode gravar.
+          carregouRascunho.current = true;
+          prontoParaAutoSalvar.current = true;
+        } else {
+          // Servidor não respondeu e não tinha cópia local: não arrisca gravar
+          // por cima do rascunho bom. Re-tenta em 4s.
+          setTimeout(() => { if (!cancelado) setTentativaCarregar((t) => t + 1); }, 4000);
+        }
       } catch (err) {
         console.error('Erro ao carregar rascunho/histórico do encarte:', err);
+        if (!cancelado) setTimeout(() => { if (!cancelado) setTentativaCarregar((t) => t + 1); }, 4000);
       } finally {
-        if (!cancelado) prontoParaAutoSalvar.current = true;
+        carregandoRascunho.current = false;
       }
     })();
-    return () => { cancelado = true; };
+    return () => { cancelado = true; carregandoRascunho.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cnpj, username, tentativaCarregar]);
 
   // Auto-save do rascunho a cada mudança (depois do carregamento inicial):
   // localStorage quase na hora (300ms) e servidor com folga maior (1s).
   useEffect(() => {
     if (!prontoParaAutoSalvar.current || !cnpj) return;
+    // Enquanto não restauramos um rascunho e o editor ainda está zerado, não
+    // grava nada — evita a casca inicial pisar num rascunho salvo que ainda
+    // esteja terminando de carregar. Assim que o usuário mexe em algo (ou
+    // restauramos um rascunho), volta a salvar normalmente.
+    if (!restaurouRascunho.current && ladoVazio(ladoFrente) && !ladoVerso) return;
     const snap: RascunhoSemData = { formato: doc.formatoId, ladoFrente, ladoVerso };
     const tLocal = setTimeout(() => gravarRascunhoLocal(cnpj, username, snap), 300);
     const tServidor = setTimeout(() => {
@@ -190,9 +230,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   useEffect(() => {
     if (!cnpj || ladoInicial) return;
     const flush = () => {
-      if (!prontoParaAutoSalvar.current) return;
-      gravarRascunhoLocal(cnpj, username, snapshotRef.current);
-      salvarRascunhoKeepalive(cnpj, snapshotRef.current);
+      const s = snapshotRef.current;
+      // Só pula se não há nada pra perder (editor ainda zerado e sem rascunho
+      // restaurado). Caso contrário grava mesmo que a carga inicial não tenha
+      // terminado — o usuário já mexeu em algo e não pode perder ao sair.
+      if (!restaurouRascunho.current && ladoVazio(s.ladoFrente) && !s.ladoVerso) return;
+      gravarRascunhoLocal(cnpj, username, s);
+      salvarRascunhoKeepalive(cnpj, s);
     };
     const onVisibilidade = () => { if (document.visibilityState === 'hidden') flush(); };
     window.addEventListener('pagehide', flush);
@@ -501,7 +545,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
    * Usado pelo botão "Salvar" e também depois de um download.
    */
   const gravarEncarte = (imagemPreview: string): Promise<void> => {
-    if (!cnpj) return Promise.resolve();
+    if (!cnpj) return Promise.reject(new Error('Sessão sem usuário identificado — não dá pra salvar o encarte.'));
     return salvarNoHistorico(cnpj, {
       nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
       imagemPreview,
@@ -512,6 +556,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   const abrirDoHistorico = (entry: EncarteSalvo) => {
+    restaurouRascunho.current = true;
     resetarDoc({
       formatoId: entry.formato as FormatoId,
       ladoFrente: normalizarLado(entry.ladoFrente),

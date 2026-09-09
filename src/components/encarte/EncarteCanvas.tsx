@@ -254,16 +254,27 @@ function calcularSnapProduto(
   return { x, y, guiasV, guiasH, marcas };
 }
 
-/** Miniatura leve (redimensiona no canvas, sem re-renderizar o DOM) pro histórico de encartes. */
-function gerarThumbnail(canvas: HTMLCanvasElement, maxW = 300): string {
+/**
+ * Miniatura leve (redimensiona no canvas, sem re-renderizar o DOM) pro
+ * histórico de encartes. Sai em JPEG: a lista guarda até 20 encartes com
+ * frente + verso completos — miniatura em PNG inflava o registro à toa e
+ * chegava a estourar a cota. JPEG a 0,72 numa imagem de ~240px é o bastante
+ * pro cartãozinho da aba Encartes.
+ */
+function gerarThumbnail(canvas: HTMLCanvasElement, maxW = 240): string {
   const escala = Math.min(1, maxW / canvas.width);
   const w = Math.round(canvas.width * escala);
   const h = Math.round(canvas.height * escala);
   const off = document.createElement('canvas');
   off.width = w;
   off.height = h;
-  off.getContext('2d')?.drawImage(canvas, 0, 0, w, h);
-  return off.toDataURL('image/png');
+  const ctx = off.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(canvas, 0, 0, w, h);
+  }
+  return off.toDataURL('image/jpeg', 0.72);
 }
 
 interface EncarteCanvasProps {
@@ -492,9 +503,9 @@ export default function EncarteCanvas({
       const canvas = await html2canvas(canvasRef.current, {
         useCORS: true,
         backgroundColor: '#000000',
-        scale: 320 / CANVAS_W,
+        scale: 480 / CANVAS_W,
       });
-      await onSalvarEncarte(canvas.toDataURL('image/png'));
+      await onSalvarEncarte(gerarThumbnail(canvas));
       toast.success('Encarte salvo! Veja na aba Encartes pra editar depois.');
     } catch {
       toast.error('Não foi possível salvar o encarte agora. Tente de novo.');

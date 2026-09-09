@@ -439,6 +439,25 @@ export function criarLado(): LadoEncarte {
   };
 }
 
+/**
+ * `true` quando o lado ainda está do jeito que `criarLado()` devolve — nada
+ * que o usuário tenha colocado. Usado pra NÃO sobrescrever um rascunho salvo
+ * enquanto ele ainda está carregando: a "casca" inicial não pode gravar por
+ * cima de trabalho de verdade que está no servidor.
+ */
+export function ladoVazio(l: LadoEncarte): boolean {
+  return (
+    l.produtos.length === 0 &&
+    l.imagens.length === 0 &&
+    (l.formas?.length ?? 0) === 0 &&
+    (l.textos?.length ?? 0) === 0 &&
+    l.divisores.length === 0 &&
+    !l.tema &&
+    l.grade === 'livre' &&
+    !l.rodape.ativo
+  );
+}
+
 export function clonarLado(l: LadoEncarte): LadoEncarte {
   return {
     produtos: l.produtos.map((p) => ({ ...p })),

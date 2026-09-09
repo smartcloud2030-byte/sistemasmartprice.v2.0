@@ -3,15 +3,9 @@ import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2 } from 'lucide-react
 import { toast } from 'sonner';
 import { uploadBackgroundImage, listGalleryImages, deleteGalleryImage, GalleryImage, nomeClassificacao } from '../../lib/gallery';
 import { getProxyUrl, cn } from '../../lib/utils';
-import { FUNDOS_BUILTIN } from './encarteProduto';
 import ClassificacaoBar from './ClassificacaoBar';
 
 const CATEGORIA = 'encarte-temas';
-
-const PRONTOS: { id: string; nome: string }[] = [
-  { id: 'creme', nome: 'Creme' },
-  { id: 'branco', nome: 'Branco' },
-];
 
 interface TemasTabProps {
   selecionada: string | null;
@@ -114,42 +108,22 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
         </label>
       </div>
 
-      <div className="space-y-2">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Temas prontos</h3>
-        <div className="grid grid-cols-3 gap-2">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Fundos já enviados</h3>
           <button
             onClick={() => onSelecionar('')}
             className={cn(
-              'relative rounded-lg overflow-hidden border-2 aspect-[3/4] bg-zinc-800 flex items-center justify-center transition-colors',
-              !selecionada ? 'border-emerald-500' : 'border-transparent hover:border-zinc-600',
+              'flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wide transition-colors',
+              !selecionada
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+                : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200',
             )}
           >
-            <Ban className="w-4 h-4 text-zinc-500" />
-            <span className="absolute bottom-1 text-[8px] font-semibold text-zinc-400">Nenhum</span>
+            <Ban className="w-3 h-3" />
+            Sem fundo
           </button>
-          {PRONTOS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => onSelecionar(p.id)}
-              className={cn(
-                'relative rounded-lg overflow-hidden border-2 aspect-[3/4] transition-colors',
-                selecionada === p.id ? 'border-emerald-500' : 'border-transparent hover:border-zinc-600',
-              )}
-              style={{ background: FUNDOS_BUILTIN[p.id] }}
-            >
-              {selecionada === p.id && (
-                <div className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
-                  <Check className="w-2.5 h-2.5 text-white" />
-                </div>
-              )}
-              <span className="absolute bottom-1 left-0 right-0 text-[8px] font-semibold text-zinc-600">{p.nome}</span>
-            </button>
-          ))}
         </div>
-      </div>
-
-      <div className="space-y-3">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Fundos já enviados</h3>
 
         <ClassificacaoBar
           base={CATEGORIA}
