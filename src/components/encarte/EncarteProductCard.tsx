@@ -88,7 +88,7 @@ function AutoAjuste({
   sig,
   origem = 'top left',
   min = 0.4,
-  escalaInterna = 1,
+  transbordar = false,
   className,
   children,
 }: {
@@ -96,14 +96,13 @@ function AutoAjuste({
   origem?: string;
   min?: number;
   /**
-   * Escala que o próprio `children` já aplica em si mesmo por `transform`
-   * (ex.: o slider "Etiqueta"). Como `transform` não mexe em `scrollWidth`,
-   * sem isto o auto-ajuste não "enxerga" a etiqueta ampliada e ela estoura a
-   * caixa pela direita. Multiplicamos só a LARGURA natural por esse fator: a
-   * altura da caixa da etiqueta cresce com o conteúdo (não tem teto), então
-   * não pode virar restrição — senão o slider não teria efeito nenhum.
+   * Quando `true`: NUNCA corta e NUNCA encolhe pela largura. Serve pra
+   * etiqueta de preço — o usuário aumenta ela no slider "Etiqueta" e quer ela
+   * inteira, passando por cima da foto / pra fora do card se precisar
+   * (`overflow-visible` + z-index acima da foto no card). A altura ainda é
+   * respeitada só como trava de segurança.
    */
-  escalaInterna?: number;
+  transbordar?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -120,9 +119,9 @@ function AutoAjuste({
       const dh = wrap.clientHeight;
       const nh = inner.scrollHeight;
       const dw = wrap.clientWidth;
-      const nw = inner.scrollWidth * Math.max(1, escalaInterna);
+      const nw = inner.scrollWidth;
       const rH = dh > 0 && nh > dh + 0.5 ? dh / nh : 1;
-      const rW = dw > 0 && nw > dw + 0.5 ? dw / nw : 1;
+      const rW = transbordar ? 1 : dw > 0 && nw > dw + 0.5 ? dw / nw : 1;
       const alvo = Math.max(min, Math.min(rH, rW));
       setEscala((p) => (Math.abs(p - alvo) > 0.02 ? alvo : p));
     };
@@ -130,10 +129,10 @@ function AutoAjuste({
     const ro = new ResizeObserver(medir);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [sig, min, escalaInterna]);
+  }, [sig, min, transbordar]);
 
   return (
-    <div ref={wrapRef} className={cn('overflow-hidden', className)}>
+    <div ref={wrapRef} className={cn(transbordar ? 'overflow-visible' : 'overflow-hidden', className)}>
       <div ref={innerRef} style={{ transformOrigin: origem, transform: escala < 1 ? `scale(${escala})` : undefined }}>
         {children}
       </div>
@@ -344,8 +343,9 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
-    <div className="rounded-xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
-      <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
+    <div className="relative rounded-xl flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
+      {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
+      <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           <p className="text-[11px] font-black uppercase leading-[1.1] text-red-600 break-words">
             {produto.nome}
@@ -357,7 +357,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 break-words">C/ {medida}</p>}
         </AutoAjuste>
-        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} escalaInterna={estilo.escalaEtiqueta} className="flex-shrink-0">
+        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
         </AutoAjuste>
       </div>
@@ -371,8 +371,8 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
-    <div className="flex h-32 gap-1.5 overflow-hidden">
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
+    <div className="relative flex h-32 gap-1.5">
+      <div className="relative z-10 flex-1 min-w-0 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           <p className="text-[13px] font-black uppercase leading-[1.15] text-red-600 break-words drop-shadow-sm">
             {produto.nome}
@@ -384,7 +384,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
         </AutoAjuste>
-        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} escalaInterna={estilo.escalaEtiqueta} className="flex-shrink-0">
+        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
         </AutoAjuste>
       </div>
