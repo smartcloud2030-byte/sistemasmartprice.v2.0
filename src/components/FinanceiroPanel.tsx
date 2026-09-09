@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import { totalDespesasDoMes, mesAnterior, mesSeguinte, formatMesAno } from '../lib/despesas';
 import FinanceiroDespesasTab from './FinanceiroDespesasTab';
+import DespesasViagemModal from './DespesasViagemModal';
 
 interface Props {
   onClose: () => void;
@@ -14,7 +15,7 @@ const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', c
 export default function FinanceiroPanel({ onClose }: Props) {
   const { allowedStores, togglePaymentBlock, despesas } = useStore();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas'>('receitas');
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'viagens'>('receitas');
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -43,7 +44,7 @@ export default function FinanceiroPanel({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
-      <div className="bg-white dark:bg-zinc-900 w-full max-w-3xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-zinc-900 w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
         <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-600 rounded-lg text-white">
@@ -59,7 +60,7 @@ export default function FinanceiroPanel({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="p-6 grid grid-cols-3 gap-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className={cn('p-6 grid grid-cols-3 gap-4 border-b border-zinc-200 dark:border-zinc-800', activeTab === 'viagens' && 'hidden')}>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
             <div className="flex items-center gap-1.5">
               <p className="text-2xl font-black text-black dark:text-white tracking-tighter">{currency(mrr)}</p>
@@ -96,9 +97,22 @@ export default function FinanceiroPanel({ onClose }: Props) {
           >
             Despesas
           </button>
+          <button
+            onClick={() => setActiveTab('viagens')}
+            className={cn(
+              'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors',
+              activeTab === 'viagens' ? 'bg-amber-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+            )}
+          >
+            Viagens
+          </button>
         </div>
 
-        {activeTab === 'receitas' ? (
+        {activeTab === 'viagens' ? (
+          <div className="flex-grow overflow-hidden">
+            <DespesasViagemModal />
+          </div>
+        ) : activeTab === 'receitas' ? (
           <>
             <div className="px-6 pt-4">
               <div className="relative">

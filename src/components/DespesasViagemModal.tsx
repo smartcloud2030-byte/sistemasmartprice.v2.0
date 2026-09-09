@@ -349,7 +349,7 @@ export default function DespesasViagemModal() {
     : despesas;
 
   return (
-    <div className="flex h-[75vh] min-h-0">
+    <div className="flex h-full min-h-0">
       {/* ── Coluna esquerda: lista ── */}
       <div className="w-72 shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col min-h-0">
         <div className="p-3 space-y-2 border-b border-zinc-200 dark:border-zinc-800">
