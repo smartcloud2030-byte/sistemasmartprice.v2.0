@@ -39,6 +39,8 @@ services:
       NFSE_PRESTADOR_CNPJ: ${NFSE_PRESTADOR_CNPJ}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DESPESAS_IA_MODEL: ${DESPESAS_IA_MODEL:-claude-opus-5}
     depends_on:
       postgres:
         condition: service_healthy
