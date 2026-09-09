@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRightLeft, Scissors, Palette, Tag, Trash2, Package, Crown, Images, Ban } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Trash2, Package, Crown, Images, Ban } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -75,7 +75,8 @@ export default function ProdutoDetalhes({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <BotaoAcao icon={Scissors} label="Remover fundo" premium disabled />
+          <BotaoAcaoCor icon={Type} label="Cor do nome" value={estilo.corNome} onChange={(corNome) => onAtualizarEstilo({ corNome })} />
+          <BotaoAcaoCor icon={AlignLeft} label="Cor da descrição" value={estilo.corDescricao} onChange={(corDescricao) => onAtualizarEstilo({ corDescricao })} />
           <BotaoAcaoCor
             icon={Palette}
             label="Cor de fundo"

@@ -97,6 +97,8 @@ export const SVG_ETIQUETA: Partial<Record<FormaEtiqueta, string>> = {
 export interface EstiloEncarte {
   modeloCard: ModeloCard; // layout do card do produto
   corFundo: string; // fundo do card
+  corNome: string; // cor do nome do produto
+  corDescricao: string; // cor da descrição / medida
   corEtiqueta: string; // caixa de preço
   formaEtiqueta: FormaEtiqueta; // forma da caixa de preço
   acabamentoEtiqueta: AcabamentoEtiqueta; // sólida / degradê / contorno
@@ -107,6 +109,8 @@ export interface EstiloEncarte {
 export const ESTILO_PADRAO: EstiloEncarte = {
   modeloCard: 'padrao',
   corFundo: '#ffffff',
+  corNome: '#dc2626', // red-600
+  corDescricao: '#52525b', // zinc-600
   corEtiqueta: '#059669', // emerald-600
   formaEtiqueta: 'retangulo', // caixa cheia, igual ao modelo impresso
   acabamentoEtiqueta: 'solida',

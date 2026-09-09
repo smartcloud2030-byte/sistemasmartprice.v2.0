@@ -191,12 +191,15 @@ function PrecoEtiqueta({
   valor,
   tamanho,
   cor,
+  dourado = false,
   escalaRotulos = 1,
   escalaCentavos = 0.54,
 }: {
   valor: string;
   tamanho: number;
-  cor: string;
+  cor?: string;
+  /** Preço em degradê dourado com efeito (o mesmo do preço em texto). Ignora `cor`. */
+  dourado?: boolean;
   /** Multiplica o tamanho de POR / R$ / UNI. < 1 diminui os rótulos e deixa o preço em evidência. */
   escalaRotulos?: number;
   /** Tamanho dos centavos em `em` (relativo ao inteiro). Padrão 0.54. */
@@ -206,7 +209,7 @@ function PrecoEtiqueta({
   return (
     <span
       className="inline-flex items-stretch font-black uppercase leading-none"
-      style={{ fontSize: tamanho, color: cor }}
+      style={dourado ? { fontSize: tamanho, ...PRECO_LARANJA } : { fontSize: tamanho, color: cor }}
     >
       {/* POR + R$ juntos, no topo à esquerda */}
       <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.03em]">
@@ -361,15 +364,15 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
       {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
       <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          <p className="text-[11px] font-black uppercase leading-[1.1] text-red-600 break-words">
+          <p className="text-[11px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corNome }}>
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[8px] font-semibold text-zinc-600 leading-[1.15] mt-0.5 break-words">
+            <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 break-words">C/ {medida}</p>}
+          {medida && <p className="text-[8px] font-semibold mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
         </AutoAjuste>
         <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
@@ -388,15 +391,15 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
     <div className="relative flex h-32 gap-1.5">
       <div className="relative z-10 flex-1 min-w-0 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          <p className="text-[13px] font-black uppercase leading-[1.15] text-red-600 break-words drop-shadow-sm">
+          <p className="text-[13px] font-black uppercase leading-[1.15] break-words drop-shadow-sm" style={{ color: estilo.corNome }}>
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.15] mt-0.5 break-words">
+            <p className="text-[9px] font-black uppercase leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
+          {medida && <p className="text-[9px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
         </AutoAjuste>
         <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
@@ -415,15 +418,15 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
       <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
       <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          <p className="text-[11px] font-semibold text-zinc-700 leading-[1.15] break-words">
+          <p className="text-[11px] font-semibold leading-[1.15] break-words" style={{ color: estilo.corNome }}>
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[8px] font-medium text-zinc-400 leading-[1.15] mt-0.5 break-words">
+            <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[8px] font-medium text-zinc-400 mt-0.5 break-words">C/ {medida}</p>}
+          {medida && <p className="text-[8px] font-medium mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
         </AutoAjuste>
         <div
           className="flex-shrink-0 flex flex-col items-end origin-bottom-right"
@@ -459,20 +462,20 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
 
       {/* Nome + descrição completa, alinhados à esquerda */}
       <AutoAjuste sig={sigT} className="self-center max-h-[92px]">
-        <p className="text-[15px] font-black uppercase leading-[1.12] text-zinc-700 break-words">
+        <p className="text-[15px] font-black uppercase leading-[1.12] break-words" style={{ color: estilo.corNome }}>
           {produto.nome}
         </p>
         {produto.descricao && (
-          <p className="text-[10px] font-semibold text-zinc-500 leading-[1.2] mt-1 break-words">
+          <p className="text-[10px] font-semibold leading-[1.2] mt-1 break-words" style={{ color: estilo.corDescricao }}>
             {produto.descricao}
           </p>
         )}
         {medida && (
-          <p className="text-[10px] font-semibold text-zinc-400 leading-[1.2] mt-0.5 break-words">C/ {medida}</p>
+          <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
         )}
       </AutoAjuste>
 
-      {/* Preço grande com todas as informações: POR / R$ / número / centavos / UNI */}
+      {/* Preço grande dourado com efeito: POR / R$ / número / centavos / UNI */}
       <div
         className="relative z-10 flex flex-col items-end origin-right"
         style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
@@ -482,7 +485,7 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
         <PrecoEtiqueta
           valor={produto.precoOferta}
           tamanho={58}
-          cor="#e8850c"
+          dourado
           escalaRotulos={0.58}
           escalaCentavos={0.6}
         />
