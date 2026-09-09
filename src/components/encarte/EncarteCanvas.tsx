@@ -832,8 +832,8 @@ export default function EncarteCanvas({
           top: `${fm.yPct}%`,
           width: `${fm.wPct}%`,
           height: `${fm.hPct}%`,
-          // a forma selecionada sobe acima de tudo pra as alças ficarem sempre alcançáveis
-          zIndex: selecionada ? 40 : undefined,
+          // Sem zIndex forçado: a forma fica na camada que o `z` dela mandar,
+          // pra as setas ↑ ↓ terem efeito visível na hora.
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -961,7 +961,7 @@ export default function EncarteCanvas({
       <div
         key={t.id}
         className="absolute"
-        style={{ left: `${t.xPct}%`, top: `${t.yPct}%`, width: `${t.wPct}%`, zIndex: selecionada ? 40 : 30 }}
+        style={{ left: `${t.xPct}%`, top: `${t.yPct}%`, width: `${t.wPct}%` }}
         onClick={(e) => e.stopPropagation()}
       >
         {editando ? (
@@ -1072,10 +1072,7 @@ export default function EncarteCanvas({
       <div
         key={`i:${im.id}`}
         className="absolute group touch-none"
-        style={{
-          left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%`,
-          zIndex: selecionada ? 40 : undefined,
-        }}
+        style={{ left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%` }}
       >
         <div
           className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
