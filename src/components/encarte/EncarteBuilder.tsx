@@ -345,10 +345,6 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const moverProduto = (id: string | number | undefined, xPct: number, yPct: number) =>
     atualizarProduto(id, { xPct, yPct }, { coalesce: `mover-produto-${id ?? 'x'}` });
 
-  /** Ajuste manual da posição da foto dentro do card (arraste na foto selecionada). */
-  const ajustarFotoProduto = (id: string | number | undefined, imgXPct: number, imgYPct: number) =>
-    atualizarProduto(id, { imgXPct, imgYPct }, { coalesce: `ajustar-foto-${id ?? 'x'}` });
-
   const atualizarEstilo = (patch: Partial<EstiloEncarte>) =>
     atualizarLado((l) => ({ estilo: { ...l.estilo, ...patch } }));
 
@@ -702,11 +698,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           podeRefazer={podeRefazer}
           onDesfazer={desfazer}
           onRefazer={refazer}
-          onAdicionarProduto={adicionarProduto}
-          onRemoverProduto={removerProduto}
+          onAdicionarProdutos={() => setActiveMenu('produtos')}
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
-          onAjustarFotoProduto={ajustarFotoProduto}
           onMoverDivisor={moverDivisor}
           onMoverImagem={moverImagem}
           onRedimensionarImagem={redimensionarImagem}
