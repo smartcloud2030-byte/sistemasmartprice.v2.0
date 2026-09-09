@@ -423,6 +423,9 @@ export default function EncarteCanvas({
   const [formasAberta, setFormasAberta] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
   const [imagemSelecionadaId, setImagemSelecionadaId] = useState<string | null>(null);
+  // Seleção leve do produto no canvas (contorno + setas de camada), independente
+  // do painel de Detalhes. Um clique no produto seleciona; abrir Detalhes é outra coisa.
+  const [produtoSelecionadoId, setProdutoSelecionadoId] = useState<string | number | null>(null);
   const [reguasVisiveis, setReguasVisiveis] = useState(false);
   const [fontesAberta, setFontesAberta] = useState(false);
   const [fonteNova, setFonteNova] = useState('Montserrat');
@@ -595,6 +598,7 @@ export default function EncarteCanvas({
   ) => {
     if (tipo === 'produto') {
       // produto vira o "selecionado" pras setas de camada; larga forma/texto/imagem
+      setProdutoSelecionadoId(id ?? null);
       setFormaSelecionadaId(null);
       setTextoSelecionadoId(null);
       setImagemSelecionadaId(null);
@@ -670,6 +674,7 @@ export default function EncarteCanvas({
     setImagemSelecionadaId(im.id);
     setFormaSelecionadaId(null);
     setTextoSelecionadoId(null);
+    setProdutoSelecionadoId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     imgDragRef.current = { tipo, canto, id: im.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: im };
   };
@@ -727,6 +732,7 @@ export default function EncarteCanvas({
     setFormaSelecionadaId(fm.id);
     setTextoSelecionadoId(null);
     setImagemSelecionadaId(null);
+    setProdutoSelecionadoId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     formaDragRef.current = { tipo, canto, id: fm.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: fm };
   };
@@ -904,6 +910,7 @@ export default function EncarteCanvas({
     setTextoSelecionadoId(t.id);
     setFormaSelecionadaId(null);
     setImagemSelecionadaId(null);
+    setProdutoSelecionadoId(null);
     if (textoEditandoId && textoEditandoId !== t.id) setTextoEditandoId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     textoDragRef.current = {
@@ -1061,7 +1068,11 @@ export default function EncarteCanvas({
       onPointerUp={(e) => handlePointerUp(e, () => onAbrirDetalhes(ep.product.id))}
       onPointerCancel={(e) => handlePointerUp(e)}
     >
-      <EncarteProductCard produto={ep} estilo={estilo} selecionado={ep.product.id === produtoDetalhadoId} />
+      <EncarteProductCard
+        produto={ep}
+        estilo={estilo}
+        selecionado={ep.product.id === produtoDetalhadoId || ep.product.id === produtoSelecionadoId}
+      />
     </div>
   );
 
@@ -1130,18 +1141,21 @@ export default function EncarteCanvas({
     ...textos.map((t) => ({ chave: `t:${t.id}`, z: t.z ?? 0, el: renderTexto(t) })),
   ].sort((a, b) => (a.z - b.z) || (a.chave < b.chave ? -1 : 1));
 
-  // Elemento que as setas ↑ ↓ de camada vão mexer (o último selecionado).
+  // Elemento que as setas ↑ ↓ de camada vão mexer — o último que o usuário
+  // clicou no canvas (forma, texto, imagem OU produto). Produto usa seleção
+  // própria (`produtoSelecionadoId`), não depende do painel de Detalhes.
   const alvoCamada: { tipo: CamadaTipo; id: string | number } | null =
     formaSelecionadaId ? { tipo: 'forma', id: formaSelecionadaId }
     : textoSelecionadoId ? { tipo: 'texto', id: textoSelecionadoId }
     : imagemSelecionadaId ? { tipo: 'imagem', id: imagemSelecionadaId }
-    : produtoDetalhadoId != null ? { tipo: 'produto', id: produtoDetalhadoId }
+    : produtoSelecionadoId != null ? { tipo: 'produto', id: produtoSelecionadoId }
     : null;
   const idxAlvoCamada = alvoCamada
     ? camadas.findIndex((c) => c.chave === `${alvoCamada.tipo[0]}:${alvoCamada.id}`)
     : -1;
-  const podeCamadaFrente = idxAlvoCamada >= 0 && idxAlvoCamada < camadas.length - 1;
-  const podeCamadaTras = idxAlvoCamada > 0;
+  // Basta ter um elemento selecionado pras setas ficarem disponíveis — nos
+  // extremos da pilha o clique é um no-op silencioso (ver `reordenarCamada`).
+  const temAlvoCamada = idxAlvoCamada >= 0;
 
   const marcasX = reguasVisiveis ? marcasRegua(formato.width) : [];
   const marcasY = reguasVisiveis ? marcasRegua(formato.height) : [];
@@ -1291,6 +1305,7 @@ export default function EncarteCanvas({
               setTextoEditandoId(t.id);
               setFormaSelecionadaId(null);
               setImagemSelecionadaId(null);
+              setProdutoSelecionadoId(null);
             }}
             title="Adicionar caixa de texto"
             className={cn(
@@ -1363,8 +1378,8 @@ export default function EncarteCanvas({
           {/* Camada: trazer pra frente / mandar pra trás o elemento selecionado */}
           <button
             onClick={() => alvoCamada && onReordenarCamada(alvoCamada, 'frente')}
-            disabled={!podeCamadaFrente}
-            title={alvoCamada ? 'Trazer pra frente (um passo)' : 'Selecione um elemento pra mudar a camada'}
+            disabled={!temAlvoCamada}
+            title={temAlvoCamada ? 'Trazer pra frente (um passo)' : 'Selecione um elemento pra mudar a camada'}
             className={cn(
               'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               tbCompacta ? 'px-2' : 'px-3',
@@ -1375,8 +1390,8 @@ export default function EncarteCanvas({
           </button>
           <button
             onClick={() => alvoCamada && onReordenarCamada(alvoCamada, 'tras')}
-            disabled={!podeCamadaTras}
-            title={alvoCamada ? 'Mandar pra trás (um passo)' : 'Selecione um elemento pra mudar a camada'}
+            disabled={!temAlvoCamada}
+            title={temAlvoCamada ? 'Mandar pra trás (um passo)' : 'Selecione um elemento pra mudar a camada'}
             className={cn(
               'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               tbCompacta ? 'px-2' : 'px-3',
@@ -1493,6 +1508,7 @@ export default function EncarteCanvas({
           if (formaSelecionadaId) setFormaSelecionadaId(null);
           if (textoSelecionadoId) setTextoSelecionadoId(null);
           if (imagemSelecionadaId) setImagemSelecionadaId(null);
+          if (produtoSelecionadoId != null) setProdutoSelecionadoId(null);
           if (textoEditandoId) setTextoEditandoId(null);
         }}
       >

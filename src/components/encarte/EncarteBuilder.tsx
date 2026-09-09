@@ -420,9 +420,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   // ── Camadas: trazer pra frente / mandar pra trás um passo por clique ──
   // O `z` é compartilhado por produtos, imagens, formas e textos, então
   // qualquer um pode passar na frente (ou atrás) de qualquer outro. Cada
-  // clique troca de lugar com o vizinho imediato; nos extremos, não faz nada.
+  // clique troca de lugar com o vizinho imediato; nos extremos, não faz nada
+  // (devolve o `doc` intacto, sem gastar passo de desfazer).
   const reordenarCamada = (alvo: { tipo: CamadaTipo; id: string | number }, direcao: 'frente' | 'tras') => {
-    atualizarLado((l) => {
+    setDoc((d) => {
+      const l = ladoAtivo === 'verso' && d.ladoVerso ? d.ladoVerso : d.ladoFrente;
       const itens: { tipo: CamadaTipo; id: string | number; z: number }[] = [
         ...l.produtos.map((p) => ({ tipo: 'produto' as const, id: p.product.id, z: p.z ?? 0 })),
         ...l.imagens.map((im) => ({ tipo: 'imagem' as const, id: im.id, z: im.z ?? 0 })),
@@ -432,7 +434,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
       const i = itens.findIndex((it) => it.tipo === alvo.tipo && String(it.id) === String(alvo.id));
       const j = direcao === 'frente' ? i + 1 : i - 1;
-      if (i < 0 || j < 0 || j >= itens.length) return {}; // fora da lista ou já no extremo
+      if (i < 0 || j < 0 || j >= itens.length) return d; // não achou ou já no extremo — nada muda
 
       // Densifica o z pra 0..n-1 (sem números fugindo) e troca os dois vizinhos.
       const rank = itens.map((_, k) => k);
@@ -442,12 +444,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         const k = itens.findIndex((it) => it.tipo === tipo && String(it.id) === String(id));
         return k >= 0 ? rank[k] : 0;
       };
-      return {
+      const novoLado: LadoEncarte = {
+        ...l,
         produtos: l.produtos.map((p) => ({ ...p, z: zDe('produto', p.product.id) })),
         imagens: l.imagens.map((im) => ({ ...im, z: zDe('imagem', im.id) })),
         formas: (l.formas ?? []).map((f) => ({ ...f, z: zDe('forma', f.id) })),
         textos: (l.textos ?? []).map((t) => ({ ...t, z: zDe('texto', t.id) })),
       };
+      return ladoAtivo === 'verso' ? { ...d, ladoVerso: novoLado } : { ...d, ladoFrente: novoLado };
     });
   };
 
