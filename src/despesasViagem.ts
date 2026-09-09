@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { CATEGORIAS_VALIDAS, STATUS_VALIDOS } from './lib/despesasViagemReport';
 import { extrairRecibo, IANaoConfiguradaError } from './lib/reciboExtract';
+import { assinarRecibo, conferirAssinaturaRecibo, statRecibo, streamRecibo } from './lib/recibos';
 
 const router = Router();
 
@@ -67,6 +68,8 @@ export async function ensureDespesasViagemSchema() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_despesas_viagem_viagem ON despesas_viagem(viagem_id);`);
+  // Despesa criada por foto (WhatsApp) nasce sem valor — preenchido pela extração.
+  await pool.query(`ALTER TABLE despesas_viagem ALTER COLUMN valor_centavos DROP NOT NULL;`).catch(() => {});
 }
 
 async function recalcularTotal(viagemId: string) {
@@ -149,7 +152,11 @@ router.get('/viagens/:id', apiAuth, async (req: Request, res: Response) => {
       `SELECT ${DESPESA_SELECT} FROM despesas_viagem WHERE viagem_id = $1 ORDER BY data_despesa ASC, created_at ASC`,
       [req.params.id]
     );
-    res.json({ ...viagem.rows[0], despesas: despesas.rows });
+    const despesasComUrl = despesas.rows.map((d: any) => ({
+      ...d,
+      recibo_url: d.recibo_key ? `/api/despesas-viagem/recibo/${d.id}?k=${assinarRecibo(d.id)}` : null,
+    }));
+    res.json({ ...viagem.rows[0], despesas: despesasComUrl });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -291,6 +298,24 @@ router.post('/extrair', apiAuth, async (req: Request, res: Response) => {
     }
     console.error('[despesas-viagem] falha na extração:', err);
     res.status(502).json({ error: `Não consegui ler a nota: ${err.message}` });
+  }
+});
+
+// ── Stream do recibo (bucket privado). Autentica pela assinatura na query
+//    (`<img>` não manda header), não por x-api-token. ──
+router.get('/recibo/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!conferirAssinaturaRecibo(id, String(req.query.k || ''))) return res.sendStatus(403);
+    const row = await pool.query('SELECT recibo_key FROM despesas_viagem WHERE id = $1', [id]);
+    const key = row.rows[0]?.recibo_key;
+    if (!key) return res.sendStatus(404);
+    const stat = await statRecibo(key);
+    res.setHeader('Content-Type', stat.metaData?.['content-type'] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    (await streamRecibo(key)).pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

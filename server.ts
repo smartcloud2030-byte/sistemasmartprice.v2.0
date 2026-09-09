@@ -9,6 +9,8 @@ import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
 import notaFiscalRouter, { ensureNotaFiscalSchema } from './src/notaFiscal';
 import monitoringRouter, { ensureMonitoringSchema, startMonitoringJobs } from './src/monitoring';
 import despesasViagemRouter, { ensureDespesasViagemSchema } from './src/despesasViagem';
+import whatsappBotRouter, { ensureWhatsappSchema } from './src/whatsappBot';
+import { ensureBucketRecibos } from './src/lib/recibos';
 import apiRouter, { pool, setSocketServer } from './api';
 
 // ── Suporte / Chat: schema no Postgres local ──
@@ -118,7 +120,7 @@ async function startServer() {
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
 
-  app.use(express.json({ limit: '50mb' }));
+  app.use(express.json({ limit: '50mb', verify: (req, _res, buf) => { (req as any).rawBody = buf; } }));
 
   // ── Rotas da API (ANTES do static) ────────
   app.use('/gallery', galleryRouter);
@@ -126,12 +128,15 @@ async function startServer() {
   app.use('/api/notafiscal', notaFiscalRouter);
   app.use('/api/monitoring', monitoringRouter);
   app.use('/api/despesas-viagem', despesasViagemRouter);
+  app.use('/api/whatsapp', whatsappBotRouter);
   app.use('/api', apiRouter);
 
   await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
   await ensureNotaFiscalSchema().catch(err => console.error('Erro ao preparar schema de notas fiscais:', err));
   await ensureMonitoringSchema().catch(err => console.error('Erro ao preparar schema de monitoramento:', err));
   await ensureDespesasViagemSchema().catch(err => console.error('Erro ao preparar schema de despesas de viagem:', err));
+  await ensureWhatsappSchema().catch(err => console.error('Erro ao preparar schema do WhatsApp:', err));
+  await ensureBucketRecibos().catch(err => console.error('Erro ao preparar bucket de recibos:', err));
 
   io.on("connection", (socket) => {
     console.log("New socket connection attempt:", socket.id);
