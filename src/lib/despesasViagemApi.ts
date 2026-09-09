@@ -103,3 +103,17 @@ export const atualizarDespesa = (id: string, patch: PatchDespesaInput) =>
   req<DespesaViagem>(`/despesas/${id}`, 'PATCH', patch);
 export const excluirDespesa = (id: string) =>
   req<{ success: true }>(`/despesas/${id}`, 'DELETE').then(() => undefined);
+
+export interface ReciboExtraido {
+  categoria: string;
+  valorCentavos: number | null;
+  dataDespesa: string | null;
+  estabelecimento: string | null;
+  documentoNumero: string | null;
+  litros: number | null;
+  kmVeiculo: number | null;
+  confianca: 'alta' | 'media' | 'baixa';
+  observacao: string | null;
+}
+export const extrairReciboApi = (imagemBase64: string, mediaType: string, dica?: string) =>
+  req<ReciboExtraido>('/extrair', 'POST', { imagemBase64, mediaType, dica });

@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Pencil, RefreshCw, Camera, Loader2 } from 'lucide-react';
 import {
   centavosParaBRL, reaisParaCentavos, resumoPorCategoria, rotuloCategoria,
   CATEGORIAS_VALIDAS, type ItemDespesa,
 } from '../lib/despesasViagemReport';
 import {
   listarViagens, criarViagem, getViagem, atualizarViagem, excluirViagem,
-  criarDespesa, atualizarDespesa, excluirDespesa,
+  criarDespesa, atualizarDespesa, excluirDespesa, extrairReciboApi,
 } from '../lib/despesasViagemApi';
 import type {
   ViagemResumo, ViagemDetalhe, DespesaViagem,
@@ -77,6 +77,40 @@ function DespesaForm({ inicial, salvando, onSalvar, onCancelar }: {
 }) {
   const [f, setF] = useState<DespesaFormValue>(inicial);
   const set = (k: keyof DespesaFormValue, v: string) => setF((p) => ({ ...p, [k]: v }));
+  const [lendo, setLendo] = useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const aoEscolherFoto = async (file: File) => {
+    setLendo(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(fr.error);
+        fr.readAsDataURL(file);
+      });
+      const b64 = dataUrl.split(',')[1] || '';
+      const r = await extrairReciboApi(b64, file.type || 'image/jpeg', f.descricao.trim() || undefined);
+      setF((p) => ({
+        ...p,
+        categoria: r.categoria || p.categoria,
+        valor: r.valorCentavos != null ? centavosParaBRL(r.valorCentavos).replace('R$ ', '') : p.valor,
+        data_despesa: r.dataDespesa || p.data_despesa,
+        estabelecimento: r.estabelecimento || p.estabelecimento,
+        documento_numero: r.documentoNumero || p.documento_numero,
+      }));
+      if (r.confianca === 'baixa') {
+        toast.warning('Li a nota, mas confira o valor e a data (leitura incerta).');
+      } else {
+        toast.success('Nota lida — confira os campos e salve.');
+      }
+      if (r.observacao) toast.message(r.observacao);
+    } catch (e: any) {
+      toast.error(e.message || 'Não consegui ler a nota');
+    } finally {
+      setLendo(false);
+    }
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +155,23 @@ function DespesaForm({ inicial, salvando, onSalvar, onCancelar }: {
         Nº do documento (opcional)
         <input className={inputCls} value={f.documento_numero} onChange={(e) => set('documento_numero', e.target.value)} />
       </label>
-      <div className="col-span-2 flex justify-end gap-2">
+      <div className="col-span-2 flex items-center justify-end gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const file = e.target.files?.[0]; if (file) aoEscolherFoto(file); e.target.value = ''; }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={lendo}
+          className="mr-auto flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-blue-300 dark:border-blue-800 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
+        >
+          {lendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+          {lendo ? 'Lendo a nota…' : 'Extrair da foto'}
+        </button>
         <button type="button" onClick={onCancelar} className="px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 text-black dark:text-white">Cancelar</button>
         <button type="submit" disabled={salvando} className="px-3 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-50">
           {salvando ? 'Salvando…' : 'Salvar'}
