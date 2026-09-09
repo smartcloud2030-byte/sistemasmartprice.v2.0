@@ -39,7 +39,7 @@ function toItem(d: DespesaViagem): ItemDespesa {
   return {
     categoria: d.categoria,
     descricao: d.descricao,
-    valorCentavos: Number(d.valor_centavos),
+    valorCentavos: d.valor_centavos == null ? 0 : Number(d.valor_centavos),
     dataDespesa: d.data_despesa,
     estabelecimento: d.estabelecimento,
   };
@@ -61,7 +61,7 @@ const despesaFormVazio = (): DespesaFormValue => ({
 function despesaParaForm(d: DespesaViagem): DespesaFormValue {
   return {
     categoria: d.categoria,
-    valor: centavosParaBRL(Number(d.valor_centavos)).replace('R$ ', ''),
+    valor: d.valor_centavos == null ? '' : centavosParaBRL(Number(d.valor_centavos)).replace('R$ ', ''),
     data_despesa: d.data_despesa.slice(0, 10),
     estabelecimento: d.estabelecimento ?? '',
     descricao: d.descricao ?? '',
@@ -393,7 +393,7 @@ export default function DespesasViagemModal() {
 
   const despesas = detalhe?.despesas ?? [];
   const resumo = resumoPorCategoria(despesas.map(toItem));
-  const totalNum = despesas.reduce((s, d) => s + Number(d.valor_centavos), 0);
+  const totalNum = despesas.reduce((s, d) => s + (d.valor_centavos == null ? 0 : Number(d.valor_centavos)), 0);
   const despesasVisiveis = soPendentes
     ? despesas.filter((d) => d.ia_status === 'pendente' || d.ia_status === 'extraido' || d.ia_confianca === 'baixa')
     : despesas;
@@ -622,9 +622,18 @@ export default function DespesasViagemModal() {
                         </p>
                         <p className="text-[11px] text-zinc-500 truncate">
                           {brDate(d.data_despesa)}{d.descricao ? ` · ${d.descricao}` : ''}
+                          {d.origem === 'whatsapp' ? ' · wpp' : ''}
+                          {d.ia_status === 'pendente' ? ' · sem valor' : ''}
                         </p>
                       </div>
-                      <span className="text-sm font-bold text-black dark:text-white shrink-0">{centavosParaBRL(Number(d.valor_centavos))}</span>
+                      {d.recibo_url && (
+                        <a href={d.recibo_url} target="_blank" rel="noreferrer" title="Ver recibo" className="text-zinc-400 hover:text-black dark:hover:text-white shrink-0">
+                          <Camera className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      <span className="text-sm font-bold text-black dark:text-white shrink-0">
+                        {d.valor_centavos == null ? '—' : centavosParaBRL(Number(d.valor_centavos))}
+                      </span>
                       <button onClick={() => { setEditDespesaId(d.id); setAddDespesaAberta(false); }} className="text-zinc-400 hover:text-black dark:hover:text-white shrink-0" title="Editar">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>

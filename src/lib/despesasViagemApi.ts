@@ -30,7 +30,7 @@ export interface DespesaViagem {
   viagem_id: string;
   categoria: string;
   descricao: string | null;
-  valor_centavos: string;       // BIGINT -> string
+  valor_centavos: string | null; // BIGINT -> string; null enquanto não extraído (foto)
   data_despesa: string;         // YYYY-MM-DD
   estabelecimento: string | null;
   documento_numero: string | null;
@@ -44,6 +44,7 @@ export interface DespesaViagem {
   criado_por: string | null;
   created_at: string;
   updated_at: string;
+  recibo_url?: string | null;   // presente quando há recibo_key (URL assinada de stream)
 }
 
 export type ViagemDetalhe = ViagemRow & { despesas: DespesaViagem[] };
