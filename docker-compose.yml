@@ -41,6 +41,13 @@ services:
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       DESPESAS_IA_MODEL: ${DESPESAS_IA_MODEL:-claude-opus-5}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET}
+      WHATSAPP_ALLOWED_NUMBERS: ${WHATSAPP_ALLOWED_NUMBERS}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v22.0}
+      MINIO_BUCKET_RECIBOS: ${MINIO_BUCKET_RECIBOS:-smartprice-recibos}
     depends_on:
       postgres:
         condition: service_healthy
@@ -112,6 +119,7 @@ services:
         mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
         mc mb --ignore-existing local/smartprice-images;
         mc anonymous set download local/smartprice-images;
+        mc mb --ignore-existing local/smartprice-recibos;
         echo 'Bucket smartprice-images criado e configurado como público';
         exit 0;
       "
