@@ -88,12 +88,22 @@ function AutoAjuste({
   sig,
   origem = 'top left',
   min = 0.4,
+  escalaInterna = 1,
   className,
   children,
 }: {
   sig: string;
   origem?: string;
   min?: number;
+  /**
+   * Escala que o próprio `children` já aplica em si mesmo por `transform`
+   * (ex.: o slider "Etiqueta"). Como `transform` não mexe em `scrollWidth`,
+   * sem isto o auto-ajuste não "enxerga" a etiqueta ampliada e ela estoura a
+   * caixa pela direita. Multiplicamos só a LARGURA natural por esse fator: a
+   * altura da caixa da etiqueta cresce com o conteúdo (não tem teto), então
+   * não pode virar restrição — senão o slider não teria efeito nenhum.
+   */
+  escalaInterna?: number;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -110,7 +120,7 @@ function AutoAjuste({
       const dh = wrap.clientHeight;
       const nh = inner.scrollHeight;
       const dw = wrap.clientWidth;
-      const nw = inner.scrollWidth;
+      const nw = inner.scrollWidth * Math.max(1, escalaInterna);
       const rH = dh > 0 && nh > dh + 0.5 ? dh / nh : 1;
       const rW = dw > 0 && nw > dw + 0.5 ? dw / nw : 1;
       const alvo = Math.max(min, Math.min(rH, rW));
@@ -120,7 +130,7 @@ function AutoAjuste({
     const ro = new ResizeObserver(medir);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [sig, min]);
+  }, [sig, min, escalaInterna]);
 
   return (
     <div ref={wrapRef} className={cn('overflow-hidden', className)}>
@@ -347,7 +357,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[8px] font-semibold text-zinc-500 mt-0.5 break-words">C/ {medida}</p>}
         </AutoAjuste>
-        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} className="flex-shrink-0">
+        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} escalaInterna={estilo.escalaEtiqueta} className="flex-shrink-0">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
         </AutoAjuste>
       </div>
@@ -374,7 +384,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           )}
           {medida && <p className="text-[9px] font-black uppercase text-zinc-900 leading-[1.1] break-words">C/ {medida}</p>}
         </AutoAjuste>
-        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} className="flex-shrink-0">
+        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} escalaInterna={estilo.escalaEtiqueta} className="flex-shrink-0">
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
         </AutoAjuste>
       </div>
