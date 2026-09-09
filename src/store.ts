@@ -457,8 +457,6 @@ interface AppState {
   setAnnouncementModalOpen: (open: boolean) => void;
   isProductReportModalOpen: boolean;
   setProductReportModalOpen: (open: boolean) => void;
-  isDespesasViagemModalOpen: boolean;
-  setDespesasViagemModalOpen: (open: boolean) => void;
   seenAnnouncements: string[];
   setSeenAnnouncements: (ids: string[]) => void;
 
@@ -1063,8 +1061,6 @@ export const useStore = create<AppState>()(
       setAnnouncementModalOpen: (open) => set({ isAnnouncementModalOpen: open }),
       isProductReportModalOpen: false,
       setProductReportModalOpen: (open) => set({ isProductReportModalOpen: open }),
-      isDespesasViagemModalOpen: false,
-      setDespesasViagemModalOpen: (open) => set({ isDespesasViagemModalOpen: open }),
       announcements: [],
       setAnnouncements: (announcements) => set({ announcements }),
       addAnnouncement: (announcement) => set((state) => {
