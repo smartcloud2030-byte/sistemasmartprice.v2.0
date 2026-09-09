@@ -96,3 +96,27 @@ export function linhasRelatorio(itens: ItemDespesa[]): LinhaRelatorio[] {
       valor: centavosParaBRL(i.valorCentavos),
     }));
 }
+
+// Converte um valor digitado em reais (formatos BR) para centavos inteiros.
+// Devolve null se vazio, não-numérico ou <= 0.
+export function reaisParaCentavos(input: string): number | null {
+  if (typeof input !== 'string') return null;
+  let s = input.trim().replace(/^r\$\s*/i, '').replace(/\s/g, '');
+  if (s === '' || /[^\d.,]/.test(s)) return null;
+
+  const temVirgula = s.includes(',');
+  const temPonto = s.includes('.');
+  if (temVirgula && temPonto) {
+    s = s.replace(/\./g, '').replace(',', '.');       // ponto=milhar, vírgula=decimal
+  } else if (temVirgula) {
+    s = s.replace(',', '.');
+  } else if (temPonto) {
+    const partes = s.split('.');
+    // um único ponto com <=2 dígitos depois = decimal; qualquer outra coisa = milhar
+    if (!(partes.length === 2 && partes[1].length <= 2)) s = s.replace(/\./g, '');
+  }
+
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100);
+}

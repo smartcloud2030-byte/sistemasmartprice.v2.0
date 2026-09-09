@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import {
   centavosParaBRL, totalCentavos, resumoPorCategoria, linhasRelatorio,
-  rotuloCategoria, formatarDataBR, CATEGORIAS_VALIDAS, type ItemDespesa,
+  rotuloCategoria, formatarDataBR, reaisParaCentavos, CATEGORIAS_VALIDAS, type ItemDespesa,
 } from './despesasViagemReport';
 
 const itens: ItemDespesa[] = [
@@ -59,6 +59,23 @@ function formatarDataBRLidaComISOComOuSemHora() {
   assert.strictEqual(formatarDataBR('sem-data'), 'sem-data');
 }
 
+function reaisParaCentavosCobreOsFormatosBR() {
+  assert.strictEqual(reaisParaCentavos(''), null);
+  assert.strictEqual(reaisParaCentavos('abc'), null);
+  assert.strictEqual(reaisParaCentavos('0'), null);
+  assert.strictEqual(reaisParaCentavos('-5'), null);
+  assert.strictEqual(reaisParaCentavos('250'), 25000);
+  assert.strictEqual(reaisParaCentavos('250,00'), 25000);
+  assert.strictEqual(reaisParaCentavos('250.00'), 25000);
+  assert.strictEqual(reaisParaCentavos('1.234,56'), 123456);
+  assert.strictEqual(reaisParaCentavos('12,5'), 1250);
+  assert.strictEqual(reaisParaCentavos('1234'), 123400);
+  assert.strictEqual(reaisParaCentavos('12.50'), 1250);
+  assert.strictEqual(reaisParaCentavos('1.234'), 123400);
+  assert.strictEqual(reaisParaCentavos('R$ 1.234,56'), 123456);
+  assert.strictEqual(reaisParaCentavos('  99,90 '), 9990);
+}
+
 try {
   centavosFormataEmReal();
   totalSomaTodosOsItens();
@@ -66,6 +83,7 @@ try {
   linhasSaoOrdenadasPorDataEFormatadas();
   rotuloCategoriaCobreAsValidasEFazFallback();
   formatarDataBRLidaComISOComOuSemHora();
+  reaisParaCentavosCobreOsFormatosBR();
   console.log('PASS: todos os testes de despesasViagemReport passaram');
 } catch (err: any) {
   console.error('FAIL:', err.message);
