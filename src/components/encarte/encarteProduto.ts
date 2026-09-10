@@ -43,8 +43,8 @@ export const FORMAS_ETIQUETA: { id: FormaEtiqueta; nome: string }[] = [
 export type AcabamentoEtiqueta = 'solida' | 'degrade' | 'contorno';
 
 export const ACABAMENTOS_ETIQUETA: { id: AcabamentoEtiqueta; nome: string }[] = [
-  { id: 'solida', nome: 'Sólida' },
   { id: 'degrade', nome: 'Degradê' },
+  { id: 'solida', nome: 'Sólida' },
   { id: 'contorno', nome: 'Contorno' },
 ];
 

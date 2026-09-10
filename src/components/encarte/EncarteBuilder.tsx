@@ -614,7 +614,6 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               ladoAtivo={ladoAtivo}
               onAtualizar={(patch) => atualizarProduto(produtoDetalhado.product.id, patch)}
               onAtualizarEstilo={atualizarEstilo}
-              onRemover={() => removerProduto(produtoDetalhado.product.id)}
               onEnviarParaOutroLado={() => enviarProdutoParaOutroLado(produtoDetalhado.product.id)}
               onVoltar={() => setProdutoDetalhadoId(null)}
             />

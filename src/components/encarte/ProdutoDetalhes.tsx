@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Trash2, Package, Crown, Images, Ban } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -17,7 +17,6 @@ interface ProdutoDetalhesProps {
   ladoAtivo: 'frente' | 'verso';
   onAtualizar: (patch: Partial<EncarteProduto>) => void;
   onAtualizarEstilo: (patch: Partial<EstiloEncarte>) => void;
-  onRemover: () => void;
   onEnviarParaOutroLado: () => void;
   onVoltar: () => void;
 }
@@ -30,7 +29,6 @@ export default function ProdutoDetalhes({
   ladoAtivo,
   onAtualizar,
   onAtualizarEstilo,
-  onRemover,
   onEnviarParaOutroLado,
   onVoltar,
 }: ProdutoDetalhesProps) {
@@ -90,7 +88,6 @@ export default function ProdutoDetalhes({
             label={ladoAtivo === 'frente' ? 'Enviar pro verso' : 'Enviar pra frente'}
             onClick={onEnviarParaOutroLado}
           />
-          <BotaoAcao icon={Trash2} label="Remover produto" danger onClick={onRemover} />
         </div>
       </div>
 
