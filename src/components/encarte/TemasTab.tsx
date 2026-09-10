@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -16,7 +16,7 @@ import { getProxyUrl, cn } from '../../lib/utils';
 import ClassificacaoBar from './ClassificacaoBar';
 
 const CATEGORIA = 'encarte-temas';
-const PREVIA = 6; // quantos temas aparecem na tira antes do "Ver mais"
+const PREVIA = 12; // até quantos temas a tira horizontal carrega
 
 interface TemasTabProps {
   selecionada: string | null;
@@ -55,12 +55,13 @@ function UploadTema({
   );
 }
 
-/** Card de um tema — usado na tira horizontal e na grade em tela cheia. */
+/** Card de um tema — usado na tira horizontal e na grade da classificação. */
 function TemaThumb({
   img,
   ativa,
   podeEditar,
   substituindo,
+  ajuste = 'cover',
   onSelect,
   onReplace,
   onDelete,
@@ -69,6 +70,8 @@ function TemaThumb({
   ativa: boolean;
   podeEditar: boolean;
   substituindo: boolean;
+  /** 'cover' preenche o quadro (tira); 'contain' mostra a imagem inteira (grade) */
+  ajuste?: 'cover' | 'contain';
   onSelect: () => void;
   onReplace: (file: File) => void;
   onDelete: () => void;
@@ -77,11 +80,15 @@ function TemaThumb({
     <div
       onClick={onSelect}
       className={cn(
-        'group relative rounded-lg overflow-hidden border-2 aspect-[16/10] bg-zinc-800 transition-colors cursor-pointer',
+        'group relative rounded-lg overflow-hidden border-2 aspect-[16/10] transition-colors cursor-pointer',
+        ajuste === 'contain' ? 'bg-zinc-900' : 'bg-zinc-800',
         ativa ? 'border-emerald-500' : 'border-transparent hover:border-zinc-600',
       )}
     >
-      <img src={getProxyUrl(img.url, { thumbnail: true })} className="w-full h-full object-cover" />
+      <img
+        src={getProxyUrl(img.url, { thumbnail: true })}
+        className={cn('w-full h-full', ajuste === 'contain' ? 'object-contain' : 'object-cover')}
+      />
       {ativa && (
         <div className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
           <Check className="w-2.5 h-2.5 text-white" />
@@ -158,6 +165,92 @@ function ModalApagarTema({
   );
 }
 
+/** Uma linha da lista: nome + "Ver mais" + tira horizontal com seta que desliza. */
+function LinhaClassificacao({
+  cat,
+  imgs,
+  selecionada,
+  isAdmin,
+  substituindo,
+  uploadAlvo,
+  onSelecionar,
+  onSubstituir,
+  onApagar,
+  onVerMais,
+}: {
+  cat: string;
+  imgs: GalleryImage[];
+  selecionada: string | null;
+  isAdmin: boolean;
+  substituindo: string | null;
+  uploadAlvo: string | null;
+  onSelecionar: (url: string) => void;
+  onSubstituir: (img: GalleryImage, file: File, classif: string) => void;
+  onApagar: (img: GalleryImage, classif: string) => void;
+  onVerMais: (cat: string) => void;
+}) {
+  const tiraRef = useRef<HTMLDivElement>(null);
+
+  const deslizar = () => {
+    const el = tiraRef.current;
+    if (!el) return;
+    const fim = el.scrollWidth - el.clientWidth - 4;
+    if (el.scrollLeft >= fim) {
+      el.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      el.scrollBy({ left: Math.max(el.clientWidth * 0.8, 120), behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-[13px] font-bold text-zinc-100 truncate">{nomeClassificacao(cat, CATEGORIA)}</h3>
+        <button
+          onClick={() => onVerMais(cat)}
+          className="text-[12px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex-shrink-0"
+        >
+          Ver mais
+        </button>
+      </div>
+
+      <div className="flex items-stretch gap-2">
+        <div
+          ref={tiraRef}
+          className="flex-1 min-w-0 flex gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {imgs.length === 0 ? (
+            <div className="w-[44%] flex-shrink-0 aspect-[16/10] rounded-lg border border-dashed border-zinc-800 flex items-center justify-center text-[10px] text-zinc-600">
+              vazia
+            </div>
+          ) : (
+            imgs.slice(0, PREVIA).map((img) => (
+              <div key={img.fullPath} className="w-[44%] flex-shrink-0">
+                <TemaThumb
+                  img={img}
+                  ativa={selecionada === img.url}
+                  podeEditar={isAdmin}
+                  substituindo={substituindo === img.fullPath}
+                  onSelect={() => onSelecionar(img.url)}
+                  onReplace={(file) => onSubstituir(img, file, cat)}
+                  onDelete={() => onApagar(img, cat)}
+                />
+              </div>
+            ))
+          )}
+        </div>
+        <button
+          onClick={deslizar}
+          title="Deslizar pra ver mais temas"
+          className="flex-shrink-0 self-center w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 flex items-center justify-center transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const { userRole, currentUser, allowedStores } = useStore();
   const isAdmin = userRole === 'admin';
@@ -171,7 +264,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const [classifs, setClassifs] = useState<string[]>([]);
   const [imgsPor, setImgsPor] = useState<Record<string, GalleryImage[]>>({});
   const [carregando, setCarregando] = useState(true);
-  const [telaCheia, setTelaCheia] = useState<string | null>(null); // classificação aberta em tela cheia
+  const [verMais, setVerMais] = useState<string | null>(null); // classificação aberta na aba (imagens inteiras)
   const [gerenciar, setGerenciar] = useState(false);
   const [classifAdmin, setClassifAdmin] = useState(CATEGORIA);
 
@@ -248,41 +341,40 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     }
   };
 
-  // ── Tela cheia de uma classificação ────────────────────────────────
-  if (telaCheia) {
-    const imgs = imgsPor[telaCheia] ?? [];
+  // ── "Ver mais": a classificação abre aqui na aba, com as imagens inteiras ──
+  if (verMais) {
+    const imgs = imgsPor[verMais] ?? [];
     return (
-      <div className="fixed inset-0 z-[60] bg-zinc-950 text-zinc-100 flex flex-col">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 flex-shrink-0">
-          <button onClick={() => setTelaCheia(null)} className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setVerMais(null)} className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors">
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <h2 className="text-sm font-black uppercase tracking-widest flex-grow truncate">
-            {nomeClassificacao(telaCheia, CATEGORIA)}
+            {nomeClassificacao(verMais, CATEGORIA)}
           </h2>
-          <UploadTema classif={telaCheia} ocupado={uploadAlvo === telaCheia} onArquivo={handleUpload} />
+          <UploadTema classif={verMais} ocupado={uploadAlvo === verMais} onArquivo={handleUpload} />
         </div>
 
-        <div className="flex-grow overflow-y-auto p-4">
-          {imgs.length === 0 ? (
-            <p className="text-xs text-zinc-500 text-center py-16">Nenhum tema nesta classificação ainda.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {imgs.map((img) => (
-                <TemaThumb
-                  key={img.fullPath}
-                  img={img}
-                  ativa={selecionada === img.url}
-                  podeEditar={isAdmin}
-                  substituindo={substituindo === img.fullPath}
-                  onSelect={() => { onSelecionar(img.url); setTelaCheia(null); }}
-                  onReplace={(file) => handleSubstituir(img, file, telaCheia)}
-                  onDelete={() => setPendingDelete({ img, classif: telaCheia })}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        {imgs.length === 0 ? (
+          <p className="text-xs text-zinc-500 text-center py-12">Nenhum tema nesta classificação ainda.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {imgs.map((img) => (
+              <TemaThumb
+                key={img.fullPath}
+                img={img}
+                ativa={selecionada === img.url}
+                podeEditar={isAdmin}
+                substituindo={substituindo === img.fullPath}
+                ajuste="contain"
+                onSelect={() => onSelecionar(img.url)}
+                onReplace={(file) => handleSubstituir(img, file, verMais)}
+                onDelete={() => setPendingDelete({ img, classif: verMais })}
+              />
+            ))}
+          </div>
+        )}
 
         {pendingDelete && (
           <ModalApagarTema ocupado={isDeleting} onCancelar={() => setPendingDelete(null)} onConfirmar={handleConfirmDelete} />
@@ -320,55 +412,21 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
         <p className="text-xs text-zinc-500 text-center py-10">Nenhum tema ainda. Envie o primeiro abaixo.</p>
       ) : (
         <div className="space-y-6">
-          {classifs.map((cat) => {
-            const imgs = imgsPor[cat] ?? [];
-            return (
-              <div key={cat} className="space-y-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-[13px] font-bold text-zinc-100 truncate">
-                    {nomeClassificacao(cat, CATEGORIA)}
-                  </h3>
-                  <button
-                    onClick={() => setTelaCheia(cat)}
-                    className="text-[12px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex-shrink-0"
-                  >
-                    Ver mais
-                  </button>
-                </div>
-
-                <div className="flex items-stretch gap-2">
-                  <div className="flex-1 min-w-0 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {imgs.length === 0 ? (
-                      <div className="w-[44%] flex-shrink-0 aspect-[16/10] rounded-lg border border-dashed border-zinc-800 flex items-center justify-center text-[10px] text-zinc-600">
-                        vazia
-                      </div>
-                    ) : (
-                      imgs.slice(0, PREVIA).map((img) => (
-                        <div key={img.fullPath} className="w-[44%] flex-shrink-0">
-                          <TemaThumb
-                            img={img}
-                            ativa={selecionada === img.url}
-                            podeEditar={isAdmin}
-                            substituindo={substituindo === img.fullPath}
-                            onSelect={() => onSelecionar(img.url)}
-                            onReplace={(file) => handleSubstituir(img, file, cat)}
-                            onDelete={() => setPendingDelete({ img, classif: cat })}
-                          />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setTelaCheia(cat)}
-                    title="Ver todos os temas desta classificação"
-                    className="flex-shrink-0 self-center w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 flex items-center justify-center transition-colors"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {classifs.map((cat) => (
+            <LinhaClassificacao
+              key={cat}
+              cat={cat}
+              imgs={imgsPor[cat] ?? []}
+              selecionada={selecionada}
+              isAdmin={isAdmin}
+              substituindo={substituindo}
+              uploadAlvo={uploadAlvo}
+              onSelecionar={onSelecionar}
+              onSubstituir={handleSubstituir}
+              onApagar={(img, classif) => setPendingDelete({ img, classif })}
+              onVerMais={setVerMais}
+            />
+          ))}
         </div>
       )}
 
