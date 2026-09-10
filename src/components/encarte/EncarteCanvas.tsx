@@ -1244,10 +1244,13 @@ export default function EncarteCanvas({
           onClick={() => { onRemoverImagem(im.id); setImagemSelecionadaId(null); }}
           onPointerDown={(e) => e.stopPropagation()}
           data-html2canvas-ignore="true"
-          title="Remover imagem"
-          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Apagar elemento do encarte"
+          className={cn(
+            'absolute -top-8 right-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-red-400 hover:border-red-500/50 shadow-lg transition-colors',
+            selecionada ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          )}
         >
-          <X className="w-3 h-3" />
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
 
         {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
