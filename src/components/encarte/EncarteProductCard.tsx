@@ -213,8 +213,8 @@ function PrecoEtiqueta({
     >
       {/* POR + R$ juntos, no topo à esquerda */}
       <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.03em]">
-        <span className="leading-none" style={{ fontSize: `${0.5 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
-        <span className="leading-none" style={{ fontSize: `${0.48 * escalaRotulos}em` }}>R$</span>
+        <span className="leading-none" style={{ fontSize: `${0.42 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
+        <span className="leading-none" style={{ fontSize: `${0.4 * escalaRotulos}em` }}>R$</span>
       </span>
 
       {/* número inteiro — dominante */}
@@ -233,7 +233,7 @@ function PrecoEtiqueta({
         className="self-stretch flex flex-col items-start justify-end leading-none"
         style={{ marginLeft: '-0.16em' }}
       >
-        <span className="leading-none" style={{ fontSize: `${0.32 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UNI</span>
+        <span className="leading-none" style={{ fontSize: `${0.28 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UN</span>
       </span>
     </span>
   );
