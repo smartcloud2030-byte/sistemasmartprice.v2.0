@@ -20,7 +20,8 @@ import {
   CamadaTipo,
 } from './encarteProduto';
 
-const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento de imagem
+const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
+const SANGRIA = 100; // % — quanto um elemento pode passar da borda ao mover/redimensionar (sangria total pra fora do encarte)
 
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 3;
@@ -647,21 +648,28 @@ export default function EncarteCanvas({
       return;
     }
 
-    const alvoX = clamp(st.origXPct + (dx / rect.width) * 100, 0, 96);
-    const alvoY = clamp(st.origYPct + (dy / rect.height) * 100, 0, 96);
     const arrastado = produtos.find((p) => p.product.id === st.id);
+    // Sangria: o card pode sair pelas bordas do encarte; só trava com uma
+    // faixa mínima (MIN_ELEMENTO) ainda dentro pra continuar dando pra pegar.
+    const larguraCard = arrastado ? larguraProdutoPct(arrastado) : cardWbasePct;
+    const minX = MIN_ELEMENTO - larguraCard;
+    const minY = MIN_ELEMENTO - cardHpct;
+    const maxX = 100 - MIN_ELEMENTO;
+    const maxY = 100 - MIN_ELEMENTO;
+    const alvoX = clamp(st.origXPct + (dx / rect.width) * 100, minX, maxX);
+    const alvoY = clamp(st.origYPct + (dy / rect.height) * 100, minY, maxY);
 
     // Segurar Shift durante o arraste desliga o alinhamento inteligente.
     if (arrastado && !e.shiftKey) {
       const outros = produtos.filter((p) => p.product.id !== st.id);
       const r = calcularSnapProduto(alvoX, alvoY, arrastado, outros, larguraProdutoPct, cardHpct);
       setSnapVisual({ v: r.guiasV, h: r.guiasH, marcas: r.marcas });
-      onMoverProduto(st.id, clamp(r.x, 0, 96), clamp(r.y, 0, 96));
+      onMoverProduto(st.id, clamp(r.x, minX, maxX), clamp(r.y, minY, maxY));
     } else {
       if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
         setSnapVisual({ v: [], h: [], marcas: [] });
       }
-      onMoverProduto(st.id, clamp(alvoX, 0, 92), clamp(alvoY, 0, 92));
+      onMoverProduto(st.id, clamp(alvoX, minX, maxX), clamp(alvoY, minY, maxY));
     }
   };
 
@@ -699,30 +707,33 @@ export default function EncarteCanvas({
     const o = st.orig;
 
     if (st.tipo === 'mover') {
+      // Sangria: a imagem pode sair pelas bordas — o encarte recorta o excesso.
+      // Trava só com MIN_ELEMENTO ainda dentro pra não sumir de vez.
       onMoverImagem(
         st.id,
-        clamp(o.xPct + dxPct, 0, 100 - o.wPct),
-        clamp(o.yPct + dyPct, 0, 100 - o.hPct),
+        clamp(o.xPct + dxPct, MIN_ELEMENTO - o.wPct, 100 - MIN_ELEMENTO),
+        clamp(o.yPct + dyPct, MIN_ELEMENTO - o.hPct, 100 - MIN_ELEMENTO),
       );
       return;
     }
 
+    // Redimensionar também passa das bordas e pode ficar maior que o encarte.
     let { xPct, yPct, wPct, hPct } = o;
     const oesteMax = o.xPct + o.wPct - MIN_ELEMENTO;
     const norteMax = o.yPct + o.hPct - MIN_ELEMENTO;
     if (st.canto === 'nw' || st.canto === 'sw') {
-      xPct = clamp(o.xPct + dxPct, 0, oesteMax);
+      xPct = clamp(o.xPct + dxPct, -SANGRIA, oesteMax);
       wPct = o.xPct + o.wPct - xPct;
     }
     if (st.canto === 'ne' || st.canto === 'se') {
-      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 - o.xPct);
+      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 + SANGRIA - o.xPct);
     }
     if (st.canto === 'nw' || st.canto === 'ne') {
-      yPct = clamp(o.yPct + dyPct, 0, norteMax);
+      yPct = clamp(o.yPct + dyPct, -SANGRIA, norteMax);
       hPct = o.yPct + o.hPct - yPct;
     }
     if (st.canto === 'sw' || st.canto === 'se') {
-      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 100 - o.yPct);
+      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 100 + SANGRIA - o.yPct);
     }
     onRedimensionarImagem(st.id, { xPct, yPct, wPct, hPct });
   };
@@ -773,18 +784,18 @@ export default function EncarteCanvas({
     const oesteMax = o.xPct + o.wPct - MIN_ELEMENTO;
     const norteMax = o.yPct + o.hPct - MIN_ELEMENTO;
     if (st.canto === 'nw' || st.canto === 'sw') {
-      xPct = clamp(o.xPct + dxPct, -60, oesteMax);
+      xPct = clamp(o.xPct + dxPct, -SANGRIA, oesteMax);
       wPct = o.xPct + o.wPct - xPct;
     }
     if (st.canto === 'ne' || st.canto === 'se') {
-      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 160 - o.xPct);
+      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 + SANGRIA - o.xPct);
     }
     if (st.canto === 'nw' || st.canto === 'ne') {
-      yPct = clamp(o.yPct + dyPct, -60, norteMax);
+      yPct = clamp(o.yPct + dyPct, -SANGRIA, norteMax);
       hPct = o.yPct + o.hPct - yPct;
     }
     if (st.canto === 'sw' || st.canto === 'se') {
-      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 160 - o.yPct);
+      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 100 + SANGRIA - o.yPct);
     }
     onRedimensionarForma(st.id, { xPct, yPct, wPct, hPct });
   };
@@ -940,14 +951,16 @@ export default function EncarteCanvas({
     st.moved = true;
     const o = st.orig;
     if (st.tipo === 'mover') {
+      // Sangria: o texto também passa das bordas. No eixo Y a caixa não tem
+      // altura conhecida, então limita o quanto pode subir pra não sumir.
       onMoverTexto(
         st.id,
         clamp(o.xPct + dxPct, MIN_ELEMENTO - o.wPct, 100 - MIN_ELEMENTO),
-        clamp(o.yPct + dyPct, -10, 100 - MIN_ELEMENTO),
+        clamp(o.yPct + dyPct, -40, 100 - MIN_ELEMENTO),
       );
     } else {
       // resize-e: largura pela borda direita (altura acompanha o texto)
-      onRedimensionarTexto(st.id, clamp(o.wPct + dxPct, MIN_ELEMENTO, 140 - o.xPct));
+      onRedimensionarTexto(st.id, clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 + SANGRIA - o.xPct));
     }
   };
 
