@@ -30,17 +30,31 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
 
   // Sem thumbnail aqui de propósito: o card é exportado em alta qualidade
-  // (scale 3x no download), e a miniatura de 400px ficaria borrada ampliada.
-  // Sombra igual à do editor de plaquinhas (Konva: blur 16 / offsetY 10 /
-  // opacity 0.35 num produto de ~250px) — reproporcionada pro tamanho do card.
+  // (scale alto no download), e a miniatura de 400px ficaria borrada ampliada.
+  //
+  // Sombra: em vez de `filter: drop-shadow` (que o html2canvas-pro renderiza
+  // mais forte/dura que o Chrome no PNG/PDF), usamos uma CÓPIA da própria foto
+  // borrada + escurecida atrás dela. `blur`+`brightness`+`opacity` saem iguais
+  // na tela e no export — a sombra fica fiel.
+  const fotoSrc = getProxyUrl(product.image || product.thumb_image);
   const foto = product.image ? (
-    <img
-      src={getProxyUrl(product.image || product.thumb_image)}
-      className="w-full h-full object-contain"
-      style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.35))' }}
-      referrerPolicy="no-referrer"
-      crossOrigin="anonymous"
-    />
+    <span className="relative block w-full h-full">
+      <img
+        src={fotoSrc}
+        aria-hidden
+        draggable={false}
+        className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+        style={{ filter: 'blur(4px) brightness(0)', opacity: 0.33, transform: 'translateY(4px)' }}
+        referrerPolicy="no-referrer"
+        crossOrigin="anonymous"
+      />
+      <img
+        src={fotoSrc}
+        className="relative w-full h-full object-contain"
+        referrerPolicy="no-referrer"
+        crossOrigin="anonymous"
+      />
+    </span>
   ) : (
     <Package className="w-6 h-6 text-zinc-300" />
   );

@@ -522,12 +522,20 @@ export default function EncarteCanvas({
    * O `zoom` da visualização não entra aqui: ele fica numa camada acima do
    * `canvasRef`, então o arquivo gerado sai sempre no tamanho real.
    */
-  const renderParaCanvas = () =>
-    html2canvas(canvasRef.current as HTMLElement, {
+  const renderParaCanvas = async () => {
+    // Garante que as fontes (as ~140 do encarte carregam sob demanda) e as
+    // imagens já estejam prontas antes de capturar — senão o export sai com
+    // fonte de fallback ou foto faltando.
+    try { await (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* ignora */ }
+    return html2canvas(canvasRef.current as HTMLElement, {
       useCORS: true,
+      allowTaint: false,
       backgroundColor: '#000000',
       scale: formato.width / CANVAS_W,
+      imageTimeout: 20000,
+      logging: false,
     });
+  };
 
   /** "Salvar": gera uma miniatura leve e manda o encarte inteiro pra aba Encartes. */
   const salvarEncarte = async () => {
@@ -566,8 +574,10 @@ export default function EncarteCanvas({
           orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
           unit: 'px',
           format: [canvas.width, canvas.height],
+          compress: true,
         });
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
+        // PNG (sem perdas) em vez de JPEG — mantém texto/bordas nítidos e fiéis.
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
         pdf.save(`${nomeBase}.pdf`);
       }
 
