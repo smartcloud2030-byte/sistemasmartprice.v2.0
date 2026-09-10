@@ -6,7 +6,7 @@ import {
   Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
-  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner,
+  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -901,7 +901,9 @@ export default function EncarteCanvas({
         <div
           className="w-full h-full cursor-grab active:cursor-grabbing"
           style={{
-            background: fm.cor,
+            background: fm.gradiente
+              ? `linear-gradient(${fm.anguloGrad ?? 135}deg, ${fm.cor}, ${fm.cor2 ?? fm.cor})`
+              : fm.cor,
             borderRadius: fm.tipo === 'circulo' ? '50%' : `${fm.raioBorda ?? 0}px`,
           }}
           onPointerDown={(e) => iniciarFormaDrag(e, 'mover', fm)}
@@ -923,9 +925,37 @@ export default function EncarteCanvas({
                 type="color"
                 value={fm.cor}
                 onChange={(e) => onDefinirCorForma(fm.id, e.target.value)}
-                title="Cor da forma"
+                title={fm.gradiente ? 'Cor inicial' : 'Cor da forma'}
                 className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
               />
+              <button
+                onClick={() => onRedimensionarForma(fm.id, { gradiente: !fm.gradiente, cor2: fm.cor2 ?? '#ffd24a' })}
+                title={fm.gradiente ? 'Desligar degradê' : 'Degradê'}
+                className={cn('p-1 transition-colors', fm.gradiente ? 'text-emerald-400' : 'text-zinc-400 hover:text-zinc-100')}
+              >
+                <Blend className="w-3.5 h-3.5" />
+              </button>
+              {fm.gradiente && (
+                <>
+                  <input
+                    type="color"
+                    value={fm.cor2 ?? '#ffd24a'}
+                    onChange={(e) => onRedimensionarForma(fm.id, { cor2: e.target.value })}
+                    title="Cor final"
+                    className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={5}
+                    value={fm.anguloGrad ?? 135}
+                    onChange={(e) => onRedimensionarForma(fm.id, { anguloGrad: Number(e.target.value) })}
+                    title="Direção do degradê"
+                    className="w-12 accent-emerald-500 cursor-pointer"
+                  />
+                </>
+              )}
               {fm.tipo !== 'circulo' && (
                 <>
                   <span className="w-px h-4 bg-zinc-700 mx-0.5" />
