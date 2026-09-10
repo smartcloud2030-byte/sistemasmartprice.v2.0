@@ -179,15 +179,26 @@ export function criarEncarteProduto(product: Product, index = 0): EncarteProduto
 
 // ── Grade (quantidade de produtos por página) ──────────────────────────
 
-export type GradeId = 'livre' | '2x2' | '2x3' | '2x4' | '3x3' | '3x4';
+export type GradeId =
+  | 'livre'
+  | '2x2' | '2x3' | '3x2'
+  | '2x4' | '4x2' | '3x3'
+  | '3x4' | '4x3' | '2x6' | '6x2'
+  | '5x3';
 
 export const GRADES: { id: GradeId; nome: string; cols: number; rows: number }[] = [
   { id: 'livre', nome: 'Livre', cols: 0, rows: 0 },
   { id: '2x2', nome: '2 × 2', cols: 2, rows: 2 },
   { id: '2x3', nome: '2 × 3', cols: 2, rows: 3 },
+  { id: '3x2', nome: '3 × 2', cols: 3, rows: 2 },
   { id: '2x4', nome: '2 × 4', cols: 2, rows: 4 },
+  { id: '4x2', nome: '4 × 2', cols: 4, rows: 2 },
   { id: '3x3', nome: '3 × 3', cols: 3, rows: 3 },
   { id: '3x4', nome: '3 × 4', cols: 3, rows: 4 },
+  { id: '4x3', nome: '4 × 3', cols: 4, rows: 3 },
+  { id: '2x6', nome: '2 × 6', cols: 2, rows: 6 },
+  { id: '6x2', nome: '6 × 2', cols: 6, rows: 2 },
+  { id: '5x3', nome: '5 × 3', cols: 5, rows: 3 },
 ];
 
 export const getGrade = (id: GradeId) => GRADES.find((g) => g.id === id) ?? GRADES[0];

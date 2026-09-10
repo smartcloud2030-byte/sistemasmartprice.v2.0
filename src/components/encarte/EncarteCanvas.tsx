@@ -6,7 +6,7 @@ import {
   Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
-  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus,
+  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -276,6 +276,31 @@ function gerarThumbnail(canvas: HTMLCanvasElement, maxW = 240): string {
     ctx.drawImage(canvas, 0, 0, w, h);
   }
   return off.toDataURL('image/jpeg', 0.72);
+}
+
+/** Mini-diagrama da grade (cols × rows) pro seletor "Produtos por página". */
+function MiniGrade({ cols, rows, ativa }: { cols: number; rows: number; ativa: boolean }) {
+  const base = cn(
+    'w-full aspect-[4/3] rounded-md border p-1 transition-colors',
+    ativa ? 'border-emerald-500/70 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50',
+  );
+  if (cols < 1 || rows < 1) {
+    return (
+      <div className={cn(base, 'flex items-center justify-center')}>
+        <Shuffle className={cn('w-4 h-4', ativa ? 'text-emerald-400' : 'text-zinc-500')} />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={cn(base, 'grid gap-[3px]')}
+      style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}
+    >
+      {Array.from({ length: cols * rows }).map((_, i) => (
+        <div key={i} className={cn('rounded-[2px]', ativa ? 'bg-emerald-400/80' : 'bg-zinc-600')} />
+      ))}
+    </div>
+  );
 }
 
 interface EncarteCanvasProps {
@@ -1229,20 +1254,37 @@ export default function EncarteCanvas({
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {gradeAberta && (
-              <div className="absolute top-full left-0 mt-1 w-40 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
-                <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
-                  Produtos por página
+              <div className="absolute top-full left-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl z-50 p-3">
+                <p className="text-[13px] font-bold text-zinc-100">Layout da Grade</p>
+                <p className="text-[11px] text-zinc-500">
+                  {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'} nesta página
                 </p>
-                {GRADES.map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => { onGradeChange(g.id); setGradeAberta(false); }}
-                    className="w-full flex items-center justify-between gap-2 px-3.5 py-2 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
-                  >
-                    {g.nome}
-                    {grade === g.id && <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
-                  </button>
-                ))}
+                <p className="mt-2.5 mb-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-600">Regular</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {GRADES.map((g) => {
+                    const ativa = grade === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => { onGradeChange(g.id); setGradeAberta(false); }}
+                        className={cn(
+                          'relative rounded-lg border p-1.5 flex flex-col items-center gap-1.5 transition-colors',
+                          ativa ? 'border-emerald-500/70 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600',
+                        )}
+                      >
+                        <MiniGrade cols={g.cols} rows={g.rows} ativa={ativa} />
+                        <span className={cn('text-[10px] font-semibold', ativa ? 'text-emerald-300' : 'text-zinc-400')}>
+                          {g.nome}
+                        </span>
+                        {ativa && (
+                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
