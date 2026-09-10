@@ -183,7 +183,6 @@ function LinhaClassificacaoImg({
   urlsAtivas,
   isAdmin,
   substituindo,
-  multiplo,
   onAdicionar,
   onRetirar,
   onSubstituir,
@@ -196,8 +195,7 @@ function LinhaClassificacaoImg({
   urlsAtivas: Set<string>;
   isAdmin: boolean;
   substituindo: string | null;
-  multiplo: boolean;
-  onAdicionar: (url: string, multiplo: boolean) => void;
+  onAdicionar: (url: string) => void;
   onRetirar: (url: string) => void;
   onSubstituir: (img: GalleryImage, file: File, classif: string) => void;
   onApagar: (img: GalleryImage, classif: string) => void;
@@ -242,7 +240,7 @@ function LinhaClassificacaoImg({
                   ativa={urlsAtivas.has(img.url)}
                   podeEditar={isAdmin}
                   substituindo={substituindo === img.fullPath}
-                  onAdicionar={() => { onAdicionar(img.url, multiplo); toast.success('Imagem adicionada ao encarte!'); }}
+                  onAdicionar={() => { onAdicionar(img.url); toast.success('Imagem adicionada ao encarte!'); }}
                   onRetirar={() => onRetirar(img.url)}
                   onReplace={(file) => onSubstituir(img, file, cat)}
                   onDelete={() => onApagar(img, cat)}
@@ -295,7 +293,6 @@ export default function GaleriaImagensTab({
   const [verMais, setVerMais] = useState<string | null>(null);
   const [gerenciar, setGerenciar] = useState(false);
   const [classifAdmin, setClassifAdmin] = useState(categoria);
-  const [multiplo, setMultiplo] = useState(false);
 
   const [uploadAlvo, setUploadAlvo] = useState<string | null>(null);
   const [substituindo, setSubstituindo] = useState<string | null>(null);
@@ -368,23 +365,6 @@ export default function GaleriaImagensTab({
     }
   };
 
-  const Toggle = (
-    <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2.5 cursor-pointer">
-      <div>
-        <p className="text-xs font-semibold text-zinc-200">Permitir várias imagens</p>
-        <p className="text-[10px] text-zinc-500">
-          {multiplo ? 'Cada imagem escolhida soma uma nova no encarte.' : 'Escolher outra substitui a atual, no mesmo lugar e tamanho.'}
-        </p>
-      </div>
-      <input
-        type="checkbox"
-        checked={multiplo}
-        onChange={(e) => setMultiplo(e.target.checked)}
-        className="w-4 h-4 accent-emerald-500 flex-shrink-0"
-      />
-    </label>
-  );
-
   // ── "Ver mais": a classificação abre aqui, com as imagens inteiras ──
   if (verMais) {
     const imgs = imgsPor[verMais] ?? [];
@@ -400,8 +380,6 @@ export default function GaleriaImagensTab({
           <UploadImg classif={verMais} ocupado={uploadAlvo === verMais} onArquivo={handleUpload} />
         </div>
 
-        {Toggle}
-
         {imgs.length === 0 ? (
           <p className="text-xs text-zinc-500 text-center py-12">Nenhuma imagem nesta classificação ainda.</p>
         ) : (
@@ -413,7 +391,7 @@ export default function GaleriaImagensTab({
                 ativa={urlsAtivas.has(img.url)}
                 podeEditar={isAdmin}
                 substituindo={substituindo === img.fullPath}
-                onAdicionar={() => { onAdicionarImagem(img.url, multiplo); toast.success('Imagem adicionada ao encarte!'); }}
+                onAdicionar={() => { onAdicionarImagem(img.url, true); toast.success('Imagem adicionada ao encarte!'); }}
                 onRetirar={() => onRemoverDoEncarte(img.url)}
                 onReplace={(file) => handleSubstituir(img, file, verMais)}
                 onDelete={() => setPendingDelete({ img, classif: verMais })}
@@ -440,8 +418,6 @@ export default function GaleriaImagensTab({
         </div>
       </div>
 
-      {Toggle}
-
       {carregando ? (
         <p className="text-xs text-zinc-500 text-center py-10">Carregando...</p>
       ) : classifs.length === 0 ? (
@@ -457,8 +433,7 @@ export default function GaleriaImagensTab({
               urlsAtivas={urlsAtivas}
               isAdmin={isAdmin}
               substituindo={substituindo}
-              multiplo={multiplo}
-              onAdicionar={onAdicionarImagem}
+              onAdicionar={(url) => onAdicionarImagem(url, true)}
               onRetirar={onRemoverDoEncarte}
               onSubstituir={handleSubstituir}
               onApagar={(img, classif) => setPendingDelete({ img, classif })}
