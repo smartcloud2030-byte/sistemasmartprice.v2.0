@@ -21,8 +21,6 @@ interface ProdutoDetalhesProps {
   onVoltar: () => void;
 }
 
-const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'cx', 'pct', 'fardo'];
-
 export default function ProdutoDetalhes({
   produto,
   estilo,
@@ -177,45 +175,6 @@ export default function ProdutoDetalhes({
           placeholder="Ex.: sabor morango, 900g"
           className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
         />
-      </Campo>
-
-      {/* Medida */}
-      <Campo label="Medida">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="decimal"
-            placeholder="Qtd"
-            value={produto.medidaQtd}
-            onChange={(e) => onAtualizar({ medidaQtd: e.target.value })}
-            className="w-24 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-          />
-          <input
-            type="text"
-            list="encarte-unidades"
-            placeholder="un, kg, L..."
-            value={produto.medidaUnidade}
-            onChange={(e) => onAtualizar({ medidaUnidade: e.target.value })}
-            className="flex-grow px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-          />
-          <datalist id="encarte-unidades">
-            {UNIDADES.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
-        </div>
-      </Campo>
-
-      {/* Tipo */}
-      <Campo label="Tipo">
-        <select
-          value={produto.tipo}
-          onChange={(e) => onAtualizar({ tipo: e.target.value as EncarteProduto['tipo'] })}
-          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-        >
-          <option value="simples">Simples</option>
-        </select>
-        <p className="text-[11px] text-zinc-500 mt-1">Preço único</p>
       </Campo>
 
       {/* Preços */}
