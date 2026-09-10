@@ -325,6 +325,8 @@ export interface FormaEncarte {
   wPct: number;
   hPct: number;
   cor: string;
+  /** raio dos cantos, em px no espaço do canvas (0 = reto). Não vale pra círculo. */
+  raioBorda?: number;
   /** LEGADO: só usado pra migrar rascunhos antigos pro campo `z` em `normalizarLado`. */
   atras?: boolean;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com produtos, imagens e textos. */
@@ -345,6 +347,7 @@ export function criarForma(tipo: FormaTipo): FormaEncarte {
     yPct: 39,
     ...TAMANHO_INICIAL_FORMA[tipo],
     cor: '#e8850c', // laranja Ultra Popular (mesmo dos divisores)
+    raioBorda: 0,
     atras: false,
   };
 }

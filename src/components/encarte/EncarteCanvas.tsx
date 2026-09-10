@@ -6,7 +6,7 @@ import {
   Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
-  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle,
+  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner,
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -900,7 +900,10 @@ export default function EncarteCanvas({
       >
         <div
           className="w-full h-full cursor-grab active:cursor-grabbing"
-          style={{ background: fm.cor, borderRadius: fm.tipo === 'circulo' ? '50%' : 0 }}
+          style={{
+            background: fm.cor,
+            borderRadius: fm.tipo === 'circulo' ? '50%' : `${fm.raioBorda ?? 0}px`,
+          }}
           onPointerDown={(e) => iniciarFormaDrag(e, 'mover', fm)}
           onPointerMove={handleFormaPointerMove}
           onPointerUp={handleFormaPointerUp}
@@ -923,6 +926,25 @@ export default function EncarteCanvas({
                 title="Cor da forma"
                 className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
               />
+              {fm.tipo !== 'circulo' && (
+                <>
+                  <span className="w-px h-4 bg-zinc-700 mx-0.5" />
+                  <SquareRoundCorner
+                    className={cn('w-3.5 h-3.5 flex-shrink-0', (fm.raioBorda ?? 0) > 0 ? 'text-emerald-400' : 'text-zinc-500')}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={60}
+                    step={1}
+                    value={fm.raioBorda ?? 0}
+                    onChange={(e) => onRedimensionarForma(fm.id, { raioBorda: Number(e.target.value) })}
+                    title="Arredondar os cantos"
+                    className="w-16 accent-emerald-500 cursor-pointer"
+                  />
+                  <span className="w-px h-4 bg-zinc-700 mx-0.5" />
+                </>
+              )}
               <button
                 onClick={() => { onRemoverForma(fm.id); setFormaSelecionadaId(null); }}
                 title="Remover forma"
