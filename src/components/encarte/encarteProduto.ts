@@ -367,18 +367,40 @@ export function criarGuia(orientacao: GuiaOrientacao, pos: number): GuiaEncarte 
 
 // ── Texto livre ──────────────────────────────────────────────────────
 
-/** Fontes já carregadas globalmente em `src/index.css` (Google Fonts). */
+/**
+ * Fontes disponíveis pro texto do encarte (Google Fonts). As 10 primeiras já
+ * vêm no `src/index.css`; o resto é carregado sob demanda por
+ * `carregarFontesEncarte()` (fontes.ts) quando o editor de encarte abre.
+ */
 export const FONTES_ENCARTE = [
-  'Montserrat',
-  'Inter',
-  'Poppins',
-  'Roboto',
-  'Lato',
-  'Raleway',
-  'Oswald',
-  'Anton',
-  'Bebas Neue',
-  'Playfair Display',
+  // básicas (já no index.css)
+  'Montserrat', 'Inter', 'Poppins', 'Roboto', 'Lato', 'Raleway', 'Oswald', 'Anton', 'Bebas Neue', 'Playfair Display',
+  // display / impacto (ótimas pra chamada de preço)
+  'Archivo Black', 'Archivo Narrow', 'Fjalla One', 'Passion One', 'Alfa Slab One', 'Teko', 'Staatliches', 'Titan One',
+  'Luckiest Guy', 'Bangers', 'Sigmar One', 'Bowlby One', 'Bowlby One SC', 'Squada One', 'Racing Sans One', 'Rammetto One',
+  'Paytone One', 'Changa One', 'Francois One', 'Kanit', 'Saira Condensed', 'Saira Stencil One', 'Barlow Condensed',
+  'Barlow Semi Condensed', 'Big Shoulders Display', 'League Gothic', 'Khand', 'Chango', 'Bungee', 'Bungee Inline',
+  'Bungee Shade', 'Rubik Mono One', 'Rubik Dirt', 'Rubik Glitch', 'Monoton', 'Black Ops One', 'Faster One', 'Wallpoet',
+  'Nabla', 'Rye', 'Ultra', 'Fredoka', 'Baloo 2', 'Baloo Bhai 2', 'Baloo Chettan 2', 'Chewy', 'Boogaloo', 'Lilita One',
+  // sans
+  'Open Sans', 'Nunito', 'Nunito Sans', 'Work Sans', 'Rubik', 'Manrope', 'DM Sans', 'Sora', 'Outfit', 'Josefin Sans',
+  'Quicksand', 'Comfortaa', 'Varela Round', 'Signika', 'Cabin', 'Karla', 'Mukta', 'Heebo', 'Assistant', 'Exo 2',
+  'Chakra Petch', 'Michroma', 'Orbitron', 'Audiowide', 'Russo One', 'Prompt', 'Mada', 'Jost', 'Figtree', 'Onest',
+  'Roboto Condensed', 'PT Sans', 'PT Sans Narrow', 'Fira Sans', 'Fira Sans Condensed', 'Titillium Web', 'Cairo',
+  'Overpass', 'Red Hat Display', 'Space Grotesk',
+  // serif
+  'Merriweather', 'Lora', 'PT Serif', 'Bitter', 'Roboto Slab', 'Arvo', 'Crimson Text', 'EB Garamond', 'Cormorant Garamond',
+  'Libre Baskerville', 'Spectral', 'Domine', 'Frank Ruhl Libre', 'Zilla Slab', 'Rozha One', 'Yeseva One', 'Abril Fatface',
+  'Cinzel', 'Cinzel Decorative', 'DM Serif Display', 'DM Serif Text', 'Bodoni Moda', 'Prata', 'Sorts Mill Goudy',
+  'Playfair Display SC', 'Noto Serif Display', 'Vollkorn',
+  // script / manuscrita
+  'Pacifico', 'Lobster', 'Lobster Two', 'Dancing Script', 'Great Vibes', 'Satisfy', 'Kaushan Script', 'Permanent Marker',
+  'Caveat', 'Caveat Brush', 'Shadows Into Light', 'Indie Flower', 'Amatic SC', 'Courgette', 'Sacramento', 'Cookie',
+  'Yellowtail', 'Tangerine', 'Parisienne', 'Marck Script', 'Gochi Hand', 'Gloria Hallelujah', 'Nanum Pen Script',
+  'Patrick Hand', 'Rock Salt', 'Homemade Apple', 'Damion', 'Allura', 'Alex Brush', 'Pinyon Script', 'Norican', 'Bad Script',
+  'Neucha', 'Kalam', 'Fredericka the Great', 'Special Elite', 'Cutive Mono',
+  // mono
+  'JetBrains Mono', 'Fira Code', 'Space Mono', 'IBM Plex Mono', 'Roboto Mono', 'Source Code Pro',
 ];
 
 export type TextoAlinhamento = 'left' | 'center' | 'right';

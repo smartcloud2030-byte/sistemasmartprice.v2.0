@@ -10,13 +10,15 @@ import {
 } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
+import FontePicker from './FontePicker';
+import { carregarFontesEncarte } from './fontes';
 import { Formato } from './formatos';
 import {
   EncarteProduto, EstiloEncarte, GradeId, GRADES, getGrade,
   DivisorEncarte, ElementoImagem, FUNDOS_BUILTIN, ehFundoBuiltin, CANVAS_W, CARD_W, CARD_H,
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
-  TextoEncarte, TextoAlinhamento, criarTexto, FONTES_ENCARTE,
+  TextoEncarte, TextoAlinhamento, criarTexto,
   CamadaTipo,
 } from './encarteProduto';
 
@@ -472,6 +474,12 @@ export default function EncarteCanvas({
   const [tbCompacta, setTbCompacta] = useState(false);
   const [textoSelecionadoId, setTextoSelecionadoId] = useState<string | null>(null);
   const [textoEditandoId, setTextoEditandoId] = useState<string | null>(null);
+  const [fonteInlineAberta, setFonteInlineAberta] = useState(false); // popover de fonte na barrinha do texto
+
+  // Carrega as fontes extras do encarte (as básicas já vêm no index.css).
+  useEffect(() => { carregarFontesEncarte(); }, []);
+  // Fecha o popover de fonte ao trocar/soltar a seleção de texto.
+  useEffect(() => { setFonteInlineAberta(false); }, [textoSelecionadoId]);
   // Linhas/marcas do alinhamento inteligente, mostradas só enquanto arrasta.
   const [snapVisual, setSnapVisual] = useState<{ v: number[]; h: number[]; marcas: MarcaEspaco[] }>({
     v: [],
@@ -1075,6 +1083,13 @@ export default function EncarteCanvas({
               >
                 {(() => { const Ali = ICONE_ALINHAMENTO[t.alinhamento]; return <Ali className="w-3.5 h-3.5" />; })()}
               </button>
+              <button
+                onClick={() => setFonteInlineAberta((v) => !v)}
+                title="Trocar fonte"
+                className={cn('p-1 hover:text-zinc-100', fonteInlineAberta ? 'text-emerald-400' : 'text-zinc-400')}
+              >
+                <Type className="w-3.5 h-3.5" />
+              </button>
               <label className="p-1 cursor-pointer flex" title="Cor do texto">
                 <input
                   type="color"
@@ -1087,6 +1102,17 @@ export default function EncarteCanvas({
               <button onClick={() => setTextoEditandoId(t.id)} title="Editar texto" className="p-1 text-zinc-400 hover:text-emerald-400"><Pencil className="w-3.5 h-3.5" /></button>
               <button onClick={() => { onRemoverTexto(t.id); setTextoSelecionadoId(null); }} title="Remover" className="p-1 text-zinc-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
+
+            {fonteInlineAberta && (
+              <div data-html2canvas-ignore="true" className="absolute left-0 top-full mt-1 z-[60]">
+                <FontePicker
+                  valor={t.fontFamily}
+                  titulo="Fonte do texto"
+                  onEscolher={(f) => onEstilizarTexto(t.id, { fontFamily: f })}
+                  onFechar={() => setFonteInlineAberta(false)}
+                />
+              </div>
+            )}
 
             {/* Contorno + alça de largura na borda direita */}
             <div data-html2canvas-ignore="true" className="absolute inset-0 outline outline-1 outline-emerald-400/70 pointer-events-none" />
@@ -1401,28 +1427,16 @@ export default function EncarteCanvas({
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {fontesAberta && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50 max-h-80 overflow-y-auto">
-                <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
-                  {textoAtivo ? 'Fonte do texto selecionado' : 'Fonte dos próximos textos'}
-                </p>
-                {FONTES_ENCARTE.map((f) => {
-                  const atual = textoAtivo ? textoAtivo.fontFamily === f : fonteNova === f;
-                  return (
-                    <button
-                      key={f}
-                      onClick={() => {
-                        if (textoAtivo) onEstilizarTexto(textoAtivo.id, { fontFamily: f });
-                        else setFonteNova(f);
-                        setFontesAberta(false);
-                      }}
-                      className="w-full flex items-center justify-between gap-2 px-3.5 py-2 hover:bg-zinc-800 transition-colors text-left text-sm text-zinc-200"
-                      style={{ fontFamily: `'${f}', sans-serif` }}
-                    >
-                      {f}
-                      {atual && <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
-                    </button>
-                  );
-                })}
+              <div className="absolute top-full left-0 mt-1">
+                <FontePicker
+                  valor={textoAtivo ? textoAtivo.fontFamily : fonteNova}
+                  titulo={textoAtivo ? 'Fonte do texto selecionado' : 'Fonte dos próximos textos'}
+                  onEscolher={(f) => {
+                    if (textoAtivo) onEstilizarTexto(textoAtivo.id, { fontFamily: f });
+                    else setFonteNova(f);
+                  }}
+                  onFechar={() => setFontesAberta(false)}
+                />
               </div>
             )}
           </div>
