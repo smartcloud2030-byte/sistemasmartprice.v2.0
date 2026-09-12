@@ -522,11 +522,19 @@ export default function EncarteCanvas({
    * O `zoom` da visualização não entra aqui: ele fica numa camada acima do
    * `canvasRef`, então o arquivo gerado sai sempre no tamanho real.
    */
-  const renderParaCanvas = async () => {
+  /** Espera dois frames — dá tempo do navegador terminar o reflow/repaint de
+   * qualquer mudança de UI recente (ex.: fechar o menu de download) antes da
+   * gente medir/capturar o elemento. Sem isso o html2canvas às vezes mede o
+   * card com o layout ainda "em trânsito" e gera um canvas 0×0. */
+  const esperarFrame = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+  const capturarCanvas = async () => {
     // Garante que as fontes (as ~140 do encarte carregam sob demanda) e as
     // imagens já estejam prontas antes de capturar — senão o export sai com
     // fonte de fallback ou foto faltando.
     try { await (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* ignora */ }
+    await esperarFrame();
     return html2canvas(canvasRef.current as HTMLElement, {
       useCORS: true,
       allowTaint: false,
@@ -535,6 +543,20 @@ export default function EncarteCanvas({
       imageTimeout: 20000,
       logging: false,
     });
+  };
+
+  /** `capturarCanvas` às vezes mede o elemento no meio de um reflow e devolve
+   * um canvas 0×0 (o `toDataURL` disso vira `"data:,"` — um arquivo de 0
+   * bytes que não abre). Detecta esse caso e tenta de novo antes de desistir. */
+  const renderParaCanvas = async () => {
+    let canvas = await capturarCanvas();
+    if (canvas.width === 0 || canvas.height === 0) {
+      canvas = await capturarCanvas();
+    }
+    if (canvas.width === 0 || canvas.height === 0) {
+      throw new Error('Canvas de exportação saiu vazio (0×0) mesmo após nova tentativa.');
+    }
+    return canvas;
   };
 
   /** "Salvar": gera uma miniatura leve e manda o encarte inteiro pra aba Encartes. */

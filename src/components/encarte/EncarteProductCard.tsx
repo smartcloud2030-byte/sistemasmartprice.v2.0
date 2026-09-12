@@ -405,7 +405,14 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
     <div className="relative flex h-32 gap-1.5">
       <div className="relative z-10 flex-1 min-w-0 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          <p className="text-[13px] font-black uppercase leading-[1.15] break-words drop-shadow-sm" style={{ color: estilo.corNome }}>
+          {/* `text-shadow` em vez de `filter: drop-shadow` (Tailwind `drop-shadow-sm`)
+              — o html2canvas-pro renderiza `filter` mais forte que o Chrome, igual
+              acontecia com a sombra da foto (ver `foto` acima). `text-shadow` sai
+              igual na tela e no export. */}
+          <p
+            className="text-[13px] font-black uppercase leading-[1.15] break-words"
+            style={{ color: estilo.corNome, textShadow: '0 1px 1px rgb(0 0 0 / 0.05)' }}
+          >
             {produto.nome}
           </p>
           {produto.descricao && (
