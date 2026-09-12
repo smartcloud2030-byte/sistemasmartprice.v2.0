@@ -84,7 +84,11 @@ services:
   # MinIO
   # ─────────────────────────────────────────
   minio:
-    image: minio/minio:latest
+    # MinIO descontinuou a imagem no Docker Hub (minio/minio some do índice
+    # como "object not found") — o mirror oficial que continua público é o
+    # quay.io. Sem essa troca o `docker compose pull` falha e trava o deploy
+    # inteiro (reproduzido em produção 2026-09-12).
+    image: quay.io/minio/minio:latest
     container_name: smartprice_minio
     restart: always
     command: server /data --console-address ":9001"
@@ -109,7 +113,7 @@ services:
   # MinIO setup
   # ─────────────────────────────────────────
   minio_setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: smartprice_minio_setup
     depends_on:
       minio:
