@@ -17,12 +17,15 @@ interface EncarteProductCardProps {
   selecionado?: boolean;
 }
 
-/** degradê laranja → dourado, assinatura visual do preço em texto */
+/**
+ * Cor dourada do preço em texto (era um degradê com `background-clip: text`,
+ * mas o html2canvas-pro não implementa essa propriedade — no export virava
+ * um retângulo sólido com o texto invisível, já que o `color: transparent`
+ * é respeitado mas o clip no fundo, não). Cor sólida sai idêntica na tela e
+ * no PNG/PDF, garantindo que o preço nunca suma no export.
+ */
 const PRECO_LARANJA: React.CSSProperties = {
-  backgroundImage: 'linear-gradient(180deg,#f6c453 0%,#ef9d1c 55%,#e07d0a 100%)',
-  WebkitBackgroundClip: 'text',
-  backgroundClip: 'text',
-  color: 'transparent',
+  color: '#ef9d1c',
 };
 
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
