@@ -578,6 +578,27 @@ export default function EncarteCanvas({
     }
   };
 
+  /** Converte o canvas em Blob (evita gerar uma data URL gigante em base64 —
+   * no A4, em alta escala, isso passava de 30-40MB de string, e em alguns
+   * navegadores/mobile o link de download saía truncado = arquivo corrompido
+   * que não abre). Blob + Object URL é o caminho recomendado para arquivos
+   * grandes gerados em canvas. */
+  const canvasParaBlob = (canvas: HTMLCanvasElement) =>
+    new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('sem blob'))), 'image/png');
+    });
+
+  const baixarBlob = (blob: Blob, nomeArquivo: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = nomeArquivo;
+    link.href = url;
+    link.click();
+    // Revoga só depois do próximo tick — alguns navegadores agendam o download
+    // de forma assíncrona e revogar cedo demais derruba o arquivo no meio.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+
   const baixar = async (tipo: 'png' | 'pdf') => {
     if (!canvasRef.current || exportando) return;
     setDownloadAberto(false);
@@ -587,10 +608,8 @@ export default function EncarteCanvas({
       const nomeBase = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}`;
 
       if (tipo === 'png') {
-        const link = document.createElement('a');
-        link.download = `${nomeBase}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        const blob = await canvasParaBlob(canvas);
+        baixarBlob(blob, `${nomeBase}.png`);
       } else {
         const pdf = new jsPDF({
           orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
@@ -598,13 +617,15 @@ export default function EncarteCanvas({
           format: [canvas.width, canvas.height],
           compress: true,
         });
-        // PNG (sem perdas) em vez de JPEG — mantém texto/bordas nítidos e fiéis.
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
+        // Passa o <canvas> direto pro jsPDF em vez de uma data URL — mesmo
+        // motivo do PNG: menos memória e sem string gigante no meio do caminho.
+        // (sem perdas — mantém texto/bordas nítidos e fiéis ao original)
+        pdf.addImage(canvas, 'PNG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
         pdf.save(`${nomeBase}.pdf`);
       }
 
       onExportado?.(gerarThumbnail(canvas));
-      toast.success(tipo === 'png' ? 'PNG baixado em alta qualidade!' : 'PDF baixado em alta qualidade!');
+      toast.success(tipo === 'png' ? 'PNG baixado!' : 'PDF baixado!');
     } catch {
       toast.error('Não foi possível gerar o arquivo do encarte. Tente novamente.');
     } finally {
@@ -621,10 +642,7 @@ export default function EncarteCanvas({
     setExportando(true);
     try {
       const canvas = await renderParaCanvas();
-      const dataUrl = canvas.toDataURL('image/png');
-      const blob: Blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('sem blob'))), 'image/png');
-      });
+      const blob = await canvasParaBlob(canvas);
       const nome = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}.png`;
       const file = new File([blob], nome, { type: 'image/png' });
       onExportado?.(gerarThumbnail(canvas));
@@ -648,16 +666,13 @@ export default function EncarteCanvas({
       }
 
       // Fallback (WhatsApp Web / Instagram Web / Gmail no navegador): baixa o
-      // PNG em alta e abre o site escolhido em outra aba pra anexar o arquivo.
-      const link = document.createElement('a');
-      link.download = nome;
-      link.href = dataUrl;
-      link.click();
+      // PNG e abre o site escolhido em outra aba pra anexar o arquivo.
+      baixarBlob(blob, nome);
 
       const { nome: nomeDestino, url } = DESTINOS_COMPARTILHAR[destino];
       if (aba) aba.location.href = url;
       else window.open(url, '_blank', 'noopener');
-      toast.success(`PNG em alta qualidade baixado! Anexe o arquivo no ${nomeDestino} que abrimos em outra aba.`);
+      toast.success(`PNG baixado! Anexe o arquivo no ${nomeDestino} que abrimos em outra aba.`);
     } catch {
       aba?.close();
       toast.error('Não foi possível preparar o encarte pra compartilhar.');
@@ -1607,14 +1622,14 @@ export default function EncarteCanvas({
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
                 >
                   <ImageIcon className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                  PNG em alta qualidade
+                  PNG
                 </button>
                 <button
                   onClick={() => baixar('pdf')}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200 border-t border-zinc-800"
                 >
                   <FileText className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                  PDF em alta qualidade
+                  PDF
                 </button>
               </div>
             )}
@@ -1636,7 +1651,7 @@ export default function EncarteCanvas({
             {compartilharAberto && (
               <div className="absolute top-full right-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
                 <p className="px-3.5 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
-                  Mandar PNG em alta pra
+                  Mandar PNG pra
                 </p>
                 <button
                   onClick={() => compartilhar('whatsapp')}
