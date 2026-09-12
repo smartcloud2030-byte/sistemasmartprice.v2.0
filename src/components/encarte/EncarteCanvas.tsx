@@ -564,10 +564,21 @@ export default function EncarteCanvas({
     return canvas;
   };
 
-  // Multiplicador extra de resolução só pro download (PNG/PDF): dobra a
-  // captura em cima da escala nominal do formato — ex. A4 sai em ~4960px de
-  // largura em vez de ~2480px. Compartilhar/salvar não usam isso.
-  const QUALIDADE_DOWNLOAD = 2;
+  // Multiplicador extra de resolução só pro download (PNG/PDF): até dobra a
+  // captura em cima da escala nominal do formato. Compartilhar/salvar não
+  // usam isso.
+  //
+  // `MAX_LADO_EXPORT` trava o maior lado do canvas final — sem isso, dobrar
+  // o A4 (3508px de altura nominal) gera um canvas de ~7016px que estourava
+  // memória em alguns navegadores e derrubava o html2canvas no meio da
+  // captura, sempre com o erro genérico "Não foi possível gerar o arquivo"
+  // (reproduzido em produção 2026-09-12, logo depois do boost ir ao ar).
+  // Formatos pequenos (digital/quadrado/stories) têm folga de sobra e levam
+  // o dobro inteiro; só o A4 fica abaixo de 2x pra caber no teto.
+  const MAX_LADO_EXPORT = 4500;
+  const qualidadeSegura = (boost: number) =>
+    Math.min(boost, MAX_LADO_EXPORT / Math.max(formato.width, formato.height));
+  const QUALIDADE_DOWNLOAD = qualidadeSegura(2);
 
   /** "Salvar": gera uma miniatura leve e manda o encarte inteiro pra aba Encartes. */
   const salvarEncarte = async () => {
@@ -636,7 +647,9 @@ export default function EncarteCanvas({
 
       onExportado?.(gerarThumbnail(canvas));
       toast.success(tipo === 'png' ? 'PNG baixado!' : 'PDF baixado!');
-    } catch {
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Falha ao exportar encarte:', err);
       toast.error('Não foi possível gerar o arquivo do encarte. Tente novamente.');
     } finally {
       setExportando(false);
@@ -683,7 +696,9 @@ export default function EncarteCanvas({
       if (aba) aba.location.href = url;
       else window.open(url, '_blank', 'noopener');
       toast.success(`PNG baixado! Anexe o arquivo no ${nomeDestino} que abrimos em outra aba.`);
-    } catch {
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Falha ao compartilhar encarte:', err);
       aba?.close();
       toast.error('Não foi possível preparar o encarte pra compartilhar.');
     } finally {
