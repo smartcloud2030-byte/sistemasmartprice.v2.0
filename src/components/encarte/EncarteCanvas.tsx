@@ -521,6 +521,11 @@ export default function EncarteCanvas({
    * que garante alta qualidade de verdade: A4 sai em ~2480px, não ~1440px.
    * O `zoom` da visualização não entra aqui: ele fica numa camada acima do
    * `canvasRef`, então o arquivo gerado sai sempre no tamanho real.
+   *
+   * `qualidade` multiplica essa escala nominal — usado no download de PNG/PDF
+   * pra capturar em resolução bem acima do formato de referência (detalhe fino
+   * de texto/ícones/gradiente), sem inflar o preview nem o compartilhar/salvar
+   * (que priorizam arquivo leve pra WhatsApp/redes).
    */
   /** Espera dois frames — dá tempo do navegador terminar o reflow/repaint de
    * qualquer mudança de UI recente (ex.: fechar o menu de download) antes da
@@ -529,7 +534,7 @@ export default function EncarteCanvas({
   const esperarFrame = () =>
     new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-  const capturarCanvas = async () => {
+  const capturarCanvas = async (qualidade = 1) => {
     // Garante que as fontes (as ~140 do encarte carregam sob demanda) e as
     // imagens já estejam prontas antes de capturar — senão o export sai com
     // fonte de fallback ou foto faltando.
@@ -539,7 +544,7 @@ export default function EncarteCanvas({
       useCORS: true,
       allowTaint: false,
       backgroundColor: '#000000',
-      scale: formato.width / CANVAS_W,
+      scale: (formato.width / CANVAS_W) * qualidade,
       imageTimeout: 20000,
       logging: false,
     });
@@ -548,16 +553,21 @@ export default function EncarteCanvas({
   /** `capturarCanvas` às vezes mede o elemento no meio de um reflow e devolve
    * um canvas 0×0 (o `toDataURL` disso vira `"data:,"` — um arquivo de 0
    * bytes que não abre). Detecta esse caso e tenta de novo antes de desistir. */
-  const renderParaCanvas = async () => {
-    let canvas = await capturarCanvas();
+  const renderParaCanvas = async (qualidade = 1) => {
+    let canvas = await capturarCanvas(qualidade);
     if (canvas.width === 0 || canvas.height === 0) {
-      canvas = await capturarCanvas();
+      canvas = await capturarCanvas(qualidade);
     }
     if (canvas.width === 0 || canvas.height === 0) {
       throw new Error('Canvas de exportação saiu vazio (0×0) mesmo após nova tentativa.');
     }
     return canvas;
   };
+
+  // Multiplicador extra de resolução só pro download (PNG/PDF): dobra a
+  // captura em cima da escala nominal do formato — ex. A4 sai em ~4960px de
+  // largura em vez de ~2480px. Compartilhar/salvar não usam isso.
+  const QUALIDADE_DOWNLOAD = 2;
 
   /** "Salvar": gera uma miniatura leve e manda o encarte inteiro pra aba Encartes. */
   const salvarEncarte = async () => {
@@ -604,7 +614,7 @@ export default function EncarteCanvas({
     setDownloadAberto(false);
     setExportando(true);
     try {
-      const canvas = await renderParaCanvas();
+      const canvas = await renderParaCanvas(QUALIDADE_DOWNLOAD);
       const nomeBase = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}`;
 
       if (tipo === 'png') {
