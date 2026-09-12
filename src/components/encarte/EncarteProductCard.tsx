@@ -28,6 +28,22 @@ const PRECO_LARANJA: React.CSSProperties = {
   color: '#ef9d1c',
 };
 
+/**
+ * Sombra dos cards (era Tailwind `shadow-md`/`shadow-lg`) em valor literal.
+ * O Tailwind v4 monta `box-shadow` compondo várias CSS custom properties
+ * (`var(--tw-shadow)`, `var(--tw-ring-shadow)` etc.) — o html2canvas-pro não
+ * resolve `var()`, então a propriedade inteira saía vazia no export: sem
+ * sombra e, como os cards não têm borda própria, sem contorno nenhum contra
+ * o fundo branco. Valor fixo (mesmo número usado pelo Tailwind por baixo)
+ * funciona em CSS puro nos dois lados.
+ */
+const SOMBRA_CARD: React.CSSProperties = {
+  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
+};
+const SOMBRA_CARD_DESTAQUE: React.CSSProperties = {
+  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+};
+
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
@@ -377,7 +393,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
-    <div className="relative rounded-xl flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
+    <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo, ...SOMBRA_CARD }}>
       {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
       <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
@@ -438,7 +454,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
 function CardClean({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
-    <div className="rounded-2xl overflow-hidden flex h-32 shadow-md" style={{ backgroundColor: estilo.corFundo }}>
+    <div className="rounded-2xl overflow-hidden flex h-32" style={{ backgroundColor: estilo.corFundo, ...SOMBRA_CARD }}>
       <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
       <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
@@ -473,8 +489,8 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div
-      className="relative rounded-2xl grid items-center gap-2.5 shadow-lg pl-2.5 pr-4 py-3"
-      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto' }}
+      className="relative rounded-2xl grid items-center gap-2.5 pl-2.5 pr-4 py-3"
+      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto', ...SOMBRA_CARD_DESTAQUE }}
     >
       {/* Foto: maior, encostada na base e saindo pra cima do card */}
       <div
