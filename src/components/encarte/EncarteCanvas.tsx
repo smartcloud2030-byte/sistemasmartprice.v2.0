@@ -8,7 +8,7 @@ import {
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend,
 } from 'lucide-react';
-import { getProxyUrl, cn } from '../../lib/utils';
+import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import FontePicker from './FontePicker';
 import { carregarFontesEncarte } from './fontes';
@@ -19,7 +19,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  CamadaTipo,
+  CamadaTipo, Canto, AjusteFotoProduto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -83,8 +83,6 @@ function marcasRegua(dimNominal: number): { pct: number; label: number }[] {
   }
   return marcas;
 }
-
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 // ── Alinhamento inteligente (snap) ao arrastar produtos ──────────────
 const SNAP_ALINHA = 1.3; // % do canvas: tolerância pra "grudar" numa borda/centro
@@ -327,6 +325,7 @@ interface EncarteCanvasProps {
   onAdicionarProdutos: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
+  onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null) => void;
   onMoverDivisor: (id: string, yPct: number) => void;
   onMoverImagem: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
@@ -367,8 +366,6 @@ interface DragState {
   origYPct: number;
   moved: boolean;
 }
-
-type Canto = 'nw' | 'ne' | 'sw' | 'se';
 
 interface ImagemDragState {
   tipo: 'mover' | 'resize';
@@ -428,6 +425,7 @@ export default function EncarteCanvas({
   onAdicionarProdutos,
   onAbrirDetalhes,
   onMoverProduto,
+  onAjustarFotoProduto,
   onMoverDivisor,
   onMoverImagem,
   onRedimensionarImagem,
@@ -465,6 +463,9 @@ export default function EncarteCanvas({
   // Seleção leve do produto no canvas (contorno + setas de camada), independente
   // do painel de Detalhes. Um clique no produto seleciona; abrir Detalhes é outra coisa.
   const [produtoSelecionadoId, setProdutoSelecionadoId] = useState<string | number | null>(null);
+  // Foto de um produto "solta" do lugar padrão do card (duplo clique nela) —
+  // guarda o id do PRODUTO (só um por vez), igual às outras seleções.
+  const [fotoSelecionadaId, setFotoSelecionadaId] = useState<string | number | null>(null);
   const [reguasVisiveis, setReguasVisiveis] = useState(false);
   const [fontesAberta, setFontesAberta] = useState(false);
   const [fonteNova, setFonteNova] = useState('Montserrat');
@@ -719,6 +720,7 @@ export default function EncarteCanvas({
       setFormaSelecionadaId(null);
       setTextoSelecionadoId(null);
       setImagemSelecionadaId(null);
+      setFotoSelecionadaId(null);
     }
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
@@ -799,6 +801,7 @@ export default function EncarteCanvas({
     setFormaSelecionadaId(null);
     setTextoSelecionadoId(null);
     setProdutoSelecionadoId(null);
+    setFotoSelecionadaId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     imgDragRef.current = { tipo, canto, id: im.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: im };
   };
@@ -860,6 +863,7 @@ export default function EncarteCanvas({
     setTextoSelecionadoId(null);
     setImagemSelecionadaId(null);
     setProdutoSelecionadoId(null);
+    setFotoSelecionadaId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     formaDragRef.current = { tipo, canto, id: fm.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: fm };
   };
@@ -1090,6 +1094,7 @@ export default function EncarteCanvas({
     setFormaSelecionadaId(null);
     setImagemSelecionadaId(null);
     setProdutoSelecionadoId(null);
+    setFotoSelecionadaId(null);
     if (textoEditandoId && textoEditandoId !== t.id) setTextoEditandoId(null);
     e.currentTarget.setPointerCapture(e.pointerId);
     textoDragRef.current = {
@@ -1272,6 +1277,15 @@ export default function EncarteCanvas({
         produto={ep}
         estilo={estilo}
         selecionado={ep.product.id === produtoDetalhadoId || ep.product.id === produtoSelecionadoId}
+        fotoSelecionada={ep.product.id === fotoSelecionadaId}
+        onSelecionarFoto={() => {
+          setFotoSelecionadaId(ep.product.id);
+          setFormaSelecionadaId(null);
+          setTextoSelecionadoId(null);
+          setImagemSelecionadaId(null);
+          setProdutoSelecionadoId(null);
+        }}
+        onAjustarFoto={(ajuste) => onAjustarFotoProduto(ep.product.id, ajuste)}
       />
     </div>
   );
@@ -1527,6 +1541,7 @@ export default function EncarteCanvas({
               setFormaSelecionadaId(null);
               setImagemSelecionadaId(null);
               setProdutoSelecionadoId(null);
+              setFotoSelecionadaId(null);
             }}
             title="Adicionar caixa de texto"
             className={cn(
@@ -1718,6 +1733,7 @@ export default function EncarteCanvas({
           if (textoSelecionadoId) setTextoSelecionadoId(null);
           if (imagemSelecionadaId) setImagemSelecionadaId(null);
           if (produtoSelecionadoId != null) setProdutoSelecionadoId(null);
+          if (fotoSelecionadaId != null) setFotoSelecionadaId(null);
           if (textoEditandoId) setTextoEditandoId(null);
         }}
       >

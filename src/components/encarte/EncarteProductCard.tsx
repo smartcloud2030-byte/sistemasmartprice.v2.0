@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Package } from 'lucide-react';
-import { getProxyUrl, cn } from '../../lib/utils';
+import { Package, RotateCcw } from 'lucide-react';
+import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import {
   EncarteProduto,
   EstiloEncarte,
@@ -9,12 +9,19 @@ import {
   partesPreco,
   escureceHex,
   SVG_ETIQUETA,
+  AjusteFotoProduto,
+  Canto,
 } from './encarteProduto';
 
 interface EncarteProductCardProps {
   produto: EncarteProduto;
   estilo: EstiloEncarte;
   selecionado?: boolean;
+  /** foto "solta" do lugar padrão (depois do duplo clique nela) está selecionada — mostra alças. */
+  fotoSelecionada?: boolean;
+  onSelecionarFoto?: () => void;
+  /** `null` restaura a foto pro lugar padrão do modelo de card. */
+  onAjustarFoto?: (ajuste: AjusteFotoProduto | null) => void;
 }
 
 /**
@@ -197,7 +204,154 @@ function fotoComSombra(src: string): Promise<string> {
   return promise;
 }
 
-export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
+// Quanto a foto solta pode encolher (%, relativo ao card) e passar da borda
+// do card ao mover/redimensionar — o usuário pode querer ela bem maior que
+// o card ou deslocada pra fora dele de propósito (ver AjusteFotoProduto).
+const MIN_FOTO_PCT = 8;
+const SANGRIA_FOTO_PCT = 150;
+
+interface FotoDragState {
+  tipo: 'mover' | 'resize';
+  canto?: Canto;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  orig: AjusteFotoProduto;
+}
+
+/**
+ * Foto do produto solta do lugar padrão do card — duplo clique nela (ver
+ * `iniciarAjusteFoto` em `EncarteProductCard`) tira ela do fluxo normal e
+ * passa a desenhar aqui, por cima de tudo, com posição/tamanho próprios
+ * (mesmo esquema de arraste/redimensionamento das imagens livres do
+ * canvas, só que em % relativas ao CARD em vez do canvas inteiro).
+ */
+function FotoAjustavel({
+  ajuste,
+  foto,
+  selecionada,
+  wrapperRef,
+  onSelecionar,
+  onAjustar,
+  onResetar,
+}: {
+  ajuste: AjusteFotoProduto;
+  foto: React.ReactNode;
+  selecionada: boolean;
+  wrapperRef: React.RefObject<HTMLDivElement | null>;
+  onSelecionar: () => void;
+  onAjustar: (ajuste: AjusteFotoProduto) => void;
+  onResetar: () => void;
+}) {
+  const dragRef = useRef<FotoDragState | null>(null);
+
+  const iniciar = (e: React.PointerEvent<HTMLDivElement>, tipo: 'mover' | 'resize', canto?: Canto) => {
+    e.stopPropagation();
+    onSelecionar();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { tipo, canto, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: ajuste };
+  };
+
+  const mover = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = dragRef.current;
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (!st || !rect || e.pointerId !== st.pointerId) return;
+    const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
+    const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
+    const o = st.orig;
+
+    if (st.tipo === 'mover') {
+      onAjustar({
+        ...o,
+        xPct: clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.wPct),
+        yPct: clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.hPct),
+      });
+      return;
+    }
+
+    let { xPct, yPct, wPct, hPct } = o;
+    const oesteMax = o.xPct + o.wPct - MIN_FOTO_PCT;
+    const norteMax = o.yPct + o.hPct - MIN_FOTO_PCT;
+    if (st.canto === 'nw' || st.canto === 'sw') {
+      xPct = clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, oesteMax);
+      wPct = o.xPct + o.wPct - xPct;
+    }
+    if (st.canto === 'ne' || st.canto === 'se') {
+      wPct = clamp(o.wPct + dxPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.xPct);
+    }
+    if (st.canto === 'nw' || st.canto === 'ne') {
+      yPct = clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, norteMax);
+      hPct = o.yPct + o.hPct - yPct;
+    }
+    if (st.canto === 'sw' || st.canto === 'se') {
+      hPct = clamp(o.hPct + dyPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.yPct);
+    }
+    onAjustar({ xPct, yPct, wPct, hPct });
+  };
+
+  const soltar = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    dragRef.current = null;
+  };
+
+  return (
+    <div
+      className="absolute touch-none"
+      style={{ left: `${ajuste.xPct}%`, top: `${ajuste.yPct}%`, width: `${ajuste.wPct}%`, height: `${ajuste.hPct}%`, zIndex: 20 }}
+    >
+      <div
+        className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
+        onPointerDown={(e) => iniciar(e, 'mover')}
+        onPointerMove={mover}
+        onPointerUp={soltar}
+        onPointerCancel={soltar}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {foto}
+      </div>
+
+      {selecionada && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onResetar(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          data-html2canvas-ignore="true"
+          title="Restaurar a foto pro lugar padrão do card"
+          className="absolute -top-8 right-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+      )}
+
+      {selecionada &&
+        (['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
+          <div
+            key={canto}
+            onPointerDown={(e) => iniciar(e, 'resize', canto)}
+            onPointerMove={mover}
+            onPointerUp={soltar}
+            onPointerCancel={soltar}
+            data-html2canvas-ignore="true"
+            className={cn(
+              'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow',
+              canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+              canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+              canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+              canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+            )}
+          />
+        ))}
+    </div>
+  );
+}
+
+export default function EncarteProductCard({
+  produto,
+  estilo,
+  selecionado,
+  fotoSelecionada,
+  onSelecionarFoto,
+  onAjustarFoto,
+}: EncarteProductCardProps) {
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
 
@@ -234,19 +388,99 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
 
   const largura = produto.emDestaque ? CARD_W * 2.2 : CARD_W;
 
+  // A foto solta (fora do fluxo normal, ver FotoAjustavel) precisa medir o
+  // card real pra converter posição/tamanho em % relativas a ele.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const temAjusteFoto = !!produto.fotoAjuste;
+
+  /**
+   * Duplo clique na foto (só quando ainda no lugar padrão): mede a caixa
+   * onde ela está agora (relativa ao card) e usa isso como ponto de partida
+   * do ajuste manual — a foto "solta" nasce exatamente onde já estava, sem
+   * pulo, e passa a poder ser arrastada/redimensionada livremente.
+   */
+  const iniciarAjusteFoto = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!product.image || temAjusteFoto || !onAjustarFoto) return;
+    e.stopPropagation();
+    const wrapperEl = wrapperRef.current;
+    if (!wrapperEl) return;
+    const wRect = wrapperEl.getBoundingClientRect();
+    const sRect = e.currentTarget.getBoundingClientRect();
+    if (!wRect.width || !wRect.height) return;
+    onAjustarFoto({
+      xPct: ((sRect.left - wRect.left) / wRect.width) * 100,
+      yPct: ((sRect.top - wRect.top) / wRect.height) * 100,
+      wPct: (sRect.width / wRect.width) * 100,
+      hPct: (sRect.height / wRect.height) * 100,
+    });
+    onSelecionarFoto?.();
+  };
+  // Enquanto a foto ainda está no lugar padrão, o slot onde ela mora dentro
+  // do modelo de card escuta o duplo clique — mas não pode deixar o
+  // pointerdown subir até o card (senão o card inteiro começa a ser
+  // arrastado, ou abre os Detalhes do produto no soltar do dedo/mouse).
+  const podeAjustarFoto = !!product.image && !temAjusteFoto && !!onAjustarFoto;
+  const onFotoSlotPointerDown = podeAjustarFoto ? (e: React.PointerEvent<HTMLDivElement>) => e.stopPropagation() : undefined;
+  const onFotoSlotDoubleClick = podeAjustarFoto ? iniciarAjusteFoto : undefined;
+  // Com a foto solta, o slot original fica vazio (mas do MESMO tamanho) —
+  // é assim que o texto/preço do card não mudam de lugar (ver nota em
+  // FotoAjustavel): a foto de verdade passa a ser desenhada por cima, solta.
+  const fotoNoSlot = temAjusteFoto ? null : foto;
+
   return (
     <div
+      ref={wrapperRef}
       className="relative select-none"
       style={{ width: largura, transform: `scale(${estilo.escalaCard})`, transformOrigin: 'top left' }}
     >
       {produto.emDestaque ? (
-        <CardProdutoDestaque produto={produto} estilo={estilo} medida={medida} foto={foto} />
+        <CardProdutoDestaque
+          produto={produto}
+          estilo={estilo}
+          medida={medida}
+          foto={fotoNoSlot}
+          onFotoSlotPointerDown={onFotoSlotPointerDown}
+          onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+        />
       ) : estilo.modeloCard === 'destaque' ? (
-        <CardDestaque produto={produto} estilo={estilo} medida={medida} foto={foto} />
+        <CardDestaque
+          produto={produto}
+          estilo={estilo}
+          medida={medida}
+          foto={fotoNoSlot}
+          onFotoSlotPointerDown={onFotoSlotPointerDown}
+          onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+        />
       ) : estilo.modeloCard === 'clean' ? (
-        <CardClean produto={produto} estilo={estilo} medida={medida} foto={foto} />
+        <CardClean
+          produto={produto}
+          estilo={estilo}
+          medida={medida}
+          foto={fotoNoSlot}
+          onFotoSlotPointerDown={onFotoSlotPointerDown}
+          onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+        />
       ) : (
-        <CardPadrao produto={produto} estilo={estilo} medida={medida} foto={foto} />
+        <CardPadrao
+          produto={produto}
+          estilo={estilo}
+          medida={medida}
+          foto={fotoNoSlot}
+          onFotoSlotPointerDown={onFotoSlotPointerDown}
+          onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+        />
+      )}
+
+      {temAjusteFoto && produto.fotoAjuste && onAjustarFoto && (
+        <FotoAjustavel
+          ajuste={produto.fotoAjuste}
+          foto={foto}
+          selecionada={!!fotoSelecionada}
+          wrapperRef={wrapperRef}
+          onSelecionar={() => onSelecionarFoto?.()}
+          onAjustar={onAjustarFoto}
+          onResetar={() => onAjustarFoto(null)}
+        />
       )}
 
       {selecionado && (
@@ -264,6 +498,8 @@ interface CardProps {
   estilo: EstiloEncarte;
   medida: string;
   foto: React.ReactNode;
+  onFotoSlotPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onFotoSlotDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -543,7 +779,7 @@ function PrecoDe({ valor, className }: { valor: string; className?: string }) {
 }
 
 /** Modelo Padrão — card branco, texto à esquerda, foto à direita, preço em etiqueta. */
-function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
+function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
@@ -569,14 +805,20 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
             <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
           </AutoAjuste>
         </div>
-        <div className="w-24 flex-shrink-0 flex items-center justify-center p-1">{foto}</div>
+        <div
+          className="w-24 flex-shrink-0 flex items-center justify-center p-1"
+          onPointerDown={onFotoSlotPointerDown}
+          onDoubleClick={onFotoSlotDoubleClick}
+        >
+          {foto}
+        </div>
       </div>
     </div>
   );
 }
 
 /** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
-function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
+function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
@@ -604,19 +846,31 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
           <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
         </AutoAjuste>
       </div>
-      <div className="w-24 flex-shrink-0 flex items-center justify-center p-1">{foto}</div>
+      <div
+        className="w-24 flex-shrink-0 flex items-center justify-center p-1"
+        onPointerDown={onFotoSlotPointerDown}
+        onDoubleClick={onFotoSlotDoubleClick}
+      >
+        {foto}
+      </div>
     </div>
   );
 }
 
 /** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em laranja. */
-function CardClean({ produto, estilo, medida, foto }: CardProps) {
+function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard raio={16} cor={estilo.corFundo} />
       <div className="relative rounded-2xl overflow-hidden flex h-32">
-        <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
+        <div
+          className="w-24 flex-shrink-0 flex items-center justify-center p-1.5"
+          onPointerDown={onFotoSlotPointerDown}
+          onDoubleClick={onFotoSlotDoubleClick}
+        >
+          {foto}
+        </div>
         <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
             <p className="text-[11px] font-semibold leading-[1.15] break-words" style={{ color: estilo.corNome }}>
@@ -647,7 +901,7 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
  * transbordando pra cima (sai da caixa branca), nome + descrição completa
  * alinhados à esquerda no centro, e preço grande à direita com POR / R$ / UNI.
  */
-function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
+function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative" style={{ zIndex: 0 }}>
@@ -662,6 +916,8 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
         <div
           className="relative z-10 self-end flex items-end justify-center"
           style={{ height: 160, marginTop: -58, marginBottom: -6 }}
+          onPointerDown={onFotoSlotPointerDown}
+          onDoubleClick={onFotoSlotDoubleClick}
         >
           {foto}
         </div>

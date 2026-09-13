@@ -5,6 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
 /** Normaliza texto pra busca: minúsculo e sem acento, pra "sta teresinha" achar "Sta Teresinha". */
 export function normalizarBusca(texto: string): string {
   return texto

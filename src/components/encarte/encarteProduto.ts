@@ -118,6 +118,23 @@ export const ESTILO_PADRAO: EstiloEncarte = {
   escalaEtiqueta: 1,
 };
 
+/** Canto de uma alça de redimensionar — compartilhado por imagem, forma e foto do produto. */
+export type Canto = 'nw' | 'ne' | 'sw' | 'se';
+
+/**
+ * Ajuste manual da foto de um produto — some até o usuário dar duplo clique
+ * nela pra soltá-la do lugar fixo do modelo de card. Posição/tamanho em %
+ * relativos ao PRÓPRIO CARD (não ao canvas), pra acompanhar o card quando
+ * ele é movido ou escalado (`escalaCard`). Ausente/null = foto no lugar
+ * padrão do modelo de card escolhido.
+ */
+export interface AjusteFotoProduto {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
 /**
  * Produto colocado no encarte. Envolve o produto do catálogo (`product`,
  * imutável) com os ajustes individuais — nome, descrição, medida, tipo,
@@ -140,6 +157,8 @@ export interface EncarteProduto {
   yPct: number;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com imagens, formas e textos. */
   z?: number;
+  /** foto solta do lugar padrão do card (duplo clique nela pra ativar) — ver `AjusteFotoProduto`. */
+  fotoAjuste?: AjusteFotoProduto | null;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();
