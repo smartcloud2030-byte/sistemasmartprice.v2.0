@@ -32,18 +32,17 @@ const PRECO_LARANJA: React.CSSProperties = {
  * Sombra + contorno dos cards (era Tailwind `shadow-md`/`shadow-lg`) em
  * valor literal. O Tailwind v4 monta `box-shadow` compondo várias CSS custom
  * properties (`var(--tw-shadow)` etc.) que o html2canvas-pro não resolve.
- * Valor fixo resolve a composição, mas a sombra sozinha (10% de opacidade)
- * ainda sai discreta demais pra garantir contorno visível no export — por
- * isso soma uma borda de verdade (1px sólido), que não depende de nenhuma
- * técnica alternativa e sempre desenha.
+ * Valor fixo resolve a composição — mas em 8-10% de opacidade (o padrão do
+ * Tailwind) fica fraco demais pra notar contra o fundo branco, tanto na
+ * borda quanto na sombra. Reforçado bem acima do padrão de propósito.
  */
 const SOMBRA_CARD: React.CSSProperties = {
-  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
-  border: '1px solid rgba(0,0,0,0.08)',
+  boxShadow: '0 6px 10px -2px rgba(0,0,0,0.22), 0 3px 5px -2px rgba(0,0,0,0.18)',
+  border: '1px solid rgba(0,0,0,0.16)',
 };
 const SOMBRA_CARD_DESTAQUE: React.CSSProperties = {
-  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-  border: '1px solid rgba(0,0,0,0.08)',
+  boxShadow: '0 12px 18px -4px rgba(0,0,0,0.24), 0 5px 8px -3px rgba(0,0,0,0.2)',
+  border: '1px solid rgba(0,0,0,0.16)',
 };
 
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
@@ -65,9 +64,9 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
         aria-hidden
         className="absolute bottom-[6%] left-1/2 -translate-x-1/2"
         style={{
-          width: '68%',
-          height: '20%',
-          background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0) 72%)',
+          width: '75%',
+          height: '26%',
+          background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.22) 45%, rgba(0,0,0,0) 75%)',
         }}
       />
       <img
