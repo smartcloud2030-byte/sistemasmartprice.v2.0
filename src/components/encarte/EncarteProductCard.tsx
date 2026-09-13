@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import {
@@ -45,37 +45,98 @@ const SOMBRA_CARD_DESTAQUE: React.CSSProperties = {
   border: '1px solid rgba(0,0,0,0.1)',
 };
 
+/**
+ * Sombra da foto do produto — MESMA técnica do editor de plaquinhas
+ * (`CanvasPreview.tsx`: `<KonvaImage shadowColor shadowBlur shadowOffsetY>`,
+ * que desenha a sombra no Canvas 2D nativo do navegador). Aqui não tem Konva
+ * — em vez de aplicar a sombra "ao vivo" via CSS (impossível: `filter` não
+ * existe no html2canvas-pro), a gente ASSA a sombra nos pixels da própria
+ * imagem usando esse MESMO Canvas 2D nativo (`ctx.shadowBlur`/`shadowColor`/
+ * `shadowOffsetY`) como pré-processamento, uma vez por foto, e usa o
+ * resultado como uma imagem comum. Sai igual na tela e no export porque os
+ * dois só exibem/capturam uma imagem estática — nenhum dos dois depende de
+ * o html2canvas entender sombra de imagem, ela já vem pronta no arquivo.
+ */
+const cacheFotoComSombra = new Map<string, Promise<string>>();
+
+function fotoComSombra(src: string): Promise<string> {
+  const emCache = cacheFotoComSombra.get(src);
+  if (emCache) return emCache;
+  const promise = new Promise<string>((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) {
+        reject(new Error('imagem sem dimensões'));
+        return;
+      }
+      // Blur/offset proporcionais à largura da foto (mesma proporção do
+      // shadowBlur=16/shadowOffsetY=10 da plaquinha, calibrados lá pra fotos
+      // de produto no mesmo estilo) — assim fica consistente em fotos de
+      // qualquer resolução, não só a de referência.
+      const blur = Math.max(6, w * 0.045);
+      const offsetY = w * 0.028;
+      // Preenchimento assimétrico: a sombra só desce (sem offsetX), então só
+      // precisa de espaço extra de verdade embaixo. Padding igual nos 4 lados
+      // desperdiçaria área e encolheria a foto visível mais do que precisa.
+      const padX = Math.ceil(blur + 2);
+      const padTop = Math.ceil(blur + 2);
+      const padBottom = Math.ceil(blur + offsetY + 2);
+      const canvas = document.createElement('canvas');
+      canvas.width = w + padX * 2;
+      canvas.height = h + padTop + padBottom;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('sem contexto 2d'));
+        return;
+      }
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = blur;
+      ctx.shadowOffsetY = offsetY;
+      ctx.drawImage(img, padX, padTop, w, h);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('falha ao carregar imagem pra assar sombra'));
+    img.src = src;
+  });
+  cacheFotoComSombra.set(src, promise);
+  return promise;
+}
+
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
 
   // Sem thumbnail aqui de propósito: o card é exportado em alta qualidade
   // (scale alto no download), e a miniatura de 400px ficaria borrada ampliada.
-  //
-  // Sombra da foto: `filter` (blur/brightness/drop-shadow) não existe no
-  // html2canvas-pro — a técnica antiga (cópia da imagem borrada atrás) saía
-  // sem nenhum blur no export, uma cópia nítida "fantasma" por trás da foto.
-  // Elipse em degradê radial no chão da foto dá o efeito de sombra sem
-  // depender de filter nenhum — sai igual na tela e no export.
   const fotoSrc = getProxyUrl(product.image || product.thumb_image);
+  const [fotoSombraUrl, setFotoSombraUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let ativo = true;
+    setFotoSombraUrl(null);
+    if (fotoSrc) {
+      fotoComSombra(fotoSrc)
+        .then((url) => {
+          if (ativo) setFotoSombraUrl(url);
+        })
+        .catch(() => {
+          /* fica na foto sem sombra (fotoSrc) se a sombra falhar */
+        });
+    }
+    return () => {
+      ativo = false;
+    };
+  }, [fotoSrc]);
   const foto = product.image ? (
-    <span className="relative flex items-end justify-center w-full h-full">
-      <span
-        aria-hidden
-        className="absolute bottom-[6%] left-1/2 -translate-x-1/2"
-        style={{
-          width: '75%',
-          height: '26%',
-          background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.22) 45%, rgba(0,0,0,0) 75%)',
-        }}
-      />
-      <img
-        src={fotoSrc}
-        className="relative w-full h-full object-contain"
-        referrerPolicy="no-referrer"
-        crossOrigin="anonymous"
-      />
-    </span>
+    <img
+      src={fotoSombraUrl ?? fotoSrc}
+      className="w-full h-full object-contain"
+      referrerPolicy="no-referrer"
+      crossOrigin="anonymous"
+    />
   ) : (
     <Package className="w-6 h-6 text-zinc-300" />
   );
