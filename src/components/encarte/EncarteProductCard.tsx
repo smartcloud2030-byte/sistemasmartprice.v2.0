@@ -114,7 +114,24 @@ function FundoSombraCard({ destaque, raio, cor }: { destaque?: boolean; raio: nu
       aria-hidden
       src={url}
       className="pointer-events-none select-none absolute"
-      style={{ top: -pad, left: -pad, width: `calc(100% + ${pad * 2}px)`, height: `calc(100% + ${pad * 2}px)`, zIndex: -1 }}
+      style={{
+        top: -pad,
+        left: -pad,
+        // `maxWidth: none` desfaz o reset global do Tailwind (`img{max-width:100%}`)
+        // — sem isso o `width` abaixo (maior que 100% do card, de propósito, pra
+        // sobrar espaço pro halo da sombra) era CLAMPADO de volta pra 100% do
+        // card real, então essa imagem saía mais ESTREITA que o combinado e
+        // ficava espremida (esticada só na altura, que não tem o mesmo limite)
+        // dentro do espaço de `left:-pad`. Era essa distorção horizontal —
+        // não a sombra em si — a causa real da borda preta na lateral esquerda
+        // em toda a série de tentativas anteriores (a altura nunca teve esse
+        // problema, só a largura, por isso o defeito só aparecia de um lado).
+        maxWidth: 'none',
+        maxHeight: 'none',
+        width: `calc(100% + ${pad * 2}px)`,
+        height: `calc(100% + ${pad * 2}px)`,
+        zIndex: -1,
+      }}
     />
   );
 }
