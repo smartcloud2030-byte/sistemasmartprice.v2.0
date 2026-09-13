@@ -313,7 +313,10 @@ function FotoAjustavel({
       // vs. clique fora — ver onPointerDownCapture no container do canvas.
       data-foto-overlay="true"
       className="absolute touch-none"
-      style={{ left: `${ajuste.xPct}%`, top: `${ajuste.yPct}%`, width: `${ajuste.wPct}%`, height: `${ajuste.hPct}%`, zIndex: 20 }}
+      // z-10 é a camada da etiqueta de preço (e do texto) nos 4 modelos de
+      // card — abaixo disso de propósito, pra foto solta redimensionada
+      // nunca cobrir a etiqueta, mesmo passando por cima dela.
+      style={{ left: `${ajuste.xPct}%`, top: `${ajuste.yPct}%`, width: `${ajuste.wPct}%`, height: `${ajuste.hPct}%`, zIndex: 5 }}
     >
       <div
         className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
@@ -900,7 +903,7 @@ function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFot
             {medida && <p className="text-[8px] font-medium mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
           </AutoAjuste>
           <div
-            className="flex-shrink-0 flex flex-col items-end origin-bottom-right"
+            className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
             style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
           >
             <PrecoDe valor={produto.precoDe} />
