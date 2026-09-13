@@ -518,7 +518,7 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
-    <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo }}>
+    <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo, zIndex: 0 }}>
       <FundoSombraCard />
       {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
       <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
@@ -580,7 +580,7 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
 function CardClean({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
-    <div className="relative h-32">
+    <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard />
       <div className="relative rounded-2xl overflow-hidden flex h-32" style={{ backgroundColor: estilo.corFundo }}>
         <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
@@ -619,7 +619,7 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
   return (
     <div
       className="relative rounded-2xl grid items-center gap-2.5 pl-2.5 pr-4 py-3"
-      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto' }}
+      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto', zIndex: 0 }}
     >
       <FundoSombraCard destaque />
       {/* Foto: maior, encostada na base e saindo pra cima do card */}
