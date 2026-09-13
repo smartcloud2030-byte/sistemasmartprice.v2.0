@@ -1831,7 +1831,7 @@ export default function EncarteCanvas({
                 )}
               <div
                 ref={canvasRef}
-                className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
+                className="relative bg-black overflow-hidden shadow-2xl"
                 style={{ width: 480, aspectRatio: `${formato.ratio}` }}
               >
           {/* Fundo — preenche a caixa toda, produtos ficam por cima */}
