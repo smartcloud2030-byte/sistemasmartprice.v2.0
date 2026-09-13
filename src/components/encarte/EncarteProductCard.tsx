@@ -29,21 +29,73 @@ const PRECO_LARANJA: React.CSSProperties = {
 };
 
 /**
- * Sombra dos cards (era Tailwind `shadow-md`/`shadow-lg`) em valor literal.
- * O Tailwind v4 monta `box-shadow` compondo várias CSS custom properties
- * (`var(--tw-shadow)` etc.) que o html2canvas-pro não resolve. Calibrado
- * olhando pra tela real do editor: a sombra lá é grande e bem espalhada
- * (não a sutil padrão do Tailwind) — blur/offset bem maiores que a primeira
- * tentativa, que saiu "franca" demais mesmo já reforçada.
+ * Sombra dos cards — mesma lógica da sombra da foto: `box-shadow` em CSS
+ * (mesmo em valor literal, sem `var()`) provou repetidas vezes não sair no
+ * export do html2canvas-pro, então em vez de insistir nele a sombra é
+ * ASSADA num PNG (rounded-rect com `ctx.shadowBlur`/`shadowColor`/
+ * `shadowOffsetY`, depois "recortada" com `destination-out` pra sobrar só o
+ * halo e não a forma preta em si) e colocada como imagem de fundo atrás do
+ * card. Sai igual em tela e export — os dois só exibem/capturam a mesma
+ * imagem estática. Dimensões dos cards (exceto o "em destaque") são fixas
+ * (`CARD_W` × 128px do `h-32`), então dá pra assar uma vez só no import.
  */
-const SOMBRA_CARD: React.CSSProperties = {
-  boxShadow: '0 18px 28px -8px rgba(0,0,0,0.3), 0 8px 14px -6px rgba(0,0,0,0.22)',
-  border: '1px solid rgba(0,0,0,0.1)',
-};
-const SOMBRA_CARD_DESTAQUE: React.CSSProperties = {
-  boxShadow: '0 22px 34px -8px rgba(0,0,0,0.32), 0 10px 16px -6px rgba(0,0,0,0.24)',
-  border: '1px solid rgba(0,0,0,0.1)',
-};
+interface SombraCardAssada {
+  url: string;
+  pad: number;
+}
+
+// Assa o PNG numa resolução bem maior que o tamanho lógico (CSS) do card —
+// o export em A4 amplia tudo em ~5-10x (`QUALIDADE_DOWNLOAD`), e um PNG
+// assado só no tamanho de tela (~200x128px) saía borrado nessa ampliação.
+// O `pad` retornado continua em unidade lógica (1x) — só afeta o CSS de
+// posicionamento, o canvas em si é maior por dentro (feito o `object-fit`
+// de uma imagem @2x/@3x normal).
+const RESOLUCAO_EXTRA = 4;
+
+function criarSombraCard(w: number, h: number, raio: number, blur: number, offsetY: number, opacidade: number): SombraCardAssada {
+  const pad = Math.ceil(blur + Math.max(offsetY, 0) + 4);
+  const e = RESOLUCAO_EXTRA;
+  const canvas = document.createElement('canvas');
+  canvas.width = (Math.ceil(w) + pad * 2) * e;
+  canvas.height = (Math.ceil(h) + pad * 2) * e;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { url: '', pad };
+  ctx.shadowColor = `rgba(0,0,0,${opacidade})`;
+  ctx.shadowBlur = blur * e;
+  ctx.shadowOffsetY = offsetY * e;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
+  ctx.fill();
+  // Apaga a forma preta em si, deixando só o halo da sombra ao redor —
+  // o card de verdade (fundo branco/colorido + conteúdo) é desenhado por
+  // cima disso pelo DOM normal.
+  ctx.shadowColor = 'transparent';
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath();
+  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
+  ctx.fill();
+  return { url: canvas.toDataURL('image/png'), pad };
+}
+
+const isBrowser = typeof document !== 'undefined';
+const SOMBRA_CARD: SombraCardAssada = isBrowser ? criarSombraCard(CARD_W, 128, 12, 26, 16, 0.3) : { url: '', pad: 0 };
+const SOMBRA_CARD_DESTAQUE: SombraCardAssada = isBrowser
+  ? criarSombraCard(CARD_W * 2.2, 128, 16, 30, 18, 0.32)
+  : { url: '', pad: 0 };
+
+function FundoSombraCard({ destaque }: { destaque?: boolean }) {
+  const { url, pad } = destaque ? SOMBRA_CARD_DESTAQUE : SOMBRA_CARD;
+  if (!url) return null;
+  return (
+    <img
+      aria-hidden
+      src={url}
+      className="pointer-events-none select-none absolute"
+      style={{ top: -pad, left: -pad, width: `calc(100% + ${pad * 2}px)`, height: `calc(100% + ${pad * 2}px)`, zIndex: -1 }}
+    />
+  );
+}
 
 /**
  * Sombra da foto do produto — MESMA técnica do editor de plaquinhas
@@ -456,7 +508,8 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
-    <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo, ...SOMBRA_CARD }}>
+    <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo }}>
+      <FundoSombraCard />
       {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
       <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
@@ -517,26 +570,29 @@ function CardDestaque({ produto, estilo, medida, foto }: CardProps) {
 function CardClean({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
-    <div className="rounded-2xl overflow-hidden flex h-32" style={{ backgroundColor: estilo.corFundo, ...SOMBRA_CARD }}>
-      <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
-      <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
-        <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          <p className="text-[11px] font-semibold leading-[1.15] break-words" style={{ color: estilo.corNome }}>
-            {produto.nome}
-          </p>
-          {produto.descricao && (
-            <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
-              {produto.descricao}
+    <div className="relative h-32">
+      <FundoSombraCard />
+      <div className="relative rounded-2xl overflow-hidden flex h-32" style={{ backgroundColor: estilo.corFundo }}>
+        <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
+        <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
+          <AutoAjuste sig={sigT} className="flex-1 min-h-0">
+            <p className="text-[11px] font-semibold leading-[1.15] break-words" style={{ color: estilo.corNome }}>
+              {produto.nome}
             </p>
-          )}
-          {medida && <p className="text-[8px] font-medium mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
-        </AutoAjuste>
-        <div
-          className="flex-shrink-0 flex flex-col items-end origin-bottom-right"
-          style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
-        >
-          <PrecoDe valor={produto.precoDe} />
-          <Preco valor={produto.precoOferta} tamanho={26} variante="texto" />
+            {produto.descricao && (
+              <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
+                {produto.descricao}
+              </p>
+            )}
+            {medida && <p className="text-[8px] font-medium mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+          </AutoAjuste>
+          <div
+            className="flex-shrink-0 flex flex-col items-end origin-bottom-right"
+            style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
+          >
+            <PrecoDe valor={produto.precoDe} />
+            <Preco valor={produto.precoOferta} tamanho={26} variante="texto" />
+          </div>
         </div>
       </div>
     </div>
@@ -553,8 +609,9 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
   return (
     <div
       className="relative rounded-2xl grid items-center gap-2.5 pl-2.5 pr-4 py-3"
-      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto', ...SOMBRA_CARD_DESTAQUE }}
+      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto' }}
     >
+      <FundoSombraCard destaque />
       {/* Foto: maior, encostada na base e saindo pra cima do card */}
       <div
         className="relative z-10 self-end flex items-end justify-center"
