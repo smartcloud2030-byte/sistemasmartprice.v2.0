@@ -60,16 +60,21 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   canvas.height = (Math.ceil(h) + pad * 2) * e;
   const ctx = canvas.getContext('2d');
   if (!ctx) return { url: '', pad };
-  // Recorta a área do card em si ANTES de desenhar — só a sombra, que
-  // "vaza" pra fora do retângulo por causa do blur/offset, fica visível.
-  // (A técnica anterior desenhava a forma preta e depois apagava ela com
-  // `destination-out`: as bordas arredondadas antialiased dos dois
-  // desenhos não cancelam 100%, sobrava uma linha fina bem na borda —
-  // clip resolve isso porque só existe UM desenho, sem resíduo.)
+  // Recorta a área do card ANTES de desenhar (só a sombra que "vaza" pra
+  // fora por causa do blur/offset fica visível) — mas um pouco MENOR que o
+  // card de verdade (margem), não do mesmo tamanho exato. Se o buraco
+  // fosse idêntico ao card, qualquer diferença de meio pixel entre o corte
+  // e o card real (arredondamento/antialiasing do navegador) sobra como
+  // uma frestinha visível na borda. Com o buraco menor, o card real (maior)
+  // sempre cobre a borda do recorte com folga — nunca aparece.
+  const margem = 4 * e;
+  const wBuraco = w * e - margem * 2;
+  const hBuraco = h * e - margem * 2;
+  const raioBuraco = Math.max(0, raio * e - margem);
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, canvas.width, canvas.height);
-  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
+  ctx.roundRect(pad * e + margem, pad * e + margem, wBuraco, hBuraco, raioBuraco);
   ctx.clip('evenodd');
   ctx.shadowColor = `rgba(0,0,0,${opacidade})`;
   ctx.shadowBlur = blur * e;
