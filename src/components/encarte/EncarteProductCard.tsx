@@ -60,6 +60,17 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   canvas.height = (Math.ceil(h) + pad * 2) * e;
   const ctx = canvas.getContext('2d');
   if (!ctx) return { url: '', pad };
+  // Recorta a área do card em si ANTES de desenhar — só a sombra, que
+  // "vaza" pra fora do retângulo por causa do blur/offset, fica visível.
+  // (A técnica anterior desenhava a forma preta e depois apagava ela com
+  // `destination-out`: as bordas arredondadas antialiased dos dois
+  // desenhos não cancelam 100%, sobrava uma linha fina bem na borda —
+  // clip resolve isso porque só existe UM desenho, sem resíduo.)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, canvas.width, canvas.height);
+  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
+  ctx.clip('evenodd');
   ctx.shadowColor = `rgba(0,0,0,${opacidade})`;
   ctx.shadowBlur = blur * e;
   ctx.shadowOffsetY = offsetY * e;
@@ -67,14 +78,7 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   ctx.beginPath();
   ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
   ctx.fill();
-  // Apaga a forma preta em si, deixando só o halo da sombra ao redor —
-  // o card de verdade (fundo branco/colorido + conteúdo) é desenhado por
-  // cima disso pelo DOM normal.
-  ctx.shadowColor = 'transparent';
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath();
-  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
-  ctx.fill();
+  ctx.restore();
   return { url: canvas.toDataURL('image/png'), pad };
 }
 
