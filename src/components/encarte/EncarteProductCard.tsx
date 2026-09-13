@@ -29,25 +29,23 @@ const PRECO_LARANJA: React.CSSProperties = {
 };
 
 /**
- * Sombra dos cards — mesma lógica da sombra da foto: `box-shadow` em CSS
- * (mesmo em valor literal, sem `var()`) provou repetidas vezes não sair no
- * export do html2canvas-pro, então em vez de insistir nele a sombra é
- * ASSADA num PNG e colocada como imagem de fundo atrás do card. Sai igual
- * em tela e export — os dois só exibem/capturam a mesma imagem estática.
- * Dimensões dos cards (exceto o "em destaque") são fixas (`CARD_W` ×
- * 128px do `h-32`), então dá pra assar uma vez só no import.
+ * Fundo + sombra dos cards — mesma lógica da sombra da foto: `box-shadow`
+ * em CSS (mesmo em valor literal, sem `var()`) provou repetidas vezes não
+ * sair no export do html2canvas-pro, então em vez de insistir nele o card
+ * inteiro (forma arredondada na cor de fundo + sombra) é ASSADO num PNG só
+ * e colocado atrás do conteúdo (texto/preço/foto), que fica sobre um card
+ * "real" TRANSPARENTE (sem `background-color` própria). Sai igual em tela
+ * e export — os dois só exibem/capturam a mesma imagem estática.
  *
- * Três tentativas anteriores tentavam "furar" um buraco do tamanho exato
- * do card na sombra (destination-out, depois clip, depois buraco menor com
- * blur no apagamento) — todas dependiam de alinhamento em pixel exato (ou
- * quase) com o card real do DOM, e qualquer diferença de 1-2px (testado e
- * confirmado localmente com node-canvas) sobrava como fresta ou virava uma
- * borda preta sólida visível. A solução que realmente resolve: NÃO furar
- * nada. Desenha só a forma sólida BEM MENOR que o card de verdade (margem
- * generosa) com `ctx.shadowBlur` — a parte sólida fica sempre escondida
- * embaixo do card real (a margem absorve qualquer desalinhamento pequeno
- * sem sobrar nada visível) e só a sombra, que já é naturalmente
- * gradual/desfocada, aparece por fora.
+ * Antes disso, o card real (com fundo colorido de verdade) ficava por cima
+ * de uma sombra assada SEPARADA e propositalmente menor (margem) pra ficar
+ * escondida por baixo — eram DOIS desenhos independentes (um PNG, um
+ * `border-radius` do navegador) que precisavam alinhar em pixel exato, e
+ * qualquer diferença de 1-2px sobrava como fresta ou borda preta sólida
+ * (várias rodadas de tentativa: destination-out, clip, blur no apagamento,
+ * margem generosa — todas ainda dependiam desse alinhamento). Assando o
+ * fundo de verdade JUNTO da sombra, no mesmo `roundRect`, os dois nunca
+ * podem desalinhar entre si — não sobra card nenhum por baixo pra vazar.
  */
 interface SombraCardAssada {
   url: string;
@@ -62,44 +60,54 @@ interface SombraCardAssada {
 // de uma imagem @2x/@3x normal).
 const RESOLUCAO_EXTRA = 4;
 
-// Quanto a forma sólida (não a sombra) fica menor que o card em cada lado.
-// Era 4 — na prática sobrava uma linha preta fina na lateral esquerda de
-// alguns cards (desalinhamento de 1-2px entre o PNG assado e o card real
-// do DOM, ver nota acima). Blur é 34, então 8px de margem some no
-// desfoque sem mudar a sombra visível.
-const MARGEM_SOMBRA_CARD = 8;
-
-function criarSombraCard(w: number, h: number, raio: number, blur: number, offsetY: number, opacidade: number): SombraCardAssada {
+function criarFundoCard(w: number, h: number, raio: number, blur: number, offsetY: number, opacidade: number, cor: string): SombraCardAssada {
   const pad = Math.ceil(blur + Math.max(offsetY, 0) + 4);
   const e = RESOLUCAO_EXTRA;
-  const m = MARGEM_SOMBRA_CARD;
   const canvas = document.createElement('canvas');
   canvas.width = (Math.ceil(w) + pad * 2) * e;
   canvas.height = (Math.ceil(h) + pad * 2) * e;
   const ctx = canvas.getContext('2d');
   if (!ctx) return { url: '', pad };
+  // Um único preenchimento na cor real do card, com sombra ligada — a
+  // sombra some do lado de fora (blur) e a própria forma preenchida É o
+  // fundo visível, não uma cópia escondida atrás de outro fundo.
   ctx.shadowColor = `rgba(0,0,0,${opacidade})`;
   ctx.shadowBlur = blur * e;
   ctx.shadowOffsetY = offsetY * e;
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = cor;
   ctx.beginPath();
-  ctx.roundRect((pad + m) * e, (pad + m) * e, (w - m * 2) * e, (h - m * 2) * e, Math.max(0, raio - m) * e);
+  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
   ctx.fill();
   return { url: canvas.toDataURL('image/png'), pad };
+}
+
+// Cache por combinação de tamanho/raio/cor — a cor de fundo é escolhida
+// pelo usuário (slider/paleta) e pode mudar a qualquer momento, então não
+// dá mais pra assar uma vez só no import (como quando a forma era sempre
+// preta). `toDataURL` é síncrono e o canvas é pequeno, então recalcular só
+// quando a combinação muda (e reaproveitar entre cards do mesmo estilo) é
+// suficiente — sem precisar de debounce nem de estado assíncrono.
+const cacheFundoCard = new Map<string, SombraCardAssada>();
+const isBrowser = typeof document !== 'undefined';
+
+function fundoCard(w: number, h: number, raio: number, blur: number, offsetY: number, opacidade: number, cor: string): SombraCardAssada {
+  if (!isBrowser) return { url: '', pad: 0 };
+  const chave = `${w}|${h}|${raio}|${blur}|${offsetY}|${opacidade}|${cor}`;
+  const emCache = cacheFundoCard.get(chave);
+  if (emCache) return emCache;
+  const resultado = criarFundoCard(w, h, raio, blur, offsetY, opacidade, cor);
+  cacheFundoCard.set(chave, resultado);
+  return resultado;
 }
 
 // offsetY baixo (quase 0) de propósito: um offset grande empurra a sombra
 // pra baixo e deixa em cima quase sem nada — parecia sombra "só na metade"
 // do card. Blur bem maior + sombra praticamente centrada dá o efeito
 // ambiente, suave e por igual nos 4 lados que foi pedido.
-const isBrowser = typeof document !== 'undefined';
-const SOMBRA_CARD: SombraCardAssada = isBrowser ? criarSombraCard(CARD_W, 128, 12, 34, 4, 0.22) : { url: '', pad: 0 };
-const SOMBRA_CARD_DESTAQUE: SombraCardAssada = isBrowser
-  ? criarSombraCard(CARD_W * 2.2, 128, 16, 38, 5, 0.24)
-  : { url: '', pad: 0 };
-
-function FundoSombraCard({ destaque }: { destaque?: boolean }) {
-  const { url, pad } = destaque ? SOMBRA_CARD_DESTAQUE : SOMBRA_CARD;
+function FundoSombraCard({ destaque, raio, cor }: { destaque?: boolean; raio: number; cor: string }) {
+  const { url, pad } = destaque
+    ? fundoCard(CARD_W * 2.2, 128, raio, 38, 5, 0.24, cor)
+    : fundoCard(CARD_W, 128, raio, 34, 4, 0.22, cor);
   if (!url) return null;
   return (
     <img
@@ -523,12 +531,10 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
-      <FundoSombraCard />
-      {/* fundo branco/colorido numa div separada, depois da sombra no DOM —
-          se ficasse na mesma div que cria o contexto de empilhamento, o
-          próprio fundo dela pintaria ANTES de qualquer filho (mesmo um com
-          z-index negativo), e a sombra apareceria por cima em vez de atrás. */}
-      <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo }}>
+      <FundoSombraCard raio={12} cor={estilo.corFundo} />
+      {/* sem fundo próprio — quem pinta a cor de verdade é o PNG assado
+          acima (fundo + sombra assados juntos, ver nota em FundoSombraCard) */}
+      <div className="relative rounded-xl flex h-32">
         {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
         <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
@@ -591,8 +597,8 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
-      <FundoSombraCard />
-      <div className="relative rounded-2xl overflow-hidden flex h-32" style={{ backgroundColor: estilo.corFundo }}>
+      <FundoSombraCard raio={16} cor={estilo.corFundo} />
+      <div className="relative rounded-2xl overflow-hidden flex h-32">
         <div className="w-24 flex-shrink-0 flex items-center justify-center p-1.5">{foto}</div>
         <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
@@ -628,13 +634,12 @@ function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative" style={{ zIndex: 0 }}>
-      <FundoSombraCard destaque />
-      {/* fundo colorido numa div separada, depois da sombra no DOM — ver
-          nota em CardPadrao sobre por que não dá pra por na mesma div que
-          cria o contexto de empilhamento. */}
+      <FundoSombraCard destaque raio={16} cor={estilo.corFundo} />
+      {/* sem fundo próprio — quem pinta a cor de verdade é o PNG assado
+          acima (fundo + sombra assados juntos, ver nota em FundoSombraCard) */}
       <div
         className="relative rounded-2xl grid items-center gap-2.5 pl-2.5 pr-4 py-3"
-        style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto' }}
+        style={{ gridTemplateColumns: '134px minmax(0,1fr) auto' }}
       >
         {/* Foto: maior, encostada na base e saindo pra cima do card */}
         <div
