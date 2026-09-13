@@ -87,7 +87,7 @@ function TemaThumb({
     >
       <img
         src={getProxyUrl(img.url, { thumbnail: true })}
-        className={cn('w-full h-full', ajuste === 'contain' ? 'object-contain' : 'object-cover')}
+        className={cn('w-full h-full', ajuste === 'contain' ? 'object-contain' : 'object-cover object-top')}
       />
       {ativa && (
         <div className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
