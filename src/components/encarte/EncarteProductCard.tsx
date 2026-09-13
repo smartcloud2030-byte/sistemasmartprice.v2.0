@@ -32,12 +32,22 @@ const PRECO_LARANJA: React.CSSProperties = {
  * Sombra dos cards — mesma lógica da sombra da foto: `box-shadow` em CSS
  * (mesmo em valor literal, sem `var()`) provou repetidas vezes não sair no
  * export do html2canvas-pro, então em vez de insistir nele a sombra é
- * ASSADA num PNG (rounded-rect com `ctx.shadowBlur`/`shadowColor`/
- * `shadowOffsetY`, depois "recortada" com `destination-out` pra sobrar só o
- * halo e não a forma preta em si) e colocada como imagem de fundo atrás do
- * card. Sai igual em tela e export — os dois só exibem/capturam a mesma
- * imagem estática. Dimensões dos cards (exceto o "em destaque") são fixas
- * (`CARD_W` × 128px do `h-32`), então dá pra assar uma vez só no import.
+ * ASSADA num PNG e colocada como imagem de fundo atrás do card. Sai igual
+ * em tela e export — os dois só exibem/capturam a mesma imagem estática.
+ * Dimensões dos cards (exceto o "em destaque") são fixas (`CARD_W` ×
+ * 128px do `h-32`), então dá pra assar uma vez só no import.
+ *
+ * Três tentativas anteriores tentavam "furar" um buraco do tamanho exato
+ * do card na sombra (destination-out, depois clip, depois buraco menor com
+ * blur no apagamento) — todas dependiam de alinhamento em pixel exato (ou
+ * quase) com o card real do DOM, e qualquer diferença de 1-2px (testado e
+ * confirmado localmente com node-canvas) sobrava como fresta ou virava uma
+ * borda preta sólida visível. A solução que realmente resolve: NÃO furar
+ * nada. Desenha só a forma sólida BEM MENOR que o card de verdade (margem
+ * generosa) com `ctx.shadowBlur` — a parte sólida fica sempre escondida
+ * embaixo do card real (a margem absorve qualquer desalinhamento pequeno
+ * sem sobrar nada visível) e só a sombra, que já é naturalmente
+ * gradual/desfocada, aparece por fora.
  */
 interface SombraCardAssada {
   url: string;
@@ -52,9 +62,13 @@ interface SombraCardAssada {
 // de uma imagem @2x/@3x normal).
 const RESOLUCAO_EXTRA = 4;
 
+// Quanto a forma sólida (não a sombra) fica menor que o card em cada lado.
+const MARGEM_SOMBRA_CARD = 4;
+
 function criarSombraCard(w: number, h: number, raio: number, blur: number, offsetY: number, opacidade: number): SombraCardAssada {
   const pad = Math.ceil(blur + Math.max(offsetY, 0) + 4);
   const e = RESOLUCAO_EXTRA;
+  const m = MARGEM_SOMBRA_CARD;
   const canvas = document.createElement('canvas');
   canvas.width = (Math.ceil(w) + pad * 2) * e;
   canvas.height = (Math.ceil(h) + pad * 2) * e;
@@ -65,22 +79,7 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   ctx.shadowOffsetY = offsetY * e;
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
-  ctx.fill();
-  // Apaga a área do card com uma borda DESFOCADA (não um recorte de aresta
-  // dura) — as duas tentativas anteriores (destination-out do mesmo
-  // tamanho, depois clip com buraco menor) sempre dependiam de alinhamento
-  // em pixel exato com o card real do DOM: qualquer diferença de subpixel
-  // sobrava como fresta (buraco do tamanho certo) ou virava uma borda preta
-  // sólida visível (buraco menor, mas com aresta dura). Apagando com blur
-  // a transição vira gradual — não existe mais aresta nenhuma pra sobrar,
-  // então nenhum desalinhamento pequeno consegue aparecer.
-  const margem = 6 * e;
-  ctx.shadowColor = 'transparent';
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.filter = `blur(${margem}px)`;
-  ctx.beginPath();
-  ctx.roundRect(pad * e + margem, pad * e + margem, w * e - margem * 2, h * e - margem * 2, Math.max(0, raio * e - margem));
+  ctx.roundRect((pad + m) * e, (pad + m) * e, (w - m * 2) * e, (h - m * 2) * e, Math.max(0, raio - m) * e);
   ctx.fill();
   return { url: canvas.toDataURL('image/png'), pad };
 }
