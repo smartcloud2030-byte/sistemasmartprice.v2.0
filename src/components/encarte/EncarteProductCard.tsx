@@ -446,6 +446,27 @@ export default function EncarteProductCard({
   // FotoAjustavel): a foto de verdade passa a ser desenhada por cima, solta.
   const fotoNoSlot = temAjusteFoto ? null : foto;
 
+  // Renderizada DENTRO de cada modelo de card (não como irmã aqui fora) de
+  // propósito: Padrão/Clean/"em destaque" têm zIndex:0 na raiz (contém o
+  // vazamento da sombra assada, ver FundoSombraCard) — isso cria um
+  // contexto de empilhamento PRÓPRIO que isola a etiqueta de preço (z-10
+  // lá dentro) de qualquer coisa FORA dele. Uma foto solta irmã aqui fora,
+  // mesmo com z-index bem maior, nunca conseguia ficar atrás dessa etiqueta
+  // (o card inteiro pinta como bloco único primeiro) — só sobra atrás dela
+  // desenhando a foto DENTRO do mesmo contexto, disputando o mesmo z-10.
+  const fotoAjustavelNode =
+    temAjusteFoto && produto.fotoAjuste && onAjustarFoto ? (
+      <FotoAjustavel
+        ajuste={produto.fotoAjuste}
+        foto={foto}
+        selecionada={!!fotoSelecionada}
+        wrapperRef={wrapperRef}
+        onSelecionar={() => onSelecionarFoto?.()}
+        onAjustar={(ajuste, chaveCoalesce) => onAjustarFoto(ajuste, { coalesce: `ajustar-foto-${chaveCoalesce}-${produto.product.id}` })}
+        onResetar={() => onAjustarFoto(null)}
+      />
+    ) : null;
+
   return (
     <div
       ref={wrapperRef}
@@ -460,6 +481,7 @@ export default function EncarteProductCard({
           foto={fotoNoSlot}
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+          fotoAjustavelNode={fotoAjustavelNode}
         />
       ) : estilo.modeloCard === 'destaque' ? (
         <CardDestaque
@@ -469,6 +491,7 @@ export default function EncarteProductCard({
           foto={fotoNoSlot}
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+          fotoAjustavelNode={fotoAjustavelNode}
         />
       ) : estilo.modeloCard === 'clean' ? (
         <CardClean
@@ -478,6 +501,7 @@ export default function EncarteProductCard({
           foto={fotoNoSlot}
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
+          fotoAjustavelNode={fotoAjustavelNode}
         />
       ) : (
         <CardPadrao
@@ -487,18 +511,7 @@ export default function EncarteProductCard({
           foto={fotoNoSlot}
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
-        />
-      )}
-
-      {temAjusteFoto && produto.fotoAjuste && onAjustarFoto && (
-        <FotoAjustavel
-          ajuste={produto.fotoAjuste}
-          foto={foto}
-          selecionada={!!fotoSelecionada}
-          wrapperRef={wrapperRef}
-          onSelecionar={() => onSelecionarFoto?.()}
-          onAjustar={(ajuste, chaveCoalesce) => onAjustarFoto(ajuste, { coalesce: `ajustar-foto-${chaveCoalesce}-${produto.product.id}` })}
-          onResetar={() => onAjustarFoto(null)}
+          fotoAjustavelNode={fotoAjustavelNode}
         />
       )}
 
@@ -519,6 +532,10 @@ interface CardProps {
   foto: React.ReactNode;
   onFotoSlotPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   onFotoSlotDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  /** Foto solta (ver nota acima de `fotoAjustavelNode`) — cada modelo desenha
+   * isso DENTRO da própria raiz, pra disputar o mesmo contexto de
+   * empilhamento da etiqueta de preço em vez de ficar isolado fora dele. */
+  fotoAjustavelNode?: React.ReactNode;
 }
 
 /**
@@ -798,12 +815,13 @@ function PrecoDe({ valor, className }: { valor: string; className?: string }) {
 }
 
 /** Modelo Padrão — card branco, texto à esquerda, foto à direita, preço em etiqueta. */
-function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
+function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard raio={12} cor={estilo.corFundo} />
+      {fotoAjustavelNode}
       {/* sem fundo próprio — quem pinta a cor de verdade é o PNG assado
           acima (fundo + sombra assados juntos, ver nota em FundoSombraCard) */}
       <div className="relative rounded-xl flex h-32">
@@ -837,11 +855,12 @@ function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFo
 }
 
 /** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
-function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
+function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative flex h-32 gap-1.5">
+      {fotoAjustavelNode}
       <div className="relative z-10 flex-1 min-w-0 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
           {/* `text-shadow` em vez de `filter: drop-shadow` (Tailwind `drop-shadow-sm`)
@@ -877,11 +896,12 @@ function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, on
 }
 
 /** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em laranja. */
-function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
+function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard raio={16} cor={estilo.corFundo} />
+      {fotoAjustavelNode}
       <div className="relative rounded-2xl overflow-hidden flex h-32">
         <div
           className="w-24 flex-shrink-0 flex items-center justify-center p-1.5"
@@ -920,11 +940,12 @@ function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFot
  * transbordando pra cima (sai da caixa branca), nome + descrição completa
  * alinhados à esquerda no centro, e preço grande à direita com POR / R$ / UNI.
  */
-function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick }: CardProps) {
+function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative" style={{ zIndex: 0 }}>
       <FundoSombraCard destaque raio={16} cor={estilo.corFundo} />
+      {fotoAjustavelNode}
       {/* sem fundo próprio — quem pinta a cor de verdade é o PNG assado
           acima (fundo + sombra assados juntos, ver nota em FundoSombraCard) */}
       <div
