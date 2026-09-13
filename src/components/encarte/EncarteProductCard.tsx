@@ -60,22 +60,6 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   canvas.height = (Math.ceil(h) + pad * 2) * e;
   const ctx = canvas.getContext('2d');
   if (!ctx) return { url: '', pad };
-  // Recorta a área do card ANTES de desenhar (só a sombra que "vaza" pra
-  // fora por causa do blur/offset fica visível) — mas um pouco MENOR que o
-  // card de verdade (margem), não do mesmo tamanho exato. Se o buraco
-  // fosse idêntico ao card, qualquer diferença de meio pixel entre o corte
-  // e o card real (arredondamento/antialiasing do navegador) sobra como
-  // uma frestinha visível na borda. Com o buraco menor, o card real (maior)
-  // sempre cobre a borda do recorte com folga — nunca aparece.
-  const margem = 4 * e;
-  const wBuraco = w * e - margem * 2;
-  const hBuraco = h * e - margem * 2;
-  const raioBuraco = Math.max(0, raio * e - margem);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, canvas.width, canvas.height);
-  ctx.roundRect(pad * e + margem, pad * e + margem, wBuraco, hBuraco, raioBuraco);
-  ctx.clip('evenodd');
   ctx.shadowColor = `rgba(0,0,0,${opacidade})`;
   ctx.shadowBlur = blur * e;
   ctx.shadowOffsetY = offsetY * e;
@@ -83,7 +67,21 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   ctx.beginPath();
   ctx.roundRect(pad * e, pad * e, w * e, h * e, raio * e);
   ctx.fill();
-  ctx.restore();
+  // Apaga a área do card com uma borda DESFOCADA (não um recorte de aresta
+  // dura) — as duas tentativas anteriores (destination-out do mesmo
+  // tamanho, depois clip com buraco menor) sempre dependiam de alinhamento
+  // em pixel exato com o card real do DOM: qualquer diferença de subpixel
+  // sobrava como fresta (buraco do tamanho certo) ou virava uma borda preta
+  // sólida visível (buraco menor, mas com aresta dura). Apagando com blur
+  // a transição vira gradual — não existe mais aresta nenhuma pra sobrar,
+  // então nenhum desalinhamento pequeno consegue aparecer.
+  const margem = 6 * e;
+  ctx.shadowColor = 'transparent';
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.filter = `blur(${margem}px)`;
+  ctx.beginPath();
+  ctx.roundRect(pad * e + margem, pad * e + margem, w * e - margem * 2, h * e - margem * 2, Math.max(0, raio * e - margem));
+  ctx.fill();
   return { url: canvas.toDataURL('image/png'), pad };
 }
 
