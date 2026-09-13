@@ -29,19 +29,21 @@ const PRECO_LARANJA: React.CSSProperties = {
 };
 
 /**
- * Sombra dos cards (era Tailwind `shadow-md`/`shadow-lg`) em valor literal.
- * O Tailwind v4 monta `box-shadow` compondo várias CSS custom properties
- * (`var(--tw-shadow)`, `var(--tw-ring-shadow)` etc.) — o html2canvas-pro não
- * resolve `var()`, então a propriedade inteira saía vazia no export: sem
- * sombra e, como os cards não têm borda própria, sem contorno nenhum contra
- * o fundo branco. Valor fixo (mesmo número usado pelo Tailwind por baixo)
- * funciona em CSS puro nos dois lados.
+ * Sombra + contorno dos cards (era Tailwind `shadow-md`/`shadow-lg`) em
+ * valor literal. O Tailwind v4 monta `box-shadow` compondo várias CSS custom
+ * properties (`var(--tw-shadow)` etc.) que o html2canvas-pro não resolve.
+ * Valor fixo resolve a composição, mas a sombra sozinha (10% de opacidade)
+ * ainda sai discreta demais pra garantir contorno visível no export — por
+ * isso soma uma borda de verdade (1px sólido), que não depende de nenhuma
+ * técnica alternativa e sempre desenha.
  */
 const SOMBRA_CARD: React.CSSProperties = {
   boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
+  border: '1px solid rgba(0,0,0,0.08)',
 };
 const SOMBRA_CARD_DESTAQUE: React.CSSProperties = {
   boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+  border: '1px solid rgba(0,0,0,0.08)',
 };
 
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
@@ -51,21 +53,22 @@ export default function EncarteProductCard({ produto, estilo, selecionado }: Enc
   // Sem thumbnail aqui de propósito: o card é exportado em alta qualidade
   // (scale alto no download), e a miniatura de 400px ficaria borrada ampliada.
   //
-  // Sombra: em vez de `filter: drop-shadow` (que o html2canvas-pro renderiza
-  // mais forte/dura que o Chrome no PNG/PDF), usamos uma CÓPIA da própria foto
-  // borrada + escurecida atrás dela. `blur`+`brightness`+`opacity` saem iguais
-  // na tela e no export — a sombra fica fiel.
+  // Sombra da foto: `filter` (blur/brightness/drop-shadow) não existe no
+  // html2canvas-pro — a técnica antiga (cópia da imagem borrada atrás) saía
+  // sem nenhum blur no export, uma cópia nítida "fantasma" por trás da foto.
+  // Elipse em degradê radial no chão da foto dá o efeito de sombra sem
+  // depender de filter nenhum — sai igual na tela e no export.
   const fotoSrc = getProxyUrl(product.image || product.thumb_image);
   const foto = product.image ? (
-    <span className="relative block w-full h-full">
-      <img
-        src={fotoSrc}
+    <span className="relative flex items-end justify-center w-full h-full">
+      <span
         aria-hidden
-        draggable={false}
-        className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
-        style={{ filter: 'blur(4px) brightness(0)', opacity: 0.33, transform: 'translateY(4px)' }}
-        referrerPolicy="no-referrer"
-        crossOrigin="anonymous"
+        className="absolute bottom-[6%] left-1/2 -translate-x-1/2"
+        style={{
+          width: '68%',
+          height: '20%',
+          background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0) 72%)',
+        }}
       />
       <img
         src={fotoSrc}
