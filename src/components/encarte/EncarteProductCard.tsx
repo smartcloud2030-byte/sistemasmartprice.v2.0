@@ -20,8 +20,14 @@ interface EncarteProductCardProps {
   /** foto "solta" do lugar padrão (depois do duplo clique nela) está selecionada — mostra alças. */
   fotoSelecionada?: boolean;
   onSelecionarFoto?: () => void;
-  /** `null` restaura a foto pro lugar padrão do modelo de card. */
-  onAjustarFoto?: (ajuste: AjusteFotoProduto | null) => void;
+  /**
+   * `null` restaura a foto pro lugar padrão do modelo de card. `opcoes.coalesce`
+   * agrupa a rajada de mudanças de um arraste inteiro num passo só de desfazer
+   * (mesmo esquema de `onMoverImagem`/`onRedimensionarImagem` — sem isso, cada
+   * pixel de movimento virava um passo de undo separado e o arraste ficava
+   * ruim de usar).
+   */
+  onAjustarFoto?: (ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
 }
 
 /**
@@ -240,7 +246,10 @@ function FotoAjustavel({
   selecionada: boolean;
   wrapperRef: React.RefObject<HTMLDivElement | null>;
   onSelecionar: () => void;
-  onAjustar: (ajuste: AjusteFotoProduto) => void;
+  /** `chaveCoalesce` identifica o GESTO (mover, ou redimensionar por um canto
+   * específico) — agrupa toda a rajada de um mesmo arraste num passo só de
+   * desfazer, sem juntar um arraste com o próximo. */
+  onAjustar: (ajuste: AjusteFotoProduto, chaveCoalesce: string) => void;
   onResetar: () => void;
 }) {
   const dragRef = useRef<FotoDragState | null>(null);
@@ -259,13 +268,17 @@ function FotoAjustavel({
     const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
     const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
     const o = st.orig;
+    const chaveCoalesce = st.tipo === 'mover' ? 'mover' : `resize-${st.canto}`;
 
     if (st.tipo === 'mover') {
-      onAjustar({
-        ...o,
-        xPct: clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.wPct),
-        yPct: clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.hPct),
-      });
+      onAjustar(
+        {
+          ...o,
+          xPct: clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.wPct),
+          yPct: clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.hPct),
+        },
+        chaveCoalesce,
+      );
       return;
     }
 
@@ -286,7 +299,7 @@ function FotoAjustavel({
     if (st.canto === 'sw' || st.canto === 'se') {
       hPct = clamp(o.hPct + dyPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.yPct);
     }
-    onAjustar({ xPct, yPct, wPct, hPct });
+    onAjustar({ xPct, yPct, wPct, hPct }, chaveCoalesce);
   };
 
   const soltar = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -296,6 +309,9 @@ function FotoAjustavel({
 
   return (
     <div
+      // marca pro EncarteCanvas reconhecer clique "dentro de alguma foto solta"
+      // vs. clique fora — ver onPointerDownCapture no container do canvas.
+      data-foto-overlay="true"
       className="absolute touch-none"
       style={{ left: `${ajuste.xPct}%`, top: `${ajuste.yPct}%`, width: `${ajuste.wPct}%`, height: `${ajuste.hPct}%`, zIndex: 20 }}
     >
@@ -478,7 +494,7 @@ export default function EncarteProductCard({
           selecionada={!!fotoSelecionada}
           wrapperRef={wrapperRef}
           onSelecionar={() => onSelecionarFoto?.()}
-          onAjustar={onAjustarFoto}
+          onAjustar={(ajuste, chaveCoalesce) => onAjustarFoto(ajuste, { coalesce: `ajustar-foto-${chaveCoalesce}-${produto.product.id}` })}
           onResetar={() => onAjustarFoto(null)}
         />
       )}

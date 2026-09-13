@@ -325,7 +325,7 @@ interface EncarteCanvasProps {
   onAdicionarProdutos: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
-  onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null) => void;
+  onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
   onMoverDivisor: (id: string, yPct: number) => void;
   onMoverImagem: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
@@ -1285,7 +1285,7 @@ export default function EncarteCanvas({
           setImagemSelecionadaId(null);
           setProdutoSelecionadoId(null);
         }}
-        onAjustarFoto={(ajuste) => onAjustarFotoProduto(ep.product.id, ajuste)}
+        onAjustarFoto={(ajuste, opcoes) => onAjustarFotoProduto(ep.product.id, ajuste, opcoes)}
       />
     </div>
   );
@@ -1723,6 +1723,17 @@ export default function EncarteCanvas({
       {/* Área de preview */}
       <div
         className="flex-grow overflow-auto p-8 relative"
+        // Fase de CAPTURA (roda antes de qualquer `stopPropagation` dos
+        // filhos, ao contrário do onClick abaixo) — garante que clicar fora
+        // de QUALQUER foto solta feche a seleção dela, mesmo clicando em
+        // outro produto/imagem/forma/texto cujo próprio handler pare a
+        // propagação antes de chegar no onClick de fundo aqui embaixo.
+        onPointerDownCapture={(e) => {
+          if (fotoSelecionadaId == null) return;
+          if (!(e.target as HTMLElement).closest?.('[data-foto-overlay]')) {
+            setFotoSelecionadaId(null);
+          }
+        }}
         onClick={() => {
           if (gradeAberta) setGradeAberta(false);
           if (formasAberta) setFormasAberta(false);
