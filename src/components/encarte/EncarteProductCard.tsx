@@ -518,26 +518,32 @@ function CardPadrao({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
-    <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo, zIndex: 0 }}>
+    <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard />
-      {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
-      <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
-        <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          <p className="text-[11px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corNome }}>
-            {produto.nome}
-          </p>
-          {produto.descricao && (
-            <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
-              {produto.descricao}
+      {/* fundo branco/colorido numa div separada, depois da sombra no DOM —
+          se ficasse na mesma div que cria o contexto de empilhamento, o
+          próprio fundo dela pintaria ANTES de qualquer filho (mesmo um com
+          z-index negativo), e a sombra apareceria por cima em vez de atrás. */}
+      <div className="relative rounded-xl flex h-32" style={{ backgroundColor: estilo.corFundo }}>
+        {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
+        <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
+          <AutoAjuste sig={sigT} className="flex-1 min-h-0">
+            <p className="text-[11px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corNome }}>
+              {produto.nome}
             </p>
-          )}
-          {medida && <p className="text-[8px] font-semibold mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
-        </AutoAjuste>
-        <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
-          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
-        </AutoAjuste>
+            {produto.descricao && (
+              <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
+                {produto.descricao}
+              </p>
+            )}
+            {medida && <p className="text-[8px] font-semibold mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+          </AutoAjuste>
+          <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
+            <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
+          </AutoAjuste>
+        </div>
+        <div className="w-24 flex-shrink-0 flex items-center justify-center p-1">{foto}</div>
       </div>
-      <div className="w-24 flex-shrink-0 flex items-center justify-center p-1">{foto}</div>
     </div>
   );
 }
@@ -617,48 +623,53 @@ function CardClean({ produto, estilo, medida, foto }: CardProps) {
 function CardProdutoDestaque({ produto, estilo, medida, foto }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
-    <div
-      className="relative rounded-2xl grid items-center gap-2.5 pl-2.5 pr-4 py-3"
-      style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto', zIndex: 0 }}
-    >
+    <div className="relative" style={{ zIndex: 0 }}>
       <FundoSombraCard destaque />
-      {/* Foto: maior, encostada na base e saindo pra cima do card */}
+      {/* fundo colorido numa div separada, depois da sombra no DOM — ver
+          nota em CardPadrao sobre por que não dá pra por na mesma div que
+          cria o contexto de empilhamento. */}
       <div
-        className="relative z-10 self-end flex items-end justify-center"
-        style={{ height: 160, marginTop: -58, marginBottom: -6 }}
+        className="relative rounded-2xl grid items-center gap-2.5 pl-2.5 pr-4 py-3"
+        style={{ backgroundColor: estilo.corFundo, gridTemplateColumns: '134px minmax(0,1fr) auto' }}
       >
-        {foto}
-      </div>
+        {/* Foto: maior, encostada na base e saindo pra cima do card */}
+        <div
+          className="relative z-10 self-end flex items-end justify-center"
+          style={{ height: 160, marginTop: -58, marginBottom: -6 }}
+        >
+          {foto}
+        </div>
 
-      {/* Nome + descrição completa, alinhados à esquerda */}
-      <AutoAjuste sig={sigT} className="self-center max-h-[92px]">
-        <p className="text-[15px] font-black uppercase leading-[1.12] break-words" style={{ color: estilo.corNome }}>
-          {produto.nome}
-        </p>
-        {produto.descricao && (
-          <p className="text-[10px] font-semibold leading-[1.2] mt-1 break-words" style={{ color: estilo.corDescricao }}>
-            {produto.descricao}
+        {/* Nome + descrição completa, alinhados à esquerda */}
+        <AutoAjuste sig={sigT} className="self-center max-h-[92px]">
+          <p className="text-[15px] font-black uppercase leading-[1.12] break-words" style={{ color: estilo.corNome }}>
+            {produto.nome}
           </p>
-        )}
-        {medida && (
-          <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
-        )}
-      </AutoAjuste>
+          {produto.descricao && (
+            <p className="text-[10px] font-semibold leading-[1.2] mt-1 break-words" style={{ color: estilo.corDescricao }}>
+              {produto.descricao}
+            </p>
+          )}
+          {medida && (
+            <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
+          )}
+        </AutoAjuste>
 
-      {/* Preço grande dourado com efeito: POR / R$ / número / centavos / UNI */}
-      <div
-        className="relative z-10 flex flex-col items-end origin-right"
-        style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
-      >
-        <PrecoDe valor={produto.precoDe} />
-        {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
-        <PrecoEtiqueta
-          valor={produto.precoOferta}
-          tamanho={58}
-          dourado
-          escalaRotulos={0.58}
-          escalaCentavos={0.6}
-        />
+        {/* Preço grande dourado com efeito: POR / R$ / número / centavos / UNI */}
+        <div
+          className="relative z-10 flex flex-col items-end origin-right"
+          style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
+        >
+          <PrecoDe valor={produto.precoDe} />
+          {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
+          <PrecoEtiqueta
+            valor={produto.precoOferta}
+            tamanho={58}
+            dourado
+            escalaRotulos={0.58}
+            escalaCentavos={0.6}
+          />
+        </div>
       </div>
     </div>
   );
