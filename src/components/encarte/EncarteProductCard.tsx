@@ -78,10 +78,14 @@ function criarSombraCard(w: number, h: number, raio: number, blur: number, offse
   return { url: canvas.toDataURL('image/png'), pad };
 }
 
+// offsetY baixo (quase 0) de propósito: um offset grande empurra a sombra
+// pra baixo e deixa em cima quase sem nada — parecia sombra "só na metade"
+// do card. Blur bem maior + sombra praticamente centrada dá o efeito
+// ambiente, suave e por igual nos 4 lados que foi pedido.
 const isBrowser = typeof document !== 'undefined';
-const SOMBRA_CARD: SombraCardAssada = isBrowser ? criarSombraCard(CARD_W, 128, 12, 26, 16, 0.3) : { url: '', pad: 0 };
+const SOMBRA_CARD: SombraCardAssada = isBrowser ? criarSombraCard(CARD_W, 128, 12, 34, 4, 0.22) : { url: '', pad: 0 };
 const SOMBRA_CARD_DESTAQUE: SombraCardAssada = isBrowser
-  ? criarSombraCard(CARD_W * 2.2, 128, 16, 30, 18, 0.32)
+  ? criarSombraCard(CARD_W * 2.2, 128, 16, 38, 5, 0.24)
   : { url: '', pad: 0 };
 
 function FundoSombraCard({ destaque }: { destaque?: boolean }) {
