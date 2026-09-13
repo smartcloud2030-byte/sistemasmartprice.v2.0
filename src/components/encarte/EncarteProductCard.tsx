@@ -29,20 +29,20 @@ const PRECO_LARANJA: React.CSSProperties = {
 };
 
 /**
- * Sombra + contorno dos cards (era Tailwind `shadow-md`/`shadow-lg`) em
- * valor literal. O Tailwind v4 monta `box-shadow` compondo várias CSS custom
- * properties (`var(--tw-shadow)` etc.) que o html2canvas-pro não resolve.
- * Valor fixo resolve a composição — mas em 8-10% de opacidade (o padrão do
- * Tailwind) fica fraco demais pra notar contra o fundo branco, tanto na
- * borda quanto na sombra. Reforçado bem acima do padrão de propósito.
+ * Sombra dos cards (era Tailwind `shadow-md`/`shadow-lg`) em valor literal.
+ * O Tailwind v4 monta `box-shadow` compondo várias CSS custom properties
+ * (`var(--tw-shadow)` etc.) que o html2canvas-pro não resolve. Calibrado
+ * olhando pra tela real do editor: a sombra lá é grande e bem espalhada
+ * (não a sutil padrão do Tailwind) — blur/offset bem maiores que a primeira
+ * tentativa, que saiu "franca" demais mesmo já reforçada.
  */
 const SOMBRA_CARD: React.CSSProperties = {
-  boxShadow: '0 6px 10px -2px rgba(0,0,0,0.22), 0 3px 5px -2px rgba(0,0,0,0.18)',
-  border: '1px solid rgba(0,0,0,0.16)',
+  boxShadow: '0 18px 28px -8px rgba(0,0,0,0.3), 0 8px 14px -6px rgba(0,0,0,0.22)',
+  border: '1px solid rgba(0,0,0,0.1)',
 };
 const SOMBRA_CARD_DESTAQUE: React.CSSProperties = {
-  boxShadow: '0 12px 18px -4px rgba(0,0,0,0.24), 0 5px 8px -3px rgba(0,0,0,0.2)',
-  border: '1px solid rgba(0,0,0,0.16)',
+  boxShadow: '0 22px 34px -8px rgba(0,0,0,0.32), 0 10px 16px -6px rgba(0,0,0,0.24)',
+  border: '1px solid rgba(0,0,0,0.1)',
 };
 
 export default function EncarteProductCard({ produto, estilo, selecionado }: EncarteProductCardProps) {
