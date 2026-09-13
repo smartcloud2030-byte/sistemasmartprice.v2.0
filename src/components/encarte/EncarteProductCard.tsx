@@ -63,7 +63,11 @@ interface SombraCardAssada {
 const RESOLUCAO_EXTRA = 4;
 
 // Quanto a forma sólida (não a sombra) fica menor que o card em cada lado.
-const MARGEM_SOMBRA_CARD = 4;
+// Era 4 — na prática sobrava uma linha preta fina na lateral esquerda de
+// alguns cards (desalinhamento de 1-2px entre o PNG assado e o card real
+// do DOM, ver nota acima). Blur é 34, então 8px de margem some no
+// desfoque sem mudar a sombra visível.
+const MARGEM_SOMBRA_CARD = 8;
 
 function criarSombraCard(w: number, h: number, raio: number, blur: number, offsetY: number, opacidade: number): SombraCardAssada {
   const pad = Math.ceil(blur + Math.max(offsetY, 0) + 4);
