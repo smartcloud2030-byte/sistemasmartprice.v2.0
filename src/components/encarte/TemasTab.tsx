@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2 } from 'lucide-react';
+import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   uploadBackgroundImage,
@@ -12,7 +12,7 @@ import {
 } from '../../lib/gallery';
 import { carregarVisibilidade, podeVerClassificacao } from '../../lib/galeriaVisibilidade';
 import { useStore } from '../../store';
-import { getProxyUrl, cn } from '../../lib/utils';
+import { getProxyUrl, cn, normalizarBusca } from '../../lib/utils';
 import ClassificacaoBar from './ClassificacaoBar';
 
 const CATEGORIA = 'encarte-temas';
@@ -267,6 +267,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const [verMais, setVerMais] = useState<string | null>(null); // classificação aberta na aba (imagens inteiras)
   const [gerenciar, setGerenciar] = useState(false);
   const [classifAdmin, setClassifAdmin] = useState(CATEGORIA);
+  const [busca, setBusca] = useState('');
 
   const [uploadAlvo, setUploadAlvo] = useState<string | null>(null); // classificação recebendo upload agora
   const [substituindo, setSubstituindo] = useState<string | null>(null);
@@ -341,6 +342,20 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     }
   };
 
+  const buscaNorm = useMemo(() => normalizarBusca(busca), [busca]);
+  const resultadosBusca = useMemo(() => {
+    if (!buscaNorm) return [];
+    const achados: { img: GalleryImage; cat: string }[] = [];
+    classifs.forEach((cat) => {
+      const nomeCat = normalizarBusca(nomeClassificacao(cat, CATEGORIA));
+      (imgsPor[cat] ?? []).forEach((img) => {
+        const alvo = normalizarBusca(img.displayName || '');
+        if (alvo.includes(buscaNorm) || nomeCat.includes(buscaNorm)) achados.push({ img, cat });
+      });
+    });
+    return achados;
+  }, [buscaNorm, classifs, imgsPor]);
+
   // ── "Ver mais": a classificação abre aqui na aba, com as imagens inteiras ──
   if (verMais) {
     const imgs = imgsPor[verMais] ?? [];
@@ -406,8 +421,47 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
         </button>
       </div>
 
+      <div className="relative">
+        <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar tema por nome..."
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-8 py-2 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50"
+        />
+        {busca && (
+          <button
+            onClick={() => setBusca('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
       {carregando ? (
         <p className="text-xs text-zinc-500 text-center py-10">Carregando temas...</p>
+      ) : buscaNorm ? (
+        resultadosBusca.length === 0 ? (
+          <p className="text-xs text-zinc-500 text-center py-10">Nenhum tema encontrado pra "{busca}".</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {resultadosBusca.map(({ img, cat }) => (
+              <TemaThumb
+                key={img.fullPath}
+                img={img}
+                ativa={selecionada === img.url}
+                podeEditar={isAdmin}
+                substituindo={substituindo === img.fullPath}
+                ajuste="contain"
+                onSelect={() => onSelecionar(img.url)}
+                onReplace={(file) => handleSubstituir(img, file, cat)}
+                onDelete={() => setPendingDelete({ img, classif: cat })}
+              />
+            ))}
+          </div>
+        )
       ) : classifs.length === 0 ? (
         <p className="text-xs text-zinc-500 text-center py-10">Nenhum tema ainda. Envie o primeiro abaixo.</p>
       ) : (

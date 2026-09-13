@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Normaliza texto pra busca: minúsculo e sem acento, pra "sta teresinha" achar "Sta Teresinha". */
+export function normalizarBusca(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
 /**
  * Janela de tolerância pro heartbeat (a aba manda isOnline:true a cada 5min
  * enquanto estiver aberta). Se o último acesso passou disso, trata como offline
@@ -24,9 +33,9 @@ export const isStoreOnline = (store: { isOnline?: boolean; lastAccess?: string }
  */
 export const isValidImageUrl = (url: string): boolean => {
   if (!url) return false;
-  
+
   const trimmedUrl = url.trim();
-  
+
   // Aceita data URLs
   if (trimmedUrl.startsWith('data:image/')) {
     return true;
@@ -36,12 +45,12 @@ export const isValidImageUrl = (url: string): boolean => {
   if (trimmedUrl.startsWith('//')) {
     return true;
   }
-  
+
   // Aceita URLs que começam com protocolos comuns
   if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
     return true;
   }
-  
+
   // Se não tem protocolo, mas parece uma URL (tem um ponto e não tem espaços)
   // Tentamos validar se é uma URL válida adicionando o protocolo
   if (trimmedUrl.includes('.') && !trimmedUrl.includes(' ')) {
