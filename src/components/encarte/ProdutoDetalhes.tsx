@@ -89,11 +89,6 @@ export default function ProdutoDetalhes({
         </div>
       </div>
 
-      <p className="flex items-start gap-1.5 text-[10px] text-amber-300/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
-        <Crown className="w-3 h-3 mt-px flex-shrink-0" />
-        Modelo, cor e tamanho valem para todos os produtos do encarte.
-      </p>
-
       {/* Modelo do card */}
       <div className="space-y-2">
         <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Modelo do card</label>
