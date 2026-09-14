@@ -58,6 +58,7 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [confirmando, setConfirmando] = useState<Despesa | null>(null);
 
   const doMes = despesasDoMes(despesas, year, month);
 
@@ -264,19 +265,17 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
             const sufixoPeriodo = !d.recorrente ? '' : d.frequencia === 'anual' ? '/ano' : '/mês';
             return (
               <div key={d.id} className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl gap-3">
-                <button
-                  onClick={() => handleTogglePago(d)}
-                  aria-label={pago ? 'Marcar como não paga' : 'Marcar como paga'}
-                  title={pago ? 'Paga — clique pra desmarcar' : 'Marcar como paga'}
+                <div
+                  aria-hidden="true"
                   className={cn(
-                    'w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+                    'w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0',
                     pago
                       ? 'bg-emerald-500 border-emerald-500 text-white'
-                      : 'border-zinc-300 dark:border-zinc-600 text-transparent hover:border-emerald-400',
+                      : 'border-zinc-300 dark:border-zinc-600 text-transparent',
                   )}
                 >
                   <Check className="w-3.5 h-3.5" />
-                </button>
+                </div>
                 <div className="flex items-center gap-3 min-w-0 flex-grow">
                   <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', badgeClass)}>
                     <Icon className="w-4 h-4" />
@@ -300,6 +299,18 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
                   )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => (pago ? handleTogglePago(d) : setConfirmando(d))}
+                    title={pago ? 'Efetivado — clique pra desfazer' : 'Efetivar pagamento'}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm flex-shrink-0',
+                      pago
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:border-emerald-400 hover:text-emerald-600',
+                    )}
+                  >
+                    {pago ? 'Efetivado' : 'Efetivar'}
+                  </button>
                   {d.recorrente && !d.dataFim && (
                     <button
                       onClick={() => handleEncerrarRecorrente(d)}
@@ -320,6 +331,41 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
           })
         )}
       </div>
+
+      {confirmando && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Efetivar pagamento</p>
+              <p className="text-lg font-bold text-black dark:text-white mt-1">{confirmando.descricao}</p>
+              <p className="text-2xl font-black text-red-600 tracking-tighter mt-1">{currency(confirmando.valor)}</p>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Sai do saldo em conta</p>
+              <p className="text-sm text-zinc-500">
+                {currency(saldoEmConta || 0)} → <span className="font-bold text-black dark:text-white">{currency((saldoEmConta || 0) - confirmando.valor)}</span>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmando(null)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  handleTogglePago(confirmando);
+                  setConfirmando(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
