@@ -54,7 +54,7 @@ const emptyForm: FormState = {
 };
 
 export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNextMonth }: Props) {
-  const { despesas, addDespesa, updateDespesa, removeDespesa } = useStore();
+  const { despesas, addDespesa, updateDespesa, removeDespesa, saldoEmConta, setSaldoEmConta } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -106,7 +106,16 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
     if (editingId) {
       updateDespesa(editingId, payload);
     } else {
-      addDespesa({ id: crypto.randomUUID(), ...payload });
+      addDespesa({
+        id: crypto.randomUUID(),
+        ...payload,
+        // A "contratação" É o pagamento que acabou de acontecer — marca esse
+        // mês/ano de cara como pago, senão a despesa nasce "vencida" até o
+        // usuário lembrar de marcar (pra anual, isso deixava ela vencida o
+        // ANO INTEIRO até o próximo aniversário). O PRÓXIMO ciclo (mês/ano
+        // seguinte) continua pendente normalmente.
+        mesesPagos: payload.recorrente ? [form.data.slice(0, 7)] : undefined,
+      });
     }
     closeForm();
   };
@@ -117,7 +126,12 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
   };
 
   const handleTogglePago = (d: Despesa) => {
+    const estavaPago = isPago(d, year, month);
     updateDespesa(d.id, patchTogglePago(d, year, month));
+    // Marcar como paga desconta do saldo em conta (é dinheiro saindo de
+    // verdade); desmarcar devolve — mantém o "saldo digitado" acompanhando
+    // o que já foi de fato pago, sem o usuário ter que ajustar na mão.
+    setSaldoEmConta((saldoEmConta || 0) + (estavaPago ? d.valor : -d.valor));
   };
 
   return (
@@ -140,8 +154,9 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
         </button>
       </div>
 
+      <div className="flex-grow overflow-y-auto custom-scrollbar p-6 pt-4 space-y-2">
       {showForm && (
-        <form onSubmit={handleSubmit} className="mx-6 mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl space-y-3">
+        <form onSubmit={handleSubmit} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl space-y-3 mb-2">
           <div className="flex justify-between items-center">
             <p className="text-xs font-black uppercase tracking-widest text-zinc-400">{editingId ? 'Editar despesa' : 'Nova despesa'}</p>
             <button type="button" onClick={closeForm} aria-label="Fechar formulário" className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full">
@@ -237,8 +252,6 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
           </button>
         </form>
       )}
-
-      <div className="flex-grow overflow-y-auto custom-scrollbar p-6 pt-4 space-y-2">
         {doMes.length === 0 ? (
           <p className="text-center text-xs font-bold uppercase tracking-widest text-zinc-400 py-10">
             Nenhuma despesa neste mês.
