@@ -88,6 +88,35 @@ export function despesasDoMes(despesas: Despesa[], ano: number, mes: number): De
   return despesas.filter((d) => isDespesaAtivaNoMes(d, ano, mes));
 }
 
+export interface AlertaVencimento {
+  despesa: Despesa;
+  ano: number;
+  mes: number;
+  status: 'vencida' | 'vence_em_breve';
+}
+
+/** Despesas vencidas ou a vencer nos próximos dias, sem depender do mês navegado
+ * no painel — olha o ciclo do mês atual e o do mês seguinte (cobre virada de
+ * mês perto do vencimento) e usa a MESMA regra de alerta do item na lista. */
+export function despesasAVencer(despesas: Despesa[], hoje: Date = new Date()): AlertaVencimento[] {
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+  const { ano: anoProx, mes: mesProx } = mesSeguinte(anoAtual, mesAtual);
+  const ciclos = [{ ano: anoAtual, mes: mesAtual }, { ano: anoProx, mes: mesProx }];
+
+  const alertas: AlertaVencimento[] = [];
+  for (const ciclo of ciclos) {
+    for (const d of despesas) {
+      if (!isDespesaAtivaNoMes(d, ciclo.ano, ciclo.mes)) continue;
+      const status = statusVencimento(d, ciclo.ano, ciclo.mes, hoje);
+      if (status === 'vencida' || status === 'vence_em_breve') {
+        alertas.push({ despesa: d, ano: ciclo.ano, mes: ciclo.mes, status });
+      }
+    }
+  }
+  return alertas;
+}
+
 export function totalDespesasDoMes(despesas: Despesa[], ano: number, mes: number): number {
   return despesasDoMes(despesas, ano, mes).reduce((sum, d) => sum + d.valor, 0);
 }

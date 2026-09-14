@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
 import { isStoreOnline } from './lib/utils';
 import type { Despesa } from './lib/despesas';
+import type { LancamentoSaldo } from './lib/lancamentosSaldo';
 
 export type { Despesa };
 
@@ -456,6 +457,11 @@ interface AppState {
   /** Saldo em conta — digitado manualmente, não calculado (é o valor real do banco). */
   saldoEmConta: number;
   setSaldoEmConta: (valor: number) => void;
+  lancamentosSaldo: LancamentoSaldo[];
+  /** Aplica o delta no saldo em conta E registra o lançamento no extrato — usar
+   * em vez de setSaldoEmConta sempre que o saldo mudar por depósito, pagamento
+   * de despesa, estorno ou ajuste manual (mantém extrato e saldo em sincronia). */
+  registrarLancamentoSaldo: (lancamento: Omit<LancamentoSaldo, 'id' | 'data'>) => void;
   isAnnouncementModalOpen: boolean;
   setAnnouncementModalOpen: (open: boolean) => void;
   isProductReportModalOpen: boolean;
@@ -1097,6 +1103,19 @@ export const useStore = create<AppState>()(
         set({ saldoEmConta: valor });
         setTimeout(() => get().saveUsersAndFlags(), 0);
       },
+      lancamentosSaldo: [],
+      registrarLancamentoSaldo: (lancamento) => {
+        const completo: LancamentoSaldo = {
+          ...lancamento,
+          id: crypto.randomUUID(),
+          data: new Date().toISOString(),
+        };
+        set((state) => ({
+          saldoEmConta: (state.saldoEmConta || 0) + lancamento.valor,
+          lancamentosSaldo: [...state.lancamentosSaldo, completo],
+        }));
+        setTimeout(() => get().saveUsersAndFlags(), 0);
+      },
       seenAnnouncements: [],
       setSeenAnnouncements: (ids) => set({ seenAnnouncements: ids }),
 
@@ -1583,6 +1602,7 @@ export const useStore = create<AppState>()(
               seenAnnouncements: state.seenAnnouncements,
               despesas: state.despesas,
               saldoEmConta: state.saldoEmConta,
+              lancamentosSaldo: state.lancamentosSaldo,
               // theme NÃO entra aqui de propósito — é preferência pessoal de
               // cada admin (claro/escuro), fica só local (localStorage via
               // persist), nunca sincroniza pro servidor. Ver loadUsersAndFlags.
@@ -1626,6 +1646,7 @@ export const useStore = create<AppState>()(
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
             despesas: settings.despesas || currentState.despesas,
             saldoEmConta: settings.saldoEmConta !== undefined ? settings.saldoEmConta : currentState.saldoEmConta,
+            lancamentosSaldo: settings.lancamentosSaldo || currentState.lancamentosSaldo,
             // theme não é carregado do servidor de propósito — cada admin mantém
             // o próprio tema local (ver saveUsersAndFlags acima).
             isChatEnabled: settings.isChatEnabled !== undefined ? settings.isChatEnabled : true
@@ -1810,6 +1831,7 @@ export const useStore = create<AppState>()(
         seenAnnouncements: state.seenAnnouncements,
         despesas: state.despesas,
         saldoEmConta: state.saldoEmConta,
+        lancamentosSaldo: state.lancamentosSaldo,
         isSingleProduct: state.isSingleProduct,
         showSingleProductControl: state.showSingleProductControl,
         showOptionalTextControl: state.showOptionalTextControl,

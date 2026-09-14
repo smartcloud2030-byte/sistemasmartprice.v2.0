@@ -54,7 +54,7 @@ const emptyForm: FormState = {
 };
 
 export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNextMonth }: Props) {
-  const { despesas, addDespesa, updateDespesa, removeDespesa, saldoEmConta, setSaldoEmConta } = useStore();
+  const { despesas, addDespesa, updateDespesa, removeDespesa, saldoEmConta, registrarLancamentoSaldo } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -130,9 +130,14 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
     const estavaPago = isPago(d, year, month);
     updateDespesa(d.id, patchTogglePago(d, year, month));
     // Marcar como paga desconta do saldo em conta (é dinheiro saindo de
-    // verdade); desmarcar devolve — mantém o "saldo digitado" acompanhando
-    // o que já foi de fato pago, sem o usuário ter que ajustar na mão.
-    setSaldoEmConta((saldoEmConta || 0) + (estavaPago ? d.valor : -d.valor));
+    // verdade); desmarcar devolve — mantém o saldo acompanhando o que já foi
+    // de fato pago, sem o usuário ter que ajustar na mão. Os dois casos ficam
+    // registrados no extrato (lançamentosSaldo).
+    registrarLancamentoSaldo(
+      estavaPago
+        ? { tipo: 'estorno', descricao: `Estorno: ${d.descricao}`, valor: d.valor, despesaId: d.id }
+        : { tipo: 'despesa', descricao: d.descricao, valor: -d.valor, despesaId: d.id }
+    );
   };
 
   return (

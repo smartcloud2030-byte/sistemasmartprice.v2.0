@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { isDespesaAtivaNoMes, despesasDoMes, totalDespesasDoMes, formatMesAno, mesAnterior, mesSeguinte, Despesa } from './despesas';
+import { isDespesaAtivaNoMes, despesasDoMes, totalDespesasDoMes, formatMesAno, mesAnterior, mesSeguinte, despesasAVencer, Despesa } from './despesas';
 
 const base: Despesa = {
   id: '1',
@@ -54,6 +54,28 @@ function formatMesAnoFormataEmPortugues() {
   assert.strictEqual(formatMesAno(2026, 1), 'Janeiro 2026');
 }
 
+function despesasAVencerPegaVencidasEAVencerIndependenteDoMesNavegado() {
+  const hoje = new Date(2026, 7, 28); // 28/08/2026
+
+  const vencidaEsteMes: Despesa = { ...base, id: 'v1', recorrente: true, data: '2026-01-25' }; // dia 25, já passou
+  const aVencerEsteMes: Despesa = { ...base, id: 'v2', recorrente: true, data: '2026-01-30' }; // dia 30, em 2 dias
+  const pagaEMesQueVemLonge: Despesa = { ...base, id: 'v3', recorrente: true, data: '2026-01-15', mesesPagos: ['2026-08'] }; // paga em ago, dia 15 de set. está longe (18 dias)
+  const avulsaJaPaga: Despesa = { ...base, id: 'v4', recorrente: false, data: '2026-08-01', pago: true };
+  const avulsaAVencer: Despesa = { ...base, id: 'v5', recorrente: false, data: '2026-08-30' };
+
+  const alertas = despesasAVencer(
+    [vencidaEsteMes, aVencerEsteMes, pagaEMesQueVemLonge, avulsaJaPaga, avulsaAVencer],
+    hoje,
+  );
+
+  assert.strictEqual(alertas.length, 3);
+  assert.ok(alertas.some((a) => a.despesa.id === 'v1' && a.status === 'vencida'));
+  assert.ok(alertas.some((a) => a.despesa.id === 'v2' && a.status === 'vence_em_breve'));
+  assert.ok(alertas.some((a) => a.despesa.id === 'v5' && a.status === 'vence_em_breve'));
+  assert.ok(!alertas.some((a) => a.despesa.id === 'v3'));
+  assert.ok(!alertas.some((a) => a.despesa.id === 'v4'));
+}
+
 function mesAnteriorEMesSeguinteViramOAno() {
   assert.deepStrictEqual(mesAnterior(2026, 1), { ano: 2025, mes: 12 });
   assert.deepStrictEqual(mesSeguinte(2026, 12), { ano: 2027, mes: 1 });
@@ -67,6 +89,7 @@ try {
   despesaRecorrenteComDataFimParaDeContarNoMesDefinido();
   despesasDoMesFiltraCorretamenteEntreRecorrentesEAvulsas();
   totalDespesasDoMesSomaOsValoresAtivos();
+  despesasAVencerPegaVencidasEAVencerIndependenteDoMesNavegado();
   formatMesAnoFormataEmPortugues();
   mesAnteriorEMesSeguinteViramOAno();
   console.log('PASS: todos os testes de despesas (calculo do DRE) passaram');

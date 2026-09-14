@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { X, CreditCard, AlertTriangle, Search, Wallet, Info } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, CreditCard, AlertTriangle, Search, Wallet, Info, Clock } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
-import { totalDespesasDoMes, mesAnterior, mesSeguinte, formatMesAno } from '../lib/despesas';
+import { totalDespesasDoMes, mesAnterior, mesSeguinte, formatMesAno, despesasAVencer } from '../lib/despesas';
 import FinanceiroDespesasTab from './FinanceiroDespesasTab';
+import FinanceiroSaldoTab from './FinanceiroSaldoTab';
 import DespesasViagemModal from './DespesasViagemModal';
 
 interface Props {
@@ -13,20 +14,20 @@ interface Props {
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function FinanceiroPanel({ onClose }: Props) {
-  const { allowedStores, togglePaymentBlock, despesas, saldoEmConta, setSaldoEmConta } = useStore();
+  const { allowedStores, togglePaymentBlock, despesas, saldoEmConta } = useStore();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'viagens'>('receitas');
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'saldo' | 'viagens'>('receitas');
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [saldoInput, setSaldoInput] = useState(String(saldoEmConta || ''));
-  // Sincroniza se o saldo carregar do servidor depois da montagem (ex.: recarregar a página).
-  useEffect(() => setSaldoInput(String(saldoEmConta || '')), [saldoEmConta]);
 
   const withSubscription = allowedStores.filter((s) => s.asaasSubscriptionId);
   const mrr = withSubscription.reduce((sum, s) => sum + (s.subscriptionValue || 0), 0);
   const despesasDoMesTotal = totalDespesasDoMes(despesas, selectedYear, selectedMonth);
   const resultado = mrr - despesasDoMesTotal;
+  const devedor = (saldoEmConta || 0) < 0;
+  const alertasVencimento = despesasAVencer(despesas);
+  const totalAVencer = alertasVencimento.reduce((sum, a) => sum + a.despesa.valor, 0);
 
   const handlePrevMonth = () => {
     const { ano, mes } = mesAnterior(selectedYear, selectedMonth);
@@ -63,7 +64,7 @@ export default function FinanceiroPanel({ onClose }: Props) {
           </button>
         </div>
 
-        <div className={cn('p-6 grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-zinc-200 dark:border-zinc-800', activeTab === 'viagens' && 'hidden')}>
+        <div className={cn('p-6 grid grid-cols-2 md:grid-cols-5 gap-4 border-b border-zinc-200 dark:border-zinc-800', activeTab === 'viagens' && 'hidden')}>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
             <div className="flex items-center gap-1.5">
               <p className="text-2xl font-black text-black dark:text-white tracking-tighter">{currency(mrr)}</p>
@@ -79,28 +80,38 @@ export default function FinanceiroPanel({ onClose }: Props) {
             <p className={cn('text-2xl font-black tracking-tighter', resultado >= 0 ? 'text-emerald-600' : 'text-red-600')}>{currency(resultado)}</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Resultado</p>
           </div>
-          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
-            <div className="flex items-center gap-1">
-              <span className="text-2xl font-black text-black dark:text-white tracking-tighter">R$</span>
-              <input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                value={saldoInput}
-                onChange={(e) => setSaldoInput(e.target.value)}
-                onBlur={() => {
-                  const v = Number(saldoInput.replace(',', '.'));
-                  setSaldoEmConta(Number.isFinite(v) ? v : 0);
-                }}
-                placeholder="0,00"
-                className="w-full min-w-0 text-2xl font-black text-black dark:text-white tracking-tighter bg-transparent border-none p-0 focus:outline-none focus:ring-0"
-              />
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Saldo em conta · digitado</p>
-          </div>
+          <button
+            onClick={() => setActiveTab('saldo')}
+            className={cn(
+              'rounded-2xl p-4 text-left transition-colors',
+              devedor ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30' : 'bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            )}
+          >
+            <p className={cn('text-2xl font-black tracking-tighter', devedor ? 'text-red-600' : 'text-black dark:text-white')}>
+              {currency(Math.abs(saldoEmConta || 0))}
+            </p>
+            <p className={cn('text-[10px] font-black uppercase tracking-widest', devedor ? 'text-red-500' : 'text-zinc-400')}>
+              {devedor ? 'Saldo devedor' : 'Saldo em conta'}
+            </p>
+          </button>
+          <button
+            onClick={() => setActiveTab('despesas')}
+            className={cn(
+              'rounded-2xl p-4 text-left transition-colors',
+              alertasVencimento.length > 0 ? 'bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30' : 'bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            )}
+          >
+            <p className={cn('text-2xl font-black tracking-tighter', alertasVencimento.length > 0 ? 'text-amber-600' : 'text-black dark:text-white')}>
+              {currency(totalAVencer)}
+            </p>
+            <p className={cn('text-[10px] font-black uppercase tracking-widest flex items-center gap-1', alertasVencimento.length > 0 ? 'text-amber-600' : 'text-zinc-400')}>
+              {alertasVencimento.length > 0 && <Clock className="w-3 h-3" />}
+              Despesas a vencer{alertasVencimento.length > 0 && ` · ${alertasVencimento.length}`}
+            </p>
+          </button>
         </div>
 
-        <div className="px-6 pt-4 flex gap-2">
+        <div className="px-6 pt-4 flex gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab('receitas')}
             className={cn(
@@ -120,6 +131,15 @@ export default function FinanceiroPanel({ onClose }: Props) {
             Despesas
           </button>
           <button
+            onClick={() => setActiveTab('saldo')}
+            className={cn(
+              'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors',
+              activeTab === 'saldo' ? 'bg-amber-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+            )}
+          >
+            Saldo
+          </button>
+          <button
             onClick={() => setActiveTab('viagens')}
             className={cn(
               'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors',
@@ -134,6 +154,8 @@ export default function FinanceiroPanel({ onClose }: Props) {
           <div className="flex-grow overflow-hidden">
             <DespesasViagemModal />
           </div>
+        ) : activeTab === 'saldo' ? (
+          <FinanceiroSaldoTab />
         ) : activeTab === 'receitas' ? (
           <>
             <div className="px-6 pt-4">
