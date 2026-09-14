@@ -11,6 +11,7 @@ import SystemStats from './SystemStats';
 import BackupStatus from './BackupStatus';
 import CosmosUsageStatus from './CosmosUsageStatus';
 import FinanceiroPanel from './FinanceiroPanel';
+import DespesaVencimentoNotificacao from './DespesaVencimentoNotificacao';
 
 type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | 'paymentPending' | null;
 
@@ -34,6 +35,7 @@ const AdminDashboard: React.FC = () => {
 
   const [quickList, setQuickList] = useState<QuickListKind>(null);
   const [showFinanceiro, setShowFinanceiro] = useState(false);
+  const [financeiroTab, setFinanceiroTab] = useState<'receitas' | 'despesas' | 'saldo' | 'viagens'>('receitas');
 
   // allowedStores só muda quando chega um evento do servidor — sem isso, uma
   // loja que ficou "presa" online (PC desligado sem avisar) nunca voltaria a
@@ -136,7 +138,7 @@ const AdminDashboard: React.FC = () => {
         badge: { text: 'Bloqueado', className: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' },
       })),
       emptyText: 'Nenhuma pendência de pagamento.',
-      footerAction: { label: 'Abrir Financeiro', onClick: () => { setQuickList(null); setShowFinanceiro(true); } },
+      footerAction: { label: 'Abrir Financeiro', onClick: () => { setQuickList(null); setFinanceiroTab('receitas'); setShowFinanceiro(true); } },
     },
   };
 
@@ -146,7 +148,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Comunicados', description: 'Avisos para os usuários', icon: Megaphone, onClick: () => setAnnouncementModalOpen(true) },
     { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
     { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
-    { label: 'Financeiro', description: 'Receitas, despesas e resultado do sistema', icon: Wallet, onClick: () => setShowFinanceiro(true) },
+    { label: 'Financeiro', description: 'Receitas, despesas e resultado do sistema', icon: Wallet, onClick: () => { setFinanceiroTab('receitas'); setShowFinanceiro(true); } },
     { label: 'SmartHelp', description: 'Suporte de infraestrutura das lojas (servidor, máquinas, TEF...)', icon: LifeBuoy, onClick: () => setView('smarthelp') },
   ];
 
@@ -322,7 +324,15 @@ const AdminDashboard: React.FC = () => {
         />
       )}
 
-      {showFinanceiro && <FinanceiroPanel onClose={() => setShowFinanceiro(false)} />}
+      {showFinanceiro && (
+        <FinanceiroPanel initialTab={financeiroTab} onClose={() => setShowFinanceiro(false)} />
+      )}
+
+      {!showFinanceiro && (
+        <DespesaVencimentoNotificacao
+          onVerDespesas={() => { setFinanceiroTab('despesas'); setShowFinanceiro(true); }}
+        />
+      )}
     </div>
   );
 };

@@ -268,6 +268,7 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
             const pago = isPago(d, year, month);
             const status = statusVencimento(d, year, month);
             const sufixoPeriodo = !d.recorrente ? '' : d.frequencia === 'anual' ? '/ano' : '/mês';
+            const dataVencFormatada = new Date(year, month - 1, diaVencimento(d)).toLocaleDateString('pt-BR');
             return (
               <div key={d.id} className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl gap-3">
                 <div
@@ -288,7 +289,7 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-black dark:text-white truncate">{d.descricao}</p>
                     <p className="text-[11px] text-zinc-400 truncate">
-                      {label} · {currency(d.valor)}{sufixoPeriodo}
+                      {label} · {currency(d.valor)}{sufixoPeriodo} · {pago ? 'Venceu' : 'Vence'} em {dataVencFormatada}
                       {d.fornecedor && <> · {d.fornecedor}</>}
                     </p>
                   </div>

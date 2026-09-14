@@ -9,14 +9,15 @@ import DespesasViagemModal from './DespesasViagemModal';
 
 interface Props {
   onClose: () => void;
+  initialTab?: 'receitas' | 'despesas' | 'saldo' | 'viagens';
 }
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export default function FinanceiroPanel({ onClose }: Props) {
+export default function FinanceiroPanel({ onClose, initialTab = 'receitas' }: Props) {
   const { allowedStores, togglePaymentBlock, despesas, saldoEmConta } = useStore();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'saldo' | 'viagens'>('receitas');
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'saldo' | 'viagens'>(initialTab);
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
