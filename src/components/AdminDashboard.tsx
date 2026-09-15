@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
-  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet, LifeBuoy
+  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet
 } from 'lucide-react';
 import { cn, isStoreOnline } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
@@ -35,7 +35,7 @@ const AdminDashboard: React.FC = () => {
 
   const [quickList, setQuickList] = useState<QuickListKind>(null);
   const [showFinanceiro, setShowFinanceiro] = useState(false);
-  const [financeiroTab, setFinanceiroTab] = useState<'receitas' | 'despesas' | 'saldo' | 'viagens'>('receitas');
+  const [financeiroTab, setFinanceiroTab] = useState<'despesas' | 'saldo' | 'viagens'>('despesas');
 
   // allowedStores só muda quando chega um evento do servidor — sem isso, uma
   // loja que ficou "presa" online (PC desligado sem avisar) nunca voltaria a
@@ -138,7 +138,7 @@ const AdminDashboard: React.FC = () => {
         badge: { text: 'Bloqueado', className: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' },
       })),
       emptyText: 'Nenhuma pendência de pagamento.',
-      footerAction: { label: 'Abrir Financeiro', onClick: () => { setQuickList(null); setFinanceiroTab('receitas'); setShowFinanceiro(true); } },
+      footerAction: { label: 'Abrir Gerenciamento Completo', onClick: () => openFullManagement('stores') },
     },
   };
 
@@ -148,8 +148,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Comunicados', description: 'Avisos para os usuários', icon: Megaphone, onClick: () => setAnnouncementModalOpen(true) },
     { label: 'Fila de Impressão', description: `${printQueue.length} plaquinhas na fila`, icon: ListPlus, onClick: () => setView('queue') },
     { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
-    { label: 'Financeiro', description: 'Receitas, despesas e resultado do sistema', icon: Wallet, onClick: () => { setFinanceiroTab('receitas'); setShowFinanceiro(true); } },
-    { label: 'SmartHelp', description: 'Suporte de infraestrutura das lojas (servidor, máquinas, TEF...)', icon: LifeBuoy, onClick: () => setView('smarthelp') },
+    { label: 'Financeiro', description: 'Despesas e saldo do sistema', icon: Wallet, onClick: () => { setFinanceiroTab('despesas'); setShowFinanceiro(true); } },
   ];
 
   return (

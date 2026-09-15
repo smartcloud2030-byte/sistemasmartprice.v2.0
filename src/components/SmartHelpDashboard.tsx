@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
-import { ArrowLeft, LifeBuoy, Server, Printer, Wifi, HardDrive, AlertTriangle, FileText } from 'lucide-react';
+import { ArrowLeft, LifeBuoy, Server, Printer, Wifi, HardDrive, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import NotaFiscalModal from './NotaFiscalModal';
 import NotaFiscalHistorico from './NotaFiscalHistorico';
 import { getSocket } from '../hooks/useSupportSocket';
 
@@ -98,8 +97,6 @@ function MonitoringAlertBanner({ overview }: { overview: any }) {
 const SmartHelpDashboard: React.FC = () => {
   const { setView } = useStore();
   const { data: monitoringOverview, error: monitoringError } = useMonitoringOverview();
-  const [showNotaFiscal, setShowNotaFiscal] = useState(false);
-  const [historicoKey, setHistoricoKey] = useState(0);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-8">
@@ -136,13 +133,6 @@ const SmartHelpDashboard: React.FC = () => {
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
-              onClick={() => setShowNotaFiscal(true)}
-              className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-emerald-500/50 hover:shadow-md transition-all"
-            >
-              <FileText className="w-6 h-6 text-emerald-600" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white">Emitir Nota Fiscal</span>
-            </button>
-            <button
               onClick={() => setView('monitoring')}
               className={cn(
                 "flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border transition-all hover:shadow-md",
@@ -178,17 +168,10 @@ const SmartHelpDashboard: React.FC = () => {
                 <span className="text-[9px] text-zinc-400">Em construção</span>
               </div>
             ))}
-            <NotaFiscalHistorico key={historicoKey} />
+            <NotaFiscalHistorico />
           </div>
         </div>
       </div>
-
-      {showNotaFiscal && (
-        <NotaFiscalModal
-          onClose={() => setShowNotaFiscal(false)}
-          onEmitted={() => setHistoricoKey((k) => k + 1)}
-        />
-      )}
     </div>
   );
 };
