@@ -708,6 +708,7 @@ function EtiquetaPreco({
   alinharDireita,
   textoProduto,
   escalaTextoProduto,
+  corTextoProduto,
 }: {
   estilo: EstiloEncarte;
   precoOferta: string;
@@ -716,6 +717,7 @@ function EtiquetaPreco({
   alinharDireita?: boolean;
   textoProduto?: string;
   escalaTextoProduto?: number;
+  corTextoProduto?: string;
 }) {
   const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'retangulo';
   const acab = estilo.acabamentoEtiqueta ?? 'solida';
@@ -734,7 +736,7 @@ function EtiquetaPreco({
   if (forma === 'nenhuma') {
     return (
       <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
-        <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origem} />
+        <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origem} cor={corTextoProduto} />
         <PrecoDe valor={precoDe} />
         <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={cor} />
       </span>
@@ -768,10 +770,10 @@ function EtiquetaPreco({
   }
 
   const gid = `etq-grad-${forma}`;
+  const origemTexto = alinharDireita ? 'top right' : 'top left';
 
   return (
     <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
-      <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origem} />
       <PrecoDe valor={precoDe} />
       <span className="relative inline-flex items-center justify-center" style={estiloCaixa}>
         {svgPath && (
@@ -794,7 +796,8 @@ function EtiquetaPreco({
             {forma === 'tag' && <circle cx="14" cy="50" r="4.5" fill="#ffffff" />}
           </svg>
         )}
-        <span className="relative" style={{ zIndex: 1 }}>
+        <span className={cn('relative flex flex-col', alinharDireita ? 'items-end' : 'items-start')} style={{ zIndex: 1 }}>
+          <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origemTexto} cor={corTextoProduto ?? corTexto} />
           <PrecoEtiqueta valor={precoOferta} tamanho={tamanho} cor={corTexto} />
         </span>
       </span>
@@ -802,13 +805,23 @@ function EtiquetaPreco({
   );
 }
 
-/** Texto livre acima do "POR" (ex.: "LEVE 3 PAGUE 2") — escala própria, independente da etiqueta. */
-function TextoProduto({ texto, escala, origem }: { texto?: string; escala?: number; origem: string }) {
+/** Texto livre dentro da etiqueta, acima do "POR" (ex.: "LEVE 3 PAGUE 2") — cor e escala próprias. */
+function TextoProduto({
+  texto,
+  escala,
+  origem,
+  cor,
+}: {
+  texto?: string;
+  escala?: number;
+  origem: string;
+  cor?: string;
+}) {
   if (!texto?.trim()) return null;
   return (
     <span
       className="font-black uppercase leading-none whitespace-nowrap"
-      style={{ fontSize: '0.42em', transform: `scale(${escala ?? 1})`, transformOrigin: origem }}
+      style={{ fontSize: '0.42em', color: cor, transform: `scale(${escala ?? 1})`, transformOrigin: origem }}
     >
       {texto}
     </span>
@@ -865,6 +878,7 @@ function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFo
               tamanho={34}
               textoProduto={produto.textoProduto}
               escalaTextoProduto={produto.escalaTextoProduto}
+              corTextoProduto={produto.corTextoProduto}
             />
           </AutoAjuste>
         </div>
@@ -914,6 +928,7 @@ function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, on
             tamanho={44}
             textoProduto={produto.textoProduto}
             escalaTextoProduto={produto.escalaTextoProduto}
+            corTextoProduto={produto.corTextoProduto}
           />
         </AutoAjuste>
       </div>
@@ -1015,7 +1030,12 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
           className="relative z-10 flex flex-col items-end origin-right"
           style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
         >
-          <TextoProduto texto={produto.textoProduto} escala={produto.escalaTextoProduto} origem="bottom right" />
+          <TextoProduto
+            texto={produto.textoProduto}
+            escala={produto.escalaTextoProduto}
+            origem="bottom right"
+            cor={produto.corTextoProduto ?? PRECO_LARANJA.color}
+          />
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
           <PrecoEtiqueta

@@ -211,11 +211,19 @@ export default function ProdutoDetalhes({
           className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
         />
         {!!produto.textoProduto?.trim() && (
-          <SliderEscala
-            label="Tamanho"
-            value={produto.escalaTextoProduto ?? 1}
-            onChange={(escalaTextoProduto) => onAtualizar({ escalaTextoProduto })}
-          />
+          <>
+            <SliderEscala
+              label="Tamanho"
+              value={produto.escalaTextoProduto ?? 1}
+              onChange={(escalaTextoProduto) => onAtualizar({ escalaTextoProduto })}
+            />
+            <BotaoAcaoCor
+              icon={Type}
+              label="Cor do texto"
+              value={produto.corTextoProduto || '#ffffff'}
+              onChange={(corTextoProduto) => onAtualizar({ corTextoProduto })}
+            />
+          </>
         )}
       </Campo>
 
