@@ -23,7 +23,7 @@ export type FormaEtiqueta =
   | 'arredondada'
   | 'circulo'
   | 'selo'
-  | 'explosao'
+  | 'adicao'
   | 'fita'
   | 'tag'
   | 'nenhuma';
@@ -33,7 +33,7 @@ export const FORMAS_ETIQUETA: { id: FormaEtiqueta; nome: string }[] = [
   { id: 'arredondada', nome: 'Pílula' },
   { id: 'circulo', nome: 'Círculo' },
   { id: 'selo', nome: 'Selo' },
-  { id: 'explosao', nome: 'Explosão' },
+  { id: 'adicao', nome: 'Adição' },
   { id: 'fita', nome: 'Fita' },
   { id: 'tag', nome: 'Tag' },
   { id: 'nenhuma', nome: 'Só preço' },
@@ -71,20 +71,13 @@ function pathEstrela(pontas: number, rOut: number, rIn: number): string {
   return `M${pts.join(' L')} Z`;
 }
 
-const EXPLOSAO_RAIOS = [50, 27, 46, 24, 50, 22, 44, 30, 49, 25, 45, 28, 48, 23];
-function pathExplosao(): string {
-  const passo = (Math.PI * 2) / EXPLOSAO_RAIOS.length;
-  const pts = EXPLOSAO_RAIOS.map((r, i) => {
-    const a = i * passo - Math.PI / 2;
-    return `${(50 + r * Math.cos(a)).toFixed(1)},${(50 + r * Math.sin(a)).toFixed(1)}`;
-  });
-  return `M${pts.join(' L')} Z`;
-}
-
 /** Path SVG (viewBox 0 0 100 100, preserveAspectRatio none) das formas que não são só border-radius. */
 export const SVG_ETIQUETA: Partial<Record<FormaEtiqueta, string>> = {
   selo: pathEstrela(18, 50, 39),
-  explosao: pathExplosao(),
+  // "Adição": duas etiquetas somadas — canto arredondado embaixo à direita,
+  // entalhe (tab) no canto de cima à direita e rabicho em diagonal embaixo
+  // à esquerda, como se fosse uma fita/tag combinada.
+  adicao: 'M0,0 L82,0 L82,14 L100,14 L100,72 Q100,100 72,100 L25,100 L0,80 Z',
   fita: 'M0,0 L100,0 L88,50 L100,100 L0,100 L12,50 Z',
   tag: 'M20,3 L97,3 L97,97 L20,97 L3,50 Z',
 };

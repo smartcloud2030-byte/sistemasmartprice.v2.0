@@ -719,7 +719,7 @@ function EtiquetaPreco({
   const contorno = acab === 'contorno';
   const corTexto = contorno ? cor : '#ffffff';
   const svgPath = SVG_ETIQUETA[forma];
-  const compacta = forma === 'selo' || forma === 'explosao' || forma === 'circulo';
+  const compacta = forma === 'selo' || forma === 'circulo';
 
   const wrapCls = alinharDireita
     ? 'inline-flex flex-col items-end gap-0.5'
