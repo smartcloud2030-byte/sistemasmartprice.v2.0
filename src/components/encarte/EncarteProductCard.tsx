@@ -653,6 +653,9 @@ function PrecoEtiqueta({
   dourado = false,
   escalaRotulos = 1,
   escalaCentavos = 0.54,
+  textoProduto,
+  escalaTextoProduto,
+  corTextoProduto,
 }: {
   valor: string;
   tamanho: number;
@@ -663,17 +666,43 @@ function PrecoEtiqueta({
   escalaRotulos?: number;
   /** Tamanho dos centavos em `em` (relativo ao inteiro). Padrão 0.54. */
   escalaCentavos?: number;
+  /** Texto solto (ex.: "LEVE 3 PAGUE 2") acima do "POR", DENTRO da mesma coluna —
+   * "POR"/"R$" descem (justify-end) pra abrir espaço, e tudo (rótulos e o
+   * preço) encolhe um pouco pra caber na MESMA altura de sempre, sem a
+   * etiqueta crescer. */
+  textoProduto?: string;
+  escalaTextoProduto?: number;
+  corTextoProduto?: string;
 }) {
   const { inteiro, centavos } = partesPreco(valor);
+  const temTexto = !!textoProduto?.trim();
+  // Encolhe rótulos e preço só quando tem texto prod — quanto maior o
+  // texto, menor o preço fica (pedido explícito), sobrando espaço pra ele
+  // em cima do "POR"/"R$" sem estourar a altura que a etiqueta já tinha.
+  const rotulosEfetivo = temTexto ? escalaRotulos * 0.65 : escalaRotulos;
+  const tamanhoEfetivo = temTexto ? tamanho * Math.max(0.6, 1 - (escalaTextoProduto ?? 1) * 0.22) : tamanho;
   return (
     <span
       className="inline-flex items-stretch font-black uppercase leading-none"
-      style={dourado ? { fontSize: tamanho, ...PRECO_LARANJA } : { fontSize: tamanho, color: cor }}
+      style={dourado ? { fontSize: tamanhoEfetivo, ...PRECO_LARANJA } : { fontSize: tamanhoEfetivo, color: cor }}
     >
-      {/* POR + R$ juntos, no topo à esquerda */}
-      <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.03em]">
-        <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
-        <span className="leading-none" style={{ fontSize: `${0.34 * escalaRotulos}em` }}>R$</span>
+      {/* POR + R$ — no topo à esquerda (padrão), ou embaixo se tiver texto prod acima */}
+      <span
+        className={cn(
+          'self-stretch flex flex-col items-start leading-none pr-[0.06em] gap-[0.02em]',
+          temTexto ? 'justify-end' : 'justify-start',
+        )}
+      >
+        {temTexto && (
+          <span
+            className="leading-none whitespace-nowrap"
+            style={{ fontSize: `${0.3 * (escalaTextoProduto ?? 1)}em`, color: corTextoProduto, marginBottom: '0.03em' }}
+          >
+            {textoProduto}
+          </span>
+        )}
+        <span className="leading-none" style={{ fontSize: `${0.36 * rotulosEfetivo}em`, letterSpacing: '0.02em' }}>POR</span>
+        <span className="leading-none" style={{ fontSize: `${0.34 * rotulosEfetivo}em` }}>R$</span>
       </span>
 
       {/* número inteiro — dominante */}
@@ -770,7 +799,6 @@ function EtiquetaPreco({
   }
 
   const gid = `etq-grad-${forma}`;
-  const origemTexto = alinharDireita ? 'top right' : 'top left';
 
   return (
     <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
@@ -796,9 +824,15 @@ function EtiquetaPreco({
             {forma === 'tag' && <circle cx="14" cy="50" r="4.5" fill="#ffffff" />}
           </svg>
         )}
-        <span className={cn('relative flex flex-col', alinharDireita ? 'items-end' : 'items-start')} style={{ zIndex: 1 }}>
-          <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origemTexto} cor={corTextoProduto ?? corTexto} />
-          <PrecoEtiqueta valor={precoOferta} tamanho={tamanho} cor={corTexto} />
+        <span className="relative" style={{ zIndex: 1 }}>
+          <PrecoEtiqueta
+            valor={precoOferta}
+            tamanho={tamanho}
+            cor={corTexto}
+            textoProduto={textoProduto}
+            escalaTextoProduto={escalaTextoProduto}
+            corTextoProduto={corTextoProduto ?? corTexto}
+          />
         </span>
       </span>
     </span>
@@ -1030,12 +1064,6 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
           className="relative z-10 flex flex-col items-end origin-right"
           style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
         >
-          <TextoProduto
-            texto={produto.textoProduto}
-            escala={produto.escalaTextoProduto}
-            origem="bottom right"
-            cor={produto.corTextoProduto ?? PRECO_LARANJA.color}
-          />
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
           <PrecoEtiqueta
@@ -1044,6 +1072,9 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
             dourado
             escalaRotulos={0.58}
             escalaCentavos={0.6}
+            textoProduto={produto.textoProduto}
+            escalaTextoProduto={produto.escalaTextoProduto}
+            corTextoProduto={produto.corTextoProduto ?? PRECO_LARANJA.color}
           />
         </div>
       </div>

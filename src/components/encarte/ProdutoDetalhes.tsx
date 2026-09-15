@@ -201,29 +201,36 @@ export default function ProdutoDetalhes({
         </Campo>
       </div>
 
-      {/* Texto prod — texto livre que aparece acima do "POR" na etiqueta de preço */}
+      {/* Texto prod — texto livre que aparece acima do "POR", dentro da etiqueta de preço */}
       <Campo label="Texto prod">
-        <input
-          type="text"
-          placeholder='Ex.: "Leve 3 pague 2"'
-          value={produto.textoProduto || ''}
-          onChange={(e) => onAtualizar({ textoProduto: e.target.value })}
-          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-        />
-        {!!produto.textoProduto?.trim() && (
-          <>
-            <SliderEscala
-              label="Tamanho"
-              value={produto.escalaTextoProduto ?? 1}
-              onChange={(escalaTextoProduto) => onAtualizar({ escalaTextoProduto })}
-            />
-            <BotaoAcaoCor
-              icon={Type}
-              label="Cor do texto"
+        <div className="relative">
+          <input
+            type="text"
+            placeholder='Ex.: "Leve 3 pague 2"'
+            value={produto.textoProduto || ''}
+            onChange={(e) => onAtualizar({ textoProduto: e.target.value })}
+            className="w-full pl-3 pr-11 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+          {/* Cor do texto, dentro do próprio campo — só relevante depois de digitar algo */}
+          <label
+            title="Cor do texto"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md border border-zinc-600 cursor-pointer overflow-hidden flex-shrink-0"
+            style={{ backgroundColor: produto.corTextoProduto || '#ffffff' }}
+          >
+            <input
+              type="color"
               value={produto.corTextoProduto || '#ffffff'}
-              onChange={(corTextoProduto) => onAtualizar({ corTextoProduto })}
+              onChange={(e) => onAtualizar({ corTextoProduto: e.target.value })}
+              className="sr-only"
             />
-          </>
+          </label>
+        </div>
+        {!!produto.textoProduto?.trim() && (
+          <SliderEscala
+            label="Tamanho"
+            value={produto.escalaTextoProduto ?? 1}
+            onChange={(escalaTextoProduto) => onAtualizar({ escalaTextoProduto })}
+          />
         )}
       </Campo>
 
