@@ -683,10 +683,10 @@ function PrecoEtiqueta({
   const fracaoBanner = temTexto ? 0.3 * (escalaTextoProduto ?? 1) : 0;
   const tamanhoEfetivo = temTexto ? tamanho * 0.72 : tamanho;
   return (
-    <span className="inline-flex flex-col items-center" style={{ fontSize: tamanho }}>
+    <span className="inline-flex flex-col items-start" style={{ fontSize: tamanho }}>
       {temTexto && (
         <span
-          className="font-black uppercase leading-none whitespace-nowrap text-center"
+          className="font-black uppercase leading-none whitespace-nowrap text-left"
           style={{ fontSize: `${fracaoBanner}em`, color: corTextoProduto, marginBottom: '0.08em' }}
         >
           {textoProduto}
