@@ -676,11 +676,12 @@ function PrecoEtiqueta({
 }) {
   const { inteiro, centavos } = partesPreco(valor);
   const temTexto = !!textoProduto?.trim();
-  // Quanto maior o texto prod, mais espaço ele toma no topo — e o preço
-  // encolhe na mesma proporção pra a soma das duas linhas não passar da
-  // altura que a etiqueta já tinha sem texto.
-  const fracaoBanner = temTexto ? Math.min(0.48, 0.3 * (escalaTextoProduto ?? 1)) : 0;
-  const tamanhoEfetivo = temTexto ? tamanho * Math.max(0.55, 1 - fracaoBanner - 0.04) : tamanho;
+  // O preço encolhe uma vez, só por TER texto prod (abre espaço pra faixa
+  // no topo sem a etiqueta crescer) — mas fica FIXO nesse tamanho depois
+  // disso. Quem cresce/encolhe com o slider "Tamanho" é só a faixa do
+  // texto prod; o preço não fica menor conforme o texto aumenta.
+  const fracaoBanner = temTexto ? 0.3 * (escalaTextoProduto ?? 1) : 0;
+  const tamanhoEfetivo = temTexto ? tamanho * 0.72 : tamanho;
   return (
     <span className="inline-flex flex-col items-center" style={{ fontSize: tamanho }}>
       {temTexto && (
