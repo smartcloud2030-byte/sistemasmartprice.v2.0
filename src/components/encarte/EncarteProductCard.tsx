@@ -706,12 +706,16 @@ function EtiquetaPreco({
   precoDe,
   tamanho,
   alinharDireita,
+  textoProduto,
+  escalaTextoProduto,
 }: {
   estilo: EstiloEncarte;
   precoOferta: string;
   precoDe: string;
   tamanho: number;
   alinharDireita?: boolean;
+  textoProduto?: string;
+  escalaTextoProduto?: number;
 }) {
   const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'retangulo';
   const acab = estilo.acabamentoEtiqueta ?? 'solida';
@@ -730,6 +734,7 @@ function EtiquetaPreco({
   if (forma === 'nenhuma') {
     return (
       <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
+        <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origem} />
         <PrecoDe valor={precoDe} />
         <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={cor} />
       </span>
@@ -766,6 +771,7 @@ function EtiquetaPreco({
 
   return (
     <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
+      <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origem} />
       <PrecoDe valor={precoDe} />
       <span className="relative inline-flex items-center justify-center" style={estiloCaixa}>
         {svgPath && (
@@ -792,6 +798,19 @@ function EtiquetaPreco({
           <PrecoEtiqueta valor={precoOferta} tamanho={tamanho} cor={corTexto} />
         </span>
       </span>
+    </span>
+  );
+}
+
+/** Texto livre acima do "POR" (ex.: "LEVE 3 PAGUE 2") — escala própria, independente da etiqueta. */
+function TextoProduto({ texto, escala, origem }: { texto?: string; escala?: number; origem: string }) {
+  if (!texto?.trim()) return null;
+  return (
+    <span
+      className="font-black uppercase leading-none whitespace-nowrap"
+      style={{ fontSize: '0.42em', transform: `scale(${escala ?? 1})`, transformOrigin: origem }}
+    >
+      {texto}
     </span>
   );
 }
@@ -839,7 +858,14 @@ function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFo
             {medida && <p className="text-[8px] font-semibold mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
           </AutoAjuste>
           <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
-            <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={34} />
+            <EtiquetaPreco
+              estilo={estilo}
+              precoOferta={produto.precoOferta}
+              precoDe={produto.precoDe}
+              tamanho={34}
+              textoProduto={produto.textoProduto}
+              escalaTextoProduto={produto.escalaTextoProduto}
+            />
           </AutoAjuste>
         </div>
         <div
@@ -881,7 +907,14 @@ function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, on
           {medida && <p className="text-[9px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
         </AutoAjuste>
         <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
-          <EtiquetaPreco estilo={estilo} precoOferta={produto.precoOferta} precoDe={produto.precoDe} tamanho={44} />
+          <EtiquetaPreco
+            estilo={estilo}
+            precoOferta={produto.precoOferta}
+            precoDe={produto.precoDe}
+            tamanho={44}
+            textoProduto={produto.textoProduto}
+            escalaTextoProduto={produto.escalaTextoProduto}
+          />
         </AutoAjuste>
       </div>
       <div
@@ -982,6 +1015,7 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
           className="relative z-10 flex flex-col items-end origin-right"
           style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
         >
+          <TextoProduto texto={produto.textoProduto} escala={produto.escalaTextoProduto} origem="bottom right" />
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
           <PrecoEtiqueta

@@ -201,6 +201,24 @@ export default function ProdutoDetalhes({
         </Campo>
       </div>
 
+      {/* Texto prod — texto livre que aparece acima do "POR" na etiqueta de preço */}
+      <Campo label="Texto prod">
+        <input
+          type="text"
+          placeholder='Ex.: "Leve 3 pague 2"'
+          value={produto.textoProduto || ''}
+          onChange={(e) => onAtualizar({ textoProduto: e.target.value })}
+          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+        />
+        {!!produto.textoProduto?.trim() && (
+          <SliderEscala
+            label="Tamanho"
+            value={produto.escalaTextoProduto ?? 1}
+            onChange={(escalaTextoProduto) => onAtualizar({ escalaTextoProduto })}
+          />
+        )}
+      </Campo>
+
       {/* Produto em destaque */}
       <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2.5 cursor-pointer">
         <div>

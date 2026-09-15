@@ -152,6 +152,10 @@ export interface EncarteProduto {
   z?: number;
   /** foto solta do lugar padrão do card (duplo clique nela pra ativar) — ver `AjusteFotoProduto`. */
   fotoAjuste?: AjusteFotoProduto | null;
+  /** texto livre (ex.: "LEVE 3 PAGUE 2") acima do "POR" na etiqueta de preço. */
+  textoProduto?: string;
+  /** escala só desse texto — independente do resto da etiqueta. Padrão 1. */
+  escalaTextoProduto?: number;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();
