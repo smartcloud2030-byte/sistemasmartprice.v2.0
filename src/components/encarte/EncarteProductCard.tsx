@@ -666,62 +666,59 @@ function PrecoEtiqueta({
   escalaRotulos?: number;
   /** Tamanho dos centavos em `em` (relativo ao inteiro). Padrão 0.54. */
   escalaCentavos?: number;
-  /** Texto solto (ex.: "LEVE 3 PAGUE 2") acima do "POR", DENTRO da mesma coluna —
-   * "POR"/"R$" descem (justify-end) pra abrir espaço, e tudo (rótulos e o
-   * preço) encolhe um pouco pra caber na MESMA altura de sempre, sem a
-   * etiqueta crescer. */
+  /** Texto solto (ex.: "LEVE 3 PAGUE 2") como uma faixa própria no TOPO da
+   * etiqueta, centralizada e ocupando a largura toda da caixa — a linha
+   * POR/R$/preço/UN fica embaixo, encolhida na mesma proporção pra caber
+   * na MESMA altura de sempre, sem a etiqueta crescer. */
   textoProduto?: string;
   escalaTextoProduto?: number;
   corTextoProduto?: string;
 }) {
   const { inteiro, centavos } = partesPreco(valor);
   const temTexto = !!textoProduto?.trim();
-  // Encolhe rótulos e preço só quando tem texto prod — quanto maior o
-  // texto, menor o preço fica (pedido explícito), sobrando espaço pra ele
-  // em cima do "POR"/"R$" sem estourar a altura que a etiqueta já tinha.
-  const rotulosEfetivo = temTexto ? escalaRotulos * 0.65 : escalaRotulos;
-  const tamanhoEfetivo = temTexto ? tamanho * Math.max(0.6, 1 - (escalaTextoProduto ?? 1) * 0.22) : tamanho;
+  // Quanto maior o texto prod, mais espaço ele toma no topo — e o preço
+  // encolhe na mesma proporção pra a soma das duas linhas não passar da
+  // altura que a etiqueta já tinha sem texto.
+  const fracaoBanner = temTexto ? Math.min(0.48, 0.3 * (escalaTextoProduto ?? 1)) : 0;
+  const tamanhoEfetivo = temTexto ? tamanho * Math.max(0.55, 1 - fracaoBanner - 0.04) : tamanho;
   return (
-    <span
-      className="inline-flex items-stretch font-black uppercase leading-none"
-      style={dourado ? { fontSize: tamanhoEfetivo, ...PRECO_LARANJA } : { fontSize: tamanhoEfetivo, color: cor }}
-    >
-      {/* POR + R$ — no topo à esquerda (padrão), ou embaixo se tiver texto prod acima */}
-      <span
-        className={cn(
-          'self-stretch flex flex-col items-start leading-none pr-[0.06em] gap-[0.02em]',
-          temTexto ? 'justify-end' : 'justify-start',
-        )}
-      >
-        {temTexto && (
-          <span
-            className="leading-none whitespace-nowrap"
-            style={{ fontSize: `${0.3 * (escalaTextoProduto ?? 1)}em`, color: corTextoProduto, marginBottom: '0.03em' }}
-          >
-            {textoProduto}
-          </span>
-        )}
-        <span className="leading-none" style={{ fontSize: `${0.36 * rotulosEfetivo}em`, letterSpacing: '0.02em' }}>POR</span>
-        <span className="leading-none" style={{ fontSize: `${0.34 * rotulosEfetivo}em` }}>R$</span>
-      </span>
-
-      {/* número inteiro — dominante */}
-      <span className="leading-none">{inteiro}</span>
-
-      {/* vírgula (meio) + centavos elevados */}
-      {centavos && (
-        <span className="self-stretch flex leading-none" style={{ fontSize: `${escalaCentavos}em` }}>
-          <span className="self-center">,</span>
-          <span className="self-start">{centavos}</span>
+    <span className="inline-flex flex-col items-center" style={{ fontSize: tamanho }}>
+      {temTexto && (
+        <span
+          className="font-black uppercase leading-none whitespace-nowrap text-center"
+          style={{ fontSize: `${fracaoBanner}em`, color: corTextoProduto, marginBottom: '0.08em' }}
+        >
+          {textoProduto}
         </span>
       )}
-
-      {/* UNI colado na base, puxado pra esquerda (bem perto dos centavos) */}
       <span
-        className="self-stretch flex flex-col items-start justify-end leading-none"
-        style={{ marginLeft: '-0.16em' }}
+        className="inline-flex items-stretch font-black uppercase leading-none"
+        style={dourado ? { fontSize: tamanhoEfetivo, ...PRECO_LARANJA } : { fontSize: tamanhoEfetivo, color: cor }}
       >
-        <span className="leading-none" style={{ fontSize: `${0.24 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UN</span>
+        {/* POR + R$, sempre no topo à esquerda */}
+        <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.02em]">
+          <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
+          <span className="leading-none" style={{ fontSize: `${0.34 * escalaRotulos}em` }}>R$</span>
+        </span>
+
+        {/* número inteiro — dominante */}
+        <span className="leading-none">{inteiro}</span>
+
+        {/* vírgula (meio) + centavos elevados */}
+        {centavos && (
+          <span className="self-stretch flex leading-none" style={{ fontSize: `${escalaCentavos}em` }}>
+            <span className="self-center">,</span>
+            <span className="self-start">{centavos}</span>
+          </span>
+        )}
+
+        {/* UNI colado na base, puxado pra esquerda (bem perto dos centavos) */}
+        <span
+          className="self-stretch flex flex-col items-start justify-end leading-none"
+          style={{ marginLeft: '-0.16em' }}
+        >
+          <span className="leading-none" style={{ fontSize: `${0.24 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UN</span>
+        </span>
       </span>
     </span>
   );
