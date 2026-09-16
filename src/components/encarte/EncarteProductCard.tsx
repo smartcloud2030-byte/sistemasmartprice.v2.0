@@ -676,6 +676,9 @@ function PrecoEtiqueta({
 }) {
   const { inteiro, centavos } = partesPreco(valor);
   const temTexto = !!textoProduto?.trim();
+  // "15%" (qualquer número seguido de %) no preço de oferta vira etiqueta de
+  // desconto — "POR"/"R$" saem e entra um único rótulo "COM".
+  const ehPercentual = /^\d+([.,]\d+)?\s*%$/.test((valor || '').trim());
   // O preço encolhe uma vez, só por TER texto prod (abre espaço pra faixa
   // no topo sem a etiqueta crescer) — mas fica FIXO nesse tamanho depois
   // disso. Quem cresce/encolhe com o slider "Tamanho" é só a faixa do
@@ -696,10 +699,21 @@ function PrecoEtiqueta({
         className="inline-flex items-stretch font-black uppercase leading-none"
         style={dourado ? { fontSize: tamanhoEfetivo, ...PRECO_LARANJA } : { fontSize: tamanhoEfetivo, color: cor }}
       >
-        {/* POR + R$, sempre no topo à esquerda */}
-        <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.02em]">
-          <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
-          <span className="leading-none" style={{ fontSize: `${0.34 * escalaRotulos}em` }}>R$</span>
+        {/* POR + R$ (padrão) — ou só "COM" quando o preço de oferta é um percentual (ex.: "15%") */}
+        <span
+          className={cn(
+            'self-stretch flex flex-col items-start leading-none pr-[0.06em] gap-[0.02em]',
+            ehPercentual ? 'justify-center' : 'justify-start',
+          )}
+        >
+          {ehPercentual ? (
+            <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>COM</span>
+          ) : (
+            <>
+              <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
+              <span className="leading-none" style={{ fontSize: `${0.34 * escalaRotulos}em` }}>R$</span>
+            </>
+          )}
         </span>
 
         {/* número inteiro — dominante */}
