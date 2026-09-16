@@ -716,8 +716,8 @@ function PrecoEtiqueta({
           )}
         </span>
 
-        {/* número inteiro — dominante */}
-        <span className="leading-none">{inteiro}</span>
+        {/* número inteiro — dominante (um pouco menor no percentual, ex.: "15%") */}
+        <span className="leading-none" style={ehPercentual ? { fontSize: '0.78em' } : undefined}>{inteiro}</span>
 
         {/* vírgula (meio) + centavos elevados */}
         {centavos && (
