@@ -716,8 +716,8 @@ function PrecoEtiqueta({
           )}
         </span>
 
-        {/* número inteiro — dominante (um pouco menor no percentual, ex.: "15%") */}
-        <span className="leading-none" style={ehPercentual ? { fontSize: '0.78em' } : undefined}>{inteiro}</span>
+        {/* número inteiro — dominante (levemente menor no percentual, ex.: "15%") */}
+        <span className="leading-none" style={ehPercentual ? { fontSize: '0.92em' } : undefined}>{inteiro}</span>
 
         {/* vírgula (meio) + centavos elevados */}
         {centavos && (
@@ -727,10 +727,11 @@ function PrecoEtiqueta({
           </span>
         )}
 
-        {/* UNI colado na base, puxado pra esquerda (bem perto dos centavos) */}
+        {/* UNI — colado na base, puxado pra esquerda (bem perto dos centavos); no
+            percentual não tem centavos empurrando ele, então afasta um pouco do "%" */}
         <span
           className="self-stretch flex flex-col items-start justify-end leading-none"
-          style={{ marginLeft: '-0.16em' }}
+          style={{ marginLeft: ehPercentual ? '0.1em' : '-0.16em' }}
         >
           <span className="leading-none" style={{ fontSize: `${0.24 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UN</span>
         </span>
