@@ -707,7 +707,7 @@ function PrecoEtiqueta({
           )}
         >
           {ehPercentual ? (
-            <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>COM</span>
+            <span className="leading-none" style={{ fontSize: `${0.28 * escalaRotulos}em`, letterSpacing: '0.02em' }}>COM</span>
           ) : (
             <>
               <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
