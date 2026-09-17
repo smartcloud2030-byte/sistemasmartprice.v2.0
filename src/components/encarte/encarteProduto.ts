@@ -170,6 +170,22 @@ export function partesPreco(preco: string): { inteiro: string; centavos: string 
   return { inteiro: s.slice(0, i), centavos: s.slice(i + 1) };
 }
 
+// "C/" seguido de número(s)+unidade, podendo combinar mais de um com "+"
+// (ex.: "C/ 375 ML+170 ML", "C/ 500ML", "C/ 12 UN"). Casa o trecho inteiro
+// pra poder trocar os espaços de dentro por espaço não-quebrável.
+const RE_MEDIDA_INLINE = /C\/\s*\d+(?:[.,]\d+)?\s*[A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s*\+\s*\d+(?:[.,]\d+)?\s*[A-Za-zÀ-ÖØ-öø-ÿ]+)*/g;
+
+/**
+ * Evita que um "C/ <medida>" digitado dentro do nome/descrição do produto
+ * (ex.: "KIT SKALA SH+COND C/ 375 ML+170 ML") quebre linha no meio — troca
+ * os espaços SÓ dentro desse trecho por espaço não-quebrável, deixando o
+ * resto do texto livre pra quebrar normalmente nas palavras.
+ */
+export function protegerMedidaNoTexto(texto: string): string {
+  if (!texto) return texto;
+  return texto.replace(RE_MEDIDA_INLINE, (m) => m.replace(/\s+/g, ' '));
+}
+
 /** Posição inicial em cascata (2 colunas) para o card não nascer em cima dos outros. */
 function posicaoInicial(index: number): { xPct: number; yPct: number } {
   const col = index % 2;
