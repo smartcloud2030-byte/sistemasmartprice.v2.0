@@ -915,7 +915,7 @@ function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFo
                 {produto.descricao}
               </p>
             )}
-            {medida && <p className="text-[8px] font-semibold mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+            {medida && <p className="text-[8px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
           </AutoAjuste>
           <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
             <EtiquetaPreco
@@ -965,7 +965,7 @@ function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, on
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[9px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+          {medida && <p className="text-[9px] font-black uppercase leading-[1.1] whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
         </AutoAjuste>
         <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco
@@ -1015,7 +1015,7 @@ function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFot
                 {produto.descricao}
               </p>
             )}
-            {medida && <p className="text-[8px] font-medium mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+            {medida && <p className="text-[8px] font-medium mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
           </AutoAjuste>
           <div
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
@@ -1068,7 +1068,7 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
             </p>
           )}
           {medida && (
-            <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
+            <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
           )}
         </AutoAjuste>
 
