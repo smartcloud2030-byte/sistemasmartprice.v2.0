@@ -907,15 +907,15 @@ function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFo
         {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
         <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-            <p className="text-[11px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corNome }}>
+            <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
               {produto.nome}
             </p>
             {produto.descricao && (
-              <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
+              <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
                 {produto.descricao}
               </p>
             )}
-            {medida && <p className="text-[8px] font-semibold mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+            {medida && <p className="text-[8px] font-semibold mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
           </AutoAjuste>
           <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
             <EtiquetaPreco
@@ -955,17 +955,17 @@ function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, on
               acontecia com a sombra da foto (ver `foto` acima). `text-shadow` sai
               igual na tela e no export. */}
           <p
-            className="text-[13px] font-black uppercase leading-[1.15] break-words"
+            className="text-[13px] font-black uppercase leading-[1.15] break-normal"
             style={{ color: estilo.corNome, textShadow: '0 1px 1px rgb(0 0 0 / 0.05)' }}
           >
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[9px] font-black uppercase leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
+            <p className="text-[9px] font-black uppercase leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
               {produto.descricao}
             </p>
           )}
-          {medida && <p className="text-[9px] font-black uppercase leading-[1.1] break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+          {medida && <p className="text-[9px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
         </AutoAjuste>
         <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco
@@ -1007,15 +1007,15 @@ function CardClean({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFot
         </div>
         <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-            <p className="text-[11px] font-semibold leading-[1.15] break-words" style={{ color: estilo.corNome }}>
+            <p className="text-[11px] font-semibold leading-[1.15] break-normal" style={{ color: estilo.corNome }}>
               {produto.nome}
             </p>
             {produto.descricao && (
-              <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>
+              <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
                 {produto.descricao}
               </p>
             )}
-            {medida && <p className="text-[8px] font-medium mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+            {medida && <p className="text-[8px] font-medium mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
           </AutoAjuste>
           <div
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
@@ -1059,16 +1059,16 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
 
         {/* Nome + descrição completa, alinhados à esquerda */}
         <AutoAjuste sig={sigT} className="self-center max-h-[92px]">
-          <p className="text-[15px] font-black uppercase leading-[1.12] break-words" style={{ color: estilo.corNome }}>
+          <p className="text-[15px] font-black uppercase leading-[1.12] break-normal" style={{ color: estilo.corNome }}>
             {produto.nome}
           </p>
           {produto.descricao && (
-            <p className="text-[10px] font-semibold leading-[1.2] mt-1 break-words" style={{ color: estilo.corDescricao }}>
+            <p className="text-[10px] font-semibold leading-[1.2] mt-1 break-normal" style={{ color: estilo.corDescricao }}>
               {produto.descricao}
             </p>
           )}
           {medida && (
-            <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 break-words" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
+            <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
           )}
         </AutoAjuste>
 
