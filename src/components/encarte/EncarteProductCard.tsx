@@ -638,6 +638,23 @@ function Preco({
 }
 
 /**
+ * Risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → o "DE R$" fica
+ * normal e o "0,00" fica riscado) — letras nunca são riscadas.
+ */
+function textoComRiscoNumeros(texto: string, riscar?: boolean): React.ReactNode {
+  if (!riscar) return texto;
+  return texto.split(/(\d+)/g).map((parte, i) =>
+    /^\d+$/.test(parte) ? (
+      <span key={i} style={{ textDecoration: 'line-through' }}>
+        {parte}
+      </span>
+    ) : (
+      parte
+    ),
+  );
+}
+
+/**
  * Preço da etiqueta no arranjo do encarte (igual ao modelo impresso):
  *
  *   POR            2 4  , ⁶⁹
@@ -657,6 +674,7 @@ function PrecoEtiqueta({
   textoProduto,
   escalaTextoProduto,
   corTextoProduto,
+  riscarNumerosTextoProduto,
 }: {
   valor: string;
   tamanho: number;
@@ -674,6 +692,8 @@ function PrecoEtiqueta({
   textoProduto?: string;
   escalaTextoProduto?: number;
   corTextoProduto?: string;
+  /** risca só os números do texto prod (ex.: "DE R$ 0,00" → só "0,00" riscado). */
+  riscarNumerosTextoProduto?: boolean;
 }) {
   const { inteiro, centavos } = partesPreco(valor);
   const temTexto = !!textoProduto?.trim();
@@ -693,7 +713,7 @@ function PrecoEtiqueta({
           className="font-black uppercase leading-none whitespace-nowrap text-left"
           style={{ fontSize: `${fracaoBanner}em`, color: corTextoProduto, marginBottom: '0.08em' }}
         >
-          {textoProduto}
+          {textoComRiscoNumeros(textoProduto ?? '', riscarNumerosTextoProduto)}
         </span>
       )}
       <span
@@ -752,6 +772,7 @@ function EtiquetaPreco({
   textoProduto,
   escalaTextoProduto,
   corTextoProduto,
+  riscarNumerosTextoProduto,
 }: {
   estilo: EstiloEncarte;
   precoOferta: string;
@@ -761,6 +782,7 @@ function EtiquetaPreco({
   textoProduto?: string;
   escalaTextoProduto?: number;
   corTextoProduto?: string;
+  riscarNumerosTextoProduto?: boolean;
 }) {
   const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'retangulo';
   const acab = estilo.acabamentoEtiqueta ?? 'solida';
@@ -779,7 +801,13 @@ function EtiquetaPreco({
   if (forma === 'nenhuma') {
     return (
       <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
-        <TextoProduto texto={textoProduto} escala={escalaTextoProduto} origem={origem} cor={corTextoProduto} />
+        <TextoProduto
+          texto={textoProduto}
+          escala={escalaTextoProduto}
+          origem={origem}
+          cor={corTextoProduto}
+          riscarNumeros={riscarNumerosTextoProduto}
+        />
         <PrecoDe valor={precoDe} />
         <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={cor} />
       </span>
@@ -846,6 +874,7 @@ function EtiquetaPreco({
             textoProduto={textoProduto}
             escalaTextoProduto={escalaTextoProduto}
             corTextoProduto={corTextoProduto ?? corTexto}
+            riscarNumerosTextoProduto={riscarNumerosTextoProduto}
           />
         </span>
       </span>
@@ -859,11 +888,13 @@ function TextoProduto({
   escala,
   origem,
   cor,
+  riscarNumeros,
 }: {
   texto?: string;
   escala?: number;
   origem: string;
   cor?: string;
+  riscarNumeros?: boolean;
 }) {
   if (!texto?.trim()) return null;
   return (
@@ -871,7 +902,7 @@ function TextoProduto({
       className="font-black uppercase leading-none whitespace-nowrap"
       style={{ fontSize: '0.42em', color: cor, transform: `scale(${escala ?? 1})`, transformOrigin: origem }}
     >
-      {texto}
+      {textoComRiscoNumeros(texto, riscarNumeros)}
     </span>
   );
 }
@@ -927,6 +958,7 @@ function CardPadrao({ produto, estilo, medida, foto, onFotoSlotPointerDown, onFo
               textoProduto={produto.textoProduto}
               escalaTextoProduto={produto.escalaTextoProduto}
               corTextoProduto={produto.corTextoProduto}
+              riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
             />
           </AutoAjuste>
         </div>
@@ -977,6 +1009,7 @@ function CardDestaque({ produto, estilo, medida, foto, onFotoSlotPointerDown, on
             textoProduto={produto.textoProduto}
             escalaTextoProduto={produto.escalaTextoProduto}
             corTextoProduto={produto.corTextoProduto}
+            riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
           />
         </AutoAjuste>
       </div>
@@ -1101,6 +1134,7 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
             textoProduto={produto.textoProduto}
             escalaTextoProduto={produto.escalaTextoProduto}
             corTextoProduto={produto.corTextoProduto ?? PRECO_LARANJA.color}
+            riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
           />
         </div>
       </div>

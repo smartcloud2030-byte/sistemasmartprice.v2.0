@@ -162,6 +162,8 @@ export interface EncarteProduto {
   escalaNomeDestaque?: number;
   /** escala da fonte da descrição/medida no modelo "produto em destaque". Padrão 1. */
   escalaDescricaoDestaque?: number;
+  /** risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → só o "0,00" fica riscado). */
+  riscarNumerosTextoProduto?: boolean;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();

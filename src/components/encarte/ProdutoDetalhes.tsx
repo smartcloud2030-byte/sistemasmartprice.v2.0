@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban, Strikethrough } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -172,34 +172,19 @@ export default function ProdutoDetalhes({
         />
       </Campo>
 
-      {/* Preços */}
-      <div className="grid grid-cols-2 gap-2">
-        <Campo label="Preço de">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="opcional"
-              value={produto.precoDe}
-              onChange={(e) => onAtualizar({ precoDe: e.target.value })}
-              className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 line-through focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-          </div>
-        </Campo>
-        <Campo label="Preço oferta">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={produto.precoOferta}
-              onChange={(e) => onAtualizar({ precoOferta: e.target.value })}
-              className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-          </div>
-        </Campo>
-      </div>
+      {/* Preço oferta */}
+      <Campo label="Preço oferta">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={produto.precoOferta}
+            onChange={(e) => onAtualizar({ precoOferta: e.target.value })}
+            className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+        </div>
+      </Campo>
 
       {/* Texto prod — texto livre que aparece acima do "POR", dentro da etiqueta de preço */}
       <Campo label="Texto prod">
@@ -209,9 +194,22 @@ export default function ProdutoDetalhes({
             placeholder='Ex.: "Leve 3 pague 2"'
             value={produto.textoProduto || ''}
             onChange={(e) => onAtualizar({ textoProduto: e.target.value })}
-            className="w-full pl-3 pr-11 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+            className="w-full pl-3 pr-20 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
           />
-          {/* Cor do texto, dentro do próprio campo — só relevante depois de digitar algo */}
+          {/* Riscar números + cor do texto, dentro do próprio campo — só relevantes depois de digitar algo */}
+          <button
+            type="button"
+            title="Riscar números do texto (ex.: preço antigo)"
+            onClick={() => onAtualizar({ riscarNumerosTextoProduto: !produto.riscarNumerosTextoProduto })}
+            className={cn(
+              'absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0',
+              produto.riscarNumerosTextoProduto
+                ? 'bg-emerald-600 border-emerald-500 text-white'
+                : 'bg-zinc-900 border-zinc-600 text-zinc-400 hover:text-zinc-200',
+            )}
+          >
+            <Strikethrough className="w-3.5 h-3.5" />
+          </button>
           <label
             title="Cor do texto"
             className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md border border-zinc-600 cursor-pointer overflow-hidden flex-shrink-0"
