@@ -45,7 +45,7 @@ const DESTINOS_COMPARTILHAR = {
 
 type DestinoCompartilhar = keyof typeof DESTINOS_COMPARTILHAR;
 
-const TAMANHO_TEXTO_MIN = 8;
+const TAMANHO_TEXTO_MIN = 1;
 const TAMANHO_TEXTO_MAX = 120;
 
 const ICONE_ALINHAMENTO: Record<TextoAlinhamento, typeof AlignLeft> = {
