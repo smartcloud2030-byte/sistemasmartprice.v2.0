@@ -657,10 +657,10 @@ function textoComRiscoNumeros(texto: string, riscar?: boolean): React.ReactNode 
           aria-hidden
           style={{
             position: 'absolute',
-            left: '-0.05em',
-            right: '-0.05em',
+            left: '-0.06em',
+            right: '-0.06em',
             top: '50%',
-            height: '0.16em',
+            height: '0.3em',
             background: 'currentColor',
             transform: 'translateY(-50%)',
             borderRadius: '999px',
