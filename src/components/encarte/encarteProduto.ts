@@ -158,6 +158,10 @@ export interface EncarteProduto {
   escalaTextoProduto?: number;
   /** cor só desse texto. Sem definir, usa a mesma cor do "POR/preço" da etiqueta. */
   corTextoProduto?: string;
+  /** escala da fonte do nome no modelo "produto em destaque" (banner largo). Padrão 1. */
+  escalaNomeDestaque?: number;
+  /** escala da fonte da descrição/medida no modelo "produto em destaque". Padrão 1. */
+  escalaDescricaoDestaque?: number;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();

@@ -1058,18 +1058,30 @@ function CardProdutoDestaque({ produto, estilo, medida, foto, onFotoSlotPointerD
           {foto}
         </div>
 
-        {/* Nome + descrição completa, alinhados à esquerda */}
-        <AutoAjuste sig={sigT} className="self-center max-h-[92px]">
-          <p className="text-[15px] font-black uppercase leading-[1.12] break-normal" style={{ color: estilo.corNome }}>
+        {/* Nome + descrição completa, alinhados à esquerda — tamanho de fonte ajustável
+            (sliders "Tamanho do nome"/"Tamanho da descrição" em Detalhes do produto) */}
+        <AutoAjuste sig={`${sigT}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`} className="self-center max-h-[92px]">
+          <p
+            className="font-black uppercase leading-[1.12] break-normal"
+            style={{ color: estilo.corNome, fontSize: 15 * (produto.escalaNomeDestaque ?? 1) }}
+          >
             {protegerMedidaNoTexto(produto.nome)}
           </p>
           {produto.descricao && (
-            <p className="text-[10px] font-semibold leading-[1.2] mt-1 break-normal" style={{ color: estilo.corDescricao }}>
+            <p
+              className="font-semibold leading-[1.2] mt-1 break-normal"
+              style={{ color: estilo.corDescricao, fontSize: 10 * (produto.escalaDescricaoDestaque ?? 1) }}
+            >
               {protegerMedidaNoTexto(produto.descricao)}
             </p>
           )}
           {medida && (
-            <p className="text-[10px] font-semibold leading-[1.2] mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>
+            <p
+              className="font-semibold leading-[1.2] mt-0.5 whitespace-nowrap"
+              style={{ color: estilo.corDescricao, fontSize: 10 * (produto.escalaDescricaoDestaque ?? 1) }}
+            >
+              C/ {medida}
+            </p>
           )}
         </AutoAjuste>
 

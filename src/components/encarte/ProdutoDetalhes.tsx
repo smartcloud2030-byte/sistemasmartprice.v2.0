@@ -247,6 +247,20 @@ export default function ProdutoDetalhes({
           className="w-4 h-4 accent-emerald-500"
         />
       </label>
+      {produto.emDestaque && (
+        <div className="space-y-3 -mt-1 pl-1">
+          <SliderEscala
+            label="Tamanho do nome"
+            value={produto.escalaNomeDestaque ?? 1}
+            onChange={(escalaNomeDestaque) => onAtualizar({ escalaNomeDestaque })}
+          />
+          <SliderEscala
+            label="Tamanho da descrição"
+            value={produto.escalaDescricaoDestaque ?? 1}
+            onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
+          />
+        </div>
+      )}
 
       {/* Tamanhos */}
       <div className="space-y-3 pt-1">
