@@ -469,12 +469,17 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const reordenarCamada = (alvo: { tipo: CamadaTipo; id: string | number }, direcao: 'frente' | 'tras') => {
     setDoc((d) => {
       const l = ladoAtivo === 'verso' && d.ladoVerso ? d.ladoVerso : d.ladoFrente;
-      const itens: { tipo: CamadaTipo; id: string | number; z: number }[] = [
-        ...l.produtos.map((p) => ({ tipo: 'produto' as const, id: p.product.id, z: p.z ?? 0 })),
-        ...l.imagens.map((im) => ({ tipo: 'imagem' as const, id: im.id, z: im.z ?? 0 })),
-        ...(l.formas ?? []).map((f) => ({ tipo: 'forma' as const, id: f.id, z: f.z ?? 0 })),
-        ...(l.textos ?? []).map((t) => ({ tipo: 'texto' as const, id: t.id, z: t.z ?? 0 })),
-      ].sort((a, b) => a.z - b.z);
+      // Mesmo desempate (por `chave`, quando o `z` empata) usado pra decidir a
+      // ordem visual em EncarteCanvas.tsx — sem isso, num empate de `z` (comum
+      // em elementos antigos sem `z` salvo, todos caindo no `?? 0`), o vizinho
+      // trocado aqui podia não ser o vizinho visual, e o clique parecia não
+      // fazer nada até o usuário insistir várias vezes.
+      const itens: { tipo: CamadaTipo; id: string | number; chave: string; z: number }[] = [
+        ...l.produtos.map((p) => ({ tipo: 'produto' as const, id: p.product.id, chave: `p:${p.product.id}`, z: p.z ?? 0 })),
+        ...l.imagens.map((im) => ({ tipo: 'imagem' as const, id: im.id, chave: `i:${im.id}`, z: im.z ?? 0 })),
+        ...(l.formas ?? []).map((f) => ({ tipo: 'forma' as const, id: f.id, chave: `f:${f.id}`, z: f.z ?? 0 })),
+        ...(l.textos ?? []).map((t) => ({ tipo: 'texto' as const, id: t.id, chave: `t:${t.id}`, z: t.z ?? 0 })),
+      ].sort((a, b) => (a.z - b.z) || (a.chave < b.chave ? -1 : 1));
 
       const i = itens.findIndex((it) => it.tipo === alvo.tipo && String(it.id) === String(alvo.id));
       const j = direcao === 'frente' ? i + 1 : i - 1;
