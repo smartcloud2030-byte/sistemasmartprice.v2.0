@@ -640,13 +640,32 @@ function Preco({
 /**
  * Risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → o "DE R$" fica
  * normal e o "0,00" fica riscado) — letras nunca são riscadas.
+ *
+ * Usa uma barra própria (span absoluto) em vez de `text-decoration:
+ * line-through` — o CSS nativo sai fino demais (e o html2canvas-pro, usado
+ * no export, historicamente não respeita bem `text-decoration-thickness`).
+ * A barra em `currentColor` acompanha a cor do texto e sai igual na tela e
+ * no export, garantindo um risco grosso e bem visível nos dois.
  */
 function textoComRiscoNumeros(texto: string, riscar?: boolean): React.ReactNode {
   if (!riscar) return texto;
   return texto.split(/(\d+)/g).map((parte, i) =>
     /^\d+$/.test(parte) ? (
-      <span key={i} style={{ textDecoration: 'line-through' }}>
+      <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
         {parte}
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            left: '-0.05em',
+            right: '-0.05em',
+            top: '50%',
+            height: '0.16em',
+            background: 'currentColor',
+            transform: 'translateY(-50%)',
+            borderRadius: '999px',
+          }}
+        />
       </span>
     ) : (
       parte
