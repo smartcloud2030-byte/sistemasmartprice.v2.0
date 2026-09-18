@@ -888,23 +888,23 @@ export default function EncarteCanvas({
       return;
     }
 
-    // Redimensionar também pode passar das bordas e ficar maior que o encarte.
+    // Forma: sem limite de tamanho — nem mínimo nem máximo. O `0.01` é só uma
+    // trava técnica pra largura/altura nunca zerar ou inverter (o que
+    // quebraria o desenho), não um limite de verdade pro usuário perceber.
     let { xPct, yPct, wPct, hPct } = o;
-    const oesteMax = o.xPct + o.wPct - MIN_ELEMENTO;
-    const norteMax = o.yPct + o.hPct - MIN_ELEMENTO;
     if (st.canto === 'nw' || st.canto === 'sw') {
-      xPct = clamp(o.xPct + dxPct, -SANGRIA, oesteMax);
-      wPct = o.xPct + o.wPct - xPct;
+      wPct = Math.max(0.01, o.xPct + o.wPct - (o.xPct + dxPct));
+      xPct = o.xPct + o.wPct - wPct;
     }
     if (st.canto === 'ne' || st.canto === 'se') {
-      wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 + SANGRIA - o.xPct);
+      wPct = Math.max(0.01, o.wPct + dxPct);
     }
     if (st.canto === 'nw' || st.canto === 'ne') {
-      yPct = clamp(o.yPct + dyPct, -SANGRIA, norteMax);
-      hPct = o.yPct + o.hPct - yPct;
+      hPct = Math.max(0.01, o.yPct + o.hPct - (o.yPct + dyPct));
+      yPct = o.yPct + o.hPct - hPct;
     }
     if (st.canto === 'sw' || st.canto === 'se') {
-      hPct = clamp(o.hPct + dyPct, MIN_ELEMENTO, 100 + SANGRIA - o.yPct);
+      hPct = Math.max(0.01, o.hPct + dyPct);
     }
     onRedimensionarForma(st.id, { xPct, yPct, wPct, hPct });
   };
