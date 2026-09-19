@@ -3,7 +3,7 @@ import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import {
-  Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus,
+  Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus, Tag,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend,
@@ -323,6 +323,8 @@ interface EncarteCanvasProps {
   onDesfazer: () => void;
   onRefazer: () => void;
   onAdicionarProdutos: () => void;
+  /** "Add placa de preço" — gera uma plaquinha de impressão por produto do encarte. */
+  onAdicionarPlacaPreco: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
   onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
@@ -423,6 +425,7 @@ export default function EncarteCanvas({
   onDesfazer,
   onRefazer,
   onAdicionarProdutos,
+  onAdicionarPlacaPreco,
   onAbrirDetalhes,
   onMoverProduto,
   onAjustarFotoProduto,
@@ -1749,13 +1752,23 @@ export default function EncarteCanvas({
         }}
       >
         {produtos.length > 0 && (
-          <button
-            onClick={onAdicionarProdutos}
-            className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Produtos
-          </button>
+          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5">
+            <button
+              onClick={onAdicionarProdutos}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Produtos
+            </button>
+            <button
+              onClick={onAdicionarPlacaPreco}
+              title="Gerar uma plaquinha de impressão pra cada produto do encarte"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Placa de preço
+            </button>
+          </div>
         )}
 
         {/* Centraliza o canvas e, quando ampliado, cresce junto pra rolagem

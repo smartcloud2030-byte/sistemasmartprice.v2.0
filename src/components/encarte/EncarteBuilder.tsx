@@ -10,6 +10,7 @@ import ElementosTab from './ElementosTab';
 import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
+import GerarPlaquinhasModal from './GerarPlaquinhasModal';
 import { useHistoricoEdicao, OpcoesSet } from './useHistoricoEdicao';
 import { Formato, FORMATO_PADRAO, FormatoId, getFormato } from './formatos';
 import {
@@ -111,6 +112,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
+  const [placaModalAberto, setPlacaModalAberto] = useState(false);
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
   // O auto-save só liga depois que o rascunho salvo foi restaurado (ou que
   // sabemos, pelo servidor, que não há nenhum). Enquanto isso a "casca" inicial
@@ -579,6 +581,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
+  // Frente + verso juntos, na ordem — "Add placa de preço" transforma cada
+  // produto do encarte inteiro (os dois lados) numa plaquinha pra fila.
+  const produtosParaPlaquinha = [...ladoFrente.produtos, ...(ladoVerso?.produtos ?? [])];
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
@@ -703,6 +708,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onDesfazer={desfazer}
           onRefazer={refazer}
           onAdicionarProdutos={() => setActiveMenu('produtos')}
+          onAdicionarPlacaPreco={() => setPlacaModalAberto(true)}
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
           onAjustarFotoProduto={(id, ajuste, opcoes) => atualizarProduto(id, { fotoAjuste: ajuste }, opcoes)}
@@ -734,6 +740,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onExportado={(preview) => { gravarEncarte(preview).catch((err) => console.error('Erro ao salvar encarte:', err)); }}
         />
       </div>
+
+      {placaModalAberto && (
+        <GerarPlaquinhasModal produtos={produtosParaPlaquinha} onClose={() => setPlacaModalAberto(false)} />
+      )}
     </div>
   );
 }
