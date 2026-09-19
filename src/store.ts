@@ -593,7 +593,7 @@ const extractUserDraft = (state: AppState): UserDraft => ({
 // um modelo salvo em `layouts`. Usado ao trocar de modelo ativo e ao excluir o
 // modelo que estava ativo no momento, para a tela não continuar mostrando a
 // imagem/textos do modelo anterior.
-const buildWorkingStateFromLayout = (nextLayout: Layout | undefined, index: number) => {
+export const buildWorkingStateFromLayout = (nextLayout: Layout | undefined, index: number) => {
   const defaultNext = createDefaultLayout(nextLayout?.name || `Modelo ${index + 1}`, index);
   return {
     orientation: nextLayout?.orientation || 'portrait',

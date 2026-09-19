@@ -1,4 +1,4 @@
-import { useStore, SavedPlaquinha, QueuedPlaquinhaState } from '../../store';
+import { useStore, QueuedPlaquinhaState, buildWorkingStateFromLayout } from '../../store';
 import { EncarteProduto } from './encarteProduto';
 
 /**
@@ -39,28 +39,38 @@ function capturarEditorState(s: ReturnType<typeof useStore.getState>): QueuedPla
 
 /**
  * Gera uma plaquinha por produto (ou uma a cada N produtos, se o modelo
- * escolhido tiver mais de um slot) usando o modelo salvo `template` como
- * estilo/visual, substituindo nome, descrição, medida, preço e foto pelos
- * do produto do encarte — e manda cada uma direto pra fila de impressão.
+ * escolhido tiver mais de um slot) usando o MODELO de plaquinha
+ * `layoutIndex` (da galeria "Modelos disponíveis", os mesmos layouts do
+ * editor de plaquinha) como estilo/visual, substituindo nome, descrição,
+ * medida, preço e foto pelos do produto do encarte — e manda cada uma
+ * direto pra fila de impressão.
  *
  * Dirige o editor de plaquinha "por baixo dos panos" via `useStore.setState`
- * direto (nunca `setElement`/`selectProduct`, que além de atualizar o texto
- * também GRAVAM a mudança no modelo salvo/no servidor — usar eles aqui
- * destruiria o modelo original a cada produto do lote). Ao final, restaura
- * o estado do editor de antes de começar, pra não deixar lixo do último
- * produto gerado nem mexer no que quer que o usuário estivesse editando.
+ * direto (nunca `setElement`/`selectProduct`/`setActiveLayout`, que além de
+ * atualizar o texto também GRAVAM a mudança no modelo/no servidor — usar
+ * eles aqui destruiria o modelo original a cada produto do lote). Ao
+ * final, restaura o estado do editor de antes de começar, pra não deixar
+ * lixo do último produto gerado nem mexer no que quer que o usuário
+ * estivesse editando.
  */
 export async function gerarPlaquinhasDoEncarte(
-  template: SavedPlaquinha,
+  layoutIndex: number,
   produtosEncarte: EncarteProduto[],
 ): Promise<number> {
   const produtos = produtosEncarte.filter((p) => p.nome?.trim());
   if (produtos.length === 0) return 0;
 
+  const layout = useStore.getState().layouts[layoutIndex];
+  if (!layout) return 0;
+  const estadoBase = buildWorkingStateFromLayout(layout, layoutIndex);
+
   const estadoOriginal = capturarEditorState(useStore.getState());
   const { currentView, editingSavedPlaquinhaId, editingQueueIndex } = useStore.getState();
 
-  const porGrupo = template.editorState.isSingleProduct ? 1 : 3;
+  // Quantos produtos cabem por plaquinha nesse modelo: 1 se for "produto
+  // único", senão 2 ou 3 conforme o 3º slot do modelo estar mesmo visível
+  // (mesma info que a etiqueta "2/3 Produtos" mostra na galeria de modelos).
+  const porGrupo = estadoBase.isSingleProduct ? 1 : estadoBase.productImage3.visible ? 3 : 2;
   let gerados = 0;
 
   try {
@@ -71,7 +81,8 @@ export async function gerarPlaquinhasDoEncarte(
       // slot do grupo anterior (nome/preço/foto que esse grupo não usa)
       // vaze pra próxima plaquinha gerada.
       useStore.setState({
-        ...template.editorState,
+        ...estadoBase,
+        activeLayoutIndex: layoutIndex,
         currentView: 'editor',
         editingSavedPlaquinhaId: null,
         editingQueueIndex: null,
