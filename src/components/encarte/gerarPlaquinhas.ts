@@ -1,20 +1,40 @@
 import { useStore, QueuedPlaquinhaState, buildWorkingStateFromLayout } from '../../store';
+import { getProxyUrl } from '../../lib/utils';
 import { EncarteProduto } from './encarteProduto';
 
 /**
- * Monta o texto de preço da plaquinha a partir do produto do encarte —
- * o editor de plaquinha só tem UM campo de texto pro preço (sem "de"/"por"
- * separados como no encarte), então quando existe preço "de" ele entra
- * numa linha antes do preço de oferta. Percentual (ex.: "15%", o mesmo
- * formato que a etiqueta do encarte usa pra desconto) passa direto, sem
- * "R$" na frente — igual o editor de plaquinha já faz pra desconto em %.
+ * Monta o preço da plaquinha a partir do produto do encarte. O campo de
+ * preço da plaquinha SÓ aceita ou um número (que ele mesmo separa em
+ * reais/centavos por conta própria, tirando tudo que não for dígito/vírgula/
+ * ponto do texto) ou um percentual — colocar "De R$X / Por R$Y" nesse mesmo
+ * campo faz esse parser juntar os dois números num valor só, sem sentido.
+ * Por isso o preço "de" (quando existe) vai à parte, no campo "subtítulo"
+ * do slot — não risca no preço, mas pelo menos não estraga o preço de
+ * oferta, que é a informação mais importante da placa.
  */
-function formatarPrecoPlaquinha(produto: EncarteProduto): string {
+function formatarPrecoPlaquinha(produto: EncarteProduto): { preco: string; subtitulo?: string } {
   const oferta = (produto.precoOferta || '').trim();
   const ehPercentual = /^\d+([.,]\d+)?\s*%$/.test(oferta);
-  const precoFmt = ehPercentual ? oferta : `R$ ${oferta || '0,00'}`;
+  const preco = ehPercentual ? oferta : `R$ ${oferta || '0,00'}`;
   const de = (produto.precoDe || '').trim();
-  return de ? `De R$ ${de}\nPor ${precoFmt}` : precoFmt;
+  return { preco, subtitulo: de ? `De R$ ${de}` : undefined };
+}
+
+/** Baixa a imagem antecipadamente (mesma URL que o Konva vai pedir) pra ela já
+ * estar no cache do navegador quando a plaquinha daquele produto for capturada
+ * — sem isso, numa rede mais lenta, a captura podia sair sem a foto porque o
+ * carregamento ainda não tinha terminado. Nunca rejeita: falha de rede vira
+ * "sem foto" na placa, não trava o lote inteiro. */
+function precarregarFoto(url: string | null | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    const src = getProxyUrl(url);
+    if (!src) return resolve();
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+    setTimeout(resolve, 4000);
+  });
 }
 
 function formatarDescricaoPlaquinha(produto: EncarteProduto): string {
@@ -60,6 +80,11 @@ export async function gerarPlaquinhasDoEncarte(
   const produtos = produtosEncarte.filter((p) => p.nome?.trim());
   if (produtos.length === 0) return 0;
 
+  // Todas as fotos baixando em paralelo desde já — pelo tempo que leva pra
+  // trocar de tela e gerar as primeiras placas, a maioria já chega pronta
+  // no cache do navegador na hora de cada captura.
+  void Promise.all(produtos.map((p) => precarregarFoto(p.product.image)));
+
   const layout = useStore.getState().layouts[layoutIndex];
   if (!layout) return 0;
   const estadoBase = buildWorkingStateFromLayout(layout, layoutIndex);
@@ -92,14 +117,17 @@ export async function gerarPlaquinhasDoEncarte(
         const slot = idx + 1;
         const elementKey = `textElements${slot}` as 'textElements1' | 'textElements2' | 'textElements3';
         const imageKey = `productImage${slot}` as 'productImage1' | 'productImage2' | 'productImage3';
-        const precoTexto = formatarPrecoPlaquinha(produto);
+        const { preco, subtitulo } = formatarPrecoPlaquinha(produto);
         const descricaoTexto = formatarDescricaoPlaquinha(produto);
         useStore.setState((s) => ({
           [elementKey]: {
             ...(s as any)[elementKey],
             name: { ...(s as any)[elementKey].name, text: produto.nome },
             description: { ...(s as any)[elementKey].description, text: descricaoTexto },
-            price: { ...(s as any)[elementKey].price, text: precoTexto },
+            price: { ...(s as any)[elementKey].price, text: preco },
+            ...(subtitulo
+              ? { subtitle: { ...(s as any)[elementKey].subtitle, text: subtitulo, visible: true } }
+              : null),
           },
           [imageKey]: { ...(s as any)[imageKey], url: produto.product.image },
         }) as any);
