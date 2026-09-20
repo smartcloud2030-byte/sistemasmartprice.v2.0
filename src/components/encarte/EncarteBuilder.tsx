@@ -55,8 +55,8 @@ type Lado = 'frente' | 'verso';
 const MENU_ITEMS: { id: MenuItem; label: string; icon: React.ElementType }[] = [
   { id: 'temas', label: 'Temas', icon: Image },
   { id: 'produtos', label: 'Produtos', icon: ShoppingCart },
-  { id: 'elementos', label: 'Elementos', icon: Shapes },
-  { id: 'tags', label: 'Tags', icon: Tag },
+  { id: 'elementos', label: 'Tags', icon: Shapes },
+  { id: 'tags', label: 'Elementos', icon: Tag },
   { id: 'formatos', label: 'Formatos', icon: Rows3 },
   { id: 'marca', label: 'Marca', icon: Building2 },
   { id: 'encartes', label: 'Encartes', icon: LayoutGrid },
