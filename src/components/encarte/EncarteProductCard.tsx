@@ -1000,26 +1000,36 @@ function CardPadrao({
       <div className="relative rounded-xl flex h-32">
         {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
         <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
-          <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-            {/* z-20: fica acima da etiqueta (z-10) — a etiqueta pode crescer pelo
-                slider e vazar por cima do nome/descrição (`transform-origin`
-                "bottom left"/"right"); sem isso o duplo clique nessa área
-                ficava bloqueado pra alguns produtos, dependendo do tamanho
-                da etiqueta e do quanto o texto ocupava a caixa. */}
-            {!nomeDescOculto && (
-              <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
-                <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
-                  {protegerMedidaNoTexto(produto.nome)}
-                </p>
-                {produto.descricao && (
-                  <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
-                    {protegerMedidaNoTexto(produto.descricao)}
+          <div className="relative flex-1 min-h-0">
+            <AutoAjuste sig={sigT} className="h-full">
+              {!nomeDescOculto && (
+                <>
+                  <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
+                    {protegerMedidaNoTexto(produto.nome)}
                   </p>
-                )}
-                {medida && <p className="text-[8px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
-              </div>
+                  {produto.descricao && (
+                    <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
+                      {protegerMedidaNoTexto(produto.descricao)}
+                    </p>
+                  )}
+                  {medida && <p className="text-[8px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+                </>
+              )}
+            </AutoAjuste>
+            {/* Alvo do duplo clique cobre a caixa INTEIRA reservada pro nome/descrição
+                (não só o texto, que às vezes é bem menor que o espaço disponível —
+                nome curto sem descrição, por exemplo) — sem isso, em vários produtos
+                a área clicável ficava pequena demais e o clique "no card" não pegava
+                nada. z-20: acima da etiqueta (z-10), que pode crescer pelo slider e
+                vazar por cima do nome/descrição (`transform-origin` "bottom left"). */}
+            {!nomeDescOculto && (
+              <div
+                data-nome-desc-caixa={String(produto.product.id)}
+                className="absolute inset-0 z-20"
+                onDoubleClick={onNomeDescSlotDoubleClick}
+              />
             )}
-          </AutoAjuste>
+          </div>
           <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
             <EtiquetaPreco
               estilo={estilo}
@@ -1056,30 +1066,39 @@ function CardDestaque({
     <div className="relative flex h-32 gap-1.5">
       {fotoAjustavelNode}
       <div className="relative z-10 flex-1 min-w-0 flex flex-col gap-1">
-        <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-          {/* z-20: mesma razão da nota acima (Card Padrão/em destaque) — fica
-              acima da etiqueta pra o duplo clique nunca ficar bloqueado. */}
-          {!nomeDescOculto && (
-            <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
-              {/* `text-shadow` em vez de `filter: drop-shadow` (Tailwind `drop-shadow-sm`)
-                  — o html2canvas-pro renderiza `filter` mais forte que o Chrome, igual
-                  acontecia com a sombra da foto (ver `foto` acima). `text-shadow` sai
-                  igual na tela e no export. */}
-              <p
-                className="text-[13px] font-black uppercase leading-[1.15] break-normal"
-                style={{ color: estilo.corNome, textShadow: '0 1px 1px rgb(0 0 0 / 0.05)' }}
-              >
-                {protegerMedidaNoTexto(produto.nome)}
-              </p>
-              {produto.descricao && (
-                <p className="text-[9px] font-black uppercase leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
-                  {protegerMedidaNoTexto(produto.descricao)}
+        <div className="relative flex-1 min-h-0">
+          <AutoAjuste sig={sigT} className="h-full">
+            {!nomeDescOculto && (
+              <>
+                {/* `text-shadow` em vez de `filter: drop-shadow` (Tailwind `drop-shadow-sm`)
+                    — o html2canvas-pro renderiza `filter` mais forte que o Chrome, igual
+                    acontecia com a sombra da foto (ver `foto` acima). `text-shadow` sai
+                    igual na tela e no export. */}
+                <p
+                  className="text-[13px] font-black uppercase leading-[1.15] break-normal"
+                  style={{ color: estilo.corNome, textShadow: '0 1px 1px rgb(0 0 0 / 0.05)' }}
+                >
+                  {protegerMedidaNoTexto(produto.nome)}
                 </p>
-              )}
-              {medida && <p className="text-[9px] font-black uppercase leading-[1.1] whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
-            </div>
+                {produto.descricao && (
+                  <p className="text-[9px] font-black uppercase leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
+                    {protegerMedidaNoTexto(produto.descricao)}
+                  </p>
+                )}
+                {medida && <p className="text-[9px] font-black uppercase leading-[1.1] whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+              </>
+            )}
+          </AutoAjuste>
+          {/* Alvo do duplo clique cobre a caixa inteira (ver nota no Card Padrão) —
+              z-20: acima da etiqueta (z-10), que pode vazar por cima pelo slider. */}
+          {!nomeDescOculto && (
+            <div
+              data-nome-desc-caixa={String(produto.product.id)}
+              className="absolute inset-0 z-20"
+              onDoubleClick={onNomeDescSlotDoubleClick}
+            />
           )}
-        </AutoAjuste>
+        </div>
         <AutoAjuste sig={sigE} origem="bottom left" min={0.5} transbordar className="flex-shrink-0 relative z-10">
           <EtiquetaPreco
             estilo={estilo}
@@ -1123,26 +1142,32 @@ function CardClean({
           {foto}
         </div>
         <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
-          <AutoAjuste sig={sigT} className="flex-1 min-h-0">
-            {/* z-20: fica acima da etiqueta (z-10) — a etiqueta pode crescer pelo
-                slider e vazar por cima do nome/descrição (`transform-origin`
-                "bottom left"/"right"); sem isso o duplo clique nessa área
-                ficava bloqueado pra alguns produtos, dependendo do tamanho
-                da etiqueta e do quanto o texto ocupava a caixa. */}
-            {!nomeDescOculto && (
-              <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
-                <p className="text-[11px] font-semibold leading-[1.15] break-normal" style={{ color: estilo.corNome }}>
-                  {protegerMedidaNoTexto(produto.nome)}
-                </p>
-                {produto.descricao && (
-                  <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
-                    {protegerMedidaNoTexto(produto.descricao)}
+          <div className="relative flex-1 min-h-0">
+            <AutoAjuste sig={sigT} className="h-full">
+              {!nomeDescOculto && (
+                <>
+                  <p className="text-[11px] font-semibold leading-[1.15] break-normal" style={{ color: estilo.corNome }}>
+                    {protegerMedidaNoTexto(produto.nome)}
                   </p>
-                )}
-                {medida && <p className="text-[8px] font-medium mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
-              </div>
+                  {produto.descricao && (
+                    <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
+                      {protegerMedidaNoTexto(produto.descricao)}
+                    </p>
+                  )}
+                  {medida && <p className="text-[8px] font-medium mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+                </>
+              )}
+            </AutoAjuste>
+            {/* Alvo do duplo clique cobre a caixa inteira (ver nota no Card Padrão) —
+                z-20: acima da etiqueta (z-10), que pode vazar por cima pelo slider. */}
+            {!nomeDescOculto && (
+              <div
+                data-nome-desc-caixa={String(produto.product.id)}
+                className="absolute inset-0 z-20"
+                onDoubleClick={onNomeDescSlotDoubleClick}
+              />
             )}
-          </AutoAjuste>
+          </div>
           <div
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
             style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
@@ -1188,36 +1213,50 @@ function CardProdutoDestaque({
 
         {/* Nome + descrição completa, alinhados à esquerda — tamanho de fonte ajustável
             (sliders "Tamanho do nome"/"Tamanho da descrição" em Detalhes do produto) */}
-        <AutoAjuste sig={`${sigT}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`} className="self-center max-h-[92px]">
-          {/* z-20: mesma razão da nota acima (Card Padrão/em destaque) — fica
-              acima da etiqueta pra o duplo clique nunca ficar bloqueado. */}
+        {/* Wrapper próprio (item da grade, `self-stretch`) só pra dar uma área de
+            duplo clique do tamanho da coluna inteira — a coluna do nome costuma
+            ficar bem mais alta que o texto (a foto ao lado é maior), e antes o
+            alvo clicável era só o texto centralizado, bem menor que a área que
+            visualmente parece "do produto". `flex items-center` replica o
+            centro vertical que `self-center` fazia direto na AutoAjuste. */}
+        <div className="relative self-stretch flex items-center">
+          <AutoAjuste sig={`${sigT}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`} className="w-full max-h-[92px]">
+            {!nomeDescOculto && (
+              <>
+                <p
+                  className="font-black uppercase leading-[1.12] break-normal"
+                  style={{ color: estilo.corNome, fontSize: 15 * (produto.escalaNomeDestaque ?? 1) }}
+                >
+                  {protegerMedidaNoTexto(produto.nome)}
+                </p>
+                {produto.descricao && (
+                  <p
+                    className="font-semibold leading-[1.2] mt-1 break-normal"
+                    style={{ color: estilo.corDescricao, fontSize: 10 * (produto.escalaDescricaoDestaque ?? 1) }}
+                  >
+                    {protegerMedidaNoTexto(produto.descricao)}
+                  </p>
+                )}
+                {medida && (
+                  <p
+                    className="font-semibold leading-[1.2] mt-0.5 whitespace-nowrap"
+                    style={{ color: estilo.corDescricao, fontSize: 10 * (produto.escalaDescricaoDestaque ?? 1) }}
+                  >
+                    C/ {medida}
+                  </p>
+                )}
+              </>
+            )}
+          </AutoAjuste>
+          {/* z-20: acima da etiqueta (z-10), que pode vazar por cima pelo slider. */}
           {!nomeDescOculto && (
-            <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
-              <p
-                className="font-black uppercase leading-[1.12] break-normal"
-                style={{ color: estilo.corNome, fontSize: 15 * (produto.escalaNomeDestaque ?? 1) }}
-              >
-                {protegerMedidaNoTexto(produto.nome)}
-              </p>
-              {produto.descricao && (
-                <p
-                  className="font-semibold leading-[1.2] mt-1 break-normal"
-                  style={{ color: estilo.corDescricao, fontSize: 10 * (produto.escalaDescricaoDestaque ?? 1) }}
-                >
-                  {protegerMedidaNoTexto(produto.descricao)}
-                </p>
-              )}
-              {medida && (
-                <p
-                  className="font-semibold leading-[1.2] mt-0.5 whitespace-nowrap"
-                  style={{ color: estilo.corDescricao, fontSize: 10 * (produto.escalaDescricaoDestaque ?? 1) }}
-                >
-                  C/ {medida}
-                </p>
-              )}
-            </div>
+            <div
+              data-nome-desc-caixa={String(produto.product.id)}
+              className="absolute inset-0 z-20"
+              onDoubleClick={onNomeDescSlotDoubleClick}
+            />
           )}
-        </AutoAjuste>
+        </div>
 
         {/* Preço grande dourado com efeito: POR / R$ / número / centavos / UNI */}
         <div

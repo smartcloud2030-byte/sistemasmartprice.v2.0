@@ -397,6 +397,10 @@ interface DragState {
   /** pointerdown começou dentro do bloco nome/descrição — ver nota em
    * `handlePointerUp` sobre o atraso do "abrir detalhes" nesse caso. */
   origemNomeDesc?: boolean;
+  /** Nome/descrição solto do produto arrastado, como estava ANTES desse
+   * arraste começar — usado pra andar junto com o card (ver `handlePointerMove`),
+   * `null`/`undefined` se o produto não tem nome/descrição solto. */
+  origNomeDescAjuste?: AjusteNomeDescricao | null;
 }
 
 interface ImagemDragState {
@@ -789,6 +793,10 @@ export default function EncarteCanvas({
     // pra saber se precisa esperar um possível duplo clique antes de abrir
     // os Detalhes do produto.
     const origemNomeDesc = tipo === 'produto' && !!(e.target as HTMLElement).closest?.('[data-nome-desc-caixa]');
+    // Guarda o nome/descrição solto (se houver) como estava ANTES desse
+    // arraste — usado em `handlePointerMove` pra andar junto com o card
+    // enquanto ele não estiver selecionado (ver nota lá).
+    const origNomeDescAjuste = tipo === 'produto' ? produtos.find((p) => p.product.id === id)?.nomeDescricaoAjuste ?? null : null;
     dragRef.current = {
       tipo,
       id,
@@ -799,6 +807,7 @@ export default function EncarteCanvas({
       origYPct: yPct,
       moved: false,
       origemNomeDesc,
+      origNomeDescAjuste,
     };
   };
 
@@ -833,17 +842,38 @@ export default function EncarteCanvas({
     const alvoX = clamp(st.origXPct + (dx / rect.width) * 100, minX, maxX);
     const alvoY = clamp(st.origYPct + (dy / rect.height) * 100, minY, maxY);
 
+    // Nome/descrição solto anda junto com o card enquanto ele estiver sendo
+    // arrastado — a menos que o próprio nome/descrição esteja selecionado
+    // (usuário mexendo nele com intenção, não só um efeito colateral do
+    // arraste do card). Desloca pela MESMA distância total do card desde o
+    // início do arraste, a partir da posição original guardada em `iniciarDrag`
+    // — evita acumular erro de arredondamento frame a frame.
+    const moverComNomeDesc = (finalX: number, finalY: number) => {
+      onMoverProduto(st.id, finalX, finalY);
+      if (st.origNomeDescAjuste && nomeDescSelecionadoId !== st.id) {
+        onAjustarNomeDescricao(
+          st.id,
+          {
+            ...st.origNomeDescAjuste,
+            xPct: st.origNomeDescAjuste.xPct + (finalX - st.origXPct),
+            yPct: st.origNomeDescAjuste.yPct + (finalY - st.origYPct),
+          },
+          { coalesce: `mover-produto-${st.id ?? 'x'}` },
+        );
+      }
+    };
+
     // Segurar Shift durante o arraste desliga o alinhamento inteligente.
     if (arrastado && !e.shiftKey) {
       const outros = produtos.filter((p) => p.product.id !== st.id);
       const r = calcularSnapProduto(alvoX, alvoY, arrastado, outros, larguraProdutoPct, cardHpct);
       setSnapVisual({ v: r.guiasV, h: r.guiasH, marcas: r.marcas });
-      onMoverProduto(st.id, clamp(r.x, minX, maxX), clamp(r.y, minY, maxY));
+      moverComNomeDesc(clamp(r.x, minX, maxX), clamp(r.y, minY, maxY));
     } else {
       if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
         setSnapVisual({ v: [], h: [], marcas: [] });
       }
-      onMoverProduto(st.id, clamp(alvoX, minX, maxX), clamp(alvoY, minY, maxY));
+      moverComNomeDesc(clamp(alvoX, minX, maxX), clamp(alvoY, minY, maxY));
     }
   };
 
