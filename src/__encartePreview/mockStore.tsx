@@ -111,3 +111,8 @@ export function useStore() {
 }
 
 export const isThreeProduct = () => false;
+
+// Stub — só pra satisfazer o import de `GerarPlaquinhasModal`/`gerarPlaquinhas`
+// (feature de "Add placa de preço") quando o EncarteBuilder é carregado
+// isolado por aqui. Nunca é chamado de verdade nesse preview.
+export const buildWorkingStateFromLayout = () => ({} as any);

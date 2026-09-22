@@ -129,6 +129,19 @@ export interface AjusteFotoProduto {
 }
 
 /**
+ * Ajuste manual do bloco nome+descrição — duplo clique num dos dois solta
+ * do lugar padrão dentro do card. Diferente da foto (que fica presa ao
+ * card, acompanhando ele), esse é livre por TODO O ENCARTE: posição e
+ * largura em % do CANVAS, não do card. Altura é sempre automática, pelo
+ * conteúdo (mesma lógica de uma caixa de texto solta).
+ */
+export interface AjusteNomeDescricao {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+}
+
+/**
  * Produto colocado no encarte. Envolve o produto do catálogo (`product`,
  * imutável) com os ajustes individuais — nome, descrição, medida, tipo,
  * preço e posição livre no canvas. Cor e tamanho ficam no EstiloEncarte.
@@ -152,6 +165,9 @@ export interface EncarteProduto {
   z?: number;
   /** foto solta do lugar padrão do card (duplo clique nela pra ativar) — ver `AjusteFotoProduto`. */
   fotoAjuste?: AjusteFotoProduto | null;
+  /** nome+descrição soltos do lugar padrão do card, livres por todo o encarte
+   * (duplo clique num dos dois pra ativar) — ver `AjusteNomeDescricao`. */
+  nomeDescricaoAjuste?: AjusteNomeDescricao | null;
   /** texto livre (ex.: "LEVE 3 PAGUE 2") dentro da etiqueta, acima do "POR". */
   textoProduto?: string;
   /** escala só desse texto — independente do resto da etiqueta. Padrão 1. */

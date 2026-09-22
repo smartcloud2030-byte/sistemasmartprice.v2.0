@@ -712,6 +712,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
           onAjustarFotoProduto={(id, ajuste, opcoes) => atualizarProduto(id, { fotoAjuste: ajuste }, opcoes)}
+          onAjustarNomeDescricao={(id, ajuste, opcoes) => atualizarProduto(id, { nomeDescricaoAjuste: ajuste }, opcoes)}
           onMoverDivisor={moverDivisor}
           onMoverImagem={moverImagem}
           onRedimensionarImagem={redimensionarImagem}

@@ -6,7 +6,7 @@ import {
   Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus, Tag,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
-  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend,
+  Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -19,7 +19,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  CamadaTipo, Canto, AjusteFotoProduto,
+  CamadaTipo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -103,21 +103,30 @@ interface ResultadoSnap {
   marcas: MarcaEspaco[];
 }
 
+/** Um retângulo de referência pro alinhamento inteligente (produto, ou
+ * qualquer outra caixa — ex.: nome/descrição solto). */
+interface CaixaRef {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
 /**
- * Dado o alvo do arraste (canto sup. esq. do card, em %), encaixa em:
- * bordas/centro dos outros produtos e do canvas; e iguala o espaçamento
- * quando o produto fica entre dois, ou repete o vão do par vizinho.
+ * Dado o alvo do arraste (canto sup. esq. da caixa, em %) e o tamanho dela,
+ * encaixa em: bordas/centro das OUTRAS caixas e do canvas; e iguala o
+ * espaçamento quando ela fica entre duas, ou repete o vão do par vizinho.
+ * Genérico — cada "outra" caixa tem seu próprio tamanho (não precisa ser
+ * todas iguais), usado tanto pra arrastar produtos quanto nome/descrição
+ * soltos.
  */
-function calcularSnapProduto(
+function calcularSnapCaixa(
   alvoX: number,
   alvoY: number,
-  arrastado: EncarteProduto,
-  outros: EncarteProduto[],
-  larguraPct: (p: EncarteProduto) => number,
-  alturaPct: number,
+  cwA: number,
+  chA: number,
+  outros: CaixaRef[],
 ): ResultadoSnap {
-  const cwA = larguraPct(arrastado);
-  const chA = alturaPct;
   let x = alvoX;
   let y = alvoY;
   const guiasV: number[] = [];
@@ -132,9 +141,8 @@ function calcularSnapProduto(
     [alvoY, 0], [alvoY + chA / 2, 50], [alvoY + chA, 100],
   ];
   for (const p of outros) {
-    const w = larguraPct(p);
-    paresX.push([alvoX, p.xPct], [alvoX + cwA / 2, p.xPct + w / 2], [alvoX + cwA, p.xPct + w]);
-    paresY.push([alvoY, p.yPct], [alvoY + chA / 2, p.yPct + chA / 2], [alvoY + chA, p.yPct + chA]);
+    paresX.push([alvoX, p.xPct], [alvoX + cwA / 2, p.xPct + p.wPct / 2], [alvoX + cwA, p.xPct + p.wPct]);
+    paresY.push([alvoY, p.yPct], [alvoY + chA / 2, p.yPct + p.hPct / 2], [alvoY + chA, p.yPct + p.hPct]);
   }
 
   const encaixar = (pares: [number, number][]) => {
@@ -160,8 +168,8 @@ function calcularSnapProduto(
   if (!alinhouX) {
     const cy = y + chA / 2;
     const linha = outros
-      .filter((p) => Math.abs(p.yPct + chA / 2 - cy) < chA * 0.9)
-      .map((p) => ({ l: p.xPct, r: p.xPct + larguraPct(p), c: p.xPct + larguraPct(p) / 2 }))
+      .filter((p) => Math.abs(p.yPct + p.hPct / 2 - cy) < chA * 0.9)
+      .map((p) => ({ l: p.xPct, r: p.xPct + p.wPct, c: p.xPct + p.wPct / 2 }))
       .sort((a, b) => a.c - b.c);
     const cx = alvoX + cwA / 2;
     let ok = false;
@@ -208,8 +216,8 @@ function calcularSnapProduto(
   if (!alinhouY) {
     const cx = x + cwA / 2;
     const col = outros
-      .filter((p) => Math.abs(p.xPct + larguraPct(p) / 2 - cx) < cwA * 0.9)
-      .map((p) => ({ t: p.yPct, b: p.yPct + chA, c: p.yPct + chA / 2 }))
+      .filter((p) => Math.abs(p.xPct + p.wPct / 2 - cx) < cwA * 0.9)
+      .map((p) => ({ t: p.yPct, b: p.yPct + p.hPct, c: p.yPct + p.hPct / 2 }))
       .sort((a, b) => a.c - b.c);
     const cy = alvoY + chA / 2;
     let ok = false;
@@ -253,6 +261,23 @@ function calcularSnapProduto(
   }
 
   return { x, y, guiasV, guiasH, marcas };
+}
+
+/**
+ * Dado o alvo do arraste (canto sup. esq. do card, em %), encaixa em:
+ * bordas/centro dos outros produtos e do canvas; e iguala o espaçamento
+ * quando o produto fica entre dois, ou repete o vão do par vizinho.
+ */
+function calcularSnapProduto(
+  alvoX: number,
+  alvoY: number,
+  arrastado: EncarteProduto,
+  outros: EncarteProduto[],
+  larguraPct: (p: EncarteProduto) => number,
+  alturaPct: number,
+): ResultadoSnap {
+  const outrosCaixas: CaixaRef[] = outros.map((p) => ({ xPct: p.xPct, yPct: p.yPct, wPct: larguraPct(p), hPct: alturaPct }));
+  return calcularSnapCaixa(alvoX, alvoY, larguraPct(arrastado), alturaPct, outrosCaixas);
 }
 
 /**
@@ -328,6 +353,8 @@ interface EncarteCanvasProps {
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
   onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
+  /** Nome/descrição soltos — livres por todo o encarte (não presos ao card, ver `AjusteNomeDescricao`). */
+  onAjustarNomeDescricao: (id: string | number | undefined, ajuste: AjusteNomeDescricao | null, opcoes?: { coalesce?: string }) => void;
   onMoverDivisor: (id: string, yPct: number) => void;
   onMoverImagem: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
@@ -406,6 +433,19 @@ interface FormaDragState {
   orig: FormaEncarte;
 }
 
+interface NomeDescDragState {
+  tipo: 'mover' | 'resize';
+  id: string | number;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  orig: AjusteNomeDescricao;
+  /** altura atual (medida do DOM), só pra calcular o encaixe — não muda durante o arraste. */
+  alturaPct: number;
+  /** caixas dos OUTROS produtos (soltos ou no lugar padrão), medidas uma vez no início do gesto. */
+  siblings: CaixaRef[];
+}
+
 export default function EncarteCanvas({
   backgroundUrl,
   produtos,
@@ -429,6 +469,7 @@ export default function EncarteCanvas({
   onAbrirDetalhes,
   onMoverProduto,
   onAjustarFotoProduto,
+  onAjustarNomeDescricao,
   onMoverDivisor,
   onMoverImagem,
   onRedimensionarImagem,
@@ -469,6 +510,10 @@ export default function EncarteCanvas({
   // Foto de um produto "solta" do lugar padrão do card (duplo clique nela) —
   // guarda o id do PRODUTO (só um por vez), igual às outras seleções.
   const [fotoSelecionadaId, setFotoSelecionadaId] = useState<string | number | null>(null);
+  // Nome/descrição de um produto soltos do lugar padrão do card (duplo
+  // clique num dos dois) — mesmo esquema da foto, mas livre por todo o
+  // encarte em vez de preso ao card.
+  const [nomeDescSelecionadoId, setNomeDescSelecionadoId] = useState<string | number | null>(null);
   const [reguasVisiveis, setReguasVisiveis] = useState(false);
   const [fontesAberta, setFontesAberta] = useState(false);
   const [fonteNova, setFonteNova] = useState('Montserrat');
@@ -496,6 +541,7 @@ export default function EncarteCanvas({
   const guiaDragRef = useRef<GuiaDragState | null>(null);
   const formaDragRef = useRef<FormaDragState | null>(null);
   const textoDragRef = useRef<TextoDragState | null>(null);
+  const nomeDescDragRef = useRef<NomeDescDragState | null>(null);
 
   const [downloadAberto, setDownloadAberto] = useState(false);
   const [compartilharAberto, setCompartilharAberto] = useState(false);
@@ -791,6 +837,130 @@ export default function EncarteCanvas({
       setSnapVisual({ v: [], h: [], marcas: [] });
     }
     if (st && !st.moved) aoClicar?.();
+  };
+
+  // ── Nome/descrição soltos (livres por todo o encarte) ────────────────
+  // Acha a caixa (no lugar padrão OU já solta — as duas têm o mesmo
+  // `data-nome-desc-caixa`) de um produto específico, pra medir seu retângulo
+  // atual na tela sem depender de guardar posição de quem ainda não foi solto.
+  const buscarNomeDescCaixaEl = (id: string | number | undefined): HTMLElement | null => {
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return null;
+    const alvo = String(id);
+    const nodes = canvasEl.querySelectorAll<HTMLElement>('[data-nome-desc-caixa]');
+    for (const el of Array.from(nodes)) {
+      if (el.getAttribute('data-nome-desc-caixa') === alvo) return el;
+    }
+    return null;
+  };
+
+  /** Caixas de nome/descrição de TODOS os outros produtos (soltos ou no
+   * lugar padrão), em % do canvas — usado pro alinhamento inteligente. */
+  const medirCaixasNomeDesc = (excetoId: string | number | undefined): CaixaRef[] => {
+    const canvasEl = canvasRef.current;
+    const canvasRect = canvasEl?.getBoundingClientRect();
+    if (!canvasEl || !canvasRect || !canvasRect.width || !canvasRect.height) return [];
+    const alvo = String(excetoId);
+    const out: CaixaRef[] = [];
+    canvasEl.querySelectorAll<HTMLElement>('[data-nome-desc-caixa]').forEach((el) => {
+      if (el.getAttribute('data-nome-desc-caixa') === alvo) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      out.push({
+        xPct: ((r.left - canvasRect.left) / canvasRect.width) * 100,
+        yPct: ((r.top - canvasRect.top) / canvasRect.height) * 100,
+        wPct: (r.width / canvasRect.width) * 100,
+        hPct: (r.height / canvasRect.height) * 100,
+      });
+    });
+    return out;
+  };
+
+  const desselecionarOutros = () => {
+    setFormaSelecionadaId(null);
+    setTextoSelecionadoId(null);
+    setImagemSelecionadaId(null);
+    setProdutoSelecionadoId(null);
+    setFotoSelecionadaId(null);
+  };
+
+  /**
+   * Duplo clique no nome/descrição (só quando ainda no lugar padrão): mede
+   * a caixa onde ele está agora (relativa ao CANVAS INTEIRO, diferente da
+   * foto que é relativa só ao card) e usa isso como ponto de partida do
+   * ajuste manual — nasce exatamente onde já estava, sem pulo, mas já pode
+   * ser arrastado livremente pra qualquer lugar do encarte.
+   */
+  const iniciarAjusteNomeDescricao = (e: React.MouseEvent<HTMLDivElement>, ep: EncarteProduto) => {
+    e.stopPropagation();
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const sRect = e.currentTarget.getBoundingClientRect();
+    if (!canvasRect.width || !canvasRect.height) return;
+    onAjustarNomeDescricao(ep.product.id, {
+      xPct: ((sRect.left - canvasRect.left) / canvasRect.width) * 100,
+      yPct: ((sRect.top - canvasRect.top) / canvasRect.height) * 100,
+      wPct: (sRect.width / canvasRect.width) * 100,
+    });
+    setNomeDescSelecionadoId(ep.product.id ?? null);
+    desselecionarOutros();
+  };
+
+  const iniciarNomeDescDrag = (e: React.PointerEvent<HTMLDivElement>, tipo: 'mover' | 'resize', ep: EncarteProduto) => {
+    const ajuste = ep.nomeDescricaoAjuste;
+    if (!ajuste) return;
+    e.stopPropagation();
+    setNomeDescSelecionadoId(ep.product.id ?? null);
+    desselecionarOutros();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    const caixaRect = buscarNomeDescCaixaEl(ep.product.id)?.getBoundingClientRect();
+    const alturaPct = canvasRect && caixaRect && canvasRect.height ? (caixaRect.height / canvasRect.height) * 100 : 8;
+    nomeDescDragRef.current = {
+      tipo,
+      id: ep.product.id as string | number,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      orig: ajuste,
+      alturaPct,
+      siblings: medirCaixasNomeDesc(ep.product.id),
+    };
+  };
+
+  const handleNomeDescPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = nomeDescDragRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!st || !rect || e.pointerId !== st.pointerId) return;
+    const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
+    const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
+    const o = st.orig;
+    const chaveCoalesce = `nomedesc-${st.tipo}-${st.id}`;
+
+    if (st.tipo === 'mover') {
+      const alvoX = clamp(o.xPct + dxPct, MIN_ELEMENTO - o.wPct, 100 - MIN_ELEMENTO);
+      const alvoY = clamp(o.yPct + dyPct, -40, 100 - MIN_ELEMENTO);
+      if (!e.shiftKey) {
+        const r = calcularSnapCaixa(alvoX, alvoY, o.wPct, st.alturaPct, st.siblings);
+        setSnapVisual({ v: r.guiasV, h: r.guiasH, marcas: r.marcas });
+        onAjustarNomeDescricao(st.id, { ...o, xPct: r.x, yPct: r.y }, { coalesce: chaveCoalesce });
+      } else {
+        if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) setSnapVisual({ v: [], h: [], marcas: [] });
+        onAjustarNomeDescricao(st.id, { ...o, xPct: alvoX, yPct: alvoY }, { coalesce: chaveCoalesce });
+      }
+      return;
+    }
+
+    // resize: largura pela borda direita (altura sempre automática, pelo conteúdo)
+    const wPct = clamp(o.wPct + dxPct, MIN_ELEMENTO, 100 + SANGRIA - o.xPct);
+    onAjustarNomeDescricao(st.id, { ...o, wPct }, { coalesce: chaveCoalesce });
+  };
+
+  const handleNomeDescPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    nomeDescDragRef.current = null;
+    if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) setSnapVisual({ v: [], h: [], marcas: [] });
   };
 
   const iniciarImagemDrag = (
@@ -1289,9 +1459,72 @@ export default function EncarteCanvas({
           setProdutoSelecionadoId(null);
         }}
         onAjustarFoto={(ajuste, opcoes) => onAjustarFotoProduto(ep.product.id, ajuste, opcoes)}
+        onIniciarAjusteNomeDescricao={(e) => iniciarAjusteNomeDescricao(e, ep)}
       />
     </div>
   );
+
+  /**
+   * Nome/descrição de um produto, já soltos do card — livres por todo o
+   * encarte (arrastar pelo corpo, redimensionar a largura pela borda
+   * direita, altura sempre automática pelo conteúdo).
+   */
+  const renderNomeDescricaoAjustavel = (ep: EncarteProduto) => {
+    const ajuste = ep.nomeDescricaoAjuste;
+    if (!ajuste) return null;
+    const selecionada = ep.product.id === nomeDescSelecionadoId;
+    const medida = [ep.medidaQtd, ep.medidaUnidade].filter(Boolean).join(' ').trim();
+    return (
+      <div
+        key={`nd:${ep.product.id}`}
+        data-nome-desc-caixa={String(ep.product.id)}
+        className="absolute touch-none pointer-events-auto"
+        style={{ left: `${ajuste.xPct}%`, top: `${ajuste.yPct}%`, width: `${ajuste.wPct}%`, zIndex: 6 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={cn('cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
+          onPointerDown={(e) => iniciarNomeDescDrag(e, 'mover', ep)}
+          onPointerMove={handleNomeDescPointerMove}
+          onPointerUp={handleNomeDescPointerUp}
+          onPointerCancel={handleNomeDescPointerUp}
+        >
+          <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
+            {protegerMedidaNoTexto(ep.nome)}
+          </p>
+          {ep.descricao && (
+            <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
+              {protegerMedidaNoTexto(ep.descricao)}
+            </p>
+          )}
+          {medida && <p className="text-[8px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+        </div>
+
+        {selecionada && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAjustarNomeDescricao(ep.product.id, null); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            data-html2canvas-ignore="true"
+            title="Restaurar nome/descrição pro lugar padrão do card"
+            className="absolute -top-8 left-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {selecionada && (
+          <div
+            onPointerDown={(e) => iniciarNomeDescDrag(e, 'resize', ep)}
+            onPointerMove={handleNomeDescPointerMove}
+            onPointerUp={handleNomeDescPointerUp}
+            onPointerCancel={handleNomeDescPointerUp}
+            data-html2canvas-ignore="true"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow cursor-ew-resize"
+          />
+        )}
+      </div>
+    );
+  };
 
   /** Uma imagem livre no canvas — arrastar pelo corpo, redimensionar pelos 4 cantos. */
   const renderImagem = (im: ElementoImagem) => {
@@ -1732,9 +1965,12 @@ export default function EncarteCanvas({
         // outro produto/imagem/forma/texto cujo próprio handler pare a
         // propagação antes de chegar no onClick de fundo aqui embaixo.
         onPointerDownCapture={(e) => {
-          if (fotoSelecionadaId == null) return;
-          if (!(e.target as HTMLElement).closest?.('[data-foto-overlay]')) {
+          const alvo = e.target as HTMLElement;
+          if (fotoSelecionadaId != null && !alvo.closest?.('[data-foto-overlay]')) {
             setFotoSelecionadaId(null);
+          }
+          if (nomeDescSelecionadoId != null && !alvo.closest?.('[data-nome-desc-caixa]')) {
+            setNomeDescSelecionadoId(null);
           }
         }}
         onClick={() => {
@@ -1748,6 +1984,7 @@ export default function EncarteCanvas({
           if (imagemSelecionadaId) setImagemSelecionadaId(null);
           if (produtoSelecionadoId != null) setProdutoSelecionadoId(null);
           if (fotoSelecionadaId != null) setFotoSelecionadaId(null);
+          if (nomeDescSelecionadoId != null) setNomeDescSelecionadoId(null);
           if (textoEditandoId) setTextoEditandoId(null);
         }}
       >
@@ -1903,6 +2140,16 @@ export default function EncarteCanvas({
             {camadas.map((c) => (
               <Fragment key={c.chave}>{c.el}</Fragment>
             ))}
+          </div>
+
+          {/* Nome/descrição soltos — livres por todo o encarte, por cima dos cards.
+              `pointer-events-none` no wrapper (igual as guias de alinhamento
+              logo abaixo) — vazio ou com espaços entre as caixas soltas, ele
+              cobre o canvas INTEIRO e, sem isso, bloqueava clique em qualquer
+              coisa por baixo mesmo sem nada solto ali. Cada caixa solta
+              religa `pointer-events-auto` pra si mesma. */}
+          <div className="absolute inset-0 pointer-events-none">
+            {produtos.filter((ep) => ep.nomeDescricaoAjuste).map((ep) => renderNomeDescricaoAjustavel(ep))}
           </div>
 
           {/* Guias do alinhamento inteligente — só durante o arraste, fora do PNG */}
