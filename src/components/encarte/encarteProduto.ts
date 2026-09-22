@@ -126,6 +126,11 @@ export interface AjusteFotoProduto {
   yPct: number;
   wPct: number;
   hPct: number;
+  /** `true` traz a foto pra FRENTE da etiqueta de preço (por padrão é o
+   * contrário — ver nota em `FotoAjustavel` — pra a etiqueta nunca sumir
+   * atrás de uma foto aumentada sem o usuário pedir isso). Botão "Trazer
+   * produto pra frente" na foto solta liga/desliga. */
+  naFrente?: boolean;
 }
 
 /**

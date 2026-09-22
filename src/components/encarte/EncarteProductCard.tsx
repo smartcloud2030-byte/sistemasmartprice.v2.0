@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Package, RotateCcw } from 'lucide-react';
+import { Package, RotateCcw, BringToFront, SendToBack } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -314,10 +314,17 @@ function FotoAjustavel({
       // vs. clique fora — ver onPointerDownCapture no container do canvas.
       data-foto-overlay="true"
       className="absolute touch-none"
-      // z-10 é a camada da etiqueta de preço (e do texto) nos 4 modelos de
-      // card — abaixo disso de propósito, pra foto solta redimensionada
-      // nunca cobrir a etiqueta, mesmo passando por cima dela.
-      style={{ left: `${ajuste.xPct}%`, top: `${ajuste.yPct}%`, width: `${ajuste.wPct}%`, height: `${ajuste.hPct}%`, zIndex: 5 }}
+      // Por padrão (z-5) fica ABAIXO da etiqueta de preço (z-10 nos 4 modelos
+      // de card) — pra a etiqueta nunca sumir atrás de uma foto aumentada
+      // sem o usuário pedir isso. `naFrente` (botão "Trazer produto pra
+      // frente", abaixo) inverte pra quem quiser a foto por cima mesmo.
+      style={{
+        left: `${ajuste.xPct}%`,
+        top: `${ajuste.yPct}%`,
+        width: `${ajuste.wPct}%`,
+        height: `${ajuste.hPct}%`,
+        zIndex: ajuste.naFrente ? 15 : 5,
+      }}
     >
       <div
         className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
@@ -331,15 +338,30 @@ function FotoAjustavel({
       </div>
 
       {selecionada && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onResetar(); }}
-          onPointerDown={(e) => e.stopPropagation()}
-          data-html2canvas-ignore="true"
-          title="Restaurar a foto pro lugar padrão do card"
-          className="absolute -top-8 right-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
+        <>
+          {/* Trazer/enviar o produto em relação à etiqueta de preço — por padrão
+              a foto solta fica ATRÁS da etiqueta (pra nunca esconder o preço sem
+              o usuário pedir), mas quem quer autonomia total pra aumentar a foto
+              sem ela sumir atrás da etiqueta liga isso aqui. */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onAjustar({ ...ajuste, naFrente: !ajuste.naFrente }, 'naFrente'); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            data-html2canvas-ignore="true"
+            title={ajuste.naFrente ? 'Enviar produto pra trás da etiqueta' : 'Trazer produto pra frente da etiqueta'}
+            className="absolute -top-8 right-8 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
+          >
+            {ajuste.naFrente ? <SendToBack className="w-3.5 h-3.5" /> : <BringToFront className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onResetar(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            data-html2canvas-ignore="true"
+            title="Restaurar a foto pro lugar padrão do card"
+            className="absolute -top-8 right-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        </>
       )}
 
       {selecionada &&
