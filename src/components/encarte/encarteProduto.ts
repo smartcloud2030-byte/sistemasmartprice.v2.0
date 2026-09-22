@@ -301,10 +301,24 @@ export function organizarEmGrade(
   const novos = produtos.map((p, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
+    const novoX = origem + col * cellWpct + (cellWpct - cardWpct) / 2;
+    const novoY = origem + row * cellHpct + (cellHpct - cardHpct) / 2;
     return {
       ...p,
-      xPct: origem + col * cellWpct + (cellWpct - cardWpct) / 2,
-      yPct: origem + row * cellHpct + (cellHpct - cardHpct) / 2,
+      xPct: novoX,
+      yPct: novoY,
+      // Nome/descrição solto (livre por todo o encarte, ver `AjusteNomeDescricao`)
+      // desloca junto pela MESMA distância que o card andou pra caber na
+      // grade — sem isso, reorganizar em grade deixava ele pra trás, separado
+      // do produto (posição em % do CANVAS, não do card, então não acompanha
+      // sozinho quando o card pula de lugar).
+      nomeDescricaoAjuste: p.nomeDescricaoAjuste
+        ? {
+            ...p.nomeDescricaoAjuste,
+            xPct: p.nomeDescricaoAjuste.xPct + (novoX - p.xPct),
+            yPct: p.nomeDescricaoAjuste.yPct + (novoY - p.yPct),
+          }
+        : p.nomeDescricaoAjuste,
     };
   });
 
