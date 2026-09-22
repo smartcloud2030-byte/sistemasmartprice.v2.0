@@ -394,6 +394,9 @@ interface DragState {
   origXPct: number;
   origYPct: number;
   moved: boolean;
+  /** pointerdown começou dentro do bloco nome/descrição — ver nota em
+   * `handlePointerUp` sobre o atraso do "abrir detalhes" nesse caso. */
+  origemNomeDesc?: boolean;
 }
 
 interface ImagemDragState {
@@ -527,6 +530,11 @@ export default function EncarteCanvas({
 
   // Carrega as fontes extras do encarte (as básicas já vêm no index.css).
   useEffect(() => { carregarFontesEncarte(); }, []);
+  // Cancela o "abrir Detalhes" pendente (ver `handlePointerUp`) se o
+  // componente desmontar no meio da espera pelo duplo clique.
+  useEffect(() => () => {
+    if (abrirDetalhesPendenteRef.current) clearTimeout(abrirDetalhesPendenteRef.current);
+  }, []);
   // Fecha o popover de fonte ao trocar/soltar a seleção de texto.
   useEffect(() => { setFonteInlineAberta(false); }, [textoSelecionadoId]);
   // Linhas/marcas do alinhamento inteligente, mostradas só enquanto arrasta.
@@ -537,6 +545,10 @@ export default function EncarteCanvas({
   });
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  /** "Abrir Detalhes" pendente (ver `handlePointerUp`) — cancelado se um
+   * duplo clique no nome/descrição chegar antes dos 300ms (ver
+   * `iniciarAjusteNomeDescricao`). */
+  const abrirDetalhesPendenteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imgDragRef = useRef<ImagemDragState | null>(null);
   const guiaDragRef = useRef<GuiaDragState | null>(null);
   const formaDragRef = useRef<FormaDragState | null>(null);
@@ -772,6 +784,11 @@ export default function EncarteCanvas({
       setFotoSelecionadaId(null);
     }
     e.currentTarget.setPointerCapture(e.pointerId);
+    // O clique pode ter começado dentro do bloco nome/descrição (que agora
+    // também arrasta o card inteiro, ver nota em `handlePointerUp`) — marca
+    // pra saber se precisa esperar um possível duplo clique antes de abrir
+    // os Detalhes do produto.
+    const origemNomeDesc = tipo === 'produto' && !!(e.target as HTMLElement).closest?.('[data-nome-desc-caixa]');
     dragRef.current = {
       tipo,
       id,
@@ -781,6 +798,7 @@ export default function EncarteCanvas({
       origXPct: xPct,
       origYPct: yPct,
       moved: false,
+      origemNomeDesc,
     };
   };
 
@@ -836,7 +854,20 @@ export default function EncarteCanvas({
     if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
       setSnapVisual({ v: [], h: [], marcas: [] });
     }
-    if (st && !st.moved) aoClicar?.();
+    if (!st || st.moved) return;
+    if (st.origemNomeDesc) {
+      // Clique parado que começou no nome/descrição: pode ser o primeiro
+      // toque de um duplo clique (solta o bloco — ver `iniciarAjusteNomeDescricao`,
+      // que cancela esse timeout se disparar antes dele). Sem esse atraso,
+      // abrir os Detalhes do produto já no primeiro toque atrapalhava o
+      // duplo clique (e abria/fechava o modal sozinho no meio do gesto).
+      abrirDetalhesPendenteRef.current = setTimeout(() => {
+        abrirDetalhesPendenteRef.current = null;
+        aoClicar?.();
+      }, 300);
+      return;
+    }
+    aoClicar?.();
   };
 
   // ── Nome/descrição soltos (livres por todo o encarte) ────────────────
@@ -893,6 +924,13 @@ export default function EncarteCanvas({
    */
   const iniciarAjusteNomeDescricao = (e: React.MouseEvent<HTMLDivElement>, ep: EncarteProduto) => {
     e.stopPropagation();
+    // Cancela o "abrir Detalhes" que o primeiro toque do duplo clique deixou
+    // pendente (ver `handlePointerUp`) — sem isso, o modal de Detalhes abria
+    // sozinho ~300ms depois de soltar o nome/descrição.
+    if (abrirDetalhesPendenteRef.current) {
+      clearTimeout(abrirDetalhesPendenteRef.current);
+      abrirDetalhesPendenteRef.current = null;
+    }
     const canvasEl = canvasRef.current;
     if (!canvasEl) return;
     const canvasRect = canvasEl.getBoundingClientRect();

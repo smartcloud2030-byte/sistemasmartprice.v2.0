@@ -460,11 +460,17 @@ export default function EncarteProductCard({
   // desenha o bloco livre é o EncarteCanvas (ver `onIniciarAjusteNomeDescricao`
   // na prop) — aqui só esconde o conteúdo original quando já está solto, e
   // faz o slot escutar o duplo clique enquanto ainda está no lugar padrão.
+  //
+  // Ao contrário do slot da foto (menor, raramente usado pra arrastar o
+  // card), esse slot ocupa o CENTRO do card — é onde o usuário mais
+  // naturalmente tenta agarrar o card inteiro pra mover. Por isso, ao
+  // contrário da foto, o pointerdown aqui NÃO trava a propagação: deixa o
+  // card inteiro iniciar o arraste normalmente (ver `iniciarDrag`/
+  // `renderProduto` no EncarteCanvas). O duplo clique continua funcionando
+  // igual — `click`/`dblclick` são resolvidos pelo navegador com base em
+  // onde o dedo/mouse soltou, independente de quem capturou o ponteiro.
   const temAjusteNomeDescricao = !!produto.nomeDescricaoAjuste;
   const podeAjustarNomeDescricao = !temAjusteNomeDescricao && !!onIniciarAjusteNomeDescricao;
-  const onNomeDescSlotPointerDown = podeAjustarNomeDescricao
-    ? (e: React.PointerEvent<HTMLDivElement>) => e.stopPropagation()
-    : undefined;
   const onNomeDescSlotDoubleClick = podeAjustarNomeDescricao
     ? (e: React.MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onIniciarAjusteNomeDescricao!(e); }
     : undefined;
@@ -505,7 +511,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotPointerDown={onNomeDescSlotPointerDown}
           onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
@@ -518,7 +523,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotPointerDown={onNomeDescSlotPointerDown}
           onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
@@ -531,7 +535,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotPointerDown={onNomeDescSlotPointerDown}
           onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
@@ -544,7 +547,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotPointerDown={onNomeDescSlotPointerDown}
           onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
@@ -571,7 +573,6 @@ interface CardProps {
    * isso DENTRO da própria raiz, pra disputar o mesmo contexto de
    * empilhamento da etiqueta de preço em vez de ficar isolado fora dele. */
   fotoAjustavelNode?: React.ReactNode;
-  onNomeDescSlotPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   onNomeDescSlotDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   /** Nome/descrição já soltos (livres no encarte) — esconde o conteúdo do
    * lugar padrão, mas mantém o espaço reservado (mesmo esquema da foto). */
@@ -986,7 +987,7 @@ function PrecoDe({ valor, className }: { valor: string; className?: string }) {
 /** Modelo Padrão — card branco, texto à esquerda, foto à direita, preço em etiqueta. */
 function CardPadrao({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotPointerDown, onNomeDescSlotDoubleClick, nomeDescOculto,
+  onNomeDescSlotDoubleClick, nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
@@ -1000,8 +1001,13 @@ function CardPadrao({
         {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
         <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
+            {/* z-20: fica acima da etiqueta (z-10) — a etiqueta pode crescer pelo
+                slider e vazar por cima do nome/descrição (`transform-origin`
+                "bottom left"/"right"); sem isso o duplo clique nessa área
+                ficava bloqueado pra alguns produtos, dependendo do tamanho
+                da etiqueta e do quanto o texto ocupava a caixa. */}
             {!nomeDescOculto && (
-              <div data-nome-desc-caixa={String(produto.product.id)} onPointerDown={onNomeDescSlotPointerDown} onDoubleClick={onNomeDescSlotDoubleClick}>
+              <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
                 <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
                   {protegerMedidaNoTexto(produto.nome)}
                 </p>
@@ -1042,7 +1048,7 @@ function CardPadrao({
 /** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
 function CardDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotPointerDown, onNomeDescSlotDoubleClick, nomeDescOculto,
+  onNomeDescSlotDoubleClick, nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
@@ -1051,8 +1057,10 @@ function CardDestaque({
       {fotoAjustavelNode}
       <div className="relative z-10 flex-1 min-w-0 flex flex-col gap-1">
         <AutoAjuste sig={sigT} className="flex-1 min-h-0">
+          {/* z-20: mesma razão da nota acima (Card Padrão/em destaque) — fica
+              acima da etiqueta pra o duplo clique nunca ficar bloqueado. */}
           {!nomeDescOculto && (
-            <div data-nome-desc-caixa={String(produto.product.id)} onPointerDown={onNomeDescSlotPointerDown} onDoubleClick={onNomeDescSlotDoubleClick}>
+            <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
               {/* `text-shadow` em vez de `filter: drop-shadow` (Tailwind `drop-shadow-sm`)
                   — o html2canvas-pro renderiza `filter` mais forte que o Chrome, igual
                   acontecia com a sombra da foto (ver `foto` acima). `text-shadow` sai
@@ -1099,7 +1107,7 @@ function CardDestaque({
 /** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em laranja. */
 function CardClean({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotPointerDown, onNomeDescSlotDoubleClick, nomeDescOculto,
+  onNomeDescSlotDoubleClick, nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
@@ -1116,8 +1124,13 @@ function CardClean({
         </div>
         <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1">
           <AutoAjuste sig={sigT} className="flex-1 min-h-0">
+            {/* z-20: fica acima da etiqueta (z-10) — a etiqueta pode crescer pelo
+                slider e vazar por cima do nome/descrição (`transform-origin`
+                "bottom left"/"right"); sem isso o duplo clique nessa área
+                ficava bloqueado pra alguns produtos, dependendo do tamanho
+                da etiqueta e do quanto o texto ocupava a caixa. */}
             {!nomeDescOculto && (
-              <div data-nome-desc-caixa={String(produto.product.id)} onPointerDown={onNomeDescSlotPointerDown} onDoubleClick={onNomeDescSlotDoubleClick}>
+              <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
                 <p className="text-[11px] font-semibold leading-[1.15] break-normal" style={{ color: estilo.corNome }}>
                   {protegerMedidaNoTexto(produto.nome)}
                 </p>
@@ -1150,7 +1163,7 @@ function CardClean({
  */
 function CardProdutoDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotPointerDown, onNomeDescSlotDoubleClick, nomeDescOculto,
+  onNomeDescSlotDoubleClick, nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
@@ -1176,8 +1189,10 @@ function CardProdutoDestaque({
         {/* Nome + descrição completa, alinhados à esquerda — tamanho de fonte ajustável
             (sliders "Tamanho do nome"/"Tamanho da descrição" em Detalhes do produto) */}
         <AutoAjuste sig={`${sigT}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`} className="self-center max-h-[92px]">
+          {/* z-20: mesma razão da nota acima (Card Padrão/em destaque) — fica
+              acima da etiqueta pra o duplo clique nunca ficar bloqueado. */}
           {!nomeDescOculto && (
-            <div data-nome-desc-caixa={String(produto.product.id)} onPointerDown={onNomeDescSlotPointerDown} onDoubleClick={onNomeDescSlotDoubleClick}>
+            <div data-nome-desc-caixa={String(produto.product.id)} className="relative z-20" onDoubleClick={onNomeDescSlotDoubleClick}>
               <p
                 className="font-black uppercase leading-[1.12] break-normal"
                 style={{ color: estilo.corNome, fontSize: 15 * (produto.escalaNomeDestaque ?? 1) }}
