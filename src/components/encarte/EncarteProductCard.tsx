@@ -29,14 +29,6 @@ interface EncarteProductCardProps {
    * ruim de usar).
    */
   onAjustarFoto?: (ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
-  /**
-   * Duplo clique no nome/descrição (só quando ainda no lugar padrão do
-   * card) — solta o bloco pra virar um elemento livre por todo o encarte
-   * (não preso ao card, ao contrário da foto). Quem mede a posição e
-   * decide as coordenadas é o EncarteCanvas (precisa da régua do canvas
-   * inteiro, não só do card), por isso aqui só repassa o evento.
-   */
-  onIniciarAjusteNomeDescricao?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -379,7 +371,6 @@ export default function EncarteProductCard({
   fotoSelecionada,
   onSelecionarFoto,
   onAjustarFoto,
-  onIniciarAjusteNomeDescricao,
 }: EncarteProductCardProps) {
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
@@ -456,24 +447,18 @@ export default function EncarteProductCard({
   // FotoAjustavel): a foto de verdade passa a ser desenhada por cima, solta.
   const fotoNoSlot = temAjusteFoto ? null : foto;
 
-  // Nome/descrição soltos: mesma ideia do duplo clique da foto, mas quem
-  // desenha o bloco livre é o EncarteCanvas (ver `onIniciarAjusteNomeDescricao`
-  // na prop) — aqui só esconde o conteúdo original quando já está solto, e
-  // faz o slot escutar o duplo clique enquanto ainda está no lugar padrão.
-  //
-  // Ao contrário do slot da foto (menor, raramente usado pra arrastar o
-  // card), esse slot ocupa o CENTRO do card — é onde o usuário mais
-  // naturalmente tenta agarrar o card inteiro pra mover. Por isso, ao
-  // contrário da foto, o pointerdown aqui NÃO trava a propagação: deixa o
-  // card inteiro iniciar o arraste normalmente (ver `iniciarDrag`/
-  // `renderProduto` no EncarteCanvas). O duplo clique continua funcionando
-  // igual — `click`/`dblclick` são resolvidos pelo navegador com base em
-  // onde o dedo/mouse soltou, independente de quem capturou o ponteiro.
+  // Nome/descrição soltos: mesma ideia da foto, mas quem desenha o bloco
+  // livre é o EncarteCanvas — aqui só esconde o conteúdo original quando já
+  // está solto (o espaço fica reservado do mesmo jeito, ver cada modelo de
+  // card abaixo). Diferente da foto, esse slot ocupa o CENTRO do card — é
+  // onde o usuário mais naturalmente tenta agarrar o card inteiro pra mover
+  // — então o pointerdown aqui NÃO trava a propagação: o card inteiro
+  // arrasta normalmente a partir daí (ver `iniciarDrag` no EncarteCanvas).
+  // Detectar o duplo clique pra soltar também é feito lá (não dá pra confiar
+  // num `dblclick` nativo aqui: o pointerdown do card captura o ponteiro
+  // pra arrastar, e isso redireciona os eventos de mouse derivados —
+  // click/dblclick — pro card, não pro slot).
   const temAjusteNomeDescricao = !!produto.nomeDescricaoAjuste;
-  const podeAjustarNomeDescricao = !temAjusteNomeDescricao && !!onIniciarAjusteNomeDescricao;
-  const onNomeDescSlotDoubleClick = podeAjustarNomeDescricao
-    ? (e: React.MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onIniciarAjusteNomeDescricao!(e); }
-    : undefined;
 
   // Renderizada DENTRO de cada modelo de card (não como irmã aqui fora) de
   // propósito: Padrão/Clean/"em destaque" têm zIndex:0 na raiz (contém o
@@ -511,7 +496,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
       ) : estilo.modeloCard === 'destaque' ? (
@@ -523,7 +507,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
       ) : estilo.modeloCard === 'clean' ? (
@@ -535,7 +518,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
       ) : (
@@ -547,7 +529,6 @@ export default function EncarteProductCard({
           onFotoSlotPointerDown={onFotoSlotPointerDown}
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
-          onNomeDescSlotDoubleClick={onNomeDescSlotDoubleClick}
           nomeDescOculto={temAjusteNomeDescricao}
         />
       )}
@@ -573,7 +554,6 @@ interface CardProps {
    * isso DENTRO da própria raiz, pra disputar o mesmo contexto de
    * empilhamento da etiqueta de preço em vez de ficar isolado fora dele. */
   fotoAjustavelNode?: React.ReactNode;
-  onNomeDescSlotDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   /** Nome/descrição já soltos (livres no encarte) — esconde o conteúdo do
    * lugar padrão, mas mantém o espaço reservado (mesmo esquema da foto). */
   nomeDescOculto?: boolean;
@@ -779,22 +759,14 @@ function PrecoEtiqueta({
         className="inline-flex items-stretch font-black uppercase leading-none"
         style={dourado ? { fontSize: tamanhoEfetivo, ...PRECO_LARANJA } : { fontSize: tamanhoEfetivo, color: cor }}
       >
-        {/* POR + R$ (padrão) — ou só "COM" quando o preço de oferta é um percentual (ex.: "15%") */}
-        <span
-          className={cn(
-            'self-stretch flex flex-col items-start leading-none pr-[0.06em] gap-[0.02em]',
-            ehPercentual ? 'justify-center' : 'justify-start',
-          )}
-        >
-          {ehPercentual ? (
-            <span className="leading-none" style={{ fontSize: `${0.28 * escalaRotulos}em`, letterSpacing: '0.02em' }}>COM</span>
-          ) : (
-            <>
-              <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
-              <span className="leading-none" style={{ fontSize: `${0.34 * escalaRotulos}em` }}>R$</span>
-            </>
-          )}
-        </span>
+        {/* POR + R$ — some inteiro quando o preço de oferta é um percentual
+            (ex.: "15%"), que fica só com o número e o "%" mesmo, sem rótulo. */}
+        {!ehPercentual && (
+          <span className="self-stretch flex flex-col items-start justify-start leading-none pr-[0.06em] gap-[0.02em]">
+            <span className="leading-none" style={{ fontSize: `${0.36 * escalaRotulos}em`, letterSpacing: '0.02em' }}>POR</span>
+            <span className="leading-none" style={{ fontSize: `${0.34 * escalaRotulos}em` }}>R$</span>
+          </span>
+        )}
 
         {/* número inteiro — dominante (levemente menor no percentual, ex.: "15%") */}
         <span className="leading-none" style={ehPercentual ? { fontSize: '0.92em' } : undefined}>{inteiro}</span>
@@ -987,7 +959,7 @@ function PrecoDe({ valor, className }: { valor: string; className?: string }) {
 /** Modelo Padrão — card branco, texto à esquerda, foto à direita, preço em etiqueta. */
 function CardPadrao({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotDoubleClick, nomeDescOculto,
+  nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
@@ -1026,7 +998,6 @@ function CardPadrao({
               <div
                 data-nome-desc-caixa={String(produto.product.id)}
                 className="absolute inset-0 z-20"
-                onDoubleClick={onNomeDescSlotDoubleClick}
               />
             )}
           </div>
@@ -1058,7 +1029,7 @@ function CardPadrao({
 /** Modelo Tradicional — sem fundo, nome grande, foto à direita, etiqueta grande com POR / UNI. */
 function CardDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotDoubleClick, nomeDescOculto,
+  nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
@@ -1095,7 +1066,6 @@ function CardDestaque({
             <div
               data-nome-desc-caixa={String(produto.product.id)}
               className="absolute inset-0 z-20"
-              onDoubleClick={onNomeDescSlotDoubleClick}
             />
           )}
         </div>
@@ -1126,7 +1096,7 @@ function CardDestaque({
 /** Modelo Clean — card branco arredondado, foto à esquerda, texto suave à direita, preço em laranja. */
 function CardClean({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotDoubleClick, nomeDescOculto,
+  nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
@@ -1164,7 +1134,6 @@ function CardClean({
               <div
                 data-nome-desc-caixa={String(produto.product.id)}
                 className="absolute inset-0 z-20"
-                onDoubleClick={onNomeDescSlotDoubleClick}
               />
             )}
           </div>
@@ -1188,7 +1157,7 @@ function CardClean({
  */
 function CardProdutoDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  onNomeDescSlotDoubleClick, nomeDescOculto,
+  nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
@@ -1253,7 +1222,6 @@ function CardProdutoDestaque({
             <div
               data-nome-desc-caixa={String(produto.product.id)}
               className="absolute inset-0 z-20"
-              onDoubleClick={onNomeDescSlotDoubleClick}
             />
           )}
         </div>

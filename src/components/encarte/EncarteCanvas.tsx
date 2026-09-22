@@ -550,9 +550,12 @@ export default function EncarteCanvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   /** "Abrir Detalhes" pendente (ver `handlePointerUp`) — cancelado se um
-   * duplo clique no nome/descrição chegar antes dos 300ms (ver
+   * duplo clique no nome/descrição chegar antes dos 400ms (ver
    * `iniciarAjusteNomeDescricao`). */
   const abrirDetalhesPendenteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Último clique parado que começou no nome/descrição (id + hora) — usado
+   * por `handlePointerUp` pra detectar duplo clique NA MÃO (ver nota lá). */
+  const ultimoCliqueNomeDescRef = useRef<{ id: string | number | undefined; time: number } | null>(null);
   const imgDragRef = useRef<ImagemDragState | null>(null);
   const guiaDragRef = useRef<GuiaDragState | null>(null);
   const formaDragRef = useRef<FormaDragState | null>(null);
@@ -886,15 +889,32 @@ export default function EncarteCanvas({
     }
     if (!st || st.moved) return;
     if (st.origemNomeDesc) {
-      // Clique parado que começou no nome/descrição: pode ser o primeiro
-      // toque de um duplo clique (solta o bloco — ver `iniciarAjusteNomeDescricao`,
-      // que cancela esse timeout se disparar antes dele). Sem esse atraso,
-      // abrir os Detalhes do produto já no primeiro toque atrapalhava o
-      // duplo clique (e abria/fechava o modal sozinho no meio do gesto).
+      // Clique parado que começou no nome/descrição. O navegador não dá mais
+      // pra confiar num `dblclick` nativo aqui: como esse pointerdown também
+      // captura o ponteiro no card inteiro (pra poder arrastar — ver
+      // `iniciarDrag`), o Chrome redireciona os eventos de mouse DERIVADOS
+      // (click/dblclick) pro card, não pro slot — então o duplo clique é
+      // detectado NA MÃO aqui: 2 cliques parados no MESMO produto dentro de
+      // ~400ms viram um duplo clique. Só o primeiro clique adia o "abrir
+      // Detalhes" (também 400ms) — se o segundo chegar antes, cancela e
+      // solta o nome/descrição em vez de abrir o modal.
+      const agora = Date.now();
+      const ultimo = ultimoCliqueNomeDescRef.current;
+      if (ultimo && ultimo.id === st.id && agora - ultimo.time < 400) {
+        ultimoCliqueNomeDescRef.current = null;
+        if (abrirDetalhesPendenteRef.current) {
+          clearTimeout(abrirDetalhesPendenteRef.current);
+          abrirDetalhesPendenteRef.current = null;
+        }
+        const ep = produtos.find((p) => p.product.id === st.id);
+        if (ep) iniciarAjusteNomeDescricao(ep);
+        return;
+      }
+      ultimoCliqueNomeDescRef.current = { id: st.id, time: agora };
       abrirDetalhesPendenteRef.current = setTimeout(() => {
         abrirDetalhesPendenteRef.current = null;
         aoClicar?.();
-      }, 300);
+      }, 400);
       return;
     }
     aoClicar?.();
@@ -951,12 +971,20 @@ export default function EncarteCanvas({
    * foto que é relativa só ao card) e usa isso como ponto de partida do
    * ajuste manual — nasce exatamente onde já estava, sem pulo, mas já pode
    * ser arrastado livremente pra qualquer lugar do encarte.
+   *
+   * Não depende mais do evento nativo `onDoubleClick` do slot: como agora o
+   * card inteiro também é arrastável a partir dessa área (ver `iniciarDrag`),
+   * o card captura o ponteiro (`setPointerCapture`) já no primeiro toque —
+   * e o Chrome redireciona os eventos de mouse DERIVADOS (click/dblclick)
+   * pro elemento que capturou, não pro slot em si, então o navegador nunca
+   * chegava a montar um `dblclick` de verdade nele. Em vez disso, quem
+   * detecta o duplo clique é `handlePointerUp` (2 cliques parados no mesmo
+   * produto dentro de ~400ms), chamando essa função direto por id.
    */
-  const iniciarAjusteNomeDescricao = (e: React.MouseEvent<HTMLDivElement>, ep: EncarteProduto) => {
-    e.stopPropagation();
+  const iniciarAjusteNomeDescricao = (ep: EncarteProduto) => {
     // Cancela o "abrir Detalhes" que o primeiro toque do duplo clique deixou
     // pendente (ver `handlePointerUp`) — sem isso, o modal de Detalhes abria
-    // sozinho ~300ms depois de soltar o nome/descrição.
+    // sozinho ~400ms depois de soltar o nome/descrição.
     if (abrirDetalhesPendenteRef.current) {
       clearTimeout(abrirDetalhesPendenteRef.current);
       abrirDetalhesPendenteRef.current = null;
@@ -964,8 +992,8 @@ export default function EncarteCanvas({
     const canvasEl = canvasRef.current;
     if (!canvasEl) return;
     const canvasRect = canvasEl.getBoundingClientRect();
-    const sRect = e.currentTarget.getBoundingClientRect();
-    if (!canvasRect.width || !canvasRect.height) return;
+    const sRect = buscarNomeDescCaixaEl(ep.product.id)?.getBoundingClientRect();
+    if (!canvasRect.width || !canvasRect.height || !sRect) return;
     onAjustarNomeDescricao(ep.product.id, {
       xPct: ((sRect.left - canvasRect.left) / canvasRect.width) * 100,
       yPct: ((sRect.top - canvasRect.top) / canvasRect.height) * 100,
@@ -1527,7 +1555,6 @@ export default function EncarteCanvas({
           setProdutoSelecionadoId(null);
         }}
         onAjustarFoto={(ajuste, opcoes) => onAjustarFotoProduto(ep.product.id, ajuste, opcoes)}
-        onIniciarAjusteNomeDescricao={(e) => iniciarAjusteNomeDescricao(e, ep)}
       />
     </div>
   );
