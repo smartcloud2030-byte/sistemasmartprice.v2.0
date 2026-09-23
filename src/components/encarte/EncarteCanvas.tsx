@@ -87,6 +87,19 @@ function marcasRegua(dimNominal: number): { pct: number; label: number }[] {
 // ── Alinhamento inteligente (snap) ao arrastar produtos ──────────────
 const SNAP_ALINHA = 1.3; // % do canvas: tolerância pra "grudar" numa borda/centro
 const SNAP_DIST = 1.1; // % do canvas: tolerância pra igualar espaçamento
+// Arraste de produto: tolerância em px DE TELA (convertida pra % no arraste).
+// Em % fixo o ímã ficava forte demais com muitos produtos — quase todo ponto
+// do encarte caía perto de alguma linha e o card não parava onde soltava.
+const SNAP_PRODUTO_PX = 5;
+
+/** Tolerâncias do alinhamento inteligente, em % do canvas, por eixo. */
+interface TolSnap {
+  alinhaX: number;
+  alinhaY: number;
+  distX: number;
+  distY: number;
+}
+const TOL_PADRAO: TolSnap = { alinhaX: SNAP_ALINHA, alinhaY: SNAP_ALINHA, distX: SNAP_DIST, distY: SNAP_DIST };
 
 interface MarcaEspaco {
   eixo: 'x' | 'y';
@@ -126,6 +139,7 @@ function calcularSnapCaixa(
   cwA: number,
   chA: number,
   outros: CaixaRef[],
+  tol: TolSnap = TOL_PADRAO,
 ): ResultadoSnap {
   let x = alvoX;
   let y = alvoY;
@@ -145,22 +159,22 @@ function calcularSnapCaixa(
     paresY.push([alvoY, p.yPct], [alvoY + chA / 2, p.yPct + p.hPct / 2], [alvoY + chA, p.yPct + p.hPct]);
   }
 
-  const encaixar = (pares: [number, number][]) => {
-    let melhor = SNAP_ALINHA;
+  const encaixar = (pares: [number, number][], limite: number) => {
+    let melhor = limite;
     let ajuste = 0;
     let ref = 0;
     for (const [meu, r] of pares) {
       const d = Math.abs(meu - r);
       if (d < melhor) { melhor = d; ajuste = r - meu; ref = r; }
     }
-    return melhor < SNAP_ALINHA ? { ajuste, ref } : null;
+    return melhor < limite ? { ajuste, ref } : null;
   };
 
-  const snapX = encaixar(paresX);
+  const snapX = encaixar(paresX, tol.alinhaX);
   const alinhouX = !!snapX;
   if (snapX) { x = alvoX + snapX.ajuste; guiasV.push(snapX.ref); }
 
-  const snapY = encaixar(paresY);
+  const snapY = encaixar(paresY, tol.alinhaY);
   const alinhouY = !!snapY;
   if (snapY) { y = alvoY + snapY.ajuste; guiasH.push(snapY.ref); }
 
@@ -178,7 +192,7 @@ function calcularSnapCaixa(
       const B = linha[i + 1];
       if (A.c < cx && cx < B.c && B.l - A.r > cwA) {
         const centro = (A.r + B.l) / 2;
-        if (Math.abs(cx - centro) < SNAP_DIST) {
+        if (Math.abs(cx - centro) < tol.distX) {
           x = centro - cwA / 2;
           marcas.push({ eixo: 'x', perp: cy, segs: [[A.r, x], [x + cwA, B.l]] });
           ok = true;
@@ -191,7 +205,7 @@ function calcularSnapCaixa(
         const L = esq[0];
         const LL = esq[1];
         const g = L.l - LL.r;
-        if (g > 0 && Math.abs(alvoX - (L.r + g)) < SNAP_DIST) {
+        if (g > 0 && Math.abs(alvoX - (L.r + g)) < tol.distX) {
           x = L.r + g;
           marcas.push({ eixo: 'x', perp: cy, segs: [[LL.r, L.l], [L.r, x]] });
           ok = true;
@@ -203,7 +217,7 @@ function calcularSnapCaixa(
           const R = dir[0];
           const RR = dir[1];
           const g = RR.l - R.r;
-          if (g > 0 && Math.abs(alvoX + cwA - (R.l - g)) < SNAP_DIST) {
+          if (g > 0 && Math.abs(alvoX + cwA - (R.l - g)) < tol.distX) {
             x = R.l - g - cwA;
             marcas.push({ eixo: 'x', perp: cy, segs: [[x + cwA, R.l], [R.r, RR.l]] });
           }
@@ -226,7 +240,7 @@ function calcularSnapCaixa(
       const B = col[i + 1];
       if (A.c < cy && cy < B.c && B.t - A.b > chA) {
         const centro = (A.b + B.t) / 2;
-        if (Math.abs(cy - centro) < SNAP_DIST) {
+        if (Math.abs(cy - centro) < tol.distY) {
           y = centro - chA / 2;
           marcas.push({ eixo: 'y', perp: cx, segs: [[A.b, y], [y + chA, B.t]] });
           ok = true;
@@ -239,7 +253,7 @@ function calcularSnapCaixa(
         const T = cima[0];
         const TT = cima[1];
         const g = T.t - TT.b;
-        if (g > 0 && Math.abs(alvoY - (T.b + g)) < SNAP_DIST) {
+        if (g > 0 && Math.abs(alvoY - (T.b + g)) < tol.distY) {
           y = T.b + g;
           marcas.push({ eixo: 'y', perp: cx, segs: [[TT.b, T.t], [T.b, y]] });
           ok = true;
@@ -251,7 +265,7 @@ function calcularSnapCaixa(
           const Bv = baixo[0];
           const BB = baixo[1];
           const g = BB.t - Bv.b;
-          if (g > 0 && Math.abs(alvoY + chA - (Bv.t - g)) < SNAP_DIST) {
+          if (g > 0 && Math.abs(alvoY + chA - (Bv.t - g)) < tol.distY) {
             y = Bv.t - g - chA;
             marcas.push({ eixo: 'y', perp: cx, segs: [[y + chA, Bv.t], [Bv.b, BB.t]] });
           }
@@ -275,9 +289,10 @@ function calcularSnapProduto(
   outros: EncarteProduto[],
   larguraPct: (p: EncarteProduto) => number,
   alturaPct: number,
+  tol?: TolSnap,
 ): ResultadoSnap {
   const outrosCaixas: CaixaRef[] = outros.map((p) => ({ xPct: p.xPct, yPct: p.yPct, wPct: larguraPct(p), hPct: alturaPct }));
-  return calcularSnapCaixa(alvoX, alvoY, larguraPct(arrastado), alturaPct, outrosCaixas);
+  return calcularSnapCaixa(alvoX, alvoY, larguraPct(arrastado), alturaPct, outrosCaixas, tol);
 }
 
 /**
@@ -401,6 +416,13 @@ interface DragState {
    * arraste começar — usado pra andar junto com o card (ver `handlePointerMove`),
    * `null`/`undefined` se o produto não tem nome/descrição solto. */
   origNomeDescAjuste?: AjusteNomeDescricao | null;
+  /** Arraste de produto mexe direto no DOM (`el`/`ndEl`) e só grava no
+   * estado no `pointerup` — ver nota em `handlePointerMove`. */
+  el?: HTMLElement;
+  ndEl?: HTMLElement | null;
+  finalX?: number;
+  finalY?: number;
+  finalNd?: AjusteNomeDescricao | null;
 }
 
 interface ImagemDragState {
@@ -800,6 +822,9 @@ export default function EncarteCanvas({
     // arraste — usado em `handlePointerMove` pra andar junto com o card
     // enquanto ele não estiver selecionado (ver nota lá).
     const origNomeDescAjuste = tipo === 'produto' ? produtos.find((p) => p.product.id === id)?.nomeDescricaoAjuste ?? null : null;
+    // Caixa solta do nome/descrição (só existe quando `origNomeDescAjuste`) —
+    // não anda junto se o próprio nome/descrição estiver selecionado.
+    const ndEl = origNomeDescAjuste && nomeDescSelecionadoId !== id ? buscarNomeDescCaixaEl(id) : null;
     dragRef.current = {
       tipo,
       id,
@@ -811,7 +836,16 @@ export default function EncarteCanvas({
       moved: false,
       origemNomeDesc,
       origNomeDescAjuste,
+      el: e.currentTarget,
+      ndEl,
     };
+  };
+
+  /** Só troca o estado das guias quando elas mudam de fato — no arraste de
+   * produto, re-renderizar o canvas a cada pixel era o que deixava o card
+   * atrasado em relação ao mouse. */
+  const atualizarGuias = (r: { v: number[]; h: number[]; marcas: MarcaEspaco[] }) => {
+    setSnapVisual((prev) => (JSON.stringify(prev) === JSON.stringify(r) ? prev : r));
   };
 
   // Dimensões do card em % do canvas — pro alinhamento inteligente.
@@ -845,37 +879,44 @@ export default function EncarteCanvas({
     const alvoX = clamp(st.origXPct + (dx / rect.width) * 100, minX, maxX);
     const alvoY = clamp(st.origYPct + (dy / rect.height) * 100, minY, maxY);
 
-    // Nome/descrição solto anda junto com o card enquanto ele estiver sendo
-    // arrastado — a menos que o próprio nome/descrição esteja selecionado
-    // (usuário mexendo nele com intenção, não só um efeito colateral do
-    // arraste do card). Desloca pela MESMA distância total do card desde o
-    // início do arraste, a partir da posição original guardada em `iniciarDrag`
-    // — evita acumular erro de arredondamento frame a frame.
+    // O card anda DIRETO no DOM durante o arraste; o estado (e o passo de
+    // desfazer) só é gravado uma vez, no `pointerup`. Antes cada movimento
+    // do mouse gravava no estado e re-renderizava o encarte inteiro — com
+    // muitos produtos o card ficava pra trás do cursor.
+    // Nome/descrição solto anda junto com o card — a menos que o próprio
+    // nome/descrição esteja selecionado (ver `iniciarDrag`). Desloca pela
+    // MESMA distância total do card desde o início do arraste, a partir da
+    // posição original — evita acumular erro de arredondamento.
     const moverComNomeDesc = (finalX: number, finalY: number) => {
-      onMoverProduto(st.id, finalX, finalY);
-      if (st.origNomeDescAjuste && nomeDescSelecionadoId !== st.id) {
-        onAjustarNomeDescricao(
-          st.id,
-          {
-            ...st.origNomeDescAjuste,
-            xPct: st.origNomeDescAjuste.xPct + (finalX - st.origXPct),
-            yPct: st.origNomeDescAjuste.yPct + (finalY - st.origYPct),
-          },
-          { coalesce: `mover-produto-${st.id ?? 'x'}` },
-        );
+      st.finalX = finalX;
+      st.finalY = finalY;
+      if (st.el) {
+        st.el.style.left = `${finalX}%`;
+        st.el.style.top = `${finalY}%`;
+      }
+      if (st.origNomeDescAjuste && st.ndEl) {
+        st.finalNd = {
+          ...st.origNomeDescAjuste,
+          xPct: st.origNomeDescAjuste.xPct + (finalX - st.origXPct),
+          yPct: st.origNomeDescAjuste.yPct + (finalY - st.origYPct),
+        };
+        st.ndEl.style.left = `${st.finalNd.xPct}%`;
+        st.ndEl.style.top = `${st.finalNd.yPct}%`;
       }
     };
 
     // Segurar Shift durante o arraste desliga o alinhamento inteligente.
     if (arrastado && !e.shiftKey) {
       const outros = produtos.filter((p) => p.product.id !== st.id);
-      const r = calcularSnapProduto(alvoX, alvoY, arrastado, outros, larguraProdutoPct, cardHpct);
-      setSnapVisual({ v: r.guiasV, h: r.guiasH, marcas: r.marcas });
+      const tolX = (SNAP_PRODUTO_PX / rect.width) * 100;
+      const tolY = (SNAP_PRODUTO_PX / rect.height) * 100;
+      const r = calcularSnapProduto(alvoX, alvoY, arrastado, outros, larguraProdutoPct, cardHpct, {
+        alinhaX: tolX, alinhaY: tolY, distX: tolX, distY: tolY,
+      });
+      atualizarGuias({ v: r.guiasV, h: r.guiasH, marcas: r.marcas });
       moverComNomeDesc(clamp(r.x, minX, maxX), clamp(r.y, minY, maxY));
     } else {
-      if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
-        setSnapVisual({ v: [], h: [], marcas: [] });
-      }
+      atualizarGuias({ v: [], h: [], marcas: [] });
       moverComNomeDesc(clamp(alvoX, minX, maxX), clamp(alvoY, minY, maxY));
     }
   };
@@ -886,6 +927,12 @@ export default function EncarteCanvas({
     dragRef.current = null;
     if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) {
       setSnapVisual({ v: [], h: [], marcas: [] });
+    }
+    // Grava a posição final do arraste de produto (ver `handlePointerMove`) —
+    // um passo de desfazer só pro card + nome/descrição solto.
+    if (st?.moved && st.tipo === 'produto' && st.finalX != null && st.finalY != null) {
+      onMoverProduto(st.id, st.finalX, st.finalY);
+      if (st.finalNd) onAjustarNomeDescricao(st.id, st.finalNd, { coalesce: `mover-produto-${st.id ?? 'x'}` });
     }
     if (!st || st.moved) return;
     if (st.origemNomeDesc) {
