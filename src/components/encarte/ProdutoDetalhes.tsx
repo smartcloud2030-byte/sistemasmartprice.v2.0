@@ -245,20 +245,6 @@ export default function ProdutoDetalhes({
           className="w-4 h-4 accent-emerald-500"
         />
       </label>
-      {produto.emDestaque && (
-        <div className="space-y-3 -mt-1 pl-1">
-          <SliderEscala
-            label="Tamanho do nome"
-            value={produto.escalaNomeDestaque ?? 1}
-            onChange={(escalaNomeDestaque) => onAtualizar({ escalaNomeDestaque })}
-          />
-          <SliderEscala
-            label="Tamanho da descrição"
-            value={produto.escalaDescricaoDestaque ?? 1}
-            onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
-          />
-        </div>
-      )}
 
       {/* Tamanhos */}
       <div className="space-y-3 pt-1">
@@ -266,6 +252,17 @@ export default function ProdutoDetalhes({
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Tamanhos</h3>
           <Crown className="w-3.5 h-3.5 text-amber-400" />
         </div>
+        {/* só deste produto — vale no card normal, no destaque e no nome/descrição solto */}
+        <SliderEscala
+          label="Nome"
+          value={produto.escalaNomeDestaque ?? 1}
+          onChange={(escalaNomeDestaque) => onAtualizar({ escalaNomeDestaque })}
+        />
+        <SliderEscala
+          label="Descrição"
+          value={produto.escalaDescricaoDestaque ?? 1}
+          onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
+        />
         <SliderEscala label="Produto" value={estilo.escalaCard} onChange={(escalaCard) => onAtualizarEstilo({ escalaCard })} />
         <SliderEscala label="Etiqueta" value={estilo.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizarEstilo({ escalaEtiqueta })} />
       </div>

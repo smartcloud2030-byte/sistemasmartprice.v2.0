@@ -1584,15 +1584,15 @@ export default function EncarteCanvas({
           onPointerUp={handleNomeDescPointerUp}
           onPointerCancel={handleNomeDescPointerUp}
         >
-          <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
+          <p className="font-black uppercase leading-[1.1] break-normal" style={{ fontSize: 11 * (ep.escalaNomeDestaque ?? 1), color: estilo.corNome }}>
             {protegerMedidaNoTexto(ep.nome)}
           </p>
           {ep.descricao && (
-            <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
+            <p className="font-semibold leading-[1.15] mt-0.5 break-normal" style={{ fontSize: 8 * (ep.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>
               {protegerMedidaNoTexto(ep.descricao)}
             </p>
           )}
-          {medida && <p className="text-[8px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
+          {medida && <p className="font-semibold mt-0.5 whitespace-nowrap" style={{ fontSize: 8 * (ep.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>C/ {medida}</p>}
         </div>
 
         {selecionada && (
