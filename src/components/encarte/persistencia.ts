@@ -156,6 +156,15 @@ export function migrarHistoricoParaAdmins(chaveAntiga: string): Promise<EncarteS
   });
 }
 
+export function renomearNoHistorico(cnpj: string, id: string, nome: string): Promise<EncarteSalvo[]> {
+  return enfileirarHistorico(async () => {
+    const atual = await carregarHistorico(cnpj);
+    const lista = atual.map((e) => (e.id === id ? { ...e, nome } : e));
+    await apiPost(chaveHistorico(cnpj), { value: lista });
+    return lista;
+  });
+}
+
 export function apagarDoHistorico(cnpj: string, id: string): Promise<EncarteSalvo[]> {
   return enfileirarHistorico(async () => {
     const atual = await carregarHistorico(cnpj);
@@ -173,6 +182,8 @@ export function apagarDoHistorico(cnpj: string, id: string): Promise<EncarteSalv
 //     entre dispositivos; salvo com debounce e num "flush" ao sair da aba.
 
 export interface RascunhoEncarte {
+  /** nome digitado no topo do editor — usado no "Salvar" (vazio = nome com a data). */
+  nome?: string;
   formato: string;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;

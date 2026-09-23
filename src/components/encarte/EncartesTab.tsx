@@ -1,15 +1,24 @@
 import { useState } from 'react';
-import { LayoutGrid, Trash2, Pencil } from 'lucide-react';
+import { LayoutGrid, Trash2, Pencil, Type, Check, X } from 'lucide-react';
 import { EncarteSalvo } from './persistencia';
 
 interface EncartesTabProps {
   historico: EncarteSalvo[];
   onAbrir: (entry: EncarteSalvo) => void;
   onApagar: (id: string) => void;
+  onRenomear: (id: string, nome: string) => void;
 }
 
-export default function EncartesTab({ historico, onAbrir, onApagar }: EncartesTabProps) {
+export default function EncartesTab({ historico, onAbrir, onApagar, onRenomear }: EncartesTabProps) {
   const [pendingDelete, setPendingDelete] = useState<EncarteSalvo | null>(null);
+  const [renomeando, setRenomeando] = useState<{ id: string; nome: string } | null>(null);
+
+  const confirmarRenomear = () => {
+    if (!renomeando) return;
+    const nome = renomeando.nome.trim();
+    if (nome) onRenomear(renomeando.id, nome);
+    setRenomeando(null);
+  };
 
   return (
     <div className="p-4 space-y-4">
@@ -35,7 +44,29 @@ export default function EncartesTab({ historico, onAbrir, onApagar }: EncartesTa
                 className="w-12 h-12 rounded-lg object-cover bg-zinc-900 flex-shrink-0"
               />
               <div className="flex-grow min-w-0">
-                <p className="text-xs font-semibold text-zinc-200 truncate">{entry.nome}</p>
+                {renomeando?.id === entry.id ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={renomeando.nome}
+                      maxLength={80}
+                      onChange={(e) => setRenomeando({ id: entry.id, nome: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmarRenomear();
+                        if (e.key === 'Escape') setRenomeando(null);
+                      }}
+                      className="min-w-0 flex-1 bg-zinc-900 border border-emerald-500/50 rounded-md px-2 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                    />
+                    <button onClick={confirmarRenomear} title="Salvar nome" className="p-1 rounded-md text-emerald-400 hover:bg-zinc-700">
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setRenomeando(null)} title="Cancelar" className="p-1 rounded-md text-zinc-400 hover:bg-zinc-700">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-zinc-200 truncate">{entry.nome}</p>
+                )}
                 <p className="text-[10px] text-zinc-500">
                   {new Date(entry.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
@@ -47,6 +78,13 @@ export default function EncartesTab({ historico, onAbrir, onApagar }: EncartesTa
               >
                 <Pencil className="w-3.5 h-3.5" />
                 Editar
+              </button>
+              <button
+                onClick={() => setRenomeando({ id: entry.id, nome: entry.nome })}
+                title="Renomear este encarte"
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors flex-shrink-0"
+              >
+                <Type className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setPendingDelete(entry)}

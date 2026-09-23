@@ -49,6 +49,7 @@ import {
   chaveArmazenamento,
   CHAVE_HISTORICO_ADMINS,
   migrarHistoricoParaAdmins,
+  renomearNoHistorico,
 } from './persistencia';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
@@ -119,6 +120,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
   const [placaModalAberto, setPlacaModalAberto] = useState(false);
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
+  // Nome do encarte (campo no topo) — fora do desfazer/refazer, mas vai no rascunho.
+  const [nomeEncarte, setNomeEncarte] = useState('');
   // O auto-save só liga depois que o rascunho salvo foi restaurado (ou que
   // sabemos, pelo servidor, que não há nenhum). Enquanto isso a "casca" inicial
   // do editor não pode gravar por cima do trabalho que está no servidor.
@@ -129,8 +132,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [tentativaCarregar, setTentativaCarregar] = useState(0); // re-tenta se o servidor falhar
 
   // Foto sempre atualizada do estado, pra salvar na hora de fechar/recarregar a aba.
-  const snapshotRef = useRef<RascunhoSemData>({ formato: doc.formatoId, ladoFrente, ladoVerso });
-  snapshotRef.current = { formato: doc.formatoId, ladoFrente, ladoVerso };
+  const snapshotRef = useRef<RascunhoSemData>({ nome: nomeEncarte, formato: doc.formatoId, ladoFrente, ladoVerso });
+  snapshotRef.current = { nome: nomeEncarte, formato: doc.formatoId, ladoFrente, ladoVerso };
 
   // Largura do painel lateral — ajustável pelo usuário arrastando a divisória.
   const PAINEL_MIN = 240;
@@ -190,6 +193,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         if (cancelado) return;
         if (rascunho) {
           restaurouRascunho.current = true;
+          setNomeEncarte(rascunho.nome ?? '');
           resetarDoc({
             formatoId: rascunho.formato as FormatoId,
             ladoFrente: normalizarLado(rascunho.ladoFrente),
@@ -227,13 +231,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     // esteja terminando de carregar. Assim que o usuário mexe em algo (ou
     // restauramos um rascunho), volta a salvar normalmente.
     if (!restaurouRascunho.current && ladoVazio(ladoFrente) && !ladoVerso) return;
-    const snap: RascunhoSemData = { formato: doc.formatoId, ladoFrente, ladoVerso };
+    const snap: RascunhoSemData = { nome: nomeEncarte, formato: doc.formatoId, ladoFrente, ladoVerso };
     const tLocal = setTimeout(() => gravarRascunhoLocal(cnpj, username, snap), 300);
     const tServidor = setTimeout(() => {
       salvarRascunho(cnpj, snap).catch((err) => console.error('Erro ao salvar rascunho do encarte:', err));
     }, 1000);
     return () => { clearTimeout(tLocal); clearTimeout(tServidor); };
-  }, [cnpj, username, doc, ladoFrente, ladoVerso]);
+  }, [cnpj, username, doc, ladoFrente, ladoVerso, nomeEncarte]);
 
   // Flush ao sair: fechar a aba, recarregar (F5) ou trocar de tela do app.
   // Grava o localStorage na hora (síncrono) e tenta o servidor com keepalive.
@@ -562,7 +566,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const gravarEncarte = (imagemPreview: string): Promise<void> => {
     if (!cnpj) return Promise.reject(new Error('Sessão sem usuário identificado — não dá pra salvar o encarte.'));
     return salvarNoHistorico(chaveHist, {
-      nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
+      nome: nomeEncarte.trim() || `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
       imagemPreview,
       formato: doc.formatoId,
       ladoFrente,
@@ -572,6 +576,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   const abrirDoHistorico = (entry: EncarteSalvo) => {
     restaurouRascunho.current = true;
+    setNomeEncarte(entry.nome);
     resetarDoc({
       formatoId: entry.formato as FormatoId,
       ladoFrente: normalizarLado(entry.ladoFrente),
@@ -579,6 +584,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     });
     setLadoAtivo('frente');
     setProdutoDetalhadoId(null);
+  };
+
+  const renomearHistoricoItem = (id: string, nome: string) => {
+    if (!chaveHist) return;
+    renomearNoHistorico(chaveHist, id, nome)
+      .then(setHistorico)
+      .catch((err) => console.error('Erro ao renomear encarte:', err));
   };
 
   const apagarHistoricoItem = (id: string) => {
@@ -600,6 +612,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-black tracking-tighter uppercase">Encarte Online</h1>
+        <input
+          value={nomeEncarte}
+          onChange={(e) => setNomeEncarte(e.target.value)}
+          placeholder="Nome do encarte…"
+          title="Nome do encarte — é com esse nome que ele aparece na aba Encartes ao salvar"
+          maxLength={80}
+          className="w-72 max-w-[40vw] bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/60"
+        />
       </header>
 
       <div className="flex-grow flex min-h-0">
@@ -676,7 +696,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onAtualizarRodape={atualizarRodape}
             />
           ) : activeMenu === 'encartes' ? (
-            <EncartesTab historico={historico} onAbrir={abrirDoHistorico} onApagar={apagarHistoricoItem} />
+            <EncartesTab historico={historico} onAbrir={abrirDoHistorico} onApagar={apagarHistoricoItem} onRenomear={renomearHistoricoItem} />
           ) : (
             <div className="p-6 flex flex-col items-center justify-center gap-3 text-center h-full">
               <LayoutGrid className="w-8 h-8 text-zinc-700" />
