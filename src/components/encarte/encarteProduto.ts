@@ -97,6 +97,7 @@ export interface EstiloEncarte {
   acabamentoEtiqueta: AcabamentoEtiqueta; // sólida / degradê / contorno
   escalaCard: number; // slider "Produto" — escala o card inteiro
   escalaEtiqueta: number; // slider "Etiqueta" — escala extra da caixa de preço
+  escalaFonte: number; // slider "Fonte" — nome/descrição de TODOS os produtos (multiplica o ajuste de cada produto)
 }
 
 export const ESTILO_PADRAO: EstiloEncarte = {
@@ -109,6 +110,7 @@ export const ESTILO_PADRAO: EstiloEncarte = {
   acabamentoEtiqueta: 'solida',
   escalaCard: 1,
   escalaEtiqueta: 1,
+  escalaFonte: 1,
 };
 
 /** Canto de uma alça de redimensionar — compartilhado por imagem, forma e foto do produto. */

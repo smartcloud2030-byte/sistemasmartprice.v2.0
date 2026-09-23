@@ -254,17 +254,19 @@ export default function ProdutoDetalhes({
         </div>
         {/* só deste produto — vale no card normal, no destaque e no nome/descrição solto */}
         <SliderEscala
-          label="Nome"
+          label="Nome (este produto)"
           value={produto.escalaNomeDestaque ?? 1}
           onChange={(escalaNomeDestaque) => onAtualizar({ escalaNomeDestaque })}
         />
         <SliderEscala
-          label="Descrição"
+          label="Descrição (este produto)"
           value={produto.escalaDescricaoDestaque ?? 1}
           onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
         />
         <SliderEscala label="Produto" value={estilo.escalaCard} onChange={(escalaCard) => onAtualizarEstilo({ escalaCard })} />
         <SliderEscala label="Etiqueta" value={estilo.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizarEstilo({ escalaEtiqueta })} />
+        {/* vale pra todos os produtos do encarte — multiplica o Nome/Descrição de cada um */}
+        <SliderEscala label="Fonte (todos os produtos)" value={estilo.escalaFonte ?? 1} onChange={(escalaFonte) => onAtualizarEstilo({ escalaFonte })} />
       </div>
     </div>
   );
