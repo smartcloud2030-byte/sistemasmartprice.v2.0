@@ -983,7 +983,7 @@ function CardPadrao({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
   nomeDescOculto,
 }: CardProps) {
-  const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`;
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
@@ -998,15 +998,15 @@ function CardPadrao({
             <AutoAjuste sig={sigT} className="h-full">
               {!nomeDescOculto && (
                 <>
-                  <p className="font-black uppercase leading-[1.1] break-normal" style={{ fontSize: 11 * (produto.escalaNomeDestaque ?? 1), color: estilo.corNome }}>
+                  <p className="text-[11px] font-black uppercase leading-[1.1] break-normal" style={{ color: estilo.corNome }}>
                     {protegerMedidaNoTexto(produto.nome)}
                   </p>
                   {produto.descricao && (
-                    <p className="font-semibold leading-[1.15] mt-0.5 break-normal" style={{ fontSize: 8 * (produto.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>
+                    <p className="text-[8px] font-semibold leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
                       {protegerMedidaNoTexto(produto.descricao)}
                     </p>
                   )}
-                  {medida && <p className="font-semibold mt-0.5 whitespace-nowrap" style={{ fontSize: 8 * (produto.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>C/ {medida}</p>}
+                  {medida && <p className="text-[8px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
                 </>
               )}
             </AutoAjuste>
@@ -1053,7 +1053,7 @@ function CardDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
   nomeDescOculto,
 }: CardProps) {
-  const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`;
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative flex h-32 gap-1.5">
@@ -1068,17 +1068,17 @@ function CardDestaque({
                     acontecia com a sombra da foto (ver `foto` acima). `text-shadow` sai
                     igual na tela e no export. */}
                 <p
-                  className="font-black uppercase leading-[1.15] break-normal"
-                  style={{ fontSize: 13 * (produto.escalaNomeDestaque ?? 1), color: estilo.corNome, textShadow: '0 1px 1px rgb(0 0 0 / 0.05)' }}
+                  className="text-[13px] font-black uppercase leading-[1.15] break-normal"
+                  style={{ color: estilo.corNome, textShadow: '0 1px 1px rgb(0 0 0 / 0.05)' }}
                 >
                   {protegerMedidaNoTexto(produto.nome)}
                 </p>
                 {produto.descricao && (
-                  <p className="font-black uppercase leading-[1.15] mt-0.5 break-normal" style={{ fontSize: 9 * (produto.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>
+                  <p className="text-[9px] font-black uppercase leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
                     {protegerMedidaNoTexto(produto.descricao)}
                   </p>
                 )}
-                {medida && <p className="font-black uppercase leading-[1.1] whitespace-nowrap" style={{ fontSize: 9 * (produto.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>C/ {medida}</p>}
+                {medida && <p className="text-[9px] font-black uppercase leading-[1.1] whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
               </>
             )}
           </AutoAjuste>
@@ -1120,7 +1120,7 @@ function CardClean({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
   nomeDescOculto,
 }: CardProps) {
-  const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`;
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard raio={16} cor={estilo.corFundo} />
@@ -1138,15 +1138,15 @@ function CardClean({
             <AutoAjuste sig={sigT} className="h-full">
               {!nomeDescOculto && (
                 <>
-                  <p className="font-semibold leading-[1.15] break-normal" style={{ fontSize: 11 * (produto.escalaNomeDestaque ?? 1), color: estilo.corNome }}>
+                  <p className="text-[11px] font-semibold leading-[1.15] break-normal" style={{ color: estilo.corNome }}>
                     {protegerMedidaNoTexto(produto.nome)}
                   </p>
                   {produto.descricao && (
-                    <p className="font-medium leading-[1.15] mt-0.5 break-normal" style={{ fontSize: 8 * (produto.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>
+                    <p className="text-[8px] font-medium leading-[1.15] mt-0.5 break-normal" style={{ color: estilo.corDescricao }}>
                       {protegerMedidaNoTexto(produto.descricao)}
                     </p>
                   )}
-                  {medida && <p className="font-medium mt-0.5 whitespace-nowrap" style={{ fontSize: 8 * (produto.escalaDescricaoDestaque ?? 1), color: estilo.corDescricao }}>C/ {medida}</p>}
+                  {medida && <p className="text-[8px] font-medium mt-0.5 whitespace-nowrap" style={{ color: estilo.corDescricao }}>C/ {medida}</p>}
                 </>
               )}
             </AutoAjuste>
@@ -1181,7 +1181,7 @@ function CardProdutoDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
   nomeDescOculto,
 }: CardProps) {
-  const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`;
+  const sigT = `${produto.nome}|${produto.descricao}|${medida}`;
   return (
     <div className="relative" style={{ zIndex: 0 }}>
       <FundoSombraCard destaque raio={16} cor={estilo.corFundo} />
@@ -1211,7 +1211,7 @@ function CardProdutoDestaque({
             visualmente parece "do produto". `flex items-center` replica o
             centro vertical que `self-center` fazia direto na AutoAjuste. */}
         <div className="relative self-stretch flex items-center">
-          <AutoAjuste sig={sigT} className="w-full max-h-[92px]">
+          <AutoAjuste sig={`${sigT}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}`} className="w-full max-h-[92px]">
             {!nomeDescOculto && (
               <>
                 <p

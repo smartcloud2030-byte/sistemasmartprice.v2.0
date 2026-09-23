@@ -179,10 +179,9 @@ export interface EncarteProduto {
   escalaTextoProduto?: number;
   /** cor só desse texto. Sem definir, usa a mesma cor do "POR/preço" da etiqueta. */
   corTextoProduto?: string;
-  /** escala da fonte do nome (qualquer modelo de card, e o nome solto). Nome do campo é
-   * histórico — começou só no "produto em destaque". Padrão 1. */
+  /** escala da fonte do nome no modelo "produto em destaque" (banner largo). Padrão 1. */
   escalaNomeDestaque?: number;
-  /** escala da fonte da descrição/medida (qualquer modelo de card, e a descrição solta). Padrão 1. */
+  /** escala da fonte da descrição/medida no modelo "produto em destaque". Padrão 1. */
   escalaDescricaoDestaque?: number;
   /** risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → só o "0,00" fica riscado). */
   riscarNumerosTextoProduto?: boolean;
