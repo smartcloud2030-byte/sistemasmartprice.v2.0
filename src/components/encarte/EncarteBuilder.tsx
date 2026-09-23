@@ -47,6 +47,8 @@ import {
   salvarRascunhoKeepalive,
   gravarRascunhoLocal,
   chaveArmazenamento,
+  CHAVE_HISTORICO_ADMINS,
+  migrarHistoricoParaAdmins,
 } from './persistencia';
 
 type MenuItem = 'temas' | 'produtos' | 'elementos' | 'tags' | 'formatos' | 'marca' | 'encartes';
@@ -84,12 +86,15 @@ interface EncarteDoc {
 }
 
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
-  const { setView, currentUser } = useStore();
+  const { setView, currentUser, userRole } = useStore();
   const username = currentUser?.username ?? '';
   // Chave de armazenamento do rascunho/histórico. A tela de Encarte é só de
   // admin e admin não tem CNPJ ('Administrativo' → '') — sem isto, toda a
   // persistência ficava travada no `if (!cnpj)`. Ver `chaveArmazenamento`.
   const cnpj = chaveArmazenamento(currentUser?.cnpj, username);
+  // Lista de encartes salvos: a dos admins é uma só, compartilhada entre
+  // todos (um edita o que o outro salvou). Rascunho continua em `cnpj`.
+  const chaveHist = userRole === 'admin' ? CHAVE_HISTORICO_ADMINS : cnpj;
   const [activeMenu, setActiveMenu] = useState<MenuItem>(menuInicial ?? 'temas');
 
   const {
@@ -177,7 +182,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       try {
         const [{ rascunho, servidorLido }, hist] = await Promise.all([
           carregarRascunho(cnpj, username),
-          carregarHistorico(cnpj).catch(() => [] as EncarteSalvo[]),
+          (chaveHist === CHAVE_HISTORICO_ADMINS
+            ? migrarHistoricoParaAdmins(cnpj).catch(() => null).then(() => carregarHistorico(chaveHist))
+            : carregarHistorico(chaveHist)
+          ).catch(() => [] as EncarteSalvo[]),
         ]);
         if (cancelado) return;
         if (rascunho) {
@@ -553,7 +561,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
    */
   const gravarEncarte = (imagemPreview: string): Promise<void> => {
     if (!cnpj) return Promise.reject(new Error('Sessão sem usuário identificado — não dá pra salvar o encarte.'));
-    return salvarNoHistorico(cnpj, {
+    return salvarNoHistorico(chaveHist, {
       nome: `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
       imagemPreview,
       formato: doc.formatoId,
@@ -575,7 +583,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   const apagarHistoricoItem = (id: string) => {
     if (!cnpj) return;
-    apagarDoHistorico(cnpj, id)
+    apagarDoHistorico(chaveHist, id)
       .then(setHistorico)
       .catch((err) => console.error('Erro ao apagar encarte do histórico:', err));
   };

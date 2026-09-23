@@ -24,6 +24,15 @@ async function apiPost(path: string, body: unknown) {
 }
 
 const HISTORICO_MAX = 20;
+/** A lista dos admins é compartilhada entre todos eles — cabe mais. */
+const HISTORICO_MAX_ADMINS = 40;
+
+/**
+ * Chave do histórico (aba Encartes) compartilhada por TODOS os admins — um
+ * admin vê, abre e edita o que o outro salvou. O rascunho continua
+ * individual (`chaveArmazenamento`), só a lista de salvos é comum.
+ */
+export const CHAVE_HISTORICO_ADMINS = 'admins';
 
 /**
  * Chave de armazenamento do rascunho/histórico a partir do usuário logado.
@@ -115,8 +124,34 @@ export function salvarNoHistorico(
   return enfileirarHistorico(async () => {
     const atual = await carregarHistorico(cnpj);
     const novo: EncarteSalvo = { ...entrada, id: novoId(), createdAt: new Date().toISOString() };
-    const lista = [novo, ...atual].slice(0, HISTORICO_MAX);
+    const max = cnpj === CHAVE_HISTORICO_ADMINS ? HISTORICO_MAX_ADMINS : HISTORICO_MAX;
+    const lista = [novo, ...atual].slice(0, max);
     await apiPost(chaveHistorico(cnpj), { value: lista });
+    return lista;
+  });
+}
+
+/**
+ * Move os encartes que um admin salvou na lista antiga, só dele
+ * (`u-<username>`), pra lista compartilhada dos admins, e esvazia a antiga
+ * (senão o que for apagado da compartilhada voltaria na próxima migração).
+ * Roda quando o admin abre o editor — o servidor não tem como listar os
+ * admins, então cada um migra a própria lista. Se a leitura da lista
+ * compartilhada falhar, não grava nada (não arrisca sobrescrever).
+ */
+export function migrarHistoricoParaAdmins(chaveAntiga: string): Promise<EncarteSalvo[] | null> {
+  if (!chaveAntiga || chaveAntiga === CHAVE_HISTORICO_ADMINS) return Promise.resolve(null);
+  return enfileirarHistorico(async () => {
+    const antigos = await carregarHistorico(chaveAntiga);
+    if (!antigos.length) return null;
+    const res = await apiGet(chaveHistorico(CHAVE_HISTORICO_ADMINS));
+    const compartilhada: EncarteSalvo[] = Array.isArray(res?.value) ? res.value : [];
+    const ids = new Set(compartilhada.map((e) => e.id));
+    const lista = [...compartilhada, ...antigos.filter((e) => !ids.has(e.id))]
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      .slice(0, HISTORICO_MAX_ADMINS);
+    await apiPost(chaveHistorico(CHAVE_HISTORICO_ADMINS), { value: lista });
+    await apiPost(chaveHistorico(chaveAntiga), { value: [] });
     return lista;
   });
 }
