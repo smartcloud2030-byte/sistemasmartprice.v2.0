@@ -303,9 +303,21 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(process.cwd(), "dist")));
+    // index.html sempre revalida (senão, depois de um deploy, o navegador abre
+    // a página antiga apontando pra arquivos /assets/ que já não existem →
+    // tela branca). /assets/ tem hash no nome, pode ficar em cache à vontade.
+    app.use(express.static(path.join(process.cwd(), "dist"), {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-cache");
+        else if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }));
+    // Arquivo de /assets/ que não existe → 404 de verdade, não o index.html
+    // (HTML no lugar de JS o navegador recusa em silêncio → tela branca).
+    app.get(/^\/assets\//, (_req, res) => { res.status(404).end(); });
     // SPA fallback — exclui rotas da API
     app.get(/^(?!\/api|\/gallery|\/socket\.io).*/, (req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(process.cwd(), "dist", "index.html"));
     });
   }
