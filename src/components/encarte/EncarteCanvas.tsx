@@ -1590,7 +1590,13 @@ export default function EncarteCanvas({
   const renderProduto = (ep: EncarteProduto) => (
     <div
       key={`p:${ep.product.id}`}
-      className="absolute touch-none cursor-grab active:cursor-grabbing"
+      // `pointer-events-none` aqui e `auto` na raiz do card: o card é
+      // encolhido com `transform: scale(escalaCard)`, que NÃO muda o tamanho
+      // de layout — este wrapper continuava do tamanho ORIGINAL do card e a
+      // sobra invisível (à direita e embaixo) cobria o produto vizinho, que
+      // não dava pra selecionar. Assim só o card visível recebe o clique; os
+      // eventos continuam subindo pros handlers deste wrapper.
+      className="absolute touch-none cursor-grab active:cursor-grabbing pointer-events-none"
       style={{ left: `${ep.xPct}%`, top: `${ep.yPct}%` }}
       onPointerDown={(e) => iniciarDrag(e, 'produto', ep.product.id, ep.xPct, ep.yPct)}
       onPointerMove={handlePointerMove}
