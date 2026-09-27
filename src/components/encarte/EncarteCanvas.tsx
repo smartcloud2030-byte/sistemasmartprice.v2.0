@@ -808,13 +808,52 @@ export default function EncarteCanvas({
     }
   };
 
+  /**
+   * Produto cujo card VISÍVEL (já com o scale) está sob o ponto (x, y) da
+   * tela — o de cima na pilha, se mais de um. Usado pra decidir QUEM o
+   * clique seleciona pela geometria real, não por qual elemento recebeu o
+   * evento: sobras invisíveis de um card (layout sem o scale, etiqueta
+   * transbordando, etc.) às vezes ficavam por cima do vizinho e o clique no
+   * preço de um produto selecionava o do lado.
+   */
+  const produtoSobPonto = (x: number, y: number): { ep: EncarteProduto; wrapper: HTMLElement } | null => {
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return null;
+    const cards = new Map<string, HTMLElement>();
+    canvasEl.querySelectorAll<HTMLElement>('[data-produto-card]').forEach((el) => {
+      cards.set(el.getAttribute('data-produto-card') || '', el);
+    });
+    const ordem = [...produtos].sort((a, b) => ((b.z ?? 0) - (a.z ?? 0)) || (String(a.product.id) < String(b.product.id) ? 1 : -1));
+    for (const ep of ordem) {
+      const card = cards.get(String(ep.product.id));
+      const r = card?.getBoundingClientRect();
+      if (card?.parentElement && r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        return { ep, wrapper: card.parentElement };
+      }
+    }
+    return null;
+  };
+
   const iniciarDrag = (
     e: React.PointerEvent<HTMLDivElement>,
     tipo: 'produto' | 'divisor',
-    id: string | number | undefined,
-    xPct: number,
-    yPct: number,
+    idEvento: string | number | undefined,
+    xEvento: number,
+    yEvento: number,
   ) => {
+    let id = idEvento;
+    let xPct = xEvento;
+    let yPct = yEvento;
+    let el: HTMLElement = e.currentTarget;
+    if (tipo === 'produto') {
+      const sob = produtoSobPonto(e.clientX, e.clientY);
+      if (sob && sob.ep.product.id !== idEvento) {
+        id = sob.ep.product.id;
+        xPct = sob.ep.xPct;
+        yPct = sob.ep.yPct;
+        el = sob.wrapper;
+      }
+    }
     if (tipo === 'produto') {
       // produto vira o "selecionado" pras setas de camada; larga forma/texto/imagem
       setProdutoSelecionadoId(id ?? null);
@@ -828,7 +867,8 @@ export default function EncarteCanvas({
     // também arrasta o card inteiro, ver nota em `handlePointerUp`) — marca
     // pra saber se precisa esperar um possível duplo clique antes de abrir
     // os Detalhes do produto.
-    const origemNomeDesc = tipo === 'produto' && !!(e.target as HTMLElement).closest?.('[data-nome-desc-caixa]');
+    const origemNomeDesc = tipo === 'produto'
+      && (e.target as HTMLElement).closest?.('[data-nome-desc-caixa]')?.getAttribute('data-nome-desc-caixa') === String(id);
     // Guarda o nome/descrição solto (se houver) como estava ANTES desse
     // arraste — usado em `handlePointerMove` pra andar junto com o card
     // enquanto ele não estiver selecionado (ver nota lá).
@@ -847,7 +887,7 @@ export default function EncarteCanvas({
       moved: false,
       origemNomeDesc,
       origNomeDescAjuste,
-      el: e.currentTarget,
+      el,
       ndEl,
     };
   };
@@ -946,6 +986,9 @@ export default function EncarteCanvas({
       if (st.finalNd) onAjustarNomeDescricao(st.id, st.finalNd, { coalesce: `mover-produto-${st.id ?? 'x'}` });
     }
     if (!st || st.moved) return;
+    // Produto: abre os Detalhes de quem foi de fato clicado (pode não ser o
+    // dono do elemento que recebeu o evento — ver `produtoSobPonto`).
+    if (st.tipo === 'produto') aoClicar = () => onAbrirDetalhes(st.id);
     if (st.origemNomeDesc) {
       // Clique parado que começou no nome/descrição. O navegador não dá mais
       // pra confiar num `dblclick` nativo aqui: como esse pointerdown também

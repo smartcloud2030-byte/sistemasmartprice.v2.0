@@ -445,6 +445,7 @@ export default function EncarteProductCard({
   return (
     <div
       ref={wrapperRef}
+      data-produto-card={String(produto.product.id)}
       // `pointer-events-auto`: o wrapper do produto no canvas é
       // `pointer-events-none` (ver nota em `renderProduto`) — só o card
       // visível, já com o scale aplicado, recebe o clique.
