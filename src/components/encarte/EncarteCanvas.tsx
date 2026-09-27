@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import {
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
+  BringToFront, SendToBack,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -19,7 +20,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  CamadaTipo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto,
+  CamadaTipo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -539,6 +540,14 @@ export default function EncarteCanvas({
   // Foto de um produto "solta" do lugar padrão do card (duplo clique nela) —
   // guarda o id do PRODUTO (só um por vez), igual às outras seleções.
   const [fotoSelecionadaId, setFotoSelecionadaId] = useState<string | number | null>(null);
+  /** Caixa (em % do canvas) da foto solta selecionada — medida do DOM a cada
+   * render, pra desenhar as alças numa camada acima de TODO o encarte (ver
+   * `renderAlcasFoto`). */
+  const [fotoCaixa, setFotoCaixa] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
+  const fotoResizeRef = useRef<{
+    id: string | number; canto: Canto; pointerId: number; startX: number; startY: number;
+    orig: AjusteFotoProduto; baseW: number; baseH: number;
+  } | null>(null);
   // Nome/descrição de um produto soltos do lugar padrão do card (duplo
   // clique num dos dois) — mesmo esquema da foto, mas livre por todo o
   // encarte em vez de preso ao card.
@@ -1606,6 +1615,115 @@ export default function EncarteCanvas({
     </div>
   );
 
+  // Mede a foto solta selecionada (em % do canvas) depois de cada render —
+  // só troca o estado quando muda, então não entra em loop.
+  useLayoutEffect(() => {
+    const canvasEl = canvasRef.current;
+    const el = fotoSelecionadaId == null || !canvasEl
+      ? null
+      : Array.from(canvasEl.querySelectorAll<HTMLElement>('[data-foto-id]'))
+          .find((n) => n.getAttribute('data-foto-id') === String(fotoSelecionadaId)) ?? null;
+    if (!el || !canvasEl) {
+      if (fotoCaixa) setFotoCaixa(null);
+      return;
+    }
+    const c = canvasEl.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const nova = {
+      l: ((r.left - c.left) / c.width) * 100,
+      t: ((r.top - c.top) / c.height) * 100,
+      w: (r.width / c.width) * 100,
+      h: (r.height / c.height) * 100,
+    };
+    if (!fotoCaixa || Math.abs(nova.l - fotoCaixa.l) + Math.abs(nova.t - fotoCaixa.t) + Math.abs(nova.w - fotoCaixa.w) + Math.abs(nova.h - fotoCaixa.h) > 0.01) {
+      setFotoCaixa(nova);
+    }
+  });
+
+  const iniciarFotoResize = (e: React.PointerEvent<HTMLDivElement>, ep: EncarteProduto, canto: Canto) => {
+    e.stopPropagation();
+    if (!ep.fotoAjuste || ep.product.id == null) return;
+    // Base das % da foto = o bloco onde ela está posicionada (o card), medido na tela.
+    const el = Array.from(canvasRef.current?.querySelectorAll<HTMLElement>('[data-foto-id]') ?? [])
+      .find((n) => n.getAttribute('data-foto-id') === String(ep.product.id));
+    const base = (el?.offsetParent as HTMLElement | null)?.getBoundingClientRect();
+    if (!base) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    fotoResizeRef.current = {
+      id: ep.product.id, canto, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+      orig: ep.fotoAjuste, baseW: base.width, baseH: base.height,
+    };
+  };
+
+  const handleFotoResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = fotoResizeRef.current;
+    if (!st || e.pointerId !== st.pointerId) return;
+    const dxPct = ((e.clientX - st.startX) / st.baseW) * 100;
+    const dyPct = ((e.clientY - st.startY) / st.baseH) * 100;
+    onAjustarFotoProduto(st.id, redimensionarFoto(st.orig, st.canto, dxPct, dyPct), {
+      coalesce: `ajustar-foto-resize-${st.canto}-${st.id}`,
+    });
+  };
+
+  const handleFotoResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    fotoResizeRef.current = null;
+  };
+
+  /**
+   * Alças + botões da foto solta selecionada, numa camada ACIMA de todo o
+   * encarte. Dentro do card elas ficavam cobertas pela área de clique do
+   * nome/descrição e pelos cards vizinhos — só o canto livre respondia.
+   */
+  const renderAlcasFoto = () => {
+    if (fotoSelecionadaId == null || !fotoCaixa) return null;
+    const ep = produtos.find((p) => p.product.id === fotoSelecionadaId);
+    const ajuste = ep?.fotoAjuste;
+    if (!ep || !ajuste) return null;
+    return (
+      <div
+        data-foto-overlay="true"
+        data-html2canvas-ignore="true"
+        className="absolute pointer-events-none"
+        style={{ left: `${fotoCaixa.l}%`, top: `${fotoCaixa.t}%`, width: `${fotoCaixa.w}%`, height: `${fotoCaixa.h}%`, zIndex: 45 }}
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); onAjustarFotoProduto(ep.product.id, { ...ajuste, naFrente: !ajuste.naFrente }, { coalesce: `ajustar-foto-naFrente-${ep.product.id}` }); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          title={ajuste.naFrente ? 'Enviar produto pra trás da etiqueta' : 'Trazer produto pra frente da etiqueta'}
+          className="pointer-events-auto absolute -top-8 right-8 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
+        >
+          {ajuste.naFrente ? <SendToBack className="w-3.5 h-3.5" /> : <BringToFront className="w-3.5 h-3.5" />}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onAjustarFotoProduto(ep.product.id, null); setFotoSelecionadaId(null); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          title="Restaurar a foto pro lugar padrão do card"
+          className="pointer-events-auto absolute -top-8 right-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+        {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
+          <div
+            key={canto}
+            onPointerDown={(e) => iniciarFotoResize(e, ep, canto)}
+            onPointerMove={handleFotoResizeMove}
+            onPointerUp={handleFotoResizeUp}
+            onPointerCancel={handleFotoResizeUp}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'pointer-events-auto absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow touch-none',
+              canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+              canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+              canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+              canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+            )}
+          />
+        ))}
+      </div>
+    );
+  };
+
   /**
    * Nome/descrição de um produto, já soltos do card — livres por todo o
    * encarte (arrastar pelo corpo, redimensionar a largura pela borda
@@ -2292,6 +2410,11 @@ export default function EncarteCanvas({
               religa `pointer-events-auto` pra si mesma. */}
           <div className="absolute inset-0 pointer-events-none">
             {produtos.filter((ep) => ep.nomeDescricaoAjuste).map((ep) => renderNomeDescricaoAjustavel(ep))}
+          </div>
+
+          {/* Alças da foto solta selecionada — acima de tudo, fora do PNG */}
+          <div className="absolute inset-0 pointer-events-none">
+            {renderAlcasFoto()}
           </div>
 
           {/* Guias do alinhamento inteligente — só durante o arraste, fora do PNG */}

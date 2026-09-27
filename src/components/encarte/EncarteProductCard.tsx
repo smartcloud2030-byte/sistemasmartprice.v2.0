@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Package, RotateCcw, BringToFront, SendToBack } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -11,7 +11,7 @@ import {
   escureceHex,
   SVG_ETIQUETA,
   AjusteFotoProduto,
-  Canto,
+  SANGRIA_FOTO_PCT,
 } from './encarteProduto';
 
 interface EncarteProductCardProps {
@@ -211,15 +211,7 @@ function fotoComSombra(src: string): Promise<string> {
   return promise;
 }
 
-// Quanto a foto solta pode encolher (%, relativo ao card) e passar da borda
-// do card ao mover/redimensionar — o usuário pode querer ela bem maior que
-// o card ou deslocada pra fora dele de propósito (ver AjusteFotoProduto).
-const MIN_FOTO_PCT = 8;
-const SANGRIA_FOTO_PCT = 150;
-
 interface FotoDragState {
-  tipo: 'mover' | 'resize';
-  canto?: Canto;
   pointerId: number;
   startX: number;
   startY: number;
@@ -229,37 +221,38 @@ interface FotoDragState {
 /**
  * Foto do produto solta do lugar padrão do card — duplo clique nela (ver
  * `iniciarAjusteFoto` em `EncarteProductCard`) tira ela do fluxo normal e
- * passa a desenhar aqui, por cima de tudo, com posição/tamanho próprios
- * (mesmo esquema de arraste/redimensionamento das imagens livres do
- * canvas, só que em % relativas ao CARD em vez do canvas inteiro).
+ * passa a desenhar aqui, com posição/tamanho próprios em % relativas ao
+ * CARD. Aqui só fica a foto e o arrastar pelo corpo; as alças de
+ * redimensionar e os botões ficam numa camada acima de TODO o encarte, no
+ * `EncarteCanvas` (`renderAlcasFoto`) — dentro do card eles ficavam cobertos
+ * pela área de clique do nome/descrição e pelos cards vizinhos.
  */
 function FotoAjustavel({
+  fotoId,
   ajuste,
   foto,
   selecionada,
   wrapperRef,
   onSelecionar,
   onAjustar,
-  onResetar,
 }: {
+  fotoId: string | number | undefined;
   ajuste: AjusteFotoProduto;
   foto: React.ReactNode;
   selecionada: boolean;
   wrapperRef: React.RefObject<HTMLDivElement | null>;
   onSelecionar: () => void;
-  /** `chaveCoalesce` identifica o GESTO (mover, ou redimensionar por um canto
-   * específico) — agrupa toda a rajada de um mesmo arraste num passo só de
-   * desfazer, sem juntar um arraste com o próximo. */
+  /** `chaveCoalesce` identifica o GESTO — agrupa toda a rajada de um mesmo
+   * arraste num passo só de desfazer, sem juntar um arraste com o próximo. */
   onAjustar: (ajuste: AjusteFotoProduto, chaveCoalesce: string) => void;
-  onResetar: () => void;
 }) {
   const dragRef = useRef<FotoDragState | null>(null);
 
-  const iniciar = (e: React.PointerEvent<HTMLDivElement>, tipo: 'mover' | 'resize', canto?: Canto) => {
+  const iniciar = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     onSelecionar();
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { tipo, canto, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: ajuste };
+    dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, orig: ajuste };
   };
 
   const mover = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -269,38 +262,14 @@ function FotoAjustavel({
     const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
     const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
     const o = st.orig;
-    const chaveCoalesce = st.tipo === 'mover' ? 'mover' : `resize-${st.canto}`;
-
-    if (st.tipo === 'mover') {
-      onAjustar(
-        {
-          ...o,
-          xPct: clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.wPct),
-          yPct: clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.hPct),
-        },
-        chaveCoalesce,
-      );
-      return;
-    }
-
-    let { xPct, yPct, wPct, hPct } = o;
-    const oesteMax = o.xPct + o.wPct - MIN_FOTO_PCT;
-    const norteMax = o.yPct + o.hPct - MIN_FOTO_PCT;
-    if (st.canto === 'nw' || st.canto === 'sw') {
-      xPct = clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, oesteMax);
-      wPct = o.xPct + o.wPct - xPct;
-    }
-    if (st.canto === 'ne' || st.canto === 'se') {
-      wPct = clamp(o.wPct + dxPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.xPct);
-    }
-    if (st.canto === 'nw' || st.canto === 'ne') {
-      yPct = clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, norteMax);
-      hPct = o.yPct + o.hPct - yPct;
-    }
-    if (st.canto === 'sw' || st.canto === 'se') {
-      hPct = clamp(o.hPct + dyPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.yPct);
-    }
-    onAjustar({ xPct, yPct, wPct, hPct }, chaveCoalesce);
+    onAjustar(
+      {
+        ...o,
+        xPct: clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.wPct),
+        yPct: clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.hPct),
+      },
+      'mover',
+    );
   };
 
   const soltar = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -311,13 +280,15 @@ function FotoAjustavel({
   return (
     <div
       // marca pro EncarteCanvas reconhecer clique "dentro de alguma foto solta"
-      // vs. clique fora — ver onPointerDownCapture no container do canvas.
+      // vs. clique fora — ver onPointerDownCapture no container do canvas —
+      // e achar esta foto pra desenhar as alças por cima (`data-foto-id`).
       data-foto-overlay="true"
+      data-foto-id={String(fotoId)}
       className="absolute touch-none"
       // Por padrão (z-5) fica ABAIXO da etiqueta de preço (z-10 nos 4 modelos
       // de card) — pra a etiqueta nunca sumir atrás de uma foto aumentada
       // sem o usuário pedir isso. `naFrente` (botão "Trazer produto pra
-      // frente", abaixo) inverte pra quem quiser a foto por cima mesmo.
+      // frente", nas alças) inverte pra quem quiser a foto por cima mesmo.
       style={{
         left: `${ajuste.xPct}%`,
         top: `${ajuste.yPct}%`,
@@ -328,7 +299,7 @@ function FotoAjustavel({
     >
       <div
         className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
-        onPointerDown={(e) => iniciar(e, 'mover')}
+        onPointerDown={iniciar}
         onPointerMove={mover}
         onPointerUp={soltar}
         onPointerCancel={soltar}
@@ -336,52 +307,6 @@ function FotoAjustavel({
       >
         {foto}
       </div>
-
-      {selecionada && (
-        <>
-          {/* Trazer/enviar o produto em relação à etiqueta de preço — por padrão
-              a foto solta fica ATRÁS da etiqueta (pra nunca esconder o preço sem
-              o usuário pedir), mas quem quer autonomia total pra aumentar a foto
-              sem ela sumir atrás da etiqueta liga isso aqui. */}
-          <button
-            onClick={(e) => { e.stopPropagation(); onAjustar({ ...ajuste, naFrente: !ajuste.naFrente }, 'naFrente'); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            data-html2canvas-ignore="true"
-            title={ajuste.naFrente ? 'Enviar produto pra trás da etiqueta' : 'Trazer produto pra frente da etiqueta'}
-            className="absolute -top-8 right-8 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
-          >
-            {ajuste.naFrente ? <SendToBack className="w-3.5 h-3.5" /> : <BringToFront className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onResetar(); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            data-html2canvas-ignore="true"
-            title="Restaurar a foto pro lugar padrão do card"
-            className="absolute -top-8 right-0 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </>
-      )}
-
-      {selecionada &&
-        (['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
-          <div
-            key={canto}
-            onPointerDown={(e) => iniciar(e, 'resize', canto)}
-            onPointerMove={mover}
-            onPointerUp={soltar}
-            onPointerCancel={soltar}
-            data-html2canvas-ignore="true"
-            className={cn(
-              'absolute w-3 h-3 rounded-sm bg-emerald-500 border-2 border-white shadow',
-              canto === 'nw' && 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
-              canto === 'ne' && 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
-              canto === 'sw' && 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
-              canto === 'se' && 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
-            )}
-          />
-        ))}
     </div>
   );
 }
@@ -493,13 +418,13 @@ export default function EncarteProductCard({
   const fotoAjustavelNode =
     temAjusteFoto && produto.fotoAjuste && onAjustarFoto ? (
       <FotoAjustavel
+        fotoId={produto.product.id}
         ajuste={produto.fotoAjuste}
         foto={foto}
         selecionada={!!fotoSelecionada}
         wrapperRef={wrapperRef}
         onSelecionar={() => onSelecionarFoto?.()}
         onAjustar={(ajuste, chaveCoalesce) => onAjustarFoto(ajuste, { coalesce: `ajustar-foto-${chaveCoalesce}-${produto.product.id}` })}
-        onResetar={() => onAjustarFoto(null)}
       />
     ) : null;
 
