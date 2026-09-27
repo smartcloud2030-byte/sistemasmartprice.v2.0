@@ -474,6 +474,8 @@ interface NomeDescDragState {
   alturaPct: number;
   /** caixas dos OUTROS produtos (soltos ou no lugar padrão), medidas uma vez no início do gesto. */
   siblings: CaixaRef[];
+  /** mexeu de verdade (não foi só um clique) — ver `handleNomeDescPointerUp`. */
+  moved?: boolean;
 }
 
 export default function EncarteCanvas({
@@ -1087,6 +1089,8 @@ export default function EncarteCanvas({
     if (!st || !rect || e.pointerId !== st.pointerId) return;
     const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
     const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
+    if (!st.moved && Math.hypot(e.clientX - st.startX, e.clientY - st.startY) < 4) return;
+    st.moved = true;
     const o = st.orig;
     const chaveCoalesce = `nomedesc-${st.tipo}-${st.id}`;
 
@@ -1111,7 +1115,13 @@ export default function EncarteCanvas({
 
   const handleNomeDescPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    const st = nomeDescDragRef.current;
     nomeDescDragRef.current = null;
+    // Clique simples (sem arrastar) no nome/descrição solto também seleciona
+    // o PRODUTO e abre os Detalhes, igual clicar no card. Sem isso, um
+    // produto com nome E foto soltos não tinha como ser selecionado: o nome
+    // selecionava só o nome, a foto só a foto.
+    if (st && st.tipo === 'mover' && !st.moved) onAbrirDetalhes(st.id);
     if (snapVisual.v.length || snapVisual.h.length || snapVisual.marcas.length) setSnapVisual({ v: [], h: [], marcas: [] });
   };
 
@@ -1609,6 +1619,7 @@ export default function EncarteCanvas({
         estilo={estilo}
         selecionado={ep.product.id === produtoDetalhadoId || ep.product.id === produtoSelecionadoId}
         fotoSelecionada={ep.product.id === fotoSelecionadaId}
+        onCliqueFoto={() => onAbrirDetalhes(ep.product.id)}
         onSelecionarFoto={() => {
           setFotoSelecionadaId(ep.product.id);
           setFormaSelecionadaId(null);

@@ -21,6 +21,8 @@ interface EncarteProductCardProps {
   /** foto "solta" do lugar padrão (depois do duplo clique nela) está selecionada — mostra alças. */
   fotoSelecionada?: boolean;
   onSelecionarFoto?: () => void;
+  /** clique simples (sem arrastar) na foto solta — seleciona o produto / abre os Detalhes. */
+  onCliqueFoto?: () => void;
   /**
    * `null` restaura a foto pro lugar padrão do modelo de card. `opcoes.coalesce`
    * agrupa a rajada de mudanças de um arraste inteiro num passo só de desfazer
@@ -212,6 +214,7 @@ function fotoComSombra(src: string): Promise<string> {
 }
 
 interface FotoDragState {
+  moved?: boolean;
   pointerId: number;
   startX: number;
   startY: number;
@@ -234,6 +237,7 @@ function FotoAjustavel({
   selecionada,
   wrapperRef,
   onSelecionar,
+  onClique,
   onAjustar,
 }: {
   fotoId: string | number | undefined;
@@ -242,6 +246,8 @@ function FotoAjustavel({
   selecionada: boolean;
   wrapperRef: React.RefObject<HTMLDivElement | null>;
   onSelecionar: () => void;
+  /** clique simples (sem arrastar) — seleciona o produto, igual clicar no card. */
+  onClique: () => void;
   /** `chaveCoalesce` identifica o GESTO — agrupa toda a rajada de um mesmo
    * arraste num passo só de desfazer, sem juntar um arraste com o próximo. */
   onAjustar: (ajuste: AjusteFotoProduto, chaveCoalesce: string) => void;
@@ -261,6 +267,8 @@ function FotoAjustavel({
     if (!st || !rect || e.pointerId !== st.pointerId) return;
     const dxPct = ((e.clientX - st.startX) / rect.width) * 100;
     const dyPct = ((e.clientY - st.startY) / rect.height) * 100;
+    if (!st.moved && Math.hypot(e.clientX - st.startX, e.clientY - st.startY) < 4) return;
+    st.moved = true;
     const o = st.orig;
     onAjustar(
       {
@@ -274,7 +282,11 @@ function FotoAjustavel({
 
   const soltar = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    const st = dragRef.current;
     dragRef.current = null;
+    // Clique sem arrastar: também seleciona o produto (ver nota em
+    // `handleNomeDescPointerUp` no EncarteCanvas).
+    if (st && !st.moved && e.type === 'pointerup') onClique();
   };
 
   return (
@@ -317,6 +329,7 @@ export default function EncarteProductCard({
   selecionado,
   fotoSelecionada,
   onSelecionarFoto,
+  onCliqueFoto,
   onAjustarFoto,
 }: EncarteProductCardProps) {
   const { product } = produto;
@@ -424,6 +437,7 @@ export default function EncarteProductCard({
         selecionada={!!fotoSelecionada}
         wrapperRef={wrapperRef}
         onSelecionar={() => onSelecionarFoto?.()}
+        onClique={() => onCliqueFoto?.()}
         onAjustar={(ajuste, chaveCoalesce) => onAjustarFoto(ajuste, { coalesce: `ajustar-foto-${chaveCoalesce}-${produto.product.id}` })}
       />
     ) : null;
