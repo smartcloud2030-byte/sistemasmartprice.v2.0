@@ -73,6 +73,16 @@ async function uploadToMinio(file: File, category: string, productName: string, 
   return { url: data.url || '', thumbUrl: data.thumbUrl || data.url || '', duplicated: data.duplicated === true };
 }
 
+/** Apaga do MinIO uma imagem da galeria de produtos (no-op pra URL externa). */
+async function apagarImagemGaleria(imageUrl: string | null | undefined) {
+  if (!imageUrl || !imageUrl.includes('imagens.sistemasmartprice.com.br')) return;
+  try {
+    const url = new URL(imageUrl);
+    const objectPath = url.pathname.split('/').filter(Boolean).slice(1).join('/');
+    await fetch(`/gallery/delete/${objectPath}`, { method: 'DELETE', headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+  } catch {}
+}
+
 const ProductManager = () => {
   const { products, fetchProducts, currentUser } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
@@ -323,6 +333,17 @@ const ProductManager = () => {
     try {
       if (editingProduct?.id) {
         await apiCall('PUT', `/products/${editingProduct.id}`, dataToSave);
+        // Trocou a foto: a nova tem URL própria (nome único por envio), então
+        // apaga a antiga — só se nenhum outro produto ainda usa ela.
+        if (pendingFile) {
+          const outros = products.filter(p => p.id != editingProduct.id);
+          for (const antiga of [editingProduct.image, editingProduct.thumb_image]) {
+            if (antiga && antiga !== dataToSave.image && antiga !== dataToSave.thumb_image
+                && !outros.some(p => p.image === antiga || p.thumb_image === antiga)) {
+              await apagarImagemGaleria(antiga);
+            }
+          }
+        }
         toast.success('Produto atualizado!');
       } else {
         await apiCall('POST', '/products', dataToSave);
@@ -374,12 +395,10 @@ const ProductManager = () => {
     try {
       const product = products.find(p => p.id == id);
       await apiCall('DELETE', `/products/${id}`);
-      if (product?.image && product.image.includes('imagens.sistemasmartprice.com.br')) {
-        try {
-          const url = new URL(product.image);
-          const objectPath = url.pathname.split('/').filter(Boolean).slice(1).join('/');
-          await fetch(`/gallery/delete/${objectPath}`, { method: 'DELETE', headers: { 'x-gallery-token': GALLERY_PASSWORD } });
-        } catch {}
+      // Produtos antigos com o mesmo nome podem dividir a mesma imagem — só
+      // apaga se nenhum outro produto ainda usa ela.
+      if (!products.some(p => p.id != id && p.image === product?.image)) {
+        await apagarImagemGaleria(product?.image);
       }
       toast.success('Produto excluído!');
       closeDeleteConfirm();

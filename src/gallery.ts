@@ -1076,8 +1076,13 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
     const mainBuffer = await sharp(finalBuffer).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
     const thumbBuffer = await sharp(finalBuffer).resize(200, 200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
 
-    const filename = `${cleanName}.webp`;
-    const thumbFilename = `${cleanName}-thumb.webp`;
+    // Sufixo único por envio: o nome do arquivo vinha só do nome do produto,
+    // então dois produtos com o mesmo nome dividiam (e sobrescreviam) a mesma
+    // imagem, e trocar a foto na edição regravava a MESMA URL — o cache do
+    // navegador/CDN (1 ano, immutable) continuava mostrando a antiga.
+    const sufixo = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const filename = `${cleanName}-${sufixo}.webp`;
+    const thumbFilename = `${cleanName}-${sufixo}-thumb.webp`;
     const fullPath = `${category}/${filename}`;
     const thumbPath = `${category}/${thumbFilename}`;
 
@@ -1104,8 +1109,13 @@ router.post('/upload-nobg3/:category', authGallery, upload.single('image'), asyn
     const cleanName = rawName.normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
     const mainBuffer = await sharp(rembgBuffer).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
     const thumbBuffer = await sharp(rembgBuffer).resize(200, 200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
-    const filename = `${cleanName}.webp`;
-    const thumbFilename = `${cleanName}-thumb.webp`;
+    // Sufixo único por envio: o nome do arquivo vinha só do nome do produto,
+    // então dois produtos com o mesmo nome dividiam (e sobrescreviam) a mesma
+    // imagem, e trocar a foto na edição regravava a MESMA URL — o cache do
+    // navegador/CDN (1 ano, immutable) continuava mostrando a antiga.
+    const sufixo = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const filename = `${cleanName}-${sufixo}.webp`;
+    const thumbFilename = `${cleanName}-${sufixo}-thumb.webp`;
     const fullPath = `${category}/${filename}`;
     const thumbPath = `${category}/${thumbFilename}`;
     await minioClient.putObject(BUCKET, fullPath, mainBuffer, mainBuffer.length, { 'Content-Type': 'image/webp' });
