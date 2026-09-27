@@ -639,7 +639,13 @@ const ProductManager = () => {
                         <span className="text-xs text-blue-600 font-medium truncate">
                           {pendingFile ? `✓ ${pendingFile.name}` : 'Selecionar imagem'}
                         </span>
-                        <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) selectFile(f); }} />
+                        <input type="file" accept="image/*" className="hidden" onChange={e => {
+                          const f = e.target.files?.[0];
+                          // Limpa o campo: sem isso, escolher o MESMO arquivo de novo (ex.: depois do
+                          // erro "selecione uma categoria") não dispara onChange e a imagem não entra.
+                          e.target.value = '';
+                          if (f) selectFile(f);
+                        }} />
                       </label>
                       <input type="text" placeholder="ou cole a URL aqui"
                         className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none text-black dark:text-white"
