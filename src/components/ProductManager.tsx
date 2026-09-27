@@ -98,6 +98,9 @@ const ProductManager = () => {
   const [removeBgOption, setRemoveBgOption] = useState(true);
   const [duplicateMatch, setDuplicateMatch] = useState<Product | null>(null);
   const [duplicateMatchFromBarcode, setDuplicateMatchFromBarcode] = useState(false);
+  // Produto repetido que o usuário já aceitou cadastrar mesmo assim (clicou
+  // "Cadastrar mesmo assim" no aviso) — o Salvar não pergunta de novo por ele.
+  const [duplicadoAceitoId, setDuplicadoAceitoId] = useState<string | number | null>(null);
   const [bulkDuplicates, setBulkDuplicates] = useState<BulkDuplicate[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -366,7 +369,7 @@ const ProductManager = () => {
     if (!formData.category) { toast.error('Selecione uma categoria.'); return; }
 
     const match = findDuplicateProduct({ name: formData.name, barcode: formData.barcode, barcode2: formData.barcode2 }, products, editingProduct?.id);
-    if (match) { setDuplicateMatch(match); setDuplicateMatchFromBarcode(false); return; }
+    if (match && match.id !== duplicadoAceitoId) { setDuplicateMatch(match); setDuplicateMatchFromBarcode(false); return; }
 
     await saveProduct();
   };
@@ -444,6 +447,7 @@ const ProductManager = () => {
   }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
 
   const openModal = (product?: Product) => {
+    setDuplicadoAceitoId(null);
     if (product) {
       setEditingProduct(product);
       setFormData({ name: product.name, description: product.description, price: product.price, image: product.image, thumb_image: product.thumb_image || null, category: product.category, barcode: product.barcode || '', barcode2: product.barcode2 || '' });
@@ -967,15 +971,27 @@ const ProductManager = () => {
             <p className="text-zinc-600 dark:text-zinc-400 font-bold mb-8">Deseja editá-lo em vez de cadastrar um novo?</p>
             <div className="flex gap-3">
               <button onClick={() => { setDuplicateMatch(null); setDuplicateMatchFromBarcode(false); }} className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black uppercase text-xs text-black dark:text-white">
-                {duplicateMatchFromBarcode ? 'Cadastrar novamente' : 'Cancelar'}
+                Cancelar
               </button>
               <button onClick={() => { const match = duplicateMatch; setDuplicateMatch(null); setDuplicateMatchFromBarcode(false); if (match) openModal(match); }} className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs">Editar produto existente</button>
             </div>
-            {!duplicateMatchFromBarcode && (
-              <button onClick={() => { setDuplicateMatch(null); saveProduct(); }} className="w-full mt-3 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-center">
-                {editingProduct?.id ? 'Salvar mesmo assim' : 'Cadastrar mesmo assim'}
-              </button>
-            )}
+            {/* Mesmo nome OU mesmo código: avisa, mas deixa cadastrar. Vindo do
+                código de barras (ainda preenchendo o formulário) só fecha o aviso
+                e segue; vindo do Salvar, já salva. Em ambos, o Salvar não pergunta
+                de novo por esse mesmo produto. */}
+            <button
+              onClick={() => {
+                const match = duplicateMatch;
+                const doSalvar = !duplicateMatchFromBarcode;
+                setDuplicadoAceitoId(match?.id ?? null);
+                setDuplicateMatch(null);
+                setDuplicateMatchFromBarcode(false);
+                if (doSalvar) saveProduct();
+              }}
+              className="w-full mt-3 px-6 py-3 rounded-2xl border-2 border-amber-500 text-amber-600 font-black uppercase text-xs hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+            >
+              {editingProduct?.id ? 'Salvar mesmo assim' : 'Cadastrar mesmo assim'}
+            </button>
           </div>
         </div>
       )}
