@@ -12,17 +12,17 @@ interface Props {
 }
 
 /** Toast no canto que aparece sozinho quando o admin abre o painel, se tiver
- * despesa vencida ou a vencer nos próximos dias — não depende de abrir o
- * Financeiro pra saber disso. Fecha por sessão (some ao clicar X ou "Ver
+ * despesa VENCIDA — não depende de abrir o Financeiro pra saber disso. As "a
+ * vencer nos próximos dias" ficam só no Financeiro (o José não quer lembrete
+ * antecipado no balão). Fecha por sessão (some ao clicar X ou "Ver
  * despesas"); reaparece na próxima vez que o painel for aberto/recarregado. */
 export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
   const { despesas } = useStore();
   const [dispensada, setDispensada] = useState(false);
 
-  const alertas = despesasAVencer(despesas);
+  const alertas = despesasAVencer(despesas).filter((a) => a.status === 'vencida');
   if (alertas.length === 0 || dispensada) return null;
 
-  const temVencida = alertas.some((a) => a.status === 'vencida');
   const total = alertas.reduce((sum, a) => sum + a.despesa.valor, 0);
   const primeiras = alertas.slice(0, 3);
 
@@ -30,18 +30,18 @@ export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
     <div className="fixed bottom-6 right-6 z-40 w-full max-w-sm no-print">
       <div className={cn(
         'rounded-2xl shadow-2xl border p-4 bg-white dark:bg-zinc-900',
-        temVencida ? 'border-red-300 dark:border-red-800' : 'border-amber-300 dark:border-amber-800',
+        'border-red-300 dark:border-red-800',
       )}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className={cn(
               'w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0',
-              temVencida ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600',
+              'bg-red-100 dark:bg-red-900/30 text-red-600',
             )}>
               <Clock className="w-4 h-4" />
             </div>
             <p className="text-xs font-black uppercase tracking-widest text-black dark:text-white">
-              {alertas.length === 1 ? 'Despesa' : `${alertas.length} despesas`} {temVencida ? 'vencida ou a vencer' : 'a vencer'}
+              {alertas.length === 1 ? 'Despesa' : `${alertas.length} despesas`} {alertas.length === 1 ? 'vencida' : 'vencidas'}
             </p>
           </div>
           <button
@@ -57,14 +57,13 @@ export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
           {primeiras.map((a) => (
             <div key={`${a.despesa.id}-${a.ano}-${a.mes}`} className="flex items-center justify-between text-xs">
               <div className="min-w-0">
-                <p className={cn('font-bold truncate', a.status === 'vencida' ? 'text-red-600' : 'text-amber-600')}>
+                <p className="font-bold truncate text-red-600">
                   {a.despesa.descricao}
                 </p>
-                {/* Qual ciclo está sendo cobrado — o aviso olha o mês atual E o
-                    próximo, então sem a data parecia cobrar uma despesa que já
-                    tinha sido efetivada (era a do mês seguinte). */}
+                {/* Qual ciclo está sendo cobrado — sem a data não dá pra saber
+                    de que mês é a despesa vencida. */}
                 <p className="text-[10px] text-zinc-400">
-                  {a.status === 'vencida' ? 'Venceu em ' : 'Vence em '}
+                  Venceu em{' '}
                   {new Date(a.ano, a.mes - 1, diaVencimento(a.despesa)).toLocaleDateString('pt-BR')}
                 </p>
               </div>
