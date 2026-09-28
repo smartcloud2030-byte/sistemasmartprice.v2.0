@@ -10,16 +10,19 @@ import DespesasViagemModal from './DespesasViagemModal';
 interface Props {
   onClose: () => void;
   initialTab?: 'despesas' | 'saldo' | 'viagens';
+  /** mês/ano que abre na aba Despesas (padrão: o atual) — o aviso de vencimento
+   * abre direto no mês da despesa cobrada. */
+  initialMesAno?: { ano: number; mes: number } | null;
 }
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export default function FinanceiroPanel({ onClose, initialTab = 'despesas' }: Props) {
+export default function FinanceiroPanel({ onClose, initialTab = 'despesas', initialMesAno }: Props) {
   const { despesas, saldoEmConta } = useStore();
   const [activeTab, setActiveTab] = useState<'despesas' | 'saldo' | 'viagens'>(initialTab);
   const now = new Date();
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(initialMesAno?.ano ?? now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(initialMesAno?.mes ?? now.getMonth() + 1);
 
   const despesasDoMesTotal = totalDespesasDoMes(despesas, selectedYear, selectedMonth);
   const devedor = (saldoEmConta || 0) < 0;

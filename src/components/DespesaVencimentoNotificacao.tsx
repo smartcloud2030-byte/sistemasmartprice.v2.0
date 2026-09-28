@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Clock, X } from 'lucide-react';
 import { useStore } from '../store';
-import { despesasAVencer } from '../lib/despesas';
+import { despesasAVencer, diaVencimento } from '../lib/despesas';
 import { cn } from '../lib/utils';
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 interface Props {
-  onVerDespesas: () => void;
+  /** abre o Financeiro no mês da primeira despesa cobrada no aviso */
+  onVerDespesas: (mesAno: { ano: number; mes: number }) => void;
 }
 
 /** Toast no canto que aparece sozinho quando o admin abre o painel, se tiver
@@ -55,9 +56,18 @@ export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
         <div className="mt-3 space-y-1.5">
           {primeiras.map((a) => (
             <div key={`${a.despesa.id}-${a.ano}-${a.mes}`} className="flex items-center justify-between text-xs">
-              <span className={cn('font-bold truncate', a.status === 'vencida' ? 'text-red-600' : 'text-amber-600')}>
-                {a.despesa.descricao}
-              </span>
+              <div className="min-w-0">
+                <p className={cn('font-bold truncate', a.status === 'vencida' ? 'text-red-600' : 'text-amber-600')}>
+                  {a.despesa.descricao}
+                </p>
+                {/* Qual ciclo está sendo cobrado — o aviso olha o mês atual E o
+                    próximo, então sem a data parecia cobrar uma despesa que já
+                    tinha sido efetivada (era a do mês seguinte). */}
+                <p className="text-[10px] text-zinc-400">
+                  {a.status === 'vencida' ? 'Venceu em ' : 'Vence em '}
+                  {new Date(a.ano, a.mes - 1, diaVencimento(a.despesa)).toLocaleDateString('pt-BR')}
+                </p>
+              </div>
               <span className="text-zinc-400 flex-shrink-0 ml-2">{currency(a.despesa.valor)}</span>
             </div>
           ))}
@@ -69,7 +79,7 @@ export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
         <div className="mt-3 flex items-center justify-between gap-2">
           <p className="text-[11px] text-zinc-400">Total: <span className="font-bold text-black dark:text-white">{currency(total)}</span></p>
           <button
-            onClick={() => { setDispensada(true); onVerDespesas(); }}
+            onClick={() => { setDispensada(true); onVerDespesas({ ano: alertas[0].ano, mes: alertas[0].mes }); }}
             className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-600 hover:bg-amber-700 text-white transition-colors"
           >
             Ver despesas

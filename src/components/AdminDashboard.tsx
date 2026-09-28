@@ -36,6 +36,7 @@ const AdminDashboard: React.FC = () => {
   const [quickList, setQuickList] = useState<QuickListKind>(null);
   const [showFinanceiro, setShowFinanceiro] = useState(false);
   const [financeiroTab, setFinanceiroTab] = useState<'despesas' | 'saldo' | 'viagens'>('despesas');
+  const [financeiroMesAno, setFinanceiroMesAno] = useState<{ ano: number; mes: number } | null>(null);
 
   // allowedStores só muda quando chega um evento do servidor — sem isso, uma
   // loja que ficou "presa" online (PC desligado sem avisar) nunca voltaria a
@@ -324,12 +325,12 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {showFinanceiro && (
-        <FinanceiroPanel initialTab={financeiroTab} onClose={() => setShowFinanceiro(false)} />
+        <FinanceiroPanel initialTab={financeiroTab} initialMesAno={financeiroMesAno} onClose={() => { setShowFinanceiro(false); setFinanceiroMesAno(null); }} />
       )}
 
       {!showFinanceiro && (
         <DespesaVencimentoNotificacao
-          onVerDespesas={() => { setFinanceiroTab('despesas'); setShowFinanceiro(true); }}
+          onVerDespesas={(mesAno) => { setFinanceiroTab('despesas'); setFinanceiroMesAno(mesAno); setShowFinanceiro(true); }}
         />
       )}
     </div>
