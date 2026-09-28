@@ -33,6 +33,19 @@ export async function salvarRecibo(buffer: Buffer, contentType: string, viagemId
   return key;
 }
 
+// Cópia do relatório gerado (PDF/Excel), pra reenvio sem regerar. Sobrescreve
+// o arquivo anterior do mesmo formato (nome fixo por viagem+formato).
+export async function salvarRelatorio(
+  buffer: Buffer,
+  contentType: string,
+  viagemId: string,
+  nomeArquivo: string,
+): Promise<string> {
+  const key = `relatorios/${viagemId}/${nomeArquivo}`;
+  await client.putObject(BUCKET, key, buffer, buffer.length, { 'Content-Type': contentType });
+  return key;
+}
+
 export function statRecibo(key: string) {
   return client.statObject(BUCKET, key);
 }

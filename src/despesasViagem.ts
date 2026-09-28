@@ -1,15 +1,20 @@
 // ─────────────────────────────────────────
 // despesasViagem.ts — Despesas de viagem (reembolso Ultra Popular).
-// Fase 1: schema + CRUD de viagens e despesas. WhatsApp, extração por IA e
-// geração de PDF/Excel entram nas fases seguintes.
+// Schema + CRUD de viagens/despesas, extração por IA e geração do relatório
+// (PDF/Excel — src/lib/despesasViagemFiles.ts), usado por esta rota e pelo
+// bot do WhatsApp (fecharViagem em src/whatsappBot.ts).
 // Pool próprio (mesmo padrão de src/monitoring.ts) — evita import circular
 // com api.ts.
 // ─────────────────────────────────────────
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { CATEGORIAS_VALIDAS, STATUS_VALIDOS } from './lib/despesasViagemReport';
+import { CATEGORIAS_VALIDAS, STATUS_VALIDOS, type ItemDespesa } from './lib/despesasViagemReport';
 import { extrairRecibo, IANaoConfiguradaError } from './lib/reciboExtract';
-import { assinarRecibo, conferirAssinaturaRecibo, statRecibo, streamRecibo } from './lib/recibos';
+import { assinarRecibo, conferirAssinaturaRecibo, salvarRelatorio, statRecibo, streamRecibo } from './lib/recibos';
+import {
+  gerarRelatorioPDF, gerarRelatorioXLSX, nomeArquivoRelatorio,
+  type ReciboAnexo, type ViagemParaRelatorio,
+} from './lib/despesasViagemFiles';
 
 const router = Router();
 
@@ -315,6 +320,122 @@ router.get('/recibo/:id', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'private, max-age=86400');
     (await streamRecibo(key)).pipe(res);
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Relatório (PDF/Excel) ────────────────
+
+interface DespesaComRecibo {
+  recibo_key: string;
+  categoria: string;
+  valorCentavos: number | null;
+  estabelecimento: string | null;
+}
+interface DadosRelatorioViagem {
+  viagem: ViagemParaRelatorio & { id: string };
+  itens: ItemDespesa[];
+  despesasComRecibo: DespesaComRecibo[];
+}
+
+async function carregarDadosRelatorio(viagemId: string): Promise<DadosRelatorioViagem | null> {
+  const viagemRes = await pool.query(`SELECT ${VIAGEM_SELECT} FROM viagens_despesa WHERE id = $1`, [viagemId]);
+  if (viagemRes.rowCount === 0) return null;
+  const v = viagemRes.rows[0];
+  const despesasRes = await pool.query(
+    `SELECT categoria, descricao, valor_centavos, data_despesa::text AS data_despesa, estabelecimento, recibo_key
+       FROM despesas_viagem WHERE viagem_id = $1 ORDER BY data_despesa ASC, created_at ASC`,
+    [viagemId]
+  );
+  const itens: ItemDespesa[] = despesasRes.rows
+    .filter((d: any) => d.valor_centavos != null)
+    .map((d: any) => ({
+      categoria: d.categoria,
+      descricao: d.descricao,
+      valorCentavos: Number(d.valor_centavos),
+      dataDespesa: d.data_despesa,
+      estabelecimento: d.estabelecimento,
+    }));
+  const despesasComRecibo: DespesaComRecibo[] = despesasRes.rows
+    .filter((d: any) => d.recibo_key)
+    .map((d: any) => ({
+      recibo_key: d.recibo_key,
+      categoria: d.categoria,
+      valorCentavos: d.valor_centavos == null ? null : Number(d.valor_centavos),
+      estabelecimento: d.estabelecimento,
+    }));
+  return {
+    viagem: {
+      id: v.id, titulo: v.titulo, destino: v.destino, motivo: v.motivo,
+      empresa: v.empresa, dataInicio: v.data_inicio, dataFim: v.data_fim,
+    },
+    itens,
+    despesasComRecibo,
+  };
+}
+
+async function baixarRecibosParaPdf(despesas: DespesaComRecibo[]): Promise<ReciboAnexo[]> {
+  const recibos: ReciboAnexo[] = [];
+  for (const d of despesas) {
+    try {
+      const chunks: Buffer[] = [];
+      const stream = await streamRecibo(d.recibo_key);
+      await new Promise<void>((resolve, reject) => {
+        stream.on('data', (c: Buffer) => chunks.push(c));
+        stream.on('end', () => resolve());
+        stream.on('error', reject);
+      });
+      recibos.push({
+        buffer: Buffer.concat(chunks), categoria: d.categoria,
+        valorCentavos: d.valorCentavos, estabelecimento: d.estabelecimento,
+      });
+    } catch (e) {
+      console.error('[despesas-viagem] falha ao baixar recibo pro PDF:', e);
+    }
+  }
+  return recibos;
+}
+
+export async function gerarArquivoRelatorio(
+  viagemId: string,
+  formato: 'pdf' | 'xlsx'
+): Promise<{ buffer: Buffer; contentType: string; nomeArquivo: string } | null> {
+  const dados = await carregarDadosRelatorio(viagemId);
+  if (!dados) return null;
+  const nomeArquivo = nomeArquivoRelatorio(dados.viagem, formato);
+
+  if (formato === 'xlsx') {
+    const buffer = gerarRelatorioXLSX(dados.viagem, dados.itens);
+    const contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    await salvarRelatorio(buffer, contentType, viagemId, nomeArquivo).catch((e) =>
+      console.error('[despesas-viagem] falha ao guardar cópia do relatório:', e)
+    );
+    return { buffer, contentType, nomeArquivo };
+  }
+
+  const recibos = await baixarRecibosParaPdf(dados.despesasComRecibo);
+  const buffer = await gerarRelatorioPDF(dados.viagem, dados.itens, recibos);
+  const contentType = 'application/pdf';
+  await salvarRelatorio(buffer, contentType, viagemId, nomeArquivo).catch((e) =>
+    console.error('[despesas-viagem] falha ao guardar cópia do relatório:', e)
+  );
+  return { buffer, contentType, nomeArquivo };
+}
+
+router.post('/viagens/:id/relatorio', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const formatoQuery = req.query.formato;
+    const formato = formatoQuery === 'pdf' || formatoQuery === 'xlsx' ? formatoQuery : null;
+    if (!formato) return res.status(400).json({ error: 'formato deve ser "pdf" ou "xlsx"' });
+
+    const resultado = await gerarArquivoRelatorio(req.params.id, formato);
+    if (!resultado) return res.status(404).json({ error: 'Viagem não encontrada' });
+
+    res.setHeader('Content-Type', resultado.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${resultado.nomeArquivo}"`);
+    res.send(resultado.buffer);
+  } catch (err: any) {
+    console.error('[despesas-viagem] falha ao gerar relatório:', err);
     res.status(500).json({ error: err.message });
   }
 });

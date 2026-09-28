@@ -118,3 +118,28 @@ export interface ReciboExtraido {
 }
 export const extrairReciboApi = (imagemBase64: string, mediaType: string, dica?: string) =>
   req<ReciboExtraido>('/extrair', 'POST', { imagemBase64, mediaType, dica });
+
+// Relatório (PDF/Excel) — resposta binária, não JSON; baixa como blob e
+// dispara o download do navegador (endpoint exige x-api-token, não dá pra
+// usar um <a href> puro).
+export async function baixarRelatorio(viagemId: string, formato: 'pdf' | 'xlsx'): Promise<void> {
+  const res = await fetch(`${BASE}/viagens/${viagemId}/relatorio?formato=${formato}`, {
+    method: 'POST',
+    headers: { 'x-api-token': API_SECRET },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error || `Falha ao gerar relatório (${res.status})`);
+  }
+  const disposicao = res.headers.get('content-disposition') || '';
+  const nomeArquivo = /filename="([^"]+)"/.exec(disposicao)?.[1] || `relatorio-viagem.${formato}`;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

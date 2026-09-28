@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil, RefreshCw, Camera, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, RefreshCw, Camera, Loader2, FileDown, FileSpreadsheet } from 'lucide-react';
 import {
   centavosParaBRL, reaisParaCentavos, resumoPorCategoria, rotuloCategoria,
   CATEGORIAS_VALIDAS, type ItemDespesa,
 } from '../lib/despesasViagemReport';
 import {
   listarViagens, criarViagem, getViagem, atualizarViagem, excluirViagem,
-  criarDespesa, atualizarDespesa, excluirDespesa, extrairReciboApi,
+  criarDespesa, atualizarDespesa, excluirDespesa, extrairReciboApi, baixarRelatorio,
 } from '../lib/despesasViagemApi';
 import type {
   ViagemResumo, ViagemDetalhe, DespesaViagem,
@@ -253,6 +253,7 @@ export default function DespesasViagemModal() {
   const [confirmDelViagem, setConfirmDelViagem] = useState(false);
   const [confirmDelDespesa, setConfirmDelDespesa] = useState<string | null>(null);
   const [soPendentes, setSoPendentes] = useState(false);
+  const [gerandoRelatorio, setGerandoRelatorio] = useState<'pdf' | 'xlsx' | null>(null);
 
   const carregarLista = useCallback(async () => {
     setCarregandoLista(true);
@@ -378,6 +379,18 @@ export default function DespesasViagemModal() {
       toast.error(e.message || 'Erro ao salvar despesa');
     } finally {
       setSalvando(false);
+    }
+  };
+
+  const handleBaixarRelatorio = async (formato: 'pdf' | 'xlsx') => {
+    if (!selId) return;
+    setGerandoRelatorio(formato);
+    try {
+      await baixarRelatorio(selId, formato);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao gerar relatório');
+    } finally {
+      setGerandoRelatorio(null);
     }
   };
 
@@ -517,7 +530,7 @@ export default function DespesasViagemModal() {
               </div>
             )}
 
-            {/* Status + excluir */}
+            {/* Status + relatório + excluir */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex gap-1">
                 {STATUS_ORDEM.map((s) => (
@@ -533,6 +546,24 @@ export default function DespesasViagemModal() {
                     {STATUS_LABEL[s]}
                   </button>
                 ))}
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => handleBaixarRelatorio('pdf')}
+                  disabled={gerandoRelatorio !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white disabled:opacity-50"
+                >
+                  {gerandoRelatorio === 'pdf' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                  Baixar PDF
+                </button>
+                <button
+                  onClick={() => handleBaixarRelatorio('xlsx')}
+                  disabled={gerandoRelatorio !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white disabled:opacity-50"
+                >
+                  {gerandoRelatorio === 'xlsx' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+                  Baixar Excel
+                </button>
               </div>
               {confirmDelViagem ? (
                 <div className="flex items-center gap-2 text-xs">
