@@ -28,6 +28,21 @@ jobs:
             set -e
             echo "=== Iniciando deploy SmartPrice ==="
 
+            # Cada passo passa por `passo`: se falhar, imprime um `::error::`
+            # com o comando e a saída — o GitHub vira isso em anotação, que
+            # aparece no `gh run view` mesmo pra quem não é admin do repo (o
+            # log completo só admin vê, e o deploy ficou quebrado dias sem
+            # ninguém conseguir ler o erro).
+            passo() {
+              echo "--- $*"
+              if ! saida=$("$@" 2>&1); then
+                echo "$saida"
+                echo "::error title=Deploy falhou::$* -> $(echo "$saida" | grep -v 'variable is not set' | tail -3 | tr '\n' ' ')"
+                exit 1
+              fi
+              echo "$saida" | grep -v 'variable is not set' | tail -20
+            }
+
             cd /var/www/smartprice
 
             # A VPS é só um alvo de deploy — sempre reflete exatamente o que
@@ -35,17 +50,22 @@ jobs:
             # git) é descartada aqui, pra um "git pull" nunca mais falhar
             # silenciosamente por causa de mudança local e deixar o deploy
             # rodando com código antigo em cache.
-            git fetch origin main
-            git reset --hard origin/main
+            passo git fetch origin main
+            passo git reset --hard origin/main
+
+            # Atualiza as imagens de fora (postgres, minio). Registro fora do
+            # ar/rate limit não pode travar o deploy: sem a imagem nova, sobe
+            # com a que já está na VPS.
+            passo docker compose pull --ignore-pull-failures
 
             # Rebuild e restart sem downtime
-            docker compose pull
-            docker compose up -d --build --remove-orphans
+            passo docker compose up -d --build --remove-orphans
 
             # Limpar imagens antigas do Docker
-            docker image prune -f
+            docker image prune -f || true
 
             echo "=== Deploy concluído! ==="
+            git log --oneline -1
             docker compose ps
 
   deploy-standby:
