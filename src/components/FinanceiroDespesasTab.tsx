@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Globe, Sparkles, Tag, X, Check, AlertTriangle, Clock } from 'lucide-react';
 import { useStore } from '../store';
 import type { Despesa } from '../lib/despesas';
-import { despesasDoMes, formatMesAno, mesSeguinte, isPago, patchTogglePago, statusVencimento, diaVencimento } from '../lib/despesas';
+import { despesasDoMes, formatMesAno, mesSeguinte, isPago, statusVencimento, diaVencimento } from '../lib/despesas';
 import { cn } from '../lib/utils';
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -54,7 +54,7 @@ const emptyForm: FormState = {
 };
 
 export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNextMonth }: Props) {
-  const { despesas, addDespesa, updateDespesa, removeDespesa, saldoEmConta, registrarLancamentoSaldo } = useStore();
+  const { despesas, addDespesa, updateDespesa, removeDespesa, togglePagoDespesa, saldoEmConta, registrarLancamentoSaldo } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -128,7 +128,7 @@ export default function FinanceiroDespesasTab({ year, month, onPrevMonth, onNext
 
   const handleTogglePago = (d: Despesa) => {
     const estavaPago = isPago(d, year, month);
-    updateDespesa(d.id, patchTogglePago(d, year, month));
+    togglePagoDespesa(d.id, year, month);
     // Marcar como paga desconta do saldo em conta (é dinheiro saindo de
     // verdade); desmarcar devolve — mantém o saldo acompanhando o que já foi
     // de fato pago, sem o usuário ter que ajustar na mão. Os dois casos ficam

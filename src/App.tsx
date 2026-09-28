@@ -333,7 +333,15 @@ export default function App() {
     loadUsersAndFlags();
 
     const s = getSocket();
-    const handleSettingsUpdated = () => loadLayout();
+    // `financeiro`: outro admin mexeu em despesas/saldo — relê na hora, pra
+    // ninguém ficar com a cópia velha (ver `mudarFinanceiro` no store).
+    const handleSettingsUpdated = (msg?: { id?: string }) => {
+      if (msg?.id === 'financeiro') {
+        if (useStore.getState().userRole === 'admin') useStore.getState().recarregarFinanceiro();
+        return;
+      }
+      loadLayout();
+    };
     s.on('settings:updated', handleSettingsUpdated);
 
     const handleBeforePrint = () => setPrinting(true);

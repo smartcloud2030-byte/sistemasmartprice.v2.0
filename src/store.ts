@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
 import { isStoreOnline } from './lib/utils';
-import type { Despesa } from './lib/despesas';
+import { patchTogglePago, type Despesa } from './lib/despesas';
 import type { LancamentoSaldo } from './lib/lancamentosSaldo';
 
 export type { Despesa };
@@ -454,6 +454,11 @@ interface AppState {
   addDespesa: (despesa: Despesa) => void;
   updateDespesa: (id: string, patch: Partial<Despesa>) => void;
   removeDespesa: (id: string) => void;
+  /** Alterna o "Efetivado" de uma despesa no mês — calculado em cima da versão
+   * mais recente do servidor (ver `mudarFinanceiro`), não da cópia local. */
+  togglePagoDespesa: (id: string, ano: number, mes: number) => void;
+  /** Relê despesas/saldo/extrato do servidor (chave própria `financeiro`). */
+  recarregarFinanceiro: () => Promise<void>;
   /** Saldo em conta — digitado manualmente, não calculado (é o valor real do banco). */
   saldoEmConta: number;
   setSaldoEmConta: (valor: number) => void;
@@ -479,6 +484,46 @@ interface AppState {
 }
 
 let saveTimeout: NodeJS.Timeout | null = null;
+
+// ── Financeiro (despesas, saldo, extrato) ────────────────────────────────
+// Ficava dentro do blob `users_and_flags`, que é regravado INTEIRO em ~25
+// ações de admin (lojas, avisos, flags...) com a cópia que cada navegador
+// carregou ao abrir. Com dois admins, o navegador do outro — aberto desde
+// antes — regravava as despesas antigas por cima: a despesa efetivada
+// voltava a "não paga" e o aviso de vencida reaparecia. Agora mora numa
+// chave só dela e toda mudança é lida-alterada-gravada em cima da versão
+// mais recente do servidor, aplicando só aquela mudança.
+type Financeiro = { despesas: Despesa[]; saldoEmConta: number; lancamentosSaldo: LancamentoSaldo[] };
+
+async function lerFinanceiroServidor(): Promise<Financeiro> {
+  const res = await apiGet('/settings/financeiro');
+  const v = res?.value;
+  if (v && Array.isArray(v.despesas)) {
+    return { despesas: v.despesas, saldoEmConta: v.saldoEmConta || 0, lancamentosSaldo: v.lancamentosSaldo || [] };
+  }
+  // Migração: a chave nova ainda não existe — parte do que está no blob antigo.
+  const antigo = (await apiGet('/settings/users_and_flags'))?.value || {};
+  return { despesas: antigo.despesas || [], saldoEmConta: antigo.saldoEmConta || 0, lancamentosSaldo: antigo.lancamentosSaldo || [] };
+}
+
+let filaFinanceiro: Promise<unknown> = Promise.resolve();
+
+/** Aplica `mut` na hora na tela e, na fila, sobre a versão atual do servidor
+ * (grava e sincroniza a tela com o resultado). `mut` tem que ser pura. */
+function mudarFinanceiro(mut: (f: Financeiro) => Financeiro) {
+  const st = useStore.getState();
+  useStore.setState(mut({ despesas: st.despesas, saldoEmConta: st.saldoEmConta, lancamentosSaldo: st.lancamentosSaldo }));
+  filaFinanceiro = filaFinanceiro
+    .then(async () => {
+      const novo = mut(await lerFinanceiroServidor());
+      await apiPost('/settings/financeiro', { value: novo });
+      useStore.setState(novo);
+    })
+    .catch((err) => {
+      console.error('Erro ao salvar financeiro:', err);
+      toast.error('Não foi possível salvar no servidor. Confira a conexão e tente de novo.');
+    });
+}
 let usersAndFlagsSaveTimeout: NodeJS.Timeout | null = null;
 
 const DEFAULT_TEXT = {
@@ -1083,38 +1128,37 @@ export const useStore = create<AppState>()(
         return { announcements: newAnnouncements };
       }),
       despesas: [],
-      addDespesa: (despesa) => set((state) => {
-        const newDespesas = [...state.despesas, despesa];
-        setTimeout(() => get().saveUsersAndFlags(), 0);
-        return { despesas: newDespesas };
-      }),
-      updateDespesa: (id, patch) => set((state) => {
-        const newDespesas = state.despesas.map((d) => d.id === id ? { ...d, ...patch } : d);
-        setTimeout(() => get().saveUsersAndFlags(), 0);
-        return { despesas: newDespesas };
-      }),
-      removeDespesa: (id) => set((state) => {
-        const newDespesas = state.despesas.filter((d) => d.id !== id);
-        setTimeout(() => get().saveUsersAndFlags(), 0);
-        return { despesas: newDespesas };
-      }),
+      addDespesa: (despesa) => mudarFinanceiro((f) => ({ ...f, despesas: [...f.despesas.filter((d) => d.id !== despesa.id), despesa] })),
+      updateDespesa: (id, patch) => mudarFinanceiro((f) => ({ ...f, despesas: f.despesas.map((d) => d.id === id ? { ...d, ...patch } : d) })),
+      removeDespesa: (id) => mudarFinanceiro((f) => ({ ...f, despesas: f.despesas.filter((d) => d.id !== id) })),
+      togglePagoDespesa: (id, ano, mes) => mudarFinanceiro((f) => ({
+        ...f,
+        despesas: f.despesas.map((d) => d.id === id ? { ...d, ...patchTogglePago(d, ano, mes) } : d),
+      })),
       saldoEmConta: 0,
-      setSaldoEmConta: (valor) => {
-        set({ saldoEmConta: valor });
-        setTimeout(() => get().saveUsersAndFlags(), 0);
-      },
+      setSaldoEmConta: (valor) => mudarFinanceiro((f) => ({ ...f, saldoEmConta: valor })),
       lancamentosSaldo: [],
       registrarLancamentoSaldo: (lancamento) => {
+        // id/data gerados FORA da mutação: ela roda 2x (local e sobre o servidor)
+        // e as duas têm que produzir o mesmo lançamento.
         const completo: LancamentoSaldo = {
           ...lancamento,
           id: crypto.randomUUID(),
           data: new Date().toISOString(),
         };
-        set((state) => ({
-          saldoEmConta: (state.saldoEmConta || 0) + lancamento.valor,
-          lancamentosSaldo: [...state.lancamentosSaldo, completo],
+        mudarFinanceiro((f) => ({
+          ...f,
+          saldoEmConta: (f.saldoEmConta || 0) + lancamento.valor,
+          lancamentosSaldo: f.lancamentosSaldo.some((l) => l.id === completo.id) ? f.lancamentosSaldo : [...f.lancamentosSaldo, completo],
         }));
-        setTimeout(() => get().saveUsersAndFlags(), 0);
+      },
+      recarregarFinanceiro: async () => {
+        try {
+          const f = await lerFinanceiroServidor();
+          set(f);
+        } catch (err) {
+          console.error('Erro ao carregar financeiro:', err);
+        }
       },
       seenAnnouncements: [],
       setSeenAnnouncements: (ids) => set({ seenAnnouncements: ids }),
@@ -1600,9 +1644,8 @@ export const useStore = create<AppState>()(
               userGroups: state.userGroups,
               announcements: state.announcements,
               seenAnnouncements: state.seenAnnouncements,
-              despesas: state.despesas,
-              saldoEmConta: state.saldoEmConta,
-              lancamentosSaldo: state.lancamentosSaldo,
+              // despesas/saldo/extrato NÃO entram mais aqui — chave própria
+              // `financeiro` (ver `mudarFinanceiro`).
               // theme NÃO entra aqui de propósito — é preferência pessoal de
               // cada admin (claro/escuro), fica só local (localStorage via
               // persist), nunca sincroniza pro servidor. Ver loadUsersAndFlags.
@@ -1644,13 +1687,11 @@ export const useStore = create<AppState>()(
             userGroups: settings.userGroups || [],
             announcements: settings.announcements || [],
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
-            despesas: settings.despesas || currentState.despesas,
-            saldoEmConta: settings.saldoEmConta !== undefined ? settings.saldoEmConta : currentState.saldoEmConta,
-            lancamentosSaldo: settings.lancamentosSaldo || currentState.lancamentosSaldo,
             // theme não é carregado do servidor de propósito — cada admin mantém
             // o próprio tema local (ver saveUsersAndFlags acima).
             isChatEnabled: settings.isChatEnabled !== undefined ? settings.isChatEnabled : true
           });
+          if (get().userRole === 'admin') await get().recarregarFinanceiro();
         } catch (error) {
           console.error('Error loading users and flags:', error);
         }
