@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid, FilePlus, Eraser, FileX } from 'lucide-react';
 import { useStore, Product } from '../../store';
 import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
@@ -586,6 +586,26 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     setProdutoDetalhadoId(null);
   };
 
+  // "Novo encarte" — antes, pra fazer o encarte da semana, o José apagava os
+  // produtos um por um. Vai pelo `setDoc` (e não `resetarDoc`) de propósito:
+  // vira um passo de desfazer, então Ctrl+Z traz o encarte anterior de volta.
+  const [novoAberto, setNovoAberto] = useState(false);
+  const novoEncarte = (manterLayout: boolean) => {
+    const semProdutos = (l: LadoEncarte): LadoEncarte => ({ ...l, produtos: [] });
+    setDoc((d) =>
+      manterLayout
+        ? { ...d, ladoFrente: semProdutos(d.ladoFrente), ladoVerso: d.ladoVerso ? semProdutos(d.ladoVerso) : null }
+        : { formatoId: d.formatoId, ladoFrente: criarLado(), ladoVerso: null },
+    );
+    // Grava o encarte novo como rascunho mesmo em branco — sem isso o
+    // auto-save pula o lado vazio e um F5 traria o encarte antigo de volta.
+    restaurouRascunho.current = true;
+    setNomeEncarte('');
+    setLadoAtivo('frente');
+    setProdutoDetalhadoId(null);
+    setNovoAberto(false);
+  };
+
   const renomearHistoricoItem = (id: string, nome: string) => {
     if (!chaveHist) return;
     renomearNoHistorico(chaveHist, id, nome)
@@ -620,6 +640,50 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           maxLength={80}
           className="w-72 max-w-[40vw] bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/60"
         />
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setNovoAberto((v) => !v)}
+            className={cn(
+              'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors',
+              novoAberto
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40'
+                : 'text-zinc-200 border-zinc-700 hover:bg-zinc-800',
+            )}
+          >
+            <FilePlus className="w-4 h-4" />
+            Novo encarte
+          </button>
+          {novoAberto && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setNovoAberto(false)} />
+              <div className="absolute right-0 top-full mt-2 w-80 z-50 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-2">
+                <button
+                  onClick={() => novoEncarte(true)}
+                  className="w-full flex items-start gap-3 p-3 rounded-lg text-left hover:bg-zinc-800 transition-colors"
+                >
+                  <Eraser className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <span>
+                    <span className="block text-sm font-semibold text-zinc-100">Trocar só os produtos</span>
+                    <span className="block text-xs text-zinc-400">Tira todos os produtos e mantém tema, logo, textos e formas.</span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => novoEncarte(false)}
+                  className="w-full flex items-start gap-3 p-3 rounded-lg text-left hover:bg-zinc-800 transition-colors"
+                >
+                  <FileX className="w-5 h-5 text-zinc-400 flex-shrink-0 mt-0.5" />
+                  <span>
+                    <span className="block text-sm font-semibold text-zinc-100">Começar do zero</span>
+                    <span className="block text-xs text-zinc-400">Encarte em branco, só mantém o formato.</span>
+                  </span>
+                </button>
+                <p className="px-3 pt-2 pb-1 text-[11px] text-zinc-500 border-t border-zinc-800 mt-1">
+                  Se quiser guardar o atual, clique em Salvar antes. Se clicar sem querer, Ctrl+Z (Cmd+Z no Mac) desfaz.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       <div className="flex-grow flex min-h-0">
