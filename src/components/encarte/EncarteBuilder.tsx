@@ -306,13 +306,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     });
   };
 
+  // Remover só tira o produto: os outros ficam exatamente onde o usuário
+  // deixou (mesmo com grade ativa — antes reorganizava a grade e todo mundo
+  // pulava de lugar/tamanho). Só mudam de posição se mexidos à mão.
   const removerProduto = (id?: string | number) => {
-    atualizarLado((l) => {
-      const produtos = l.produtos.filter((ep) => ep.product.id !== id);
-      if (l.grade === 'livre') return { produtos };
-      const r = organizarEmGrade(produtos, l.grade, formato);
-      return { produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
-    });
+    atualizarLado((l) => ({ produtos: l.produtos.filter((ep) => ep.product.id !== id) }));
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
@@ -330,12 +328,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         const r = organizarEmGrade(produtos, destino.grade, formato);
         return { ...destino, produtos: r.produtos, estilo: { ...destino.estilo, escalaCard: r.escalaCard } };
       };
-      const tirar = (l: LadoEncarte): LadoEncarte => {
-        const produtos = l.produtos.filter((ep) => ep.product.id !== id);
-        if (l.grade === 'livre') return { ...l, produtos };
-        const r = organizarEmGrade(produtos, l.grade, formato);
-        return { ...l, produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
-      };
+      // Como no `removerProduto`: os que ficam no lado de origem não se mexem.
+      const tirar = (l: LadoEncarte): LadoEncarte => ({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) });
 
       if (ladoAtivo === 'frente') {
         return { ...d, ladoFrente: tirar(d.ladoFrente), ladoVerso: inserir(d.ladoVerso ?? criarLado()) };
