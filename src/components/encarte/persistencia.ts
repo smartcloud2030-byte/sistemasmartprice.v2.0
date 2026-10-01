@@ -19,13 +19,17 @@ async function apiPost(path: string, body: unknown) {
     headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    // O servidor manda o motivo em `error` (ex.: 409 quando a gravação faria
+    // encartes salvos sumirem) — repassa pra tela em vez de só o status.
+    const motivo = await res.json().then((j) => j?.error).catch(() => null);
+    throw new Error(motivo || `POST ${path} failed: ${res.status}`);
+  }
   return res.json();
 }
 
-const HISTORICO_MAX = 20;
-/** A lista dos admins é compartilhada entre todos eles — cabe mais. */
-const HISTORICO_MAX_ADMINS = 40;
+// Sem limite de quantidade: encarte salvo só sai da lista quando o usuário
+// apaga (antes cortava em 20/40 e os mais antigos sumiam sem aviso).
 
 /**
  * Chave do histórico (aba Encartes) compartilhada por TODOS os admins — um
@@ -107,6 +111,22 @@ export async function carregarHistorico(cnpj: string): Promise<EncarteSalvo[]> {
   }
 }
 
+/**
+ * Leitura da lista pra GRAVAR em cima (salvar/renomear/apagar/migrar). Ao
+ * contrário de `carregarHistorico` (só exibição), aqui erro é erro: se a
+ * leitura falhar, a gravação não acontece. Antes a falha virava "lista vazia"
+ * e o Salvar regravava a lista só com o encarte novo — apagando todos os
+ * outros. Só cai no blob legado quando a chave comprovadamente não existe.
+ */
+async function lerHistoricoParaGravar(cnpj: string): Promise<EncarteSalvo[]> {
+  const res = await apiGet(chaveHistorico(cnpj));
+  if (Array.isArray(res?.value)) return res.value as EncarteSalvo[];
+  if (res?.value != null) throw new Error('Lista de encartes salvos em formato inesperado — nada foi gravado.');
+  const legado = await apiGet('/settings/encarte_historico');
+  const doCnpj = (legado?.value || {})[cnpj];
+  return Array.isArray(doCnpj) ? doCnpj : [];
+}
+
 // Serializa as gravações do histórico: "Salvar" + auto-save pós-download podem
 // disparar quase juntos; sem fila, o segundo lê a lista antes do primeiro
 // gravar e um dos encartes some.
@@ -122,10 +142,9 @@ export function salvarNoHistorico(
   entrada: Omit<EncarteSalvo, 'id' | 'createdAt'>,
 ): Promise<EncarteSalvo[]> {
   return enfileirarHistorico(async () => {
-    const atual = await carregarHistorico(cnpj);
+    const atual = await lerHistoricoParaGravar(cnpj);
     const novo: EncarteSalvo = { ...entrada, id: novoId(), createdAt: new Date().toISOString() };
-    const max = cnpj === CHAVE_HISTORICO_ADMINS ? HISTORICO_MAX_ADMINS : HISTORICO_MAX;
-    const lista = [novo, ...atual].slice(0, max);
+    const lista = [novo, ...atual];
     await apiPost(chaveHistorico(cnpj), { value: lista });
     return lista;
   });
@@ -142,23 +161,23 @@ export function salvarNoHistorico(
 export function migrarHistoricoParaAdmins(chaveAntiga: string): Promise<EncarteSalvo[] | null> {
   if (!chaveAntiga || chaveAntiga === CHAVE_HISTORICO_ADMINS) return Promise.resolve(null);
   return enfileirarHistorico(async () => {
-    const antigos = await carregarHistorico(chaveAntiga);
+    const antigos = await lerHistoricoParaGravar(chaveAntiga);
     if (!antigos.length) return null;
-    const res = await apiGet(chaveHistorico(CHAVE_HISTORICO_ADMINS));
-    const compartilhada: EncarteSalvo[] = Array.isArray(res?.value) ? res.value : [];
+    const compartilhada = await lerHistoricoParaGravar(CHAVE_HISTORICO_ADMINS);
     const ids = new Set(compartilhada.map((e) => e.id));
     const lista = [...compartilhada, ...antigos.filter((e) => !ids.has(e.id))]
-      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-      .slice(0, HISTORICO_MAX_ADMINS);
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     await apiPost(chaveHistorico(CHAVE_HISTORICO_ADMINS), { value: lista });
-    await apiPost(chaveHistorico(chaveAntiga), { value: [] });
+    // Esvazia a antiga só depois que a compartilhada gravou — e avisando o
+    // servidor que esses saem de propósito (foram pra lista dos admins).
+    await apiPost(chaveHistorico(chaveAntiga), { value: [], removidos: antigos.map((e) => e.id) });
     return lista;
   });
 }
 
 export function renomearNoHistorico(cnpj: string, id: string, nome: string): Promise<EncarteSalvo[]> {
   return enfileirarHistorico(async () => {
-    const atual = await carregarHistorico(cnpj);
+    const atual = await lerHistoricoParaGravar(cnpj);
     const lista = atual.map((e) => (e.id === id ? { ...e, nome } : e));
     await apiPost(chaveHistorico(cnpj), { value: lista });
     return lista;
@@ -167,9 +186,9 @@ export function renomearNoHistorico(cnpj: string, id: string, nome: string): Pro
 
 export function apagarDoHistorico(cnpj: string, id: string): Promise<EncarteSalvo[]> {
   return enfileirarHistorico(async () => {
-    const atual = await carregarHistorico(cnpj);
+    const atual = await lerHistoricoParaGravar(cnpj);
     const lista = atual.filter((e) => e.id !== id);
-    await apiPost(chaveHistorico(cnpj), { value: lista });
+    await apiPost(chaveHistorico(cnpj), { value: lista, removidos: [id] });
     return lista;
   });
 }

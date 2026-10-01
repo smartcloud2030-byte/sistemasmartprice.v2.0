@@ -694,8 +694,9 @@ export default function EncarteCanvas({
       });
       await onSalvarEncarte(gerarThumbnail(canvas));
       toast.success('Encarte salvo! Veja na aba Encartes pra editar depois.');
-    } catch {
-      toast.error('Não foi possível salvar o encarte agora. Tente de novo.');
+    } catch (err) {
+      // Mostra o motivo (ex.: servidor recusou porque encartes salvos sumiriam).
+      toast.error(`Não foi possível salvar o encarte: ${(err as Error)?.message || 'tente de novo.'}`);
     } finally {
       setSalvando(false);
     }

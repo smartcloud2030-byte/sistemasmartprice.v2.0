@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid, FilePlus, Eraser, FileX } from 'lucide-react';
 import { useStore, Product } from '../../store';
 import { cn } from '../../lib/utils';
@@ -604,14 +605,20 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     if (!chaveHist) return;
     renomearNoHistorico(chaveHist, id, nome)
       .then(setHistorico)
-      .catch((err) => console.error('Erro ao renomear encarte:', err));
+      .catch((err) => {
+        console.error('Erro ao renomear encarte:', err);
+        toast.error(`Não deu pra renomear: ${err?.message || 'erro desconhecido'}`);
+      });
   };
 
   const apagarHistoricoItem = (id: string) => {
     if (!cnpj) return;
     apagarDoHistorico(chaveHist, id)
       .then(setHistorico)
-      .catch((err) => console.error('Erro ao apagar encarte do histórico:', err));
+      .catch((err) => {
+        console.error('Erro ao apagar encarte do histórico:', err);
+        toast.error(`Não deu pra apagar: ${err?.message || 'erro desconhecido'}`);
+      });
   };
 
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
@@ -824,7 +831,12 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onRemoverVerso={removerVerso}
           onLadoChange={trocarLado}
           onSalvarEncarte={gravarEncarte}
-          onExportado={(preview) => { gravarEncarte(preview).catch((err) => console.error('Erro ao salvar encarte:', err)); }}
+          onExportado={(preview) => {
+            gravarEncarte(preview).catch((err) => {
+              console.error('Erro ao salvar encarte:', err);
+              toast.error(`Baixou, mas não deu pra guardar na aba Encartes: ${err?.message || 'erro desconhecido'}`);
+            });
+          }}
         />
       </div>
 

@@ -523,6 +523,60 @@ router.get('/settings/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Encartes salvos (aba Encartes do Encarte Online) — `encarte_historico_<chave>`.
+// A lista inteira é regravada a cada Salvar/renomear/apagar, então um
+// navegador com a lista errada (leitura que falhou, cópia velha) apagava os
+// encartes dos outros — já aconteceu. Regra: um encarte SÓ sai da lista se o
+// pedido disser explicitamente que é pra apagar (`removidos: [ids]`); senão
+// é 409 e nada é gravado. O que é apagado de propósito vai pra
+// `encarte_historico_lixeira` (últimos 200), pra dar pra desfazer.
+const ehListaEncartes = (id: string) => id.startsWith('encarte_historico_') && !id.includes('__') && id !== 'encarte_historico_lixeira';
+
+router.post('/settings/:id', apiAuth, async (req: Request, res: Response, next) => {
+  if (!ehListaEncartes(req.params.id)) return next();
+  const { value, removidos } = req.body as { value: unknown; removidos?: unknown };
+  if (!Array.isArray(value)) return res.status(400).json({ error: 'Lista de encartes inválida.' });
+  const podeRemover = new Set(Array.isArray(removidos) ? removidos.map(String) : []);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const atual = await client.query('SELECT value FROM settings WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const antes: any[] = Array.isArray(atual.rows[0]?.value) ? atual.rows[0].value : [];
+    const idsNovos = new Set(value.map((e: any) => String(e?.id)));
+    const sumiriam = antes.filter((e) => !idsNovos.has(String(e?.id)) && !podeRemover.has(String(e?.id)));
+    if (sumiriam.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: `Gravação recusada: ${sumiriam.length} encarte(s) salvo(s) sumiriam da lista. Recarregue a página e tente de novo.`,
+      });
+    }
+    const apagados = antes.filter((e) => podeRemover.has(String(e?.id)) && !idsNovos.has(String(e?.id)));
+    if (apagados.length) {
+      const lix = await client.query(`SELECT value FROM settings WHERE id = 'encarte_historico_lixeira' FOR UPDATE`);
+      const lixeira: any[] = Array.isArray(lix.rows[0]?.value) ? lix.rows[0].value : [];
+      const agora = new Date().toISOString();
+      const nova = [...apagados.map((e) => ({ ...e, lista: req.params.id, removidoEm: agora })), ...lixeira].slice(0, 200);
+      await client.query(
+        `INSERT INTO settings (id, value, updated_at) VALUES ('encarte_historico_lixeira', $1, NOW())
+         ON CONFLICT (id) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(nova)],
+      );
+    }
+    const result = await client.query(
+      `INSERT INTO settings (id, value, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (id) DO UPDATE SET value = $2, updated_at = NOW() RETURNING *`,
+      [req.params.id, JSON.stringify(value)],
+    );
+    await client.query('COMMIT');
+    res.json({ value: result.rows[0].value });
+  } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Salvar setting (upsert)
 router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
   try {
