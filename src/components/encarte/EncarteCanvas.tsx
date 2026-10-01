@@ -2415,6 +2415,7 @@ export default function EncarteCanvas({
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
                 crossOrigin="anonymous"
+                draggable={false}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-zinc-900">

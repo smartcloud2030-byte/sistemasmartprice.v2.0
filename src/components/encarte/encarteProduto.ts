@@ -135,31 +135,29 @@ export interface AjusteFotoProduto {
   naFrente?: boolean;
 }
 
-// Quanto a foto solta pode encolher (%, relativo ao card) e passar da borda
-// do card ao mover/redimensionar — o usuário pode querer ela bem maior que
-// o card ou deslocada pra fora dele de propósito.
+// Quanto a foto solta pode encolher (%, relativo ao card). Posição e tamanho
+// máximo são livres — o usuário pode querer ela bem maior que o card ou
+// longe dele de propósito.
 export const MIN_FOTO_PCT = 8;
-export const SANGRIA_FOTO_PCT = 150;
 
 /** Novo ajuste da foto solta ao arrastar um canto por (dxPct, dyPct) — % do card. */
 export function redimensionarFoto(o: AjusteFotoProduto, canto: Canto, dxPct: number, dyPct: number): AjusteFotoProduto {
-  const lim = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
   let { xPct, yPct, wPct, hPct } = o;
   const oesteMax = o.xPct + o.wPct - MIN_FOTO_PCT;
   const norteMax = o.yPct + o.hPct - MIN_FOTO_PCT;
   if (canto === 'nw' || canto === 'sw') {
-    xPct = lim(o.xPct + dxPct, -SANGRIA_FOTO_PCT, oesteMax);
+    xPct = Math.min(o.xPct + dxPct, oesteMax);
     wPct = o.xPct + o.wPct - xPct;
   }
   if (canto === 'ne' || canto === 'se') {
-    wPct = lim(o.wPct + dxPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.xPct);
+    wPct = Math.max(o.wPct + dxPct, MIN_FOTO_PCT);
   }
   if (canto === 'nw' || canto === 'ne') {
-    yPct = lim(o.yPct + dyPct, -SANGRIA_FOTO_PCT, norteMax);
+    yPct = Math.min(o.yPct + dyPct, norteMax);
     hPct = o.yPct + o.hPct - yPct;
   }
   if (canto === 'sw' || canto === 'se') {
-    hPct = lim(o.hPct + dyPct, MIN_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.yPct);
+    hPct = Math.max(o.hPct + dyPct, MIN_FOTO_PCT);
   }
   return { ...o, xPct, yPct, wPct, hPct };
 }

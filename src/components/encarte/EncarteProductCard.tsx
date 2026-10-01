@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
-import { getProxyUrl, cn, clamp } from '../../lib/utils';
+import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
   EstiloEncarte,
@@ -11,7 +11,6 @@ import {
   escureceHex,
   SVG_ETIQUETA,
   AjusteFotoProduto,
-  SANGRIA_FOTO_PCT,
 } from './encarteProduto';
 
 interface EncarteProductCardProps {
@@ -273,8 +272,11 @@ function FotoAjustavel({
     onAjustar(
       {
         ...o,
-        xPct: clamp(o.xPct + dxPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.wPct),
-        yPct: clamp(o.yPct + dyPct, -SANGRIA_FOTO_PCT, 100 + SANGRIA_FOTO_PCT - o.hPct),
+        // Arraste livre: a foto vai pra onde o usuário soltar, sem limite em
+        // volta do card (antes travava a 1,5 card de distância). Se sumir de
+        // vista, o botão "Restaurar" das alças traz de volta pro card.
+        xPct: o.xPct + dxPct,
+        yPct: o.yPct + dyPct,
       },
       'mover',
     );
@@ -315,6 +317,7 @@ function FotoAjustavel({
         onPointerMove={mover}
         onPointerUp={soltar}
         onPointerCancel={soltar}
+        onDragStart={(e) => e.preventDefault()}
         onClick={(e) => e.stopPropagation()}
       >
         {foto}
@@ -358,9 +361,12 @@ export default function EncarteProductCard({
   const foto = product.image ? (
     <img
       src={fotoSombraUrl ?? fotoSrc}
-      className="w-full h-full object-contain"
+      className="w-full h-full object-contain select-none"
       referrerPolicy="no-referrer"
       crossOrigin="anonymous"
+      // Sem isso o Chrome arrasta a <img> como arquivo (imagem fantasma +
+      // cursor 🚫) por cima do arraste do editor.
+      draggable={false}
     />
   ) : (
     <Package className="w-6 h-6 text-zinc-300" />
