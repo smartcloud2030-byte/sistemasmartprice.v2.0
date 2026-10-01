@@ -31,6 +31,11 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
   const containerRef = useRef<HTMLDivElement>(null);
   
   const [bgImg, bgStatus] = useImage(getProxyUrl(background.url) || '', 'anonymous');
+  // Miniatura do fundo (a mesma dos cards de "Modelos Disponíveis", então já
+  // costuma estar no cache): aparece na hora enquanto a imagem em tamanho
+  // real ainda baixa, em vez de a tela ficar só com um véu branco.
+  const bgThumbUrl = getProxyUrl(background.url, { thumbnail: true });
+  const [bgThumb] = useImage(bgThumbUrl && bgThumbUrl !== getProxyUrl(background.url) ? bgThumbUrl : '', 'anonymous');
   const [displayedBg, setDisplayedBg] = useState<{url: string, img: HTMLImageElement} | null>(null);
   const [nextBg, setNextBg] = useState<{url: string, img: HTMLImageElement} | null>(null);
   
@@ -67,6 +72,14 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
       setNextBg(null);
     }
   }, [bgImg, background.url, activeLayoutIndex]);
+
+  // Recorte "cover" (preenche a folha, corta as sobras centralizado).
+  const cropCover = (img: HTMLImageElement) => {
+    const scale = Math.max(currentWidth / img.width, currentHeight / img.height);
+    const cropWidth = currentWidth / scale;
+    const cropHeight = currentHeight / scale;
+    return { x: (img.width - cropWidth) / 2, y: (img.height - cropHeight) / 2, width: cropWidth, height: cropHeight };
+  };
 
   // If the URL changed but we are still showing the old one, we might want to show a loader
   const isBgLoading = background.url && (!displayedBg || (displayedBg.url !== background.url && !nextBg));
@@ -504,23 +517,22 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
                 image={displayedBg.img}
                 width={currentWidth}
                 height={currentHeight}
-                crop={(() => {
-                  const img = displayedBg.img;
-                  const scale = Math.max(currentWidth / img.width, currentHeight / img.height);
-                  const cropWidth = currentWidth / scale;
-                  const cropHeight = currentHeight / scale;
-                  return {
-                    x: (img.width - cropWidth) / 2,
-                    y: (img.height - cropHeight) / 2,
-                    width: cropWidth,
-                    height: cropHeight
-                  };
-                })()}
+                crop={cropCover(displayedBg.img)}
                 onMouseDown={() => setSelectedId(null)}
               />
             )}
 
-            {isBgLoading && (
+            {isBgLoading && bgThumb && (
+              <KonvaImage
+                image={bgThumb}
+                width={currentWidth}
+                height={currentHeight}
+                crop={cropCover(bgThumb)}
+                listening={false}
+              />
+            )}
+
+            {isBgLoading && !bgThumb && (
               <Rect 
                 width={currentWidth}
                 height={currentHeight}

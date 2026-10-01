@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from './store';
 import CanvasPreview from './components/CanvasPreview';
 import ProductManager from './components/ProductManager';
@@ -205,49 +205,42 @@ export default function App() {
     };
   }, [isAuthenticated, userRole, logout]);
 
-  // Pre-load background images for all allowed layouts to speed up selection
+  // Pré-carrega os fundos dos modelos pra troca ser rápida. Antes disparava
+  // TODOS (~150, em tamanho real) de uma vez 500ms depois de abrir: disputavam
+  // a internet com o fundo do modelo que o usuário acabou de escolher, que
+  // demorava mais justamente por isso. Agora: o atual, vizinhos e favoritos
+  // na hora; o resto UM POR VEZ, em segundo plano, depois de alguns segundos.
+  const preloadedBgs = useRef(new Set<string>());
   useEffect(() => {
-    if (filteredLayouts.length > 0) {
-      const preloadSet = new Set<string>();
-
-      const preloadImage = (url: string | null) => {
-        if (!url || preloadSet.has(url)) return;
-        preloadSet.add(url);
+    if (filteredLayouts.length === 0) return;
+    let cancelado = false;
+    const carregar = (url: string | null | undefined): Promise<void> => {
+      if (!url || preloadedBgs.current.has(url)) return Promise.resolve();
+      preloadedBgs.current.add(url);
+      return new Promise((resolve) => {
         const img = new Image();
+        img.onload = img.onerror = () => resolve();
         img.src = getProxyUrl(url);
-      };
-
-      // 1. Prioritize current layout background
-      const current = layouts[activeLayoutIndex];
-      if (current?.background?.url) {
-        preloadImage(current.background.url);
-      }
-
-      // 2. Preload ALL other allowed layouts immediately for maximum speed
-      // Use a small delay for sub-priority ones to not block the main thread too much
-      const priorityIndices = [activeLayoutIndex];
-      
-      // Immediately adjacent allowed indices get priority
-      const currentIdxInFiltered = filteredLayouts.findIndex(l => l.originalIndex === activeLayoutIndex);
-      if (currentIdxInFiltered !== -1) {
-        if (currentIdxInFiltered > 0) priorityIndices.push(filteredLayouts[currentIdxInFiltered - 1].originalIndex);
-        if (currentIdxInFiltered < filteredLayouts.length - 1) priorityIndices.push(filteredLayouts[currentIdxInFiltered + 1].originalIndex);
-      }
-
-      priorityIndices.forEach(idx => {
-        if (layouts[idx]?.background?.url) preloadImage(layouts[idx].background.url);
       });
+    };
 
-      // Then preload everything else in background
-      setTimeout(() => {
-        filteredLayouts.forEach(layout => {
-          if (!priorityIndices.includes(layout.originalIndex) && layout.background?.url) {
-            preloadImage(layout.background.url);
-          }
-        });
-      }, 500);
-    }
-  }, [filteredLayouts, activeLayoutIndex, layouts]);
+    const posAtual = filteredLayouts.findIndex((l) => l.originalIndex === activeLayoutIndex);
+    const prioridade = [
+      layouts[activeLayoutIndex],
+      filteredLayouts[posAtual - 1],
+      filteredLayouts[posAtual + 1],
+      ...filteredLayouts.filter((l) => favoriteLayouts.includes(l.originalIndex)),
+    ];
+    prioridade.forEach((l) => { carregar(l?.background?.url); });
+
+    const timer = setTimeout(async () => {
+      for (const l of filteredLayouts) {
+        if (cancelado) return;
+        await carregar(l.background?.url);
+      }
+    }, 3000);
+    return () => { cancelado = true; clearTimeout(timer); };
+  }, [filteredLayouts, activeLayoutIndex, layouts, favoriteLayouts]);
 
 
   useEffect(() => {
@@ -474,6 +467,7 @@ export default function App() {
 
   const buildQueueEditorState = (s: ReturnType<typeof useStore.getState>) => ({
     activeLayoutIndex: s.activeLayoutIndex,
+    activeLayoutId: s.activeLayoutId,
     orientation: s.orientation,
     background: s.background,
     productImage1: s.productImage1,

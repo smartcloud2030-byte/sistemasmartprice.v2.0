@@ -156,6 +156,9 @@ export type View = 'editor' | 'queue' | 'folders' | 'encarte' | 'encarte-digital
 // aquela plaquinha especifica no editor depois (botao "Editar" na fila).
 export interface QueuedPlaquinhaState {
   activeLayoutIndex: number;
+  /** id do modelo — a posição (`activeLayoutIndex`) muda quando a lista de
+   * modelos é reordenada/ganha modelo novo; o id não. */
+  activeLayoutId?: string | null;
   orientation: 'portrait' | 'landscape';
   background: { url: string | null; mode: 'cover' | 'contain'; locked: boolean };
   productImage1: ImageSettings;
@@ -229,6 +232,8 @@ interface AppState {
   customTexts: CustomTextSettings[];
 
   activeLayoutIndex: number;
+  /** id do modelo que a tela A4 está mostrando agora (ver `setActiveLayout`). */
+  activeLayoutId: string | null;
   layouts: Layout[];
   orientation: 'portrait' | 'landscape';
   favoriteLayouts: number[];
@@ -634,6 +639,14 @@ const extractUserDraft = (state: AppState): UserDraft => ({
   isSingleProduct: state.isSingleProduct,
 });
 
+// Reabre uma plaquinha da fila/pasta: acha o modelo pelo id (a posição salva
+// pode ter mudado desde então); itens antigos, sem id, ficam com a posição.
+const editorStateParaAbrir = (state: AppState, es: QueuedPlaquinhaState): Partial<AppState> => {
+  const idx = es.activeLayoutId ? state.layouts.findIndex((l) => l.id === es.activeLayoutId) : -1;
+  const activeLayoutIndex = idx >= 0 ? idx : es.activeLayoutIndex;
+  return { ...es, activeLayoutIndex, activeLayoutId: state.layouts[activeLayoutIndex]?.id ?? null };
+};
+
 // Monta o estado de trabalho (o que a tela A4 realmente renderiza) a partir de
 // um modelo salvo em `layouts`. Usado ao trocar de modelo ativo e ao excluir o
 // modelo que estava ativo no momento, para a tela não continuar mostrando a
@@ -641,6 +654,10 @@ const extractUserDraft = (state: AppState): UserDraft => ({
 export const buildWorkingStateFromLayout = (nextLayout: Layout | undefined, index: number) => {
   const defaultNext = createDefaultLayout(nextLayout?.name || `Modelo ${index + 1}`, index);
   return {
+    // Todo lugar que monta a tela a partir de um modelo grava junto QUAL
+    // modelo é — é por esse id (e não pela posição) que `setActiveLayout`
+    // sabe onde devolver as edições.
+    activeLayoutId: nextLayout?.id ?? null,
     orientation: nextLayout?.orientation || 'portrait',
     isSingleProduct: nextLayout?.isSingleProduct !== undefined ? nextLayout.isSingleProduct : false,
     showSingleProductControl: nextLayout?.showSingleProductControl !== undefined ? nextLayout.showSingleProductControl : false,
@@ -682,6 +699,7 @@ export const useStore = create<AppState>()(
       toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
 
       activeLayoutIndex: 0,
+      activeLayoutId: null,
       orientation: 'portrait',
       favoriteLayouts: [],
       toggleFavoriteLayout: (index) => set((state) => ({
@@ -722,9 +740,23 @@ export const useStore = create<AppState>()(
       setActiveLayout: (index) => {
         const state = get();
         if (index < 0 || !state.layouts[index]) return;
+        // Devolve as edições da tela pro modelo que ela está MOSTRANDO — achado
+        // pelo id. Antes ia pela posição (`activeLayoutIndex`), que fica velha
+        // quando a lista muda (modelo novo entra no topo, reordenar, recarregar
+        // do servidor): o desenho de um modelo era gravado na posição de outro,
+        // e depois "escolhia o modelo 1 e aparecia o layout do 2".
+        const atual = state.activeLayoutId
+          ? state.layouts.findIndex((l) => l.id === state.activeLayoutId)
+          : state.activeLayoutIndex;
+        if (atual < 0 || !state.layouts[atual]) {
+          // Modelo da tela não existe mais na lista: só troca, sem gravar nada.
+          set({ activeLayoutIndex: index, ...buildWorkingStateFromLayout(state.layouts[index], index) });
+          if (state.userRole === 'admin') get().saveLayoutDebounced();
+          return;
+        }
         const currentLayout: Layout = {
-          ...state.layouts[state.activeLayoutIndex],
-          name: state.layouts[state.activeLayoutIndex]?.name || `Modelo ${state.activeLayoutIndex + 1}`,
+          ...state.layouts[atual],
+          name: state.layouts[atual]?.name || `Modelo ${atual + 1}`,
           orientation: state.orientation,
           background: state.background,
           productImage1: state.productImage1,
@@ -742,7 +774,7 @@ export const useStore = create<AppState>()(
           showOptionalTextControl: state.showOptionalTextControl
         };
         const newLayouts = [...state.layouts];
-        newLayouts[state.activeLayoutIndex] = currentLayout;
+        newLayouts[atual] = currentLayout;
         const nextLayout = newLayouts[index];
         set({
           activeLayoutIndex: index,
@@ -794,13 +826,27 @@ export const useStore = create<AppState>()(
           const [movedItem] = newLayouts.splice(fromIndex, 1);
           newLayouts.splice(toIndex, 0, movedItem);
           const updatedLayouts = newLayouts.map((l, i) => ({ ...l, sortOrder: i }));
+          // Permissões por loja e favoritos guardam POSIÇÃO — sem remapear,
+          // reordenar trocava os modelos que cada loja enxerga.
+          const remap = (i: number) => {
+            if (i === fromIndex) return toIndex;
+            if (fromIndex < i && i <= toIndex) return i - 1;
+            if (toIndex <= i && i < fromIndex) return i + 1;
+            return i;
+          };
           let newActiveIndex = state.activeLayoutIndex;
           if (state.activeLayoutIndex === fromIndex) newActiveIndex = toIndex;
           else if (fromIndex < state.activeLayoutIndex && toIndex >= state.activeLayoutIndex) newActiveIndex--;
           else if (fromIndex > state.activeLayoutIndex && toIndex <= state.activeLayoutIndex) newActiveIndex++;
-          return { layouts: updatedLayouts, activeLayoutIndex: newActiveIndex };
+          return {
+            layouts: updatedLayouts,
+            activeLayoutIndex: newActiveIndex,
+            favoriteLayouts: state.favoriteLayouts.map(remap),
+            allowedStores: state.allowedStores.map((s) => (s.allowedLayouts ? { ...s, allowedLayouts: s.allowedLayouts.map(remap) } : s)),
+          };
         });
         get().saveLayoutDebounced();
+        get().saveUsersAndFlagsDebounced();
       },
 
       setLayoutHasThirdProduct: (index, hasThirdProduct) => {
@@ -1216,6 +1262,7 @@ export const useStore = create<AppState>()(
           textElements2: state.textElements2,
           textElements3: state.textElements3,
           activeLayoutIndex: state.activeLayoutIndex,
+          activeLayoutId: state.activeLayoutId,
           layouts: state.layouts,
           optionalText1: state.optionalText1,
           optionalText2: state.optionalText2,
@@ -1275,13 +1322,31 @@ export const useStore = create<AppState>()(
             return { ...defaultL, ...l, id: l.id || defaultL.id, textElements1: l.textElements1 ? { ...defaultL.textElements1, ...l.textElements1 } : defaultL.textElements1, textElements2: l.textElements2 ? { ...defaultL.textElements2, ...l.textElements2 } : defaultL.textElements2, textElements3: l.textElements3 ? { ...defaultL.textElements3, ...l.textElements3 } : defaultL.textElements3, customTexts: l.customTexts ?? defaultL.customTexts };
           }).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-          const activeLayoutIndexFromDB = layout.activeLayoutIndex !== undefined ? layout.activeLayoutIndex : currentState.activeLayoutIndex;
-          const activeLayoutIndex = currentState.userRole === 'admin' ? activeLayoutIndexFromDB : currentState.activeLayoutIndex;
-          const activeLayout = loadedLayouts[activeLayoutIndex] || loadedLayouts[0];
           const isUser = currentState.userRole !== 'admin';
+          // Qual modelo está na tela — pelo id, porque a posição na lista nova
+          // pode ser outra (modelo novo no topo, reordenação). Posição só
+          // quando ainda não há id (dados de antes dessa correção).
+          const idxPorId = (id: string | null | undefined) => (id ? loadedLayouts.findIndex((l: Layout) => l.id === id) : -1);
+          const idAtivo = isUser ? currentState.activeLayoutId : (layout.activeLayoutId ?? null);
+          const achado = idxPorId(idAtivo);
+          if (isUser && idAtivo && achado < 0 && loadedLayouts.length) {
+            // O modelo que o usuário tinha na tela foi excluído: abre o primeiro
+            // de verdade, em vez de deixar o desenho antigo sob outro modelo.
+            set({
+              layouts: loadedLayouts,
+              activeLayoutIndex: 0,
+              ...buildWorkingStateFromLayout(loadedLayouts[0], 0),
+              lastUpdateTimestamp: layout.updated_at || null,
+            } as any);
+            return;
+          }
+          const activeLayoutIndexFromDB = layout.activeLayoutIndex !== undefined ? layout.activeLayoutIndex : currentState.activeLayoutIndex;
+          const activeLayoutIndex = achado >= 0 ? achado : (isUser ? currentState.activeLayoutIndex : activeLayoutIndexFromDB);
+          const activeLayout = loadedLayouts[activeLayoutIndex] || loadedLayouts[0];
 
           set({
             activeLayoutIndex,
+            activeLayoutId: activeLayout?.id ?? null,
             layouts: loadedLayouts,
             background: isUser ? (currentState.background || activeLayout?.background) : (layout.background || activeLayout?.background),
             productImage1: isUser ? (currentState.productImage1 || activeLayout?.productImage1) : (layout.productImage1 || activeLayout?.productImage1),
@@ -1368,7 +1433,7 @@ export const useStore = create<AppState>()(
       editQueueItem: (index) => {
         const item = get().printQueue[index];
         if (!item?.editorState) return;
-        set({ ...item.editorState, currentView: 'editor', editingQueueIndex: index, editingSavedPlaquinhaId: null });
+        set({ ...editorStateParaAbrir(get(), item.editorState), currentView: 'editor', editingQueueIndex: index, editingSavedPlaquinhaId: null });
       },
       editingQueueIndex: null,
       updateQueueItem: (index, imageData, isLandscape, editorState) => set((state) => {
@@ -1425,7 +1490,7 @@ export const useStore = create<AppState>()(
       editSavedPlaquinha: (id) => {
         const item = get().savedPlaquinhas.find((p) => p.id === id);
         if (!item) return;
-        set({ ...item.editorState, currentView: 'editor', editingSavedPlaquinhaId: id, editingQueueIndex: null });
+        set({ ...editorStateParaAbrir(get(), item.editorState), currentView: 'editor', editingSavedPlaquinhaId: id, editingQueueIndex: null });
       },
       updateSavedPlaquinha: async (imageData, isLandscape, editorState) => {
         const id = get().editingSavedPlaquinhaId;
@@ -1852,6 +1917,7 @@ export const useStore = create<AppState>()(
         textElements2: state.textElements2,
         textElements3: state.textElements3,
         activeLayoutIndex: state.activeLayoutIndex,
+        activeLayoutId: state.activeLayoutId,
         layouts: state.layouts,
         testLayouts: state.testLayouts,
         favoriteLayouts: state.favoriteLayouts,

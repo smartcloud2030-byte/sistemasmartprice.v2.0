@@ -246,7 +246,15 @@ export default function LayoutSelectorModal({ isOpen, onClose, layouts, onSelect
                           isActive={activeLayoutIndex === layout.originalIndex}
                           isFavorite={favoriteLayouts.includes(layout.originalIndex)}
                           onToggleFavorite={() => toggleFavoriteLayout(layout.originalIndex)}
-                          onSelect={() => { onSelect(layout.originalIndex); onClose(); }}
+                          onSelect={() => {
+                            // Resolve a posição pelo id NA HORA do clique: se a
+                            // lista mudou com o modal aberto (recarregou do
+                            // servidor, modelo novo), `originalIndex` já aponta
+                            // pra outro modelo.
+                            const agora = useStore.getState().layouts.findIndex((l) => l.id === layout.id);
+                            onSelect(agora >= 0 ? agora : layout.originalIndex);
+                            onClose();
+                          }}
                         />
                       ))}
                     </div>
