@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban, Strikethrough } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban, Strikethrough, DollarSign } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -9,6 +9,7 @@ import {
   FORMAS_ETIQUETA,
   ACABAMENTOS_ETIQUETA,
   SVG_ETIQUETA,
+  corPrecoAtual,
 } from './encarteProduto';
 
 interface ProdutoDetalhesProps {
@@ -81,6 +82,12 @@ export default function ProdutoDetalhes({
             permiteTransparente
           />
           <BotaoAcaoCor icon={Tag} label="Cor da etiqueta" value={estilo.corEtiqueta} onChange={(corEtiqueta) => onAtualizarEstilo({ corEtiqueta })} />
+          <BotaoAcaoCor
+            icon={DollarSign}
+            label="Cor do preço"
+            value={corPrecoAtual(estilo)}
+            onChange={(corPreco) => onAtualizarEstilo({ corPreco })}
+          />
           <BotaoAcao
             icon={ArrowRightLeft}
             label={ladoAtivo === 'frente' ? 'Enviar pro verso' : 'Enviar pra frente'}

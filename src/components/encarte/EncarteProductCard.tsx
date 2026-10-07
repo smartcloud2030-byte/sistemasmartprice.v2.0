@@ -790,7 +790,7 @@ function EtiquetaPreco({
   const acab = estilo.acabamentoEtiqueta ?? 'solida';
   const cor = estilo.corEtiqueta;
   const contorno = acab === 'contorno';
-  const corTexto = contorno ? cor : '#ffffff';
+  const corTexto = estilo.corPreco ?? (contorno ? cor : '#ffffff');
   const svgPath = SVG_ETIQUETA[forma];
   const compacta = forma === 'selo' || forma === 'circulo';
 
@@ -811,7 +811,7 @@ function EtiquetaPreco({
           riscarNumeros={riscarNumerosTextoProduto}
         />
         <PrecoDe valor={precoDe} />
-        <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={cor} />
+        <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={estilo.corPreco ?? cor} />
       </span>
     );
   }
@@ -1113,7 +1113,7 @@ function CardClean({
             style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
           >
             <PrecoDe valor={produto.precoDe} />
-            <Preco valor={produto.precoOferta} tamanho={26} variante="texto" />
+            <Preco valor={produto.precoOferta} tamanho={26} variante="texto" cor={estilo.corPreco} />
           </div>
         </div>
       </div>
@@ -1207,12 +1207,13 @@ function CardProdutoDestaque({
           <PrecoEtiqueta
             valor={produto.precoOferta}
             tamanho={58}
-            dourado
+            dourado={!estilo.corPreco}
+            cor={estilo.corPreco}
             escalaRotulos={0.58}
             escalaCentavos={0.6}
             textoProduto={produto.textoProduto}
             escalaTextoProduto={produto.escalaTextoProduto}
-            corTextoProduto={produto.corTextoProduto ?? PRECO_LARANJA.color}
+            corTextoProduto={produto.corTextoProduto ?? estilo.corPreco ?? PRECO_LARANJA.color}
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
           />
         </div>

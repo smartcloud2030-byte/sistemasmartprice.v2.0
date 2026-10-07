@@ -93,6 +93,8 @@ export interface EstiloEncarte {
   corNome: string; // cor do nome do produto
   corDescricao: string; // cor da descrição / medida
   corEtiqueta: string; // caixa de preço
+  /** cor do preço (POR / R$ / número / UN). Sem definir, cada modelo usa a cor de sempre. */
+  corPreco?: string;
   formaEtiqueta: FormaEtiqueta; // forma da caixa de preço
   acabamentoEtiqueta: AcabamentoEtiqueta; // sólida / degradê / contorno
   escalaCard: number; // slider "Produto" — escala o card inteiro
@@ -112,6 +114,14 @@ export const ESTILO_PADRAO: EstiloEncarte = {
   escalaEtiqueta: 1,
   escalaFonte: 1,
 };
+
+/** Cor que o preço tem quando `corPreco` não foi escolhida — só pra mostrar no seletor de cor. */
+export function corPrecoAtual(estilo: EstiloEncarte): string {
+  if (estilo.corPreco) return estilo.corPreco;
+  if (estilo.modeloCard === 'clean') return '#ef9d1c';
+  if (estilo.acabamentoEtiqueta === 'contorno' || estilo.formaEtiqueta === 'nenhuma') return estilo.corEtiqueta;
+  return '#ffffff';
+}
 
 /** Canto de uma alça de redimensionar — compartilhado por imagem, forma e foto do produto. */
 export type Canto = 'nw' | 'ne' | 'sw' | 'se';
