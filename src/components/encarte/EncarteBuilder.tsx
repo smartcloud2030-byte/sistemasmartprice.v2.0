@@ -36,6 +36,7 @@ import {
   criarTexto,
   maiorZ,
   organizarEmGrade,
+  posicaoLivreNaGrade,
 } from './encarteProduto';
 import {
   EncarteSalvo,
@@ -297,13 +298,15 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     }, opcoes);
   };
 
+  // Adicionar NÃO reorganiza a grade: os que já estão ficam exatamente onde
+  // e do tamanho que o usuário deixou. O novo vai pra primeira célula vazia
+  // (grade cheia → nasce na posição em cascata, por cima, pra arrastar).
   const adicionarProduto = (product: Product) => {
     atualizarLado((l) => {
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
-      const produtos = [...l.produtos, { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 }];
-      if (l.grade === 'livre') return { produtos };
-      const r = organizarEmGrade(produtos, l.grade, formato);
-      return { produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
+      const novo = { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 };
+      const livre = l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard);
+      return { produtos: [...l.produtos, livre ? { ...novo, ...livre } : novo] };
     });
   };
 
@@ -324,10 +327,19 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
       const inserir = (destino: LadoEncarte): LadoEncarte => {
         if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
-        const produtos = [...destino.produtos, { ...produto, z: maiorZ(destino) + 1 }];
-        if (destino.grade === 'livre') return { ...destino, produtos };
-        const r = organizarEmGrade(produtos, destino.grade, formato);
-        return { ...destino, produtos: r.produtos, estilo: { ...destino.estilo, escalaCard: r.escalaCard } };
+        // Como no `adicionarProduto`: quem já está no destino não se mexe.
+        const livre =
+          destino.grade === 'livre' ? null : posicaoLivreNaGrade(destino.produtos, destino.grade, formato, destino.estilo.escalaCard);
+        const nd = produto.nomeDescricaoAjuste;
+        const posicionado = livre
+          ? {
+              ...produto,
+              ...livre,
+              // nome/descrição solto (em % do canvas) anda junto com o card
+              nomeDescricaoAjuste: nd ? { ...nd, xPct: nd.xPct + (livre.xPct - produto.xPct), yPct: nd.yPct + (livre.yPct - produto.yPct) } : nd,
+            }
+          : produto;
+        return { ...destino, produtos: [...destino.produtos, { ...posicionado, z: maiorZ(destino) + 1 }] };
       };
       // Como no `removerProduto`: os que ficam no lado de origem não se mexem.
       const tirar = (l: LadoEncarte): LadoEncarte => ({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) });

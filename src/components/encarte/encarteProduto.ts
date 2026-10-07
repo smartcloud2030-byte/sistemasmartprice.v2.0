@@ -367,6 +367,66 @@ export function organizarEmGrade(
   return { produtos: novos, escalaCard };
 }
 
+/**
+ * Lugar pro produto NOVO numa grade já montada, sem mexer em ninguém: a
+ * primeira célula da grade (mesmo desenho do `organizarEmGrade`, com o
+ * tamanho de card ATUAL) que não tem o centro de nenhum produto dentro.
+ * Regra do José: produto só muda de posição/tamanho se o usuário mexer à
+ * mão — então adicionar não reorganiza nem encolhe os outros.
+ * Grade cheia → `null` (quem chama decide onde pôr).
+ */
+export function posicaoLivreNaGrade(
+  produtos: EncarteProduto[],
+  grade: GradeId,
+  formato: Formato,
+  escalaCard: number,
+): { xPct: number; yPct: number } | null {
+  const g = getGrade(grade);
+  if (g.cols < 1 || g.rows < 1) return null;
+
+  const canvasH = CANVAS_W / formato.ratio;
+  const usable = 0.9;
+  const cardWpct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
+  const cardHpct = ((CARD_H * escalaCard) / canvasH) * 100;
+  const origem = ((1 - usable) / 2) * 100;
+  const cellWpct = (100 * usable) / g.cols;
+  const celulas = (rows: number) => {
+    const cellHpct = (100 * usable) / rows;
+    const lista: { x0: number; y0: number; xPct: number; yPct: number }[] = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < g.cols; col++) {
+        const x0 = origem + col * cellWpct;
+        const y0 = origem + row * cellHpct;
+        lista.push({ x0, y0, xPct: x0 + (cellWpct - cardWpct) / 2, yPct: y0 + (cellHpct - cardHpct) / 2 });
+      }
+    }
+    return { cellHpct, lista };
+  };
+  // Quantas linhas a grade tem: `g.rows`, ou mais se ela já tinha crescido
+  // por excesso de produtos. Vale o número de linhas em que mais produtos
+  // estão EXATAMENTE no lugar da célula (empate → menos linhas).
+  let rows = g.rows;
+  let melhor = -1;
+  for (let r = g.rows; r <= g.rows + 20; r++) {
+    const { lista } = celulas(r);
+    const alinhados = produtos.filter((p) =>
+      lista.some((c) => Math.abs(c.xPct - p.xPct) < 0.05 && Math.abs(c.yPct - p.yPct) < 0.05),
+    ).length;
+    if (alinhados > melhor) {
+      melhor = alinhados;
+      rows = r;
+    }
+  }
+  const { cellHpct, lista } = celulas(rows);
+
+  const centros = produtos.map((p) => ({ x: p.xPct + cardWpct / 2, y: p.yPct + cardHpct / 2 }));
+  const livre = lista.find(
+    (c) => !centros.some((k) => k.x >= c.x0 && k.x < c.x0 + cellWpct && k.y >= c.y0 && k.y < c.y0 + cellHpct),
+  );
+  if (livre) return { xPct: livre.xPct, yPct: livre.yPct };
+  return null;
+}
+
 // ── Fundos prontos (sem upload) ──────────────────────────────────────
 
 /** Fundos embutidos: a chave vai no campo `tema`, o valor é o CSS `background`. */
