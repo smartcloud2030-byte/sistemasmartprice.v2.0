@@ -216,12 +216,68 @@ async function registerCosmosUsage(user?: { username: string; cnpj: string; band
   );
 }
 
+// Cache das respostas da Cosmos (tabela própria, criada na primeira busca).
+// O plano gratuito só dá 25 consultas/dia — código já consultado sai daqui
+// sem gastar cota. "Não encontrado" vale por 30 dias (a Cosmos pode cadastrar
+// o produto depois). Falha no cache nunca derruba a busca.
+let cosmosCachePronto: Promise<void> | null = null;
+function garantirCacheCosmos() {
+  cosmosCachePronto ??= pool
+    .query(
+      `CREATE TABLE IF NOT EXISTS cosmos_cache (
+         gtin TEXT PRIMARY KEY,
+         resposta JSONB,
+         encontrado BOOLEAN NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+       )`
+    )
+    .then(() => undefined)
+    .catch((err) => {
+      cosmosCachePronto = null;
+      throw err;
+    });
+  return cosmosCachePronto;
+}
+
+async function lerCacheCosmos(gtin: string): Promise<{ encontrado: boolean; resposta: any } | null> {
+  try {
+    await garantirCacheCosmos();
+    const r = await pool.query(
+      `SELECT resposta, encontrado FROM cosmos_cache
+        WHERE gtin = $1 AND (encontrado OR updated_at > NOW() - INTERVAL '30 days')`,
+      [gtin]
+    );
+    return r.rows[0] ? { encontrado: r.rows[0].encontrado, resposta: r.rows[0].resposta } : null;
+  } catch (err) {
+    console.error('Falha ao ler cache da Cosmos:', err);
+    return null;
+  }
+}
+
+function gravarCacheCosmos(gtin: string, encontrado: boolean, resposta: any) {
+  garantirCacheCosmos()
+    .then(() =>
+      pool.query(
+        `INSERT INTO cosmos_cache (gtin, resposta, encontrado, updated_at) VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (gtin) DO UPDATE SET resposta = EXCLUDED.resposta, encontrado = EXCLUDED.encontrado, updated_at = NOW()`,
+        [gtin, resposta, encontrado]
+      )
+    )
+    .catch((err) => console.error('Falha ao gravar cache da Cosmos:', err));
+}
+
 router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response) => {
   const token = process.env.COSMOS_API_TOKEN;
   if (!token) return res.status(501).json({ error: 'COSMOS_API_TOKEN não configurado no servidor' });
 
   const gtin = req.params.gtin.replace(/\D/g, '');
   if (!gtin) return res.status(400).json({ error: 'Código de barras inválido' });
+
+  const cache = await lerCacheCosmos(gtin);
+  if (cache) {
+    if (!cache.encontrado) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
+    return res.json(cache.resposta);
+  }
 
   try {
     const controller = new AbortController();
@@ -231,6 +287,17 @@ router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response)
       signal: controller.signal,
     });
     clearTimeout(timeout);
+
+    // 429 = cota diária da Cosmos esgotada. Não conta no contador (não foi
+    // uma consulta de verdade) e explica pro usuário o que fazer.
+    if (r.status === 429) {
+      return res.status(429).json({
+        error: 'Limite diário de consultas da Cosmos atingido. Volta a funcionar à meia-noite — por enquanto, preencha o produto manualmente.',
+      });
+    }
+    if (r.status === 401 || r.status === 403) {
+      return res.status(502).json({ error: 'A Cosmos recusou o token do SmartPrice (token inválido ou vencido). Avise o administrador.' });
+    }
 
     // Conta a partir daqui — a Cosmos respondeu (sucesso, 404 ou erro dela),
     // e isso é o que consome a cota diária, não só as buscas com resultado.
@@ -242,11 +309,14 @@ router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response)
     const cosmosUser = qUsername && qCnpj && qBandeira ? { username: qUsername, cnpj: qCnpj, bandeira: qBandeira } : undefined;
     registerCosmosUsage(cosmosUser).catch((err) => console.error('Falha ao registrar uso da Cosmos:', err));
 
-    if (r.status === 404) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
+    if (r.status === 404) {
+      gravarCacheCosmos(gtin, false, null);
+      return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
+    }
     if (!r.ok) return res.status(r.status).json({ error: `Cosmos retornou HTTP ${r.status}` });
 
     const json: any = await r.json();
-    res.json({
+    const resposta = {
       gtin: json.gtin,
       description: json.description || null,
       brand: json.brand?.name || null,
@@ -255,7 +325,9 @@ router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response)
       // servimos via nosso proprio proxy em vez de expor a URL externa.
       thumbnail: json.thumbnail ? `/api/barcode-image/${gtin}` : null,
       ncm: json.ncm?.description || null,
-    });
+    };
+    gravarCacheCosmos(gtin, true, resposta);
+    res.json(resposta);
   } catch (err: any) {
     res.status(502).json({ error: err.message || 'Falha ao consultar a Cosmos' });
   }
