@@ -364,9 +364,8 @@ export default function App() {
     const activeLayout = layouts[activeLayoutIndex];
     const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
     
-    // Use orientation from store, but force portrait for "Quart Suplem Maxi"
-    // Keep index 10 as landscape for backward compatibility if needed, but only if not Quart Suplem Maxi
-    const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+    // Orientação vem do próprio modelo (igual ao CanvasPreview); "Quart Suplem Maxi" é sempre retrato.
+    const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape');
 
     if (isLandscape) {
       document.body.classList.add('landscape-mode');
@@ -422,7 +421,7 @@ export default function App() {
     try {
       const activeLayout = layouts[activeLayoutIndex];
       const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-      const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+      const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape');
 
       const pdf = new jsPDF({
         orientation: isLandscape ? 'landscape' : 'portrait',
@@ -499,7 +498,7 @@ export default function App() {
         }
         const activeLayout = layouts[activeLayoutIndex];
         const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape');
 
         addToQueue(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
         toast.success('Adicionado à fila com sucesso!', { id: toastId });
@@ -524,7 +523,7 @@ export default function App() {
         }
         const activeLayout = layouts[activeLayoutIndex];
         const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape');
 
         updateQueueItem(editingQueueIndex, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
         toast.success('Plaquinha atualizada na fila!', { id: toastId });
@@ -549,7 +548,7 @@ export default function App() {
         }
         const activeLayout = layouts[activeLayoutIndex];
         const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+        const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape');
 
         await updateSavedPlaquinha(canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
         toast.success('Plaquinha atualizada na pasta!', { id: toastId });
@@ -574,7 +573,7 @@ export default function App() {
           }
           const activeLayout = layouts[activeLayoutIndex];
           const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-          const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape' || activeLayoutIndex === 10);
+          const isLandscape = !isQuartSuplemMaxi && (orientation === 'landscape');
 
           await savePlaquinhaToFolder(folder, name, canvasData, isLandscape, buildQueueEditorState(useStore.getState()));
           toast.success('Plaquinha salva na pasta!', { id: toastId });

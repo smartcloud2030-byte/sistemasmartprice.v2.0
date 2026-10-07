@@ -143,7 +143,7 @@ export async function gerarPlaquinhasDoEncarte(
       const state = useStore.getState();
       const activeLayout = state.layouts[state.activeLayoutIndex];
       const isQuartSuplemMaxi = activeLayout?.name === 'Quart Suplem Maxi';
-      const isLandscape = !isQuartSuplemMaxi && (state.orientation === 'landscape' || state.activeLayoutIndex === 10);
+      const isLandscape = !isQuartSuplemMaxi && (state.orientation === 'landscape');
 
       state.addToQueue(imageData, isLandscape, capturarEditorState(state));
       gerados++;
