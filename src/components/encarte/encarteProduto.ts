@@ -221,6 +221,8 @@ export interface EncarteProduto {
   /** escala da fonte do nome (qualquer modelo de card, e o nome solto). Nome do campo é
    * histórico — começou só no "produto em destaque". Padrão 1. */
   escalaNomeDestaque?: number;
+  /** escala do preço só desse produto (multiplica o slider "Etiqueta" do encarte). Padrão 1. */
+  escalaPreco?: number;
   /** escala da fonte da descrição/medida (qualquer modelo de card, e a descrição solta). Padrão 1. */
   escalaDescricaoDestaque?: number;
   /** risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → só o "0,00" fica riscado). */

@@ -270,6 +270,11 @@ export default function ProdutoDetalhes({
           value={produto.escalaDescricaoDestaque ?? 1}
           onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
         />
+        <SliderEscala
+          label="Preço (este produto)"
+          value={produto.escalaPreco ?? 1}
+          onChange={(escalaPreco) => onAtualizar({ escalaPreco })}
+        />
         <SliderEscala label="Produto" value={estilo.escalaCard} onChange={(escalaCard) => onAtualizarEstilo({ escalaCard })} />
         <SliderEscala label="Etiqueta" value={estilo.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizarEstilo({ escalaEtiqueta })} />
         {/* vale pra todos os produtos do encarte — multiplica o Nome/Descrição de cada um */}

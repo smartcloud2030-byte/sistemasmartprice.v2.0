@@ -775,6 +775,7 @@ function EtiquetaPreco({
   escalaTextoProduto,
   corTextoProduto,
   riscarNumerosTextoProduto,
+  escalaPreco = 1,
 }: {
   estilo: EstiloEncarte;
   precoOferta: string;
@@ -785,6 +786,8 @@ function EtiquetaPreco({
   escalaTextoProduto?: number;
   corTextoProduto?: string;
   riscarNumerosTextoProduto?: boolean;
+  /** escala só deste produto, por cima do `estilo.escalaEtiqueta`. */
+  escalaPreco?: number;
 }) {
   const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'retangulo';
   const acab = estilo.acabamentoEtiqueta ?? 'solida';
@@ -802,7 +805,7 @@ function EtiquetaPreco({
   // "Só preço" — sem caixa
   if (forma === 'nenhuma') {
     return (
-      <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
+      <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta * escalaPreco})`, transformOrigin: origem }}>
         <TextoProduto
           texto={textoProduto}
           escala={escalaTextoProduto}
@@ -845,7 +848,7 @@ function EtiquetaPreco({
   const gid = `etq-grad-${forma}`;
 
   return (
-    <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta})`, transformOrigin: origem }}>
+    <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta * escalaPreco})`, transformOrigin: origem }}>
       <PrecoDe valor={precoDe} />
       <span className="relative inline-flex items-center justify-center" style={estiloCaixa}>
         {svgPath && (
@@ -982,6 +985,7 @@ function CardPadrao({
               escalaTextoProduto={produto.escalaTextoProduto}
               corTextoProduto={produto.corTextoProduto}
               riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
+              escalaPreco={produto.escalaPreco}
             />
           </AutoAjuste>
         </div>
@@ -1050,6 +1054,7 @@ function CardDestaque({
             escalaTextoProduto={produto.escalaTextoProduto}
             corTextoProduto={produto.corTextoProduto}
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
+            escalaPreco={produto.escalaPreco}
           />
         </AutoAjuste>
       </div>
@@ -1110,7 +1115,7 @@ function CardClean({
           </div>
           <div
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
-            style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
+            style={{ transform: `scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})` }}
           >
             <PrecoDe valor={produto.precoDe} />
             <Preco valor={produto.precoOferta} tamanho={26} variante="texto" cor={estilo.corPreco} />
@@ -1200,7 +1205,7 @@ function CardProdutoDestaque({
         {/* Preço grande dourado com efeito: POR / R$ / número / centavos / UNI */}
         <div
           className="relative z-10 flex flex-col items-end origin-right"
-          style={{ transform: `scale(${estilo.escalaEtiqueta})` }}
+          style={{ transform: `scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})` }}
         >
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
