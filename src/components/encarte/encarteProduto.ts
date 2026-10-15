@@ -227,6 +227,8 @@ export interface EncarteProduto {
   escalaDescricaoDestaque?: number;
   /** risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → só o "0,00" fica riscado). */
   riscarNumerosTextoProduto?: boolean;
+  /** cor da faixa atrás do "texto prod" (ex.: amarela com "LEVE 2 POR"); sem valor = sem faixa. */
+  faixaTextoProduto?: string;
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();

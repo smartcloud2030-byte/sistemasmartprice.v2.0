@@ -638,6 +638,11 @@ function Preco({
  * A barra em `currentColor` acompanha a cor do texto e sai igual na tela e
  * no export, garantindo um risco grosso e bem visível nos dois.
  */
+/** Faixa colorida atrás do texto prod (ex.: amarela com "LEVE 2 POR"). */
+function estiloFaixa(cor?: string): React.CSSProperties {
+  return cor ? { background: cor, padding: '0.14em 0.3em', borderRadius: '0.18em', textAlign: 'center' } : {};
+}
+
 function textoComRiscoNumeros(texto: string, riscar?: boolean): React.ReactNode {
   if (!riscar) return texto;
   return texto.split(/(\d+)/g).map((parte, i) =>
@@ -685,6 +690,8 @@ function PrecoEtiqueta({
   escalaTextoProduto,
   corTextoProduto,
   riscarNumerosTextoProduto,
+  faixaTextoProduto,
+  recuoFaixa,
 }: {
   valor: string;
   tamanho: number;
@@ -704,6 +711,11 @@ function PrecoEtiqueta({
   corTextoProduto?: string;
   /** risca só os números do texto prod (ex.: "DE R$ 0,00" → só "0,00" riscado). */
   riscarNumerosTextoProduto?: boolean;
+  /** cor da faixa atrás do texto prod; sem valor = sem faixa. */
+  faixaTextoProduto?: string;
+  /** padding (px) da caixa da etiqueta — a faixa estica até as bordas dela.
+   * Sem isso (etiqueta sem caixa retangular) a faixa fica arredondada por dentro. */
+  recuoFaixa?: { top: number; left: number; right: number };
 }) {
   const { inteiro, centavos } = partesPreco(valor);
   const temTexto = !!textoProduto?.trim();
@@ -721,7 +733,21 @@ function PrecoEtiqueta({
       {temTexto && (
         <span
           className="font-black uppercase leading-none whitespace-nowrap text-left"
-          style={{ fontSize: `${fracaoBanner}em`, color: corTextoProduto, marginBottom: '0.08em' }}
+          style={{
+            fontSize: `${fracaoBanner}em`,
+            color: corTextoProduto,
+            marginBottom: '0.08em',
+            ...(faixaTextoProduto ? { alignSelf: 'stretch', ...estiloFaixa(faixaTextoProduto) } : {}),
+            ...(faixaTextoProduto && recuoFaixa
+              ? {
+                  marginTop: -recuoFaixa.top,
+                  marginLeft: -recuoFaixa.left,
+                  marginRight: -recuoFaixa.right,
+                  marginBottom: '0.12em',
+                  borderRadius: 0,
+                }
+              : {}),
+          }}
         >
           {textoComRiscoNumeros(textoProduto ?? '', riscarNumerosTextoProduto)}
         </span>
@@ -775,6 +801,7 @@ function EtiquetaPreco({
   escalaTextoProduto,
   corTextoProduto,
   riscarNumerosTextoProduto,
+  faixaTextoProduto,
   escalaPreco = 1,
 }: {
   estilo: EstiloEncarte;
@@ -786,6 +813,7 @@ function EtiquetaPreco({
   escalaTextoProduto?: number;
   corTextoProduto?: string;
   riscarNumerosTextoProduto?: boolean;
+  faixaTextoProduto?: string;
   /** escala só deste produto, por cima do `estilo.escalaEtiqueta`. */
   escalaPreco?: number;
 }) {
@@ -812,6 +840,7 @@ function EtiquetaPreco({
           origem={origem}
           cor={corTextoProduto}
           riscarNumeros={riscarNumerosTextoProduto}
+          faixa={faixaTextoProduto}
         />
         <PrecoDe valor={precoDe} />
         <Preco valor={precoOferta} tamanho={tamanho + 8} variante="texto" cor={estilo.corPreco ?? cor} />
@@ -843,6 +872,8 @@ function EtiquetaPreco({
     } else {
       estiloCaixa.backgroundColor = cor;
     }
+    // A faixa do texto prod estica até as bordas — recorta nos cantos arredondados.
+    if (faixaTextoProduto && textoProduto?.trim()) estiloCaixa.overflow = 'hidden';
   }
 
   const gid = `etq-grad-${forma}`;
@@ -878,8 +909,11 @@ function EtiquetaPreco({
             cor={corTexto}
             textoProduto={textoProduto}
             escalaTextoProduto={escalaTextoProduto}
-            corTextoProduto={corTextoProduto ?? corTexto}
+            // Com faixa, o texto sai na cor da etiqueta (verde na faixa amarela) se o usuário não escolheu outra.
+            corTextoProduto={corTextoProduto ?? (faixaTextoProduto ? cor : corTexto)}
             riscarNumerosTextoProduto={riscarNumerosTextoProduto}
+            faixaTextoProduto={faixaTextoProduto}
+            recuoFaixa={svgPath ? undefined : { top: padY, left: padLeft, right: padX }}
           />
         </span>
       </span>
@@ -894,18 +928,20 @@ function TextoProduto({
   origem,
   cor,
   riscarNumeros,
+  faixa,
 }: {
   texto?: string;
   escala?: number;
   origem: string;
   cor?: string;
   riscarNumeros?: boolean;
+  faixa?: string;
 }) {
   if (!texto?.trim()) return null;
   return (
     <span
       className="font-black uppercase leading-none whitespace-nowrap"
-      style={{ fontSize: '0.42em', color: cor, transform: `scale(${escala ?? 1})`, transformOrigin: origem }}
+      style={{ fontSize: '0.42em', color: cor, transform: `scale(${escala ?? 1})`, transformOrigin: origem, ...estiloFaixa(faixa) }}
     >
       {textoComRiscoNumeros(texto, riscarNumeros)}
     </span>
@@ -985,6 +1021,7 @@ function CardPadrao({
               escalaTextoProduto={produto.escalaTextoProduto}
               corTextoProduto={produto.corTextoProduto}
               riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
+              faixaTextoProduto={produto.faixaTextoProduto}
               escalaPreco={produto.escalaPreco}
             />
           </AutoAjuste>
@@ -1054,6 +1091,7 @@ function CardDestaque({
             escalaTextoProduto={produto.escalaTextoProduto}
             corTextoProduto={produto.corTextoProduto}
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
+            faixaTextoProduto={produto.faixaTextoProduto}
             escalaPreco={produto.escalaPreco}
           />
         </AutoAjuste>
@@ -1220,6 +1258,7 @@ function CardProdutoDestaque({
             escalaTextoProduto={produto.escalaTextoProduto}
             corTextoProduto={produto.corTextoProduto ?? estilo.corPreco ?? PRECO_LARANJA.color}
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
+            faixaTextoProduto={produto.faixaTextoProduto}
           />
         </div>
       </div>
