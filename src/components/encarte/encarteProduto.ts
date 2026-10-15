@@ -708,6 +708,16 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
  */
 export type CamadaTipo = 'produto' | 'imagem' | 'forma' | 'texto';
 
+/** Nova posição de um elemento num arraste de seleção múltipla (Shift+clique). */
+export interface PosicaoGrupo {
+  tipo: CamadaTipo;
+  id: string | number;
+  xPct: number;
+  yPct: number;
+  /** só produto: nome/descrição solto anda junto com o card */
+  nomeDescricaoAjuste?: AjusteNomeDescricao | null;
+}
+
 /** Maior `z` entre os elementos reordenáveis do lado; -1 se não houver nenhum. */
 export function maiorZ(l: LadoEncarte): number {
   const zs = [

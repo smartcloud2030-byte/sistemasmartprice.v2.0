@@ -20,7 +20,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  CamadaTipo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
+  CamadaTipo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -368,6 +368,8 @@ interface EncarteCanvasProps {
   onAdicionarPlacaPreco: () => void;
   onAbrirDetalhes: (id?: string | number) => void;
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
+  /** Arraste da seleção múltipla (Shift+clique) — `chave` identifica o arraste (um passo de desfazer). */
+  onMoverGrupo: (novas: PosicaoGrupo[], chave: string) => void;
   onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
   /** Nome/descrição soltos — livres por todo o encarte (não presos ao card, ver `AjusteNomeDescricao`). */
   onAjustarNomeDescricao: (id: string | number | undefined, ajuste: AjusteNomeDescricao | null, opcoes?: { coalesce?: string }) => void;
@@ -501,6 +503,7 @@ export default function EncarteCanvas({
   onAdicionarPlacaPreco,
   onAbrirDetalhes,
   onMoverProduto,
+  onMoverGrupo,
   onAjustarFotoProduto,
   onAjustarNomeDescricao,
   onMoverDivisor,
@@ -576,13 +579,17 @@ export default function EncarteCanvas({
   // Fecha o popover de fonte ao trocar/soltar a seleção de texto.
   useEffect(() => { setFonteInlineAberta(false); }, [textoSelecionadoId]);
 
-  // Ctrl/Cmd+C copia a forma ou o texto selecionado; Ctrl/Cmd+V cola uma
-  // cópia deslocada (cada colada seguida desloca um pouco mais) e já deixa
-  // ela selecionada. Vale entre frente e verso. Não intercepta quando o foco
-  // está num campo/texto em edição (aí fica o copiar/colar normal).
-  const areaTransferenciaRef = useRef<
-    { tipo: 'forma'; item: FormaEncarte } | { tipo: 'texto'; item: TextoEncarte } | null
-  >(null);
+  // Seleção múltipla (Shift+clique) — ver `tratarGrupoNoPointerDown`.
+  type MembroGrupo = { tipo: CamadaTipo; id: string | number };
+  const [grupo, setGrupo] = useState<MembroGrupo[]>([]);
+
+  // Ctrl/Cmd+C copia a forma/texto selecionado — ou as formas e textos da
+  // seleção múltipla; Ctrl/Cmd+V cola cópias deslocadas (cada colada seguida
+  // desloca um pouco mais) e já deixa elas selecionadas. Vale entre frente e
+  // verso. Não intercepta quando o foco está num campo/texto em edição (aí
+  // fica o copiar/colar normal).
+  type ItemCopiado = { tipo: 'forma'; item: FormaEncarte } | { tipo: 'texto'; item: TextoEncarte };
+  const areaTransferenciaRef = useRef<ItemCopiado[]>([]);
   const coladasSeguidasRef = useRef(0);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -593,42 +600,57 @@ export default function EncarteCanvas({
       if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
 
       if (k === 'c') {
-        const forma = formaSelecionadaId ? formas.find((f) => f.id === formaSelecionadaId) : undefined;
-        const texto = textoSelecionadoId ? textos.find((t) => t.id === textoSelecionadoId) : undefined;
-        if (!forma && !texto) return; // deixa o Ctrl+C normal (texto selecionado na página etc.)
+        const ids = (tipo: CamadaTipo, unico: string | null) =>
+          grupo.length ? grupo.filter((m) => m.tipo === tipo).map((m) => String(m.id)) : unico ? [unico] : [];
+        const idsForma = ids('forma', formaSelecionadaId);
+        const idsTexto = ids('texto', textoSelecionadoId);
+        const copiados: ItemCopiado[] = [
+          ...formas.filter((f) => idsForma.includes(f.id)).map((item) => ({ tipo: 'forma' as const, item })),
+          ...textos.filter((t) => idsTexto.includes(t.id)).map((item) => ({ tipo: 'texto' as const, item })),
+        ];
+        if (!copiados.length) return; // deixa o Ctrl+C normal (texto selecionado na página etc.)
         e.preventDefault();
-        areaTransferenciaRef.current = forma ? { tipo: 'forma', item: forma } : { tipo: 'texto', item: texto! };
+        areaTransferenciaRef.current = copiados;
         coladasSeguidasRef.current = 0;
-        toast.success(forma ? 'Forma copiada' : 'Texto copiado', { duration: 1200 });
+        const so = copiados.length === 1 ? (copiados[0].tipo === 'forma' ? 'Forma copiada' : 'Texto copiado') : `${copiados.length} elementos copiados`;
+        toast.success(so, { duration: 1200 });
         return;
       }
 
       const copia = areaTransferenciaRef.current;
-      if (!copia) return;
+      if (!copia.length) return;
       e.preventDefault();
       coladasSeguidasRef.current += 1;
       const desloc = 3 * coladasSeguidasRef.current;
-      const sufixo = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const posicao = { xPct: copia.item.xPct + desloc, yPct: copia.item.yPct + desloc };
       setProdutoSelecionadoId(null);
       setFotoSelecionadaId(null);
       setImagemSelecionadaId(null);
-      if (copia.tipo === 'forma') {
-        const nova: FormaEncarte = { ...copia.item, ...posicao, id: `forma_${sufixo}` };
-        onAdicionarForma(nova);
-        setTextoSelecionadoId(null);
-        setFormaSelecionadaId(nova.id);
-      } else {
-        const novo: TextoEncarte = { ...copia.item, ...posicao, id: `txt_${sufixo}` };
+      setFormaSelecionadaId(null);
+      setTextoSelecionadoId(null);
+      setTextoEditandoId(null);
+      const colados: MembroGrupo[] = copia.map((c, i) => {
+        const sufixo = `${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`;
+        const posicao = { xPct: c.item.xPct + desloc, yPct: c.item.yPct + desloc };
+        if (c.tipo === 'forma') {
+          const nova: FormaEncarte = { ...c.item, ...posicao, id: `forma_${sufixo}` };
+          onAdicionarForma(nova);
+          return { tipo: 'forma', id: nova.id };
+        }
+        const novo: TextoEncarte = { ...c.item, ...posicao, id: `txt_${sufixo}` };
         onAdicionarTexto(novo);
-        setFormaSelecionadaId(null);
-        setTextoEditandoId(null);
-        setTextoSelecionadoId(novo.id);
+        return { tipo: 'texto', id: novo.id };
+      });
+      if (colados.length > 1) {
+        setGrupo(colados);
+      } else {
+        setGrupo([]);
+        if (colados[0].tipo === 'forma') setFormaSelecionadaId(String(colados[0].id));
+        else setTextoSelecionadoId(String(colados[0].id));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [formaSelecionadaId, textoSelecionadoId, formas, textos, onAdicionarForma, onAdicionarTexto]);
+  }, [formaSelecionadaId, textoSelecionadoId, grupo, formas, textos, onAdicionarForma, onAdicionarTexto]);
   // Linhas/marcas do alinhamento inteligente, mostradas só enquanto arrasta.
   const [snapVisual, setSnapVisual] = useState<{ v: number[]; h: number[]; marcas: MarcaEspaco[] }>({
     v: [],
@@ -955,6 +977,7 @@ export default function EncarteCanvas({
         yPct = sob.ep.yPct;
         el = sob.wrapper;
       }
+      if (id != null && tratarGrupoNoPointerDown(e, { tipo: 'produto', id })) return;
     }
     if (tipo === 'produto') {
       // produto vira o "selecionado" pras setas de camada; larga forma/texto/imagem
@@ -1008,6 +1031,7 @@ export default function EncarteCanvas({
   const larguraProdutoPct = (p: EncarteProduto) => (p.emDestaque ? cardWbasePct * 2.2 : cardWbasePct);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (moverGrupoNoPointerMove(e)) return;
     const st = dragRef.current;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!st || !rect || e.pointerId !== st.pointerId) return;
@@ -1075,6 +1099,7 @@ export default function EncarteCanvas({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>, aoClicar?: () => void) => {
+    if (soltarGrupo(e)) return;
     const st = dragRef.current;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     dragRef.current = null;
@@ -1159,6 +1184,134 @@ export default function EncarteCanvas({
     });
     return out;
   };
+
+  // ── Seleção múltipla (Shift+clique) ─────────────────────────────────
+  // Shift+clique em produto, imagem, forma ou texto põe/tira ele do grupo
+  // (o que já estava selecionado entra junto). Arrastar qualquer membro move
+  // o grupo inteiro num passo só de desfazer. Clique simples num membro sem
+  // arrastar, clique no fundo ou Esc desfazem o grupo.
+  const mesmoMembro = (a: MembroGrupo, b: MembroGrupo) => a.tipo === b.tipo && String(a.id) === String(b.id);
+  const noGrupo = (tipo: CamadaTipo, id: string | number | undefined) =>
+    id != null && grupo.some((m) => mesmoMembro(m, { tipo, id }));
+  const grupoDragRef = useRef<{
+    pointerId: number; startX: number; startY: number; moved: boolean; chave: string;
+    alvo: MembroGrupo; orig: (PosicaoGrupo & { wPct: number; hPct: number })[];
+  } | null>(null);
+
+  const selecaoAtual = (): MembroGrupo | null =>
+    formaSelecionadaId ? { tipo: 'forma', id: formaSelecionadaId }
+    : textoSelecionadoId ? { tipo: 'texto', id: textoSelecionadoId }
+    : imagemSelecionadaId ? { tipo: 'imagem', id: imagemSelecionadaId }
+    : produtoSelecionadoId != null ? { tipo: 'produto', id: produtoSelecionadoId }
+    : null;
+
+  const selecionarUnico = (m: MembroGrupo) => {
+    desselecionarOutros();
+    if (m.tipo === 'forma') setFormaSelecionadaId(String(m.id));
+    else if (m.tipo === 'texto') setTextoSelecionadoId(String(m.id));
+    else if (m.tipo === 'imagem') setImagemSelecionadaId(String(m.id));
+    else setProdutoSelecionadoId(m.id);
+  };
+
+  const alternarNoGrupo = (m: MembroGrupo) => {
+    const atual = selecaoAtual();
+    const base = grupo.length ? grupo : atual ? [atual] : [];
+    const novo = base.some((x) => mesmoMembro(x, m)) ? base.filter((x) => !mesmoMembro(x, m)) : [...base, m];
+    desselecionarOutros();
+    setTextoEditandoId(null);
+    setNomeDescSelecionadoId(null);
+    if (novo.length === 1) {
+      setGrupo([]);
+      selecionarUnico(novo[0]);
+    } else {
+      setGrupo(novo);
+    }
+  };
+
+  /** Posição/tamanho atual de um membro, em % do canvas (texto não tem altura conhecida). */
+  const medidaMembro = (m: MembroGrupo): (PosicaoGrupo & { wPct: number; hPct: number }) | null => {
+    const igual = (id: string | number | undefined) => String(id) === String(m.id);
+    if (m.tipo === 'produto') {
+      const p = produtos.find((x) => igual(x.product.id));
+      return p ? { ...m, xPct: p.xPct, yPct: p.yPct, wPct: larguraProdutoPct(p), hPct: cardHpct, nomeDescricaoAjuste: p.nomeDescricaoAjuste ?? null } : null;
+    }
+    const lista: { id: string; xPct: number; yPct: number; wPct: number; hPct?: number }[] =
+      m.tipo === 'forma' ? formas : m.tipo === 'texto' ? textos : imagens;
+    const el = lista.find((x) => igual(x.id));
+    return el ? { ...m, xPct: el.xPct, yPct: el.yPct, wPct: el.wPct, hPct: el.hPct ?? 0 } : null;
+  };
+
+  /** Chamado no pointerdown de cada elemento. Devolve true se a seleção
+   * múltipla tratou o evento (aí o arraste individual não começa). */
+  const tratarGrupoNoPointerDown = (e: React.PointerEvent<HTMLDivElement>, m: MembroGrupo): boolean => {
+    if (e.shiftKey) {
+      e.stopPropagation();
+      alternarNoGrupo(m);
+      return true;
+    }
+    if (grupo.length >= 2 && noGrupo(m.tipo, m.id)) {
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      grupoDragRef.current = {
+        pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false,
+        chave: `${Date.now()}`, alvo: m,
+        orig: grupo.map(medidaMembro).filter((x): x is NonNullable<typeof x> => x != null),
+      };
+      return true;
+    }
+    if (grupo.length) setGrupo([]);
+    return false;
+  };
+
+  /** pointermove do arraste do grupo — true se estava arrastando o grupo. */
+  const moverGrupoNoPointerMove = (e: React.PointerEvent<HTMLDivElement>): boolean => {
+    const st = grupoDragRef.current;
+    if (!st || e.pointerId !== st.pointerId) return false;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return true;
+    if (!st.moved && Math.hypot(e.clientX - st.startX, e.clientY - st.startY) < 4) return true;
+    st.moved = true;
+    const dx = ((e.clientX - st.startX) / rect.width) * 100;
+    const dy = ((e.clientY - st.startY) / rect.height) * 100;
+    onMoverGrupo(
+      st.orig.map(({ wPct, hPct, ...o }) => {
+        const xPct = clamp(o.xPct + dx, MIN_ELEMENTO - wPct, 100 - MIN_ELEMENTO);
+        const yPct = clamp(o.yPct + dy, o.tipo === 'texto' ? -40 : MIN_ELEMENTO - hPct, 100 - MIN_ELEMENTO);
+        const nd = o.nomeDescricaoAjuste;
+        return {
+          ...o,
+          xPct,
+          yPct,
+          ...(nd ? { nomeDescricaoAjuste: { ...nd, xPct: nd.xPct + (xPct - o.xPct), yPct: nd.yPct + (yPct - o.yPct) } } : {}),
+        };
+      }),
+      st.chave,
+    );
+    return true;
+  };
+
+  /** pointerup do arraste do grupo — true se estava arrastando o grupo. */
+  const soltarGrupo = (e: React.PointerEvent<HTMLDivElement>): boolean => {
+    const st = grupoDragRef.current;
+    if (!st || e.pointerId !== st.pointerId) return false;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    grupoDragRef.current = null;
+    // Clique parado num membro: sai do grupo e fica só ele selecionado.
+    if (!st.moved) {
+      setGrupo([]);
+      selecionarUnico(st.alvo);
+    }
+    return true;
+  };
+
+  // Esc desfaz a seleção múltipla; trocar de lado (frente/verso) também.
+  useEffect(() => {
+    if (!grupo.length) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setGrupo([]); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [grupo.length]);
+  useEffect(() => { setGrupo([]); }, [ladoAtivo]);
 
   const desselecionarOutros = () => {
     setFormaSelecionadaId(null);
@@ -1276,6 +1429,7 @@ export default function EncarteCanvas({
     im: ElementoImagem,
     canto?: Canto,
   ) => {
+    if (tipo === 'mover' && tratarGrupoNoPointerDown(e, { tipo: 'imagem', id: im.id })) return;
     e.stopPropagation();
     setImagemSelecionadaId(im.id);
     setFormaSelecionadaId(null);
@@ -1287,6 +1441,7 @@ export default function EncarteCanvas({
   };
 
   const handleImagemPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (moverGrupoNoPointerMove(e)) return;
     const st = imgDragRef.current;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!st || !rect || e.pointerId !== st.pointerId) return;
@@ -1327,6 +1482,7 @@ export default function EncarteCanvas({
   };
 
   const handleImagemPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (soltarGrupo(e)) return;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     imgDragRef.current = null;
   };
@@ -1338,6 +1494,7 @@ export default function EncarteCanvas({
     fm: FormaEncarte,
     canto?: Canto,
   ) => {
+    if (tipo === 'mover' && tratarGrupoNoPointerDown(e, { tipo: 'forma', id: fm.id })) return;
     e.stopPropagation();
     setFormaSelecionadaId(fm.id);
     setTextoSelecionadoId(null);
@@ -1349,6 +1506,7 @@ export default function EncarteCanvas({
   };
 
   const handleFormaPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (moverGrupoNoPointerMove(e)) return;
     const st = formaDragRef.current;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!st || !rect || e.pointerId !== st.pointerId) return;
@@ -1390,6 +1548,7 @@ export default function EncarteCanvas({
   };
 
   const handleFormaPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (soltarGrupo(e)) return;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     formaDragRef.current = null;
   };
@@ -1455,7 +1614,7 @@ export default function EncarteCanvas({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="w-full h-full cursor-grab active:cursor-grabbing"
+          className={cn('w-full h-full cursor-grab active:cursor-grabbing', noGrupo('forma', fm.id) && 'outline outline-2 outline-dashed outline-sky-400')}
           style={{
             background: fm.gradiente
               ? `linear-gradient(${fm.anguloGrad ?? 135}deg, ${fm.cor}, ${fm.cor2 ?? fm.cor})`
@@ -1569,6 +1728,7 @@ export default function EncarteCanvas({
     tipo: TextoDragState['tipo'],
     t: TextoEncarte,
   ) => {
+    if (tipo === 'mover' && tratarGrupoNoPointerDown(e, { tipo: 'texto', id: t.id })) return;
     e.stopPropagation();
     setTextoSelecionadoId(t.id);
     setFormaSelecionadaId(null);
@@ -1584,6 +1744,7 @@ export default function EncarteCanvas({
   };
 
   const handleTextoPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (moverGrupoNoPointerMove(e)) return;
     const st = textoDragRef.current;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!st || !rect || e.pointerId !== st.pointerId) return;
@@ -1607,6 +1768,7 @@ export default function EncarteCanvas({
   };
 
   const handleTextoPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (soltarGrupo(e)) return;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     textoDragRef.current = null;
   };
@@ -1659,7 +1821,7 @@ export default function EncarteCanvas({
           />
         ) : (
           <div
-            className="w-full cursor-move select-none"
+            className={cn('w-full cursor-move select-none', noGrupo('texto', t.id) && 'outline outline-2 outline-dashed outline-sky-400')}
             style={{ ...estiloDoTexto(t), minHeight: t.tamanho }}
             onPointerDown={(e) => iniciarTextoDrag(e, 'mover', t)}
             onPointerMove={handleTextoPointerMove}
@@ -1762,7 +1924,7 @@ export default function EncarteCanvas({
       <EncarteProductCard
         produto={ep}
         estilo={estilo}
-        selecionado={ep.product.id === produtoDetalhadoId || ep.product.id === produtoSelecionadoId}
+        selecionado={ep.product.id === produtoDetalhadoId || ep.product.id === produtoSelecionadoId || noGrupo('produto', ep.product.id)}
         fotoSelecionada={ep.product.id === fotoSelecionadaId}
         onCliqueFoto={() => onAbrirDetalhes(ep.product.id)}
         onSelecionarFoto={() => {
@@ -1959,7 +2121,11 @@ export default function EncarteCanvas({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className={cn('w-full h-full cursor-grab active:cursor-grabbing', selecionada && 'outline outline-1 outline-emerald-400/70')}
+          className={cn(
+            'w-full h-full cursor-grab active:cursor-grabbing',
+            selecionada && 'outline outline-1 outline-emerald-400/70',
+            noGrupo('imagem', im.id) && 'outline outline-2 outline-dashed outline-sky-400',
+          )}
           onPointerDown={(e) => iniciarImagemDrag(e, 'mover', im)}
           onPointerMove={handleImagemPointerMove}
           onPointerUp={handleImagemPointerUp}
@@ -2408,6 +2574,7 @@ export default function EncarteCanvas({
           if (fotoSelecionadaId != null) setFotoSelecionadaId(null);
           if (nomeDescSelecionadoId != null) setNomeDescSelecionadoId(null);
           if (textoEditandoId) setTextoEditandoId(null);
+          if (grupo.length) setGrupo([]);
         }}
       >
         {produtos.length > 0 && (

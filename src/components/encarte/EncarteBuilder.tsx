@@ -35,6 +35,7 @@ import {
   criarForma,
   criarTexto,
   maiorZ,
+  PosicaoGrupo,
   organizarEmGrade,
   posicaoLivreNaGrade,
 } from './encarteProduto';
@@ -360,6 +361,35 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado(
       (l) => ({ produtos: l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)) }),
       opcoes,
+    );
+  };
+
+  /** Arraste da seleção múltipla: move tudo num passo só de desfazer (`chave` = um arraste). */
+  const moverGrupo = (novas: PosicaoGrupo[], chave: string) => {
+    const nova = (tipo: CamadaTipo, id: string | number | undefined) =>
+      novas.find((n) => n.tipo === tipo && String(n.id) === String(id));
+    const mover = <T extends { id: string; xPct: number; yPct: number }>(tipo: CamadaTipo, itens: T[]) =>
+      itens.map((it) => {
+        const n = nova(tipo, it.id);
+        return n ? { ...it, xPct: n.xPct, yPct: n.yPct } : it;
+      });
+    atualizarLado(
+      (l) => ({
+        produtos: l.produtos.map((p) => {
+          const n = nova('produto', p.product.id);
+          if (!n) return p;
+          return {
+            ...p,
+            xPct: n.xPct,
+            yPct: n.yPct,
+            ...(n.nomeDescricaoAjuste !== undefined ? { nomeDescricaoAjuste: n.nomeDescricaoAjuste } : {}),
+          };
+        }),
+        imagens: mover('imagem', l.imagens),
+        formas: mover('forma', l.formas ?? []),
+        textos: mover('texto', l.textos ?? []),
+      }),
+      { coalesce: `mover-grupo-${chave}` },
     );
   };
 
@@ -818,6 +848,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onAdicionarPlacaPreco={() => setPlacaModalAberto(true)}
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
+          onMoverGrupo={moverGrupo}
           onAjustarFotoProduto={(id, ajuste, opcoes) => atualizarProduto(id, { fotoAjuste: ajuste }, opcoes)}
           onAjustarNomeDescricao={(id, ajuste, opcoes) => atualizarProduto(id, { nomeDescricaoAjuste: ajuste }, opcoes)}
           onMoverDivisor={moverDivisor}
