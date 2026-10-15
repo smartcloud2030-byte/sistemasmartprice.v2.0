@@ -202,6 +202,12 @@ export default function ProdutoDetalhes({
             className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
           />
         </div>
+        {/* só deste produto — multiplica o slider "Etiqueta" do encarte */}
+        <SliderEscala
+          label="Tamanho"
+          value={produto.escalaPreco ?? 1}
+          onChange={(escalaPreco) => onAtualizar({ escalaPreco })}
+        />
       </Campo>
 
       {/* Texto prod — texto livre que aparece acima do "POR", dentro da etiqueta de preço */}
@@ -301,11 +307,6 @@ export default function ProdutoDetalhes({
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Tamanhos</h3>
           <Crown className="w-3.5 h-3.5 text-amber-400" />
         </div>
-        <SliderEscala
-          label="Preço (este produto)"
-          value={produto.escalaPreco ?? 1}
-          onChange={(escalaPreco) => onAtualizar({ escalaPreco })}
-        />
         <SliderEscala label="Produto" value={estilo.escalaCard} onChange={(escalaCard) => onAtualizarEstilo({ escalaCard })} />
         <SliderEscala label="Etiqueta" value={estilo.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizarEstilo({ escalaEtiqueta })} />
         {/* vale pra todos os produtos do encarte — multiplica o Nome/Descrição de cada um */}
