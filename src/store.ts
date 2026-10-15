@@ -372,6 +372,8 @@ interface AppState {
     bandeira: string;
     allowedLayouts?: number[];
     hasProductManagementAccess?: boolean;
+    // Encarte Online liberado pra loja (admin sempre tem)
+    hasEncarteAccess?: boolean;
     groupId?: string;
     isSuspended?: boolean;
     isOnline?: boolean;
@@ -393,6 +395,8 @@ interface AppState {
     bandeira: string;
     allowedLayouts?: number[];
     hasProductManagementAccess?: boolean;
+    // Encarte Online liberado pra loja (admin sempre tem)
+    hasEncarteAccess?: boolean;
     groupId?: string;
     isSuspended?: boolean;
     isOnline?: boolean;
@@ -414,6 +418,7 @@ interface AppState {
   loadMonitoringThresholds: () => Promise<void>;
   saveMonitoringThresholds: (thresholds: { diskPercent: number; memPercent: number; offlineMinutes: number }) => Promise<void>;
   toggleProductManagementAccess: (cnpj: string) => void;
+  toggleEncarteAccess: (cnpj: string) => void;
   updateOnlineStatus: () => Promise<void>;
   clearAccessHistory: () => Promise<void>;
   saveUsersAndFlags: () => Promise<void>;
@@ -1613,7 +1618,7 @@ export const useStore = create<AppState>()(
       addAllowedStore: (store) => set((state) => {
         const nc = store.cnpj?.replace(/[^\d]/g, '') || '';
         const existingIndex = state.allowedStores.findIndex(s => s.cnpj?.replace(/[^\d]/g, '') === nc);
-        const updatedStore = { ...store, cnpj: store.cnpj.trim(), allowedLayouts: store.allowedLayouts !== undefined ? store.allowedLayouts : (existingIndex !== -1 ? state.allowedStores[existingIndex].allowedLayouts : undefined), hasProductManagementAccess: store.hasProductManagementAccess !== undefined ? store.hasProductManagementAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasProductManagementAccess : false) };
+        const updatedStore = { ...store, cnpj: store.cnpj.trim(), allowedLayouts: store.allowedLayouts !== undefined ? store.allowedLayouts : (existingIndex !== -1 ? state.allowedStores[existingIndex].allowedLayouts : undefined), hasProductManagementAccess: store.hasProductManagementAccess !== undefined ? store.hasProductManagementAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasProductManagementAccess : false), hasEncarteAccess: store.hasEncarteAccess !== undefined ? store.hasEncarteAccess : (existingIndex !== -1 ? state.allowedStores[existingIndex].hasEncarteAccess : false) };
         let newAllowedStores;
         if (existingIndex !== -1) { newAllowedStores = [...state.allowedStores]; newAllowedStores[existingIndex] = updatedStore; } else { newAllowedStores = [...state.allowedStores, updatedStore]; }
         setTimeout(() => get().saveUsersAndFlags(), 0);
@@ -1621,6 +1626,7 @@ export const useStore = create<AppState>()(
       }),
       removeAllowedStore: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newState = { allowedStores: state.allowedStores.filter(s => s.cnpj?.replace(/[^\d]/g, '') !== nc) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       toggleProductManagementAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasProductManagementAccess: !s.hasProductManagementAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
+      toggleEncarteAccess: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, hasEncarteAccess: !s.hasEncarteAccess } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       toggleSuspension: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isSuspended: !s.isSuspended } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       togglePaymentBlock: (cnpj) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, isPaymentBlocked: !s.isPaymentBlocked, paymentBlockedAt: !s.isPaymentBlocked ? new Date().toISOString() : s.paymentBlockedAt } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
       generateMonitoringToken: (cnpj) => set((state) => {

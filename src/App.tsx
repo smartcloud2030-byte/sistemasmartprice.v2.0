@@ -587,6 +587,9 @@ export default function App() {
     });
   };
 
+  // Encarte Online: admin sempre; loja só se o admin liberou (hasEncarteAccess)
+  const canUseEncarte = userRole === 'admin' || !!allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, ''))?.hasEncarteAccess;
+
   const renderContent = () => {
     if (!isAuthenticated) {
       return <Login />;
@@ -688,7 +691,7 @@ export default function App() {
       return <SavedFolders />;
     }
 
-    if (currentView === 'encarte' && userRole === 'admin') {
+    if (currentView === 'encarte' && canUseEncarte) {
       return <EncarteBuilder />;
     }
 
@@ -887,8 +890,8 @@ export default function App() {
                 </button>
               )}
 
-              {/* Encarte Online — por enquanto so admin, ativa pra loja depois */}
-              {userRole === 'admin' && (
+              {/* Encarte Online — admin, ou loja liberada no Gerenciar Usuários */}
+              {canUseEncarte && (
                 <button
                   onClick={() => setView('encarte')}
                   className={cn(

@@ -9,7 +9,7 @@ const API_SECRET = import.meta.env.VITE_API_SECRET;
 
 export default function UserManagement() {
   const {
-    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleProductManagementAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
+    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleProductManagementAccess, toggleEncarteAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
     maxConcurrentStores, setMaxConcurrentStores, cnpjUserLimits, setCnpjUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
@@ -921,6 +921,24 @@ export default function UserManagement() {
                             )}
                           >
                             {store.hasProductManagementAccess ? 'Ativado' : 'Desativado'}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <LayoutGrid className="w-4 h-4 text-emerald-600" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60">Encarte Online</h4>
+                          </div>
+                          <button
+                            onClick={() => toggleEncarteAccess(store.cnpj)}
+                            className={cn(
+                              "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm",
+                              store.hasEncarteAccess
+                                ? "bg-emerald-600 border-emerald-600 text-white"
+                                : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400"
+                            )}
+                          >
+                            {store.hasEncarteAccess ? 'Ativado' : 'Desativado'}
                           </button>
                         </div>
 
