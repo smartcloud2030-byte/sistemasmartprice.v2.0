@@ -666,6 +666,42 @@ export default function EncarteCanvas({
     return canvas;
   };
 
+  /** Zera o canvas pra o navegador devolver a memória na hora. Cada export
+   * do A4 aloca ~60MB de canvas; deixando pro GC, depois de alguns exports o
+   * navegador batia no teto de memória de canvas e TODO export seguinte
+   * falhava até recarregar a página. */
+  const liberarCanvas = (canvas: HTMLCanvasElement | null) => {
+    if (!canvas) return;
+    canvas.width = 0;
+    canvas.height = 0;
+  };
+
+  /** Captura o encarte e entrega o canvas pra `usar`, tentando de novo em
+   * resolução menor se falhar (memória apertada, toBlob nulo, html2canvas
+   * caindo no meio). Sempre libera o canvas no fim — sem isso o erro "Não foi
+   * possível gerar o arquivo" grudava e só sumia com F5. */
+  const comCanvasExport = async <T,>(
+    qualidades: number[],
+    usar: (canvas: HTMLCanvasElement) => Promise<T> | T,
+  ): Promise<T> => {
+    let ultimoErro: unknown = new Error('Nenhuma tentativa de exportação.');
+    for (const qualidade of [...new Set(qualidades)]) {
+      let canvas: HTMLCanvasElement | null = null;
+      try {
+        canvas = await renderParaCanvas(qualidade);
+        return await usar(canvas);
+      } catch (err) {
+        ultimoErro = err;
+        // eslint-disable-next-line no-console
+        console.warn(`Export do encarte falhou em ${qualidade.toFixed(2)}x:`, err);
+      } finally {
+        liberarCanvas(canvas);
+      }
+      await esperarFrame();
+    }
+    throw ultimoErro;
+  };
+
   // Multiplicador extra de resolução só pro download (PNG/PDF): até dobra a
   // captura em cima da escala nominal do formato. Compartilhar/salvar não
   // usam isso.
@@ -681,6 +717,10 @@ export default function EncarteCanvas({
   const qualidadeSegura = (boost: number) =>
     Math.min(boost, MAX_LADO_EXPORT / Math.max(formato.width, formato.height));
   const QUALIDADE_DOWNLOAD = qualidadeSegura(2);
+  // Se a captura em alta falhar, cai pra resolução nominal e depois pra uma
+  // mais leve — melhor um arquivo um pouco menor que o erro.
+  const QUALIDADES_DOWNLOAD = [QUALIDADE_DOWNLOAD, 1, 0.6];
+  const QUALIDADES_COMPARTILHAR = [1, 0.6];
 
   /** "Salvar": gera uma miniatura leve e manda o encarte inteiro pra aba Encartes. */
   const salvarEncarte = async () => {
@@ -692,7 +732,9 @@ export default function EncarteCanvas({
         backgroundColor: '#000000',
         scale: 480 / CANVAS_W,
       });
-      await onSalvarEncarte(gerarThumbnail(canvas));
+      const thumb = gerarThumbnail(canvas);
+      liberarCanvas(canvas);
+      await onSalvarEncarte(thumb);
       toast.success('Encarte salvo! Veja na aba Encartes pra editar depois.');
     } catch (err) {
       // Mostra o motivo (ex.: servidor recusou porque encartes salvos sumiriam).
@@ -728,27 +770,29 @@ export default function EncarteCanvas({
     setDownloadAberto(false);
     setExportando(true);
     try {
-      const canvas = await renderParaCanvas(QUALIDADE_DOWNLOAD);
-      const nomeBase = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}`;
+      const thumb = await comCanvasExport(QUALIDADES_DOWNLOAD, async (canvas) => {
+        const nomeBase = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}`;
 
-      if (tipo === 'png') {
-        const blob = await canvasParaBlob(canvas);
-        baixarBlob(blob, `${nomeBase}.png`);
-      } else {
-        const pdf = new jsPDF({
-          orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
-          unit: 'px',
-          format: [canvas.width, canvas.height],
-          compress: true,
-        });
-        // Passa o <canvas> direto pro jsPDF em vez de uma data URL — mesmo
-        // motivo do PNG: menos memória e sem string gigante no meio do caminho.
-        // (sem perdas — mantém texto/bordas nítidos e fiéis ao original)
-        pdf.addImage(canvas, 'PNG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
-        pdf.save(`${nomeBase}.pdf`);
-      }
+        if (tipo === 'png') {
+          const blob = await canvasParaBlob(canvas);
+          baixarBlob(blob, `${nomeBase}.png`);
+        } else {
+          const pdf = new jsPDF({
+            orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
+            unit: 'px',
+            format: [canvas.width, canvas.height],
+            compress: true,
+          });
+          // Passa o <canvas> direto pro jsPDF em vez de uma data URL — mesmo
+          // motivo do PNG: menos memória e sem string gigante no meio do caminho.
+          // (sem perdas — mantém texto/bordas nítidos e fiéis ao original)
+          pdf.addImage(canvas, 'PNG', 0, 0, canvas.width, canvas.height, undefined, 'FAST');
+          pdf.save(`${nomeBase}.pdf`);
+        }
+        return gerarThumbnail(canvas);
+      });
 
-      onExportado?.(gerarThumbnail(canvas));
+      onExportado?.(thumb);
       toast.success(tipo === 'png' ? 'PNG baixado!' : 'PDF baixado!');
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -767,11 +811,13 @@ export default function EncarteCanvas({
     const aba = window.open('about:blank', '_blank');
     setExportando(true);
     try {
-      const canvas = await renderParaCanvas();
-      const blob = await canvasParaBlob(canvas);
+      const { blob, thumb } = await comCanvasExport(QUALIDADES_COMPARTILHAR, async (canvas) => ({
+        blob: await canvasParaBlob(canvas),
+        thumb: gerarThumbnail(canvas),
+      }));
       const nome = `encarte-${formato.id}-${ladoAtivo}-${Date.now()}.png`;
       const file = new File([blob], nome, { type: 'image/png' });
-      onExportado?.(gerarThumbnail(canvas));
+      onExportado?.(thumb);
 
       // Caminho ideal (celular e parte dos desktops): compartilhamento nativo
       // com o PNG já anexado — o sistema mostra WhatsApp, Instagram, e-mail etc.
