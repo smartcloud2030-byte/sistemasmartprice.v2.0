@@ -245,7 +245,9 @@ export default function ProdutoDetalhes({
           </label>
         </div>
         {!!produto.faixaTextoProduto && (
-          <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+          // `relative`: o input de cor (sr-only = absoluto) fica preso aqui dentro;
+          // sem isso ele ia parar no topo do painel e, ao focar, o painel rolava/pulava.
+          <label className="relative mt-2 flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
             <span
               className="w-6 h-6 rounded-md border border-zinc-600 flex-shrink-0"
               style={{ backgroundColor: produto.faixaTextoProduto }}

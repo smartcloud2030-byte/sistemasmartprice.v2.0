@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Package } from 'lucide-react';
-import { getProxyUrl, cn } from '../../lib/utils';
+import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import {
   EncarteProduto,
   EstiloEncarte,
@@ -726,8 +726,28 @@ function PrecoEtiqueta({
   // no topo sem a etiqueta crescer) — mas fica FIXO nesse tamanho depois
   // disso. Quem cresce/encolhe com o slider "Tamanho" é só a faixa do
   // texto prod; o preço não fica menor conforme o texto aumenta.
-  const fracaoBanner = temTexto ? 0.3 * (escalaTextoProduto ?? 1) : 0;
+  // Com faixa colorida o texto se ajusta pra ocupar a largura da linha do
+  // preço (igual ao impresso: "LEVE 2 POR" de ponta a ponta, sem alargar a
+  // etiqueta). `ajusteFaixa` é medido depois do layout; o slider "Tamanho"
+  // multiplica por cima.
+  const linhaPrecoRef = useRef<HTMLSpanElement>(null);
+  const textoFaixaRef = useRef<HTMLSpanElement>(null);
+  const [ajusteFaixa, setAjusteFaixa] = useState(1);
+  const comFaixa = temTexto && !!faixaTextoProduto;
+  const fracaoBanner = temTexto ? (comFaixa ? 0.42 * ajusteFaixa : 0.3) * (escalaTextoProduto ?? 1) : 0;
   const tamanhoEfetivo = temTexto ? tamanho * 0.72 : tamanho;
+  useLayoutEffect(() => {
+    if (!comFaixa) return;
+    const linha = linhaPrecoRef.current?.offsetWidth ?? 0;
+    const texto = textoFaixaRef.current?.offsetWidth ?? 0;
+    if (!linha || !texto) return;
+    // largura do texto é proporcional à fonte → um passo só já acerta
+    const larguraSemSlider = texto / (escalaTextoProduto ?? 1);
+    setAjusteFaixa((a) => {
+      const novo = clamp((a * linha * 0.94) / larguraSemSlider, 0.4, 2.2);
+      return Math.abs(novo - a) > 0.01 ? novo : a;
+    });
+  }, [comFaixa, textoProduto, valor, tamanho, escalaTextoProduto, escalaRotulos, escalaCentavos]);
   return (
     <span className="inline-flex flex-col items-start" style={{ fontSize: tamanho }}>
       {temTexto && (
@@ -737,22 +757,26 @@ function PrecoEtiqueta({
             fontSize: `${fracaoBanner}em`,
             color: corTextoProduto,
             marginBottom: '0.08em',
-            ...(faixaTextoProduto ? { alignSelf: 'stretch', ...estiloFaixa(faixaTextoProduto) } : {}),
+            ...(faixaTextoProduto ? { alignSelf: 'stretch', ...estiloFaixa(faixaTextoProduto), overflow: 'hidden' } : {}),
             ...(faixaTextoProduto && recuoFaixa
               ? {
                   marginTop: -recuoFaixa.top,
                   marginLeft: -recuoFaixa.left,
                   marginRight: -recuoFaixa.right,
-                  marginBottom: '0.12em',
+                  marginBottom: '0.1em',
+                  padding: '0.2em 0.35em 0.16em',
                   borderRadius: 0,
                 }
               : {}),
           }}
         >
-          {textoComRiscoNumeros(textoProduto ?? '', riscarNumerosTextoProduto)}
+          <span ref={textoFaixaRef} className="inline-block">
+            {textoComRiscoNumeros(textoProduto ?? '', riscarNumerosTextoProduto)}
+          </span>
         </span>
       )}
       <span
+        ref={linhaPrecoRef}
         className="inline-flex items-stretch font-black uppercase leading-none"
         style={dourado ? { fontSize: tamanhoEfetivo, ...PRECO_LARANJA } : { fontSize: tamanhoEfetivo, color: cor }}
       >
@@ -902,7 +926,9 @@ function EtiquetaPreco({
             {forma === 'tag' && <circle cx="14" cy="50" r="4.5" fill="#ffffff" />}
           </svg>
         )}
-        <span className="relative" style={{ zIndex: 1 }}>
+        {/* Com faixa: `flex` tira a sobra da linha de texto em volta do preço,
+            senão sobrava uma tira da cor da etiqueta acima da faixa. */}
+        <span className={cn('relative', faixaTextoProduto && textoProduto?.trim() && !svgPath && 'flex')} style={{ zIndex: 1 }}>
           <PrecoEtiqueta
             valor={precoOferta}
             tamanho={tamanho}
