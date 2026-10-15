@@ -375,7 +375,8 @@ interface EncarteCanvasProps {
   onMoverImagem: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
   onRemoverImagem: (id: string) => void;
-  onAdicionarForma: (tipo: FormaTipo) => void;
+  /** Forma nova do tipo dado, ou uma forma pronta (colar com Ctrl+V). */
+  onAdicionarForma: (forma: FormaTipo | FormaEncarte) => void;
   onMoverForma: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarForma: (id: string, patch: Partial<FormaEncarte>) => void;
   onDefinirCorForma: (id: string, cor: string) => void;
@@ -574,6 +575,60 @@ export default function EncarteCanvas({
   }, []);
   // Fecha o popover de fonte ao trocar/soltar a seleção de texto.
   useEffect(() => { setFonteInlineAberta(false); }, [textoSelecionadoId]);
+
+  // Ctrl/Cmd+C copia a forma ou o texto selecionado; Ctrl/Cmd+V cola uma
+  // cópia deslocada (cada colada seguida desloca um pouco mais) e já deixa
+  // ela selecionada. Vale entre frente e verso. Não intercepta quando o foco
+  // está num campo/texto em edição (aí fica o copiar/colar normal).
+  const areaTransferenciaRef = useRef<
+    { tipo: 'forma'; item: FormaEncarte } | { tipo: 'texto'; item: TextoEncarte } | null
+  >(null);
+  const coladasSeguidasRef = useRef(0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'c' && k !== 'v') return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+
+      if (k === 'c') {
+        const forma = formaSelecionadaId ? formas.find((f) => f.id === formaSelecionadaId) : undefined;
+        const texto = textoSelecionadoId ? textos.find((t) => t.id === textoSelecionadoId) : undefined;
+        if (!forma && !texto) return; // deixa o Ctrl+C normal (texto selecionado na página etc.)
+        e.preventDefault();
+        areaTransferenciaRef.current = forma ? { tipo: 'forma', item: forma } : { tipo: 'texto', item: texto! };
+        coladasSeguidasRef.current = 0;
+        toast.success(forma ? 'Forma copiada' : 'Texto copiado', { duration: 1200 });
+        return;
+      }
+
+      const copia = areaTransferenciaRef.current;
+      if (!copia) return;
+      e.preventDefault();
+      coladasSeguidasRef.current += 1;
+      const desloc = 3 * coladasSeguidasRef.current;
+      const sufixo = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const posicao = { xPct: copia.item.xPct + desloc, yPct: copia.item.yPct + desloc };
+      setProdutoSelecionadoId(null);
+      setFotoSelecionadaId(null);
+      setImagemSelecionadaId(null);
+      if (copia.tipo === 'forma') {
+        const nova: FormaEncarte = { ...copia.item, ...posicao, id: `forma_${sufixo}` };
+        onAdicionarForma(nova);
+        setTextoSelecionadoId(null);
+        setFormaSelecionadaId(nova.id);
+      } else {
+        const novo: TextoEncarte = { ...copia.item, ...posicao, id: `txt_${sufixo}` };
+        onAdicionarTexto(novo);
+        setFormaSelecionadaId(null);
+        setTextoEditandoId(null);
+        setTextoSelecionadoId(novo.id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [formaSelecionadaId, textoSelecionadoId, formas, textos, onAdicionarForma, onAdicionarTexto]);
   // Linhas/marcas do alinhamento inteligente, mostradas só enquanto arrasta.
   const [snapVisual, setSnapVisual] = useState<{ v: number[]; h: number[]; marcas: MarcaEspaco[] }>({
     v: [],

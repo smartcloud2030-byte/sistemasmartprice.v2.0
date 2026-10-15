@@ -457,8 +457,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarImagem(id, patch, { coalesce: `redim-imagem-${id}` });
 
   // ── Formas (quadrado, retângulo, círculo) ───────────────────────────
-  const adicionarForma = (tipo: FormaTipo) =>
-    atualizarLado((l) => ({ formas: [...(l.formas ?? []), { ...criarForma(tipo), z: maiorZ(l) + 1 }] }));
+  const adicionarForma = (forma: FormaTipo | FormaEncarte) =>
+    atualizarLado((l) => ({
+      formas: [...(l.formas ?? []), { ...(typeof forma === 'string' ? criarForma(forma) : forma), z: maiorZ(l) + 1 }],
+    }));
 
   const atualizarForma = (id: string, patch: Partial<FormaEncarte>, opcoes?: OpcoesSet) =>
     atualizarLado(
