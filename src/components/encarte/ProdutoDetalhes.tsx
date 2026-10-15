@@ -166,6 +166,12 @@ export default function ProdutoDetalhes({
           onChange={(e) => onAtualizar({ nome: e.target.value })}
           className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
         />
+        {/* só deste produto — vale no card normal, no destaque e no nome solto */}
+        <SliderEscala
+          label="Tamanho"
+          value={produto.escalaNomeDestaque ?? 1}
+          onChange={(escalaNomeDestaque) => onAtualizar({ escalaNomeDestaque })}
+        />
       </Campo>
 
       {/* Descrição */}
@@ -176,6 +182,11 @@ export default function ProdutoDetalhes({
           onChange={(e) => onAtualizar({ descricao: e.target.value })}
           placeholder="Ex.: sabor morango, 900g"
           className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+        />
+        <SliderEscala
+          label="Tamanho"
+          value={produto.escalaDescricaoDestaque ?? 1}
+          onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
         />
       </Campo>
 
@@ -290,17 +301,6 @@ export default function ProdutoDetalhes({
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Tamanhos</h3>
           <Crown className="w-3.5 h-3.5 text-amber-400" />
         </div>
-        {/* só deste produto — vale no card normal, no destaque e no nome/descrição solto */}
-        <SliderEscala
-          label="Nome (este produto)"
-          value={produto.escalaNomeDestaque ?? 1}
-          onChange={(escalaNomeDestaque) => onAtualizar({ escalaNomeDestaque })}
-        />
-        <SliderEscala
-          label="Descrição (este produto)"
-          value={produto.escalaDescricaoDestaque ?? 1}
-          onChange={(escalaDescricaoDestaque) => onAtualizar({ escalaDescricaoDestaque })}
-        />
         <SliderEscala
           label="Preço (este produto)"
           value={produto.escalaPreco ?? 1}
