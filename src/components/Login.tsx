@@ -108,8 +108,10 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <motion.div {...entrance(0, shouldReduceMotion)} className="flex flex-col items-center mb-8 relative">
-          <img src="/logo-light.png" alt="SmartPrice" className="h-8 md:h-9 w-auto mb-3 dark:hidden" />
-          <img src="/logo-dark.png" alt="SmartPrice" className="h-8 md:h-9 w-auto mb-3 hidden dark:block" />
+          <div className="logo-login-sp mb-3">
+            <img src="/logo-light.png" alt="SmartPrice" className="h-8 md:h-9 w-auto dark:hidden" />
+            <img src="/logo-dark.png" alt="SmartPrice" className="h-8 md:h-9 w-auto hidden dark:block" />
+          </div>
           <p className="text-zinc-500 text-sm font-medium mt-1 uppercase tracking-widest">Acesso ao Sistema</p>
         </motion.div>
 
@@ -216,19 +218,26 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-tighter py-4 rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 group transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Atualizando Dados...
-                </>
-              ) : (
-                <>
-                  Acessar Sistema
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </>
+              className={cn(
+                "botao-animado-sp w-full bg-blue-600 text-white font-black uppercase tracking-tighter py-4 rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-3 transition-transform active:scale-95 disabled:cursor-not-allowed",
+                isLoading && "carregando"
               )}
+            >
+              <span className="botao-animado-sp-ponto" />
+              <span className="botao-animado-sp-texto">Acessar Sistema</span>
+              <span className="botao-animado-sp-hover">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Atualizando Dados...
+                  </>
+                ) : (
+                  <>
+                    Acessar Sistema
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </span>
             </button>
           </form>
         </motion.div>
