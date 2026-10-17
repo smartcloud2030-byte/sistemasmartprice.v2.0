@@ -5,7 +5,6 @@ import { cn } from '../lib/utils';
 import NotaFiscalHistorico from './NotaFiscalHistorico';
 import { getSocket } from '../hooks/useSupportSocket';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 function useMonitoringOverview() {
   const [data, setData] = useState<any>(null);
@@ -14,7 +13,7 @@ function useMonitoringOverview() {
   useEffect(() => {
     const fetchOverview = async () => {
       try {
-        const res = await fetch('/api/monitoring/overview', { headers: { 'x-api-token': API_SECRET } });
+        const res = await fetch('/api/monitoring/overview');
         if (!res.ok) throw new Error(`status ${res.status}`);
         const json = await res.json();
         setData(json);

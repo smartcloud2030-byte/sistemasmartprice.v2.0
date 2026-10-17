@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { cn, isStoreOnline } from '../lib/utils';
 import { useSupportSocket } from '../hooks/useSupportSocket';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET;
 
 export default function UserManagement() {
   const {
@@ -49,7 +48,7 @@ export default function UserManagement() {
     try {
       const res = await fetch('/api/payments/subscription', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cnpj, name: form.name, cpfCnpj: form.cpfCnpj, value: Number(form.value), dueDay: Number(form.dueDay) }),
       });
       const data = await res.json();
@@ -74,7 +73,7 @@ export default function UserManagement() {
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: subAuthUsername.trim(), password: subAuthPassword }),
       });
       const data = await res.json();

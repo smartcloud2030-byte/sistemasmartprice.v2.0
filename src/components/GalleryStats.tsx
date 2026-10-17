@@ -15,9 +15,7 @@ const GalleryStats: React.FC = () => {
   const fetchStats = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/gallery/stats', {
-        headers: { 'x-api-token': 'smartprice-api-2026' }
-      });
+      const res = await fetch('/api/gallery/stats');
       const data = await res.json();
       setStats(data);
     } catch (e) {

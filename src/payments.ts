@@ -7,6 +7,8 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import type { Server } from 'socket.io';
+import { exigirAdmin, podeMexerNoCnpj } from './lib/sessao';
+import { exigirSessaoValida } from './lib/acessoLojas';
 
 const router = Router();
 
@@ -25,11 +27,8 @@ export function setPaymentsSocketServer(server: Server) {
   io = server;
 }
 
-function apiAuth(req: Request, res: Response, next: Function) {
-  const token = req.headers['x-api-token'];
-  if (token === process.env.API_SECRET) return next();
-  res.status(401).json({ error: 'Não autorizado' });
-}
+// Só admin logado (sessão em cookie) ou script da própria VPS — ver src/lib/sessao.ts.
+const apiAuth = exigirAdmin;
 
 // ── Cliente Asaas ──────────────────────────
 const ASAAS_ENV = process.env.ASAAS_ENV || 'sandbox';
@@ -140,8 +139,11 @@ router.post('/subscription', apiAuth, async (req: Request, res: Response) => {
 });
 
 // ── Buscar/gerar cobrança pendente pra tela de bloqueio ──────────
-router.get('/charge/:cnpj', async (req: Request, res: Response) => {
+// Loja só vê/gera a cobrança dela mesma (antes era aberto: qualquer um com
+// um CNPJ cadastrado via a cobrança e gerava cobrança avulsa no Asaas).
+router.get('/charge/:cnpj', exigirSessaoValida(), async (req: Request, res: Response) => {
   const nc = normalizeCnpj(req.params.cnpj);
+  if (!podeMexerNoCnpj(req.sessao, nc)) return res.status(403).json({ error: 'Sem permissão.' });
   try {
     const flags = await readUsersAndFlags();
     const store = (flags.allowedStores || []).find((s: any) => normalizeCnpj(s.cnpj) === nc);

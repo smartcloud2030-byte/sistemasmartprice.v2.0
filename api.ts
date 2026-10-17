@@ -2,10 +2,19 @@
 // api.ts — API própria SmartPrice
 // Substitui todas as chamadas ao Supabase
 // ─────────────────────────────────────────
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import os from 'os';
 import fs from 'fs';
+import dns from 'dns/promises';
+import net from 'net';
+import {
+  conferirSenha, ehHashDeSenha, emitirSessao, exigirAdmin, gerarHashDeSenha, limitarTentativas, limparSessao,
+  podeMexerNoCnpj, sessaoDaRequisicao, DURACAO_ADMIN_MS, DURACAO_LOJA_MS,
+} from './src/lib/sessao';
+import {
+  acharLoja, exigirPermissao, exigirSessaoValida, invalidarCacheLojas, soDigitos, validarEntradaDaLoja, type LojaCadastro,
+} from './src/lib/acessoLojas';
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
@@ -29,18 +38,65 @@ export function setSocketServer(server: Server) {
   io = server;
 }
 
-// ── Middleware de autenticação da API ─────
-function apiAuth(req: Request, res: Response, next: Function) {
-  const token = req.headers['x-api-token'];
-  if (token === process.env.API_SECRET) return next();
-  res.status(401).json({ error: 'Não autorizado' });
-}
+// ── Sessão (cookie httpOnly assinado) ─────
+// Ver src/lib/sessao.ts. O token fixo que ia no bundle do navegador não abre
+// mais nada: só vale pra script rodando dentro da VPS.
+const limitarLoginAdmin = limitarTentativas({ nome: 'login-admin', janelaMs: 15 * 60 * 1000, max: 10, maxGeral: 60 });
+const limitarLoginLoja = limitarTentativas({ nome: 'login-loja', janelaMs: 15 * 60 * 1000, max: 40 });
+
+router.get('/sessao', (req: Request, res: Response) => {
+  const s = sessaoDaRequisicao(req);
+  if (!s) return res.status(401).json({ error: 'Sem sessão' });
+  res.json({ papel: s.papel, usuario: s.usuario, cnpj: s.cnpj || null });
+});
+
+router.post('/sessao/sair', (_req: Request, res: Response) => {
+  limparSessao(res);
+  res.json({ success: true });
+});
+
+// Bandeira do CNPJ, pra preencher o campo na tela de Login (antes a tela
+// baixava o cadastro inteiro de lojas sem login nenhum).
+router.get('/sessao/loja/bandeira', limitarLoginLoja, async (req: Request, res: Response) => {
+  try {
+    const loja = await acharLoja(String(req.query.cnpj || ''));
+    if (!loja || loja.isSuspended) return res.status(404).json({ bandeira: null });
+    res.json({ bandeira: loja.bandeira || null });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Erro ao consultar o CNPJ.' });
+  }
+});
+
+// Login de loja (CNPJ + usuário). As regras que a tela aplicava agora valem
+// no servidor também.
+router.post('/sessao/loja', limitarLoginLoja, async (req: Request, res: Response) => {
+  try {
+    const cnpj = soDigitos(req.body?.cnpj);
+    const usuario = String(req.body?.username || '').trim().slice(0, 80);
+    if (!cnpj || !usuario) return res.status(400).json({ error: 'Por favor, preencha todos os campos.' });
+    const atual = sessaoDaRequisicao(req);
+    // Mesma loja renovando a sessão (F5, cookie vencido): não conta no limite
+    // de acessos simultâneos, ela já está ocupando a vaga dela.
+    const renovando = atual?.papel === 'loja' && atual.cnpj === cnpj;
+    const resultado = renovando
+      ? await acharLoja(cnpj).then((loja) =>
+          loja && !loja.isSuspended
+            ? ({ ok: true as const, loja })
+            : ({ ok: false as const, erro: 'Este CNPJ não está autorizado a acessar o sistema.' }),
+        )
+      : await validarEntradaDaLoja(cnpj);
+    if ('erro' in resultado) return res.status(403).json({ error: resultado.erro });
+    emitirSessao(req, res, { papel: 'loja', usuario, cnpj }, DURACAO_LOJA_MS);
+    res.json({ success: true, bandeira: resultado.loja.bandeira || '' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Erro ao acessar o sistema. Tente novamente.' });
+  }
+});
 
 // ── Login administrativo ──────────────────
-// As senhas ficam só aqui no servidor (nunca no bundle enviado ao navegador).
-// Valores abaixo são só a semente inicial (usados se ainda não houver nada
-// salvo em settings.admin_credentials); depois de trocado pelo painel, quem
-// vale é o que está no banco.
+// As senhas ficam só no servidor, com hash scrypt. Senha antiga em texto puro
+// (de antes do hash) é convertida sozinha no primeiro login certo.
+// DEFAULT_ADMIN_CREDENTIALS só vale enquanto não houver nada salvo no banco.
 const DEFAULT_ADMIN_CREDENTIALS: Record<string, string> = {
   daylon: process.env.ADMIN_PASSWORD_DAYLON || '8814',
   jh: process.env.ADMIN_PASSWORD_JH || '1993',
@@ -60,22 +116,26 @@ async function saveAdminCredentials(credentials: Record<string, string>) {
   );
 }
 
-router.post('/admin/login', apiAuth, async (req: Request, res: Response) => {
+router.post('/admin/login', limitarLoginAdmin, async (req: Request, res: Response) => {
   try {
     const username = String(req.body?.username || '').toLowerCase();
     const password = String(req.body?.password || '');
     const credentials = await getAdminCredentials();
-    if (credentials[username] && password === credentials[username]) {
-      return res.json({ success: true });
+    const guardado = Object.prototype.hasOwnProperty.call(credentials, username) ? credentials[username] : undefined;
+    if (!conferirSenha(password, guardado)) return res.status(401).json({ success: false });
+    if (!ehHashDeSenha(guardado as string)) {
+      credentials[username] = gerarHashDeSenha(password);
+      await saveAdminCredentials(credentials).catch((err) => console.error('Falha ao gravar hash da senha do admin:', err));
     }
-    res.status(401).json({ success: false });
+    emitirSessao(req, res, { papel: 'admin', usuario: username }, DURACAO_ADMIN_MS);
+    res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erro ao entrar.' });
   }
 });
 
 // Troca usuário/senha do próprio admin logado (exige a senha atual)
-router.post('/admin/credentials', apiAuth, async (req: Request, res: Response) => {
+router.post('/admin/credentials', exigirAdmin, limitarLoginAdmin, async (req: Request, res: Response) => {
   try {
     const currentUsername = String(req.body?.currentUsername || '').toLowerCase();
     const currentPassword = String(req.body?.currentPassword || '');
@@ -85,9 +145,13 @@ router.post('/admin/credentials', apiAuth, async (req: Request, res: Response) =
     if (!newUsername || !newPassword) {
       return res.status(400).json({ error: 'Informe o novo usuário e a nova senha.' });
     }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 6 caracteres.' });
+    }
 
     const credentials = await getAdminCredentials();
-    if (!credentials[currentUsername] || credentials[currentUsername] !== currentPassword) {
+    const guardado = Object.prototype.hasOwnProperty.call(credentials, currentUsername) ? credentials[currentUsername] : undefined;
+    if (!conferirSenha(currentPassword, guardado)) {
       return res.status(401).json({ error: 'Senha atual incorreta.' });
     }
     if (newUsername !== currentUsername && credentials[newUsername]) {
@@ -95,21 +159,101 @@ router.post('/admin/credentials', apiAuth, async (req: Request, res: Response) =
     }
 
     delete credentials[currentUsername];
-    credentials[newUsername] = newPassword;
+    credentials[newUsername] = gerarHashDeSenha(newPassword);
     await saveAdminCredentials(credentials);
+    emitirSessao(req, res, { papel: 'admin', usuario: newUsername }, DURACAO_ADMIN_MS);
 
     res.json({ success: true, username: newUsername });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erro ao alterar credenciais.' });
   }
 });
+
+// ── Settings: o que cada um pode ler/gravar ──
+// Antes GET /settings/:id era aberto pra internet inteira — inclusive a
+// senha do admin (admin_credentials) e o cadastro de todas as lojas.
+const SETTINGS_PUBLICAS = new Set(['current_layout']);
+const SETTINGS_PROIBIDAS = new Set(['admin_credentials']);
+
+// Loja só enxerga o que é dela: chaves "mapa por CNPJ" voltam só com a
+// entrada da própria loja.
+const SETTINGS_POR_CNPJ_LOJA = new Set(['saved_plaquinhas', 'activity_status', 'encarte_historico', 'encarte_rascunho']);
+
+function settingParaLoja(id: string, valor: any, cnpj: string, loja: LojaCadastro | undefined): { ok: true; valor: any } | { ok: false } {
+  if (SETTINGS_POR_CNPJ_LOJA.has(id)) {
+    const proprio = valor && typeof valor === 'object' ? valor[cnpj] : undefined;
+    return { ok: true, valor: proprio === undefined ? {} : { [cnpj]: proprio } };
+  }
+  if (id === 'users_and_flags') {
+    const v = valor || {};
+    const lojas = Array.isArray(v.allowedStores) ? v.allowedStores : [];
+    return {
+      ok: true,
+      valor: {
+        allowedStores: lojas.filter((s: any) => soDigitos(s?.cnpj) === cnpj),
+        flags: v.flags,
+        userGroups: v.userGroups,
+        announcements: v.announcements,
+        seenAnnouncements: v.seenAnnouncements,
+        isChatEnabled: v.isChatEnabled,
+      },
+    };
+  }
+  if (id === 'encarte_galeria_visibilidade') return { ok: true, valor };
+  if (id === `encarte_historico_${cnpj}` || id === `encarte_rascunho_${cnpj}`) return { ok: true, valor };
+  if (id === 'cosmos_usage_daily' && loja?.hasProductManagementAccess) return { ok: true, valor };
+  return { ok: false };
+}
+
+async function autorizarGravacaoSettings(req: Request, res: Response, next: NextFunction) {
+  const id = req.params.id;
+  if (SETTINGS_PROIBIDAS.has(id)) return res.status(403).json({ error: 'Sem permissão.' });
+  const s = req.sessao!;
+  if (s.papel === 'admin') {
+    if (id === 'users_and_flags') invalidarCacheLojas();
+    return next();
+  }
+  const cnpj = s.cnpj || '';
+  const loja = (req as any).loja as LojaCadastro | undefined;
+
+  // Encarte Online da própria loja (lista salva e rascunho)
+  if ((id === `encarte_historico_${cnpj}` || id === `encarte_rascunho_${cnpj}`) && loja?.hasEncarteAccess) return next();
+
+  // Plaquinhas salvas: o blob guarda todas as lojas juntas. A loja manda o
+  // mapa dela e o servidor troca só a entrada do CNPJ dela, dentro de
+  // transação — uma loja não consegue apagar nem ler as das outras.
+  if (id === 'saved_plaquinhas') {
+    const lista = req.body?.value?.[cnpj];
+    if (!Array.isArray(lista)) return res.status(400).json({ error: 'Formato inválido.' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const atual = await client.query(`SELECT value FROM settings WHERE id = 'saved_plaquinhas' FOR UPDATE`);
+      const tudo = atual.rows[0]?.value && typeof atual.rows[0].value === 'object' ? atual.rows[0].value : {};
+      tudo[cnpj] = lista;
+      await client.query(
+        `INSERT INTO settings (id, value, updated_at) VALUES ('saved_plaquinhas', $1, NOW())
+         ON CONFLICT (id) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(tudo)],
+      );
+      await client.query('COMMIT');
+      return res.json({ value: { [cnpj]: lista } });
+    } catch (err: any) {
+      await client.query('ROLLBACK').catch(() => {});
+      return res.status(500).json({ error: 'Erro ao salvar.' });
+    } finally {
+      client.release();
+    }
+  }
+  return res.status(403).json({ error: 'Sem permissão.' });
+}
 
 // ═══════════════════════════════════════════
 // PRODUCTS
 // ═══════════════════════════════════════════
 
 // Listar produtos
-router.get('/products', async (req: Request, res: Response) => {
+router.get('/products', exigirSessaoValida(), async (req: Request, res: Response) => {
   try {
     const { search, category, limit = 1000, offset = 0 } = req.query;
     let query = 'SELECT * FROM products WHERE 1=1';
@@ -143,7 +287,7 @@ router.get('/products', async (req: Request, res: Response) => {
 });
 
 // Contar produtos
-router.get('/products/count', async (_req: Request, res: Response) => {
+router.get('/products/count', exigirSessaoValida(), async (_req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT COUNT(*) FROM products');
     res.json({ count: parseInt(result.rows[0].count) });
@@ -266,7 +410,7 @@ function gravarCacheCosmos(gtin: string, encontrado: boolean, resposta: any) {
     .catch((err) => console.error('Falha ao gravar cache da Cosmos:', err));
 }
 
-router.get('/barcode-lookup/:gtin', apiAuth, async (req: Request, res: Response) => {
+router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
   const token = process.env.COSMOS_API_TOKEN;
   if (!token) return res.status(501).json({ error: 'COSMOS_API_TOKEN não configurado no servidor' });
 
@@ -366,7 +510,53 @@ function hostBloqueado(host: string): boolean {
   return false;
 }
 
-router.get('/encarte/image-search', apiAuth, async (req: Request, res: Response) => {
+/** IP privado/interno (v4 ou v6) — destino proibido pro proxy. */
+function ipInterno(ip: string): boolean {
+  const v = ip.replace(/^::ffff:/i, '');
+  if (net.isIPv4(v)) {
+    const [a, b] = v.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  const h = v.toLowerCase();
+  return h === '::' || h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80');
+}
+
+/**
+ * Baixa a imagem conferindo o destino a cada salto: o nome tem que resolver
+ * só pra IP público (senão um domínio apontando pra 127.0.0.1 ou um
+ * redirecionamento levava o servidor a acessar a rede interna — SSRF).
+ */
+async function buscarImagemExterna(inicial: URL): Promise<globalThis.Response | null> {
+  let atual = inicial;
+  for (let salto = 0; salto < 4; salto++) {
+    if (atual.protocol !== 'https:' || hostBloqueado(atual.hostname)) return null;
+    const host = atual.hostname.replace(/^\[|\]$/g, '');
+    const ips = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true }).catch(() => [])).map((x) => x.address);
+    if (!ips.length || ips.some(ipInterno)) return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const r = await fetch(atual.toString(), {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'SmartPrice/encarte (+https://sistemasmartprice.com.br)' },
+      });
+      if (r.status >= 300 && r.status < 400) {
+        const destino = r.headers.get('location');
+        if (!destino) return null;
+        atual = new URL(destino, atual);
+        continue;
+      }
+      return r;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return null;
+}
+
+router.get('/encarte/image-search', exigirSessaoValida(), exigirPermissao('hasEncarteAccess'), async (req: Request, res: Response) => {
   const key = process.env.GOOGLE_CSE_KEY;
   const cx = process.env.GOOGLE_CSE_ID;
   if (!key || !cx) return res.status(501).json({ error: 'GOOGLE_CSE_KEY / GOOGLE_CSE_ID não configurados no servidor' });
@@ -425,7 +615,7 @@ router.get('/encarte/image-search', apiAuth, async (req: Request, res: Response)
 
 // Proxy de imagem externa — <img crossOrigin=anonymous> só carrega same-origin
 // sem sujar o canvas; por isso a imagem escolhida passa por aqui.
-router.get('/encarte/image-proxy', async (req: Request, res: Response) => {
+router.get('/encarte/image-proxy', exigirSessaoValida(), async (req: Request, res: Response) => {
   const raw = typeof req.query.url === 'string' ? req.query.url : '';
   let alvo: URL;
   try {
@@ -436,18 +626,13 @@ router.get('/encarte/image-proxy', async (req: Request, res: Response) => {
   if (alvo.protocol !== 'https:' || hostBloqueado(alvo.hostname)) return res.status(400).end();
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const r = await fetch(alvo.toString(), {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: { 'User-Agent': 'SmartPrice/encarte (+https://sistemasmartprice.com.br)' },
-    });
-    clearTimeout(timeout);
+    const r = await buscarImagemExterna(alvo);
+    if (!r) return res.status(400).end();
     if (!r.ok) return res.status(r.status).end();
 
     const ct = r.headers.get('content-type') || '';
-    if (!ct.startsWith('image/')) return res.status(415).end();
+    // SVG pode carregar script — servido pelo nosso domínio vira XSS.
+    if (!ct.startsWith('image/') || ct.includes('svg')) return res.status(415).end();
     const buf = Buffer.from(await r.arrayBuffer());
     if (buf.length > 8 * 1024 * 1024) return res.status(413).end();
 
@@ -460,7 +645,7 @@ router.get('/encarte/image-proxy', async (req: Request, res: Response) => {
 });
 
 // Buscar produto por ID
-router.get('/products/:id', async (req: Request, res: Response) => {
+router.get('/products/:id', exigirSessaoValida(), async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
@@ -471,7 +656,7 @@ router.get('/products/:id', async (req: Request, res: Response) => {
 });
 
 // Criar produto
-router.post('/products', apiAuth, async (req: Request, res: Response) => {
+router.post('/products', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
   try {
     const { name, description, price, image, thumb_image, category, subtitle, barcode, barcode2 } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
@@ -488,7 +673,7 @@ router.post('/products', apiAuth, async (req: Request, res: Response) => {
 });
 
 // Criar vários produtos (bulk)
-router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
+router.post('/products/bulk', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) return res.status(400).json({ error: 'Formato inválido' });
@@ -521,7 +706,7 @@ router.post('/products/bulk', apiAuth, async (req: Request, res: Response) => {
 // Atualizar varios produtos de uma vez, por id (usado pelo import de
 // planilha) — precisa vir ANTES de PUT /products/:id, senao o Express
 // tentaria casar "/products/bulk" com a rota :id.
-router.put('/products/bulk', apiAuth, async (req: Request, res: Response) => {
+router.put('/products/bulk', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
   try {
     const updates = req.body;
     if (!Array.isArray(updates)) return res.status(400).json({ error: 'Formato inválido' });
@@ -555,7 +740,7 @@ router.put('/products/bulk', apiAuth, async (req: Request, res: Response) => {
 });
 
 // Atualizar produto
-router.put('/products/:id', apiAuth, async (req: Request, res: Response) => {
+router.put('/products/:id', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
   try {
     const { name, description, subtitle, price, image, thumb_image, category, barcode, barcode2 } = req.body;
     const result = await pool.query(
@@ -571,7 +756,7 @@ router.put('/products/:id', apiAuth, async (req: Request, res: Response) => {
 });
 
 // Deletar produto
-router.delete('/products/:id', apiAuth, async (req: Request, res: Response) => {
+router.delete('/products/:id', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
   try {
     await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -585,13 +770,24 @@ router.delete('/products/:id', apiAuth, async (req: Request, res: Response) => {
 // ═══════════════════════════════════════════
 
 // Buscar setting por ID
-router.get('/settings/:id', async (req: Request, res: Response) => {
+router.get('/settings/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const id = req.params.id;
+  if (SETTINGS_PROIBIDAS.has(id)) return res.status(403).json({ error: 'Sem permissão.' });
+  if (SETTINGS_PUBLICAS.has(id)) return next();
+  exigirSessaoValida()(req, res, next);
+}, async (req: Request, res: Response) => {
   try {
-    const result = await pool.query('SELECT * FROM settings WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.json({ value: null });
-    res.json({ value: result.rows[0].value });
+    const id = req.params.id;
+    const result = await pool.query('SELECT * FROM settings WHERE id = $1', [id]);
+    const valor = result.rows.length === 0 ? null : result.rows[0].value;
+    if (req.sessao?.papel === 'loja') {
+      const filtrado = settingParaLoja(id, valor, req.sessao.cnpj || '', (req as any).loja);
+      if (!filtrado.ok) return res.status(403).json({ error: 'Sem permissão.' });
+      return res.json({ value: valor === null ? null : filtrado.valor });
+    }
+    res.json({ value: valor });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erro ao ler configuração.' });
   }
 });
 
@@ -604,7 +800,7 @@ router.get('/settings/:id', async (req: Request, res: Response) => {
 // `encarte_historico_lixeira` (últimos 200), pra dar pra desfazer.
 const ehListaEncartes = (id: string) => id.startsWith('encarte_historico_') && !id.includes('__') && id !== 'encarte_historico_lixeira';
 
-router.post('/settings/:id', apiAuth, async (req: Request, res: Response, next) => {
+router.post('/settings/:id', exigirSessaoValida(), autorizarGravacaoSettings, async (req: Request, res: Response, next) => {
   if (!ehListaEncartes(req.params.id)) return next();
   const { value, removidos } = req.body as { value: unknown; removidos?: unknown };
   if (!Array.isArray(value)) return res.status(400).json({ error: 'Lista de encartes inválida.' });
@@ -650,7 +846,7 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response, next) 
 });
 
 // Salvar setting (upsert)
-router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
+router.post('/settings/:id', async (req: Request, res: Response) => {
   try {
     const { value } = req.body;
     const result = await pool.query(
@@ -674,9 +870,10 @@ router.post('/settings/:id', apiAuth, async (req: Request, res: Response) => {
 // ═══════════════════════════════════════════
 
 // Atualizar status online
-router.post('/activity/:cnpj', async (req: Request, res: Response) => {
+router.post('/activity/:cnpj', exigirSessaoValida(), async (req: Request, res: Response) => {
   try {
-    const { cnpj } = req.params;
+    const cnpj = soDigitos(req.params.cnpj);
+    if (!podeMexerNoCnpj(req.sessao, cnpj)) return res.status(403).json({ error: 'Sem permissão.' });
     const { isOnline, lastUsername } = req.body;
 
     const current = await pool.query('SELECT value FROM settings WHERE id = $1', ['activity_status']);
@@ -717,7 +914,7 @@ router.get('/health', async (_req: Request, res: Response) => {
 // ═══════════════════════════════════════════
 // SYSTEM STATS (disco, memória, CPU, galeria)
 // ═══════════════════════════════════════════
-router.get('/system/stats', apiAuth, async (_req: Request, res: Response) => {
+router.get('/system/stats', exigirAdmin, async (_req: Request, res: Response) => {
   // Galeria (MinIO): soma o tamanho de todos os objetos do bucket
   const galleryStats = await new Promise<{ usedBytes: number; fileCount: number }>((resolve) => {
     let usedBytes = 0;
@@ -817,7 +1014,7 @@ function buildDayHistory(incidents: any[], days: number): { date: string; hasInc
   return result;
 }
 
-router.get('/tef-status', apiAuth, async (_req: Request, res: Response) => {
+router.get('/tef-status', exigirAdmin, async (_req: Request, res: Response) => {
   if (tefStatusCache && Date.now() - tefStatusCache.fetchedAt < TEF_CACHE_MS) {
     return res.json(tefStatusCache.data);
   }

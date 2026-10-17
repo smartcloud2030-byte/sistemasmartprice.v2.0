@@ -4,8 +4,7 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { baixarComprovanteNotaFiscalPdf } from '../lib/notaFiscalPdf';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
-const AUTH_HEADERS = { 'x-api-token': API_SECRET, 'Content-Type': 'application/json' };
+const AUTH_HEADERS = { 'Content-Type': 'application/json' };
 
 interface NotaHistorico {
   id: number;

@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────
 // despesasViagemApi.ts — cliente tipado do /api/despesas-viagem.
-// Só I/O: fetch + header x-api-token, mesmo esquema do resto do front
+// Só I/O: fetch com o cookie de sessão, mesmo esquema do resto do front
 // (ProductReport.handleConfirmImport). Sem estado, sem React.
 // ─────────────────────────────────────────
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 const BASE = '/api/despesas-viagem';
 
 export interface ViagemRow {
@@ -77,7 +76,6 @@ async function req<T>(path: string, method: string, body?: unknown): Promise<T> 
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      'x-api-token': API_SECRET,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -120,12 +118,11 @@ export const extrairReciboApi = (imagemBase64: string, mediaType: string, dica?:
   req<ReciboExtraido>('/extrair', 'POST', { imagemBase64, mediaType, dica });
 
 // Relatório (PDF/Excel) — resposta binária, não JSON; baixa como blob e
-// dispara o download do navegador (endpoint exige x-api-token, não dá pra
+// dispara o download do navegador (endpoint exige sessão, não dá pra
 // usar um <a href> puro).
 export async function baixarRelatorio(viagemId: string, formato: 'pdf' | 'xlsx'): Promise<void> {
   const res = await fetch(`${BASE}/viagens/${viagemId}/relatorio?formato=${formato}`, {
     method: 'POST',
-    headers: { 'x-api-token': API_SECRET },
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);

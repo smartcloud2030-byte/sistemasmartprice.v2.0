@@ -6,8 +6,6 @@ import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCi
 import { isValidImageUrl, getProxyUrl, cn } from '../lib/utils';
 import { toast } from 'sonner';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
-const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
 
 const CATEGORY_FOLDER: Record<string, string> = {
   'MEDICAMENTO': 'medicamento', 'PERFUMARIA': 'perfumaria', 'INFANTIL': 'infantil',
@@ -62,7 +60,6 @@ async function uploadToMinio(file: File, category: string, productName: string, 
   formData.append('removeBg', removeBg ? 'true' : 'false');
   const res = await fetch(`/gallery/upload-nobg2/${folder}`, {
     method: 'POST',
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
     body: formData,
   });
   if (!res.ok) {
@@ -79,7 +76,7 @@ async function apagarImagemGaleria(imageUrl: string | null | undefined) {
   try {
     const url = new URL(imageUrl);
     const objectPath = url.pathname.split('/').filter(Boolean).slice(1).join('/');
-    await fetch(`/gallery/delete/${objectPath}`, { method: 'DELETE', headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+    await fetch(`/gallery/delete/${objectPath}`, { method: 'DELETE' });
   } catch {}
 }
 
@@ -140,7 +137,7 @@ const ProductManager = () => {
 
   const fetchCosmosUsage = async () => {
     try {
-      const res = await fetch('/api/settings/cosmos_usage_daily', { headers: { 'x-api-token': API_SECRET } });
+      const res = await fetch('/api/settings/cosmos_usage_daily');
       const json = await res.json();
       setCosmosUsage(json?.value || null);
     } catch {
@@ -165,7 +162,7 @@ const ProductManager = () => {
       const userQuery = currentUser
         ? `?username=${encodeURIComponent(currentUser.username)}&cnpj=${encodeURIComponent(currentUser.cnpj)}&bandeira=${encodeURIComponent(currentUser.bandeira)}`
         : '';
-      const res = await fetch(`/api/barcode-lookup/${code}${userQuery}`, { headers: { 'x-api-token': API_SECRET } });
+      const res = await fetch(`/api/barcode-lookup/${code}${userQuery}`);
       if (res.status === 404) { toast.error('Produto não encontrado na base de dados.'); return; }
       if (!res.ok) { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Falha ao buscar produto.'); return; }
       const data = await res.json();
@@ -238,7 +235,7 @@ const ProductManager = () => {
   const apiCall = async (method: string, path: string, body?: unknown) => {
     const res = await fetch(`/api${path}`, {
       method,
-      headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+      headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) throw new Error(`${method} ${path} falhou: ${res.status}`);
@@ -251,7 +248,7 @@ const ProductManager = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/gallery/categories', { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      const res = await fetch('/gallery/categories');
       const data = await res.json();
       const filtered = Array.isArray(data) ? data.filter((c: string) => !c.toLowerCase().startsWith('layout')) : [];
       setCategories(filtered);
@@ -612,7 +609,7 @@ const ProductManager = () => {
                             onClick={async () => {
                               if (!newCategory.trim()) return;
                               const folder = newCategory.trim().toLowerCase().replace(/\s+/g, '-');
-                              try { await fetch('/gallery/categories', { method: 'POST', headers: { 'x-gallery-token': GALLERY_PASSWORD, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: folder }) }); } catch {}
+                              try { await fetch('/gallery/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: folder }) }); } catch {}
                               await fetchCategories();
                               setFormData({ ...formData, category: folder });
                               setNewCategory(''); setShowNewCategory(false);

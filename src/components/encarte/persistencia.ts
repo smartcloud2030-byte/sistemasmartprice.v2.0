@@ -3,12 +3,10 @@ import { LadoEncarte } from './encarteProduto';
 // Mesmo padrão de /api/settings/:id usado em outras partes do app (ex.:
 // savedPlaquinhas no store.ts): um blob JSON só, indexado por cnpj — sem
 // endpoint novo no servidor, só uma chave nova dentro de `settings`.
-const API_SECRET =
-  (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_SECRET || 'smartprice-api-2026';
 const API_BASE = '/api';
 
 async function apiGet(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { 'x-api-token': API_SECRET } });
+  const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -16,7 +14,7 @@ async function apiGet(path: string) {
 async function apiPost(path: string, body: unknown) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -267,7 +265,7 @@ export function salvarRascunhoKeepalive(cnpj: string, rascunho: RascunhoSemData)
   try {
     fetch(`${API_BASE}${chaveServidor(cnpj)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: comData(rascunho) }),
       keepalive: true,
     }).catch(() => {});

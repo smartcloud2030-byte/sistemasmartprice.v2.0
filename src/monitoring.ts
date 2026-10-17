@@ -8,6 +8,7 @@ import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import type { Server } from 'socket.io';
 import { evaluateAlertState, alertStateLabel, MonitoringThresholds } from './lib/monitoringStatus';
+import { exigirAdmin } from './lib/sessao';
 
 const router = Router();
 
@@ -19,11 +20,8 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || '',
 });
 
-function apiAuth(req: Request, res: Response, next: Function) {
-  const token = req.headers['x-api-token'];
-  if (token === process.env.API_SECRET) return next();
-  res.status(401).json({ error: 'Não autorizado' });
-}
+// Só admin logado (sessão em cookie) ou script da própria VPS — ver src/lib/sessao.ts.
+const apiAuth = exigirAdmin;
 
 export async function ensureMonitoringSchema() {
   await pool.query(`

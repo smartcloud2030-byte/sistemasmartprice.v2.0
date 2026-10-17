@@ -1,14 +1,20 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import {defineConfig} from 'vite';
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
+export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+    // Nada de segredo no bundle: o front fala com a API por sessão (cookie).
+    // Sem source map em produção e sem comentários de licença/debugger —
+    // o código que vai pro navegador sai minificado e sem o fonte original.
+    build: {
+      sourcemap: false,
+    },
+    esbuild: {
+      legalComments: 'none' as const,
+      drop: ['debugger' as const],
     },
     resolve: {
       alias: {

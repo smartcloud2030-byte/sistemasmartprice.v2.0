@@ -5,7 +5,6 @@ import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
 import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
 
-const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
 
 function slugifyCategory(value: string): string {
   return value
@@ -20,7 +19,6 @@ async function uploadBackgroundImage(file: File, category: string): Promise<{ ur
   formData.append('image', file);
   const res = await fetch(`/gallery/upload/${category}`, {
     method: 'POST',
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
     body: formData,
   });
   if (!res.ok) {
@@ -308,7 +306,7 @@ const Adjustments = () => {
 
   React.useEffect(() => {
     if (userRole !== 'admin') return;
-    fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': GALLERY_PASSWORD } })
+    fetch('/gallery/categories?all=1')
       .then((r) => r.json())
       .then((list) => Array.isArray(list) && setGalleryFolders(list.filter((f: string) => f.toLowerCase().startsWith('layout'))))
       .catch(() => {});
@@ -388,7 +386,7 @@ const Adjustments = () => {
     const path = extractGalleryPath(background.url);
     try {
       if (path) {
-        await fetch(`/gallery/delete/${path}`, { method: 'DELETE', headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+        await fetch(`/gallery/delete/${path}`, { method: 'DELETE' });
       }
     } catch {
       toast.error('Falha ao remover a imagem da galeria, mas as informações foram limpas.');

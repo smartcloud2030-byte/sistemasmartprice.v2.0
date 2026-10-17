@@ -5,7 +5,6 @@ import { Download, Upload, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { findImportConflicts, ReportRow, ReportConflict } from '../lib/productReportConflicts';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 const COLUMNS = ['ID', 'Nome do Produto', 'Código de Barras 1', 'Código de Barras 2', 'Preço', 'Categoria', 'Descrição'];
 
@@ -129,7 +128,7 @@ export default function ProductReport() {
     try {
       const res = await fetch('/api/products/bulk', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pendingRows),
       });
       if (!res.ok) throw new Error(`PUT /products/bulk falhou: ${res.status}`);

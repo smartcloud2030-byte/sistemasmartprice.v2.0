@@ -3,7 +3,6 @@ import { HardDrive, MemoryStick, Cpu, RefreshCw, AlertTriangle } from 'lucide-re
 import { cn } from '../lib/utils';
 import { Gauge, CRITICAL_THRESHOLD, WARNING_THRESHOLD } from './ui/Gauge';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 interface SystemStatsResponse {
   gallery: { usedBytes: number; fileCount: number };
@@ -27,7 +26,7 @@ const SystemStats: React.FC = () => {
   const fetchStats = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/system/stats', { headers: { 'x-api-token': API_SECRET } });
+      const res = await fetch('/api/system/stats');
       const data = await res.json();
       setStats(data);
     } catch (e) {

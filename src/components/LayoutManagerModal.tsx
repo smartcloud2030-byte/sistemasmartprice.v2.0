@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, getProxyUrl } from '../lib/utils';
-import { GALLERY_PASSWORD, slugifyCategory, uploadBackgroundImage, deleteGalleryImage } from '../lib/gallery';
+import { slugifyCategory, uploadBackgroundImage, deleteGalleryImage } from '../lib/gallery';
 import CriarEstiloModal from './CriarEstiloModal';
 
 // Modal experimental ("Layout") que reúne, numa única tela: criação/edição de modelo
@@ -107,7 +107,7 @@ export default function LayoutManagerModal() {
     setGalleryImages([]);
     setIsLoadingGalleryFolders(true);
     try {
-      const res = await fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      const res = await fetch('/gallery/categories?all=1');
       const data = await res.json();
       const folders = Array.isArray(data) ? data.filter((f: string) => f.toLowerCase().startsWith('layout')) : [];
       setGalleryFolders(folders);
@@ -122,7 +122,7 @@ export default function LayoutManagerModal() {
     setSelectedGalleryFolder(folder);
     setIsLoadingGalleryImages(true);
     try {
-      const res = await fetch(`/gallery/list/${folder}`, { headers: { 'x-gallery-token': GALLERY_PASSWORD } });
+      const res = await fetch(`/gallery/list/${folder}`);
       const data = await res.json();
       setGalleryImages(Array.isArray(data) ? data : []);
     } catch {

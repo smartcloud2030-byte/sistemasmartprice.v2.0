@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { Building2, Flag, User, Lock, ArrowRight, Moon, Sun, Loader2 } from 'lucide-react';
-import { cn, isStoreOnline } from '../lib/utils';
+import { cn } from '../lib/utils';
+import { buscarBandeiraDoCnpj, entrarComoLoja } from '../lib/sessaoCliente';
 import { motion, useReducedMotion } from 'motion/react';
 
 // Curva de ease-out forte (cubic-bezier(0.23, 1, 0.32, 1)) — a padrão do CSS é fraca demais.
@@ -14,7 +15,7 @@ const entrance = (delay: number, reduceMotion: boolean | null) => ({
 });
 
 export default function Login() {
-  const { login, verifyAdminLogin, allowedStores, flags, theme, toggleTheme, maxConcurrentStores, cnpjUserLimits } = useStore();
+  const { login, verifyAdminLogin, flags, theme, toggleTheme } = useStore();
   const shouldReduceMotion = useReducedMotion();
   const [formData, setFormData] = useState({
     cnpj: '',
@@ -31,22 +32,21 @@ export default function Login() {
   // próprio admin), então não dá para detectar o modo pelo texto digitado.
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Auto-fill bandeira based on CNPJ
+  // Bandeira vem do servidor pelo CNPJ (a tela não baixa mais o cadastro de
+  // todas as lojas antes do login).
   useEffect(() => {
-    if (!isAdmin) {
-      const normalizedInputCnpj = formData.cnpj.replace(/[^\d]/g, '');
-      if (normalizedInputCnpj.length >= 14) { // Only check if it looks like a full CNPJ
-        const store = allowedStores.find(s => s.cnpj.replace(/[^\d]/g, '') === normalizedInputCnpj);
-        if (store && store.bandeira) {
-          setFormData(prev => ({ ...prev, bandeira: store.bandeira }));
-        } else {
-          setFormData(prev => ({ ...prev, bandeira: '' }));
-        }
-      } else if (normalizedInputCnpj.length === 0) {
-        setFormData(prev => ({ ...prev, bandeira: '' }));
-      }
+    if (isAdmin) return;
+    const normalizedInputCnpj = formData.cnpj.replace(/[^\d]/g, '');
+    if (normalizedInputCnpj.length < 14) {
+      if (normalizedInputCnpj.length === 0) setFormData(prev => ({ ...prev, bandeira: '' }));
+      return;
     }
-  }, [formData.cnpj, isAdmin, allowedStores]);
+    let cancelado = false;
+    buscarBandeiraDoCnpj(normalizedInputCnpj).then((bandeira) => {
+      if (!cancelado) setFormData(prev => ({ ...prev, bandeira: bandeira || '' }));
+    });
+    return () => { cancelado = true; };
+  }, [formData.cnpj, isAdmin]);
 
   useEffect(() => {
     const savedCnpj = localStorage.getItem('smartprice_last_cnpj');
@@ -74,64 +74,24 @@ export default function Login() {
           setIsLoading(false);
         }
       } else {
-        if (formData.cnpj && formData.bandeira && formData.username) {
-          // Normalize CNPJ for comparison
-          const normalizedInputCnpj = formData.cnpj.replace(/[^\d]/g, '');
-
-          // Check if CNPJ is allowed
-          const store = allowedStores.find(store => store.cnpj?.replace(/[^\d]/g, '') === normalizedInputCnpj);
-
-          if (store) {
-            if (store.isSuspended) {
-              setError('Este CNPJ está suspenso e não pode acessar o sistema.');
-              setIsLoading(false);
-              return;
-            }
-
-            // Limite global de CNPJs simultaneamente online (não conta o próprio
-            // CNPJ se ele já estiver online, ex.: reabrindo em outra aba).
-            // Ignora sessões "presas" (sem heartbeat há mais de 10 min) pra uma
-            // loja que fechou o navegador sem contato com o servidor não ocupar
-            // vaga do limite indefinidamente.
-            if (!store.isOnline && maxConcurrentStores !== null) {
-              const onlineCount = allowedStores.filter(isStoreOnline).length;
-              if (onlineCount >= maxConcurrentStores) {
-                setError(`Limite de ${maxConcurrentStores} acesso(s) simultâneo(s) do sistema atingido. Tente novamente mais tarde.`);
-                setIsLoading(false);
-                return;
-              }
-            }
-
-            // Limite de acesso simultâneo por CNPJ individual — só existe um
-            // online/offline por CNPJ (não um contador de sessões), então na
-            // prática só 0 (bloqueia) e 1 (uma sessão por vez) têm efeito.
-            // Ignora sessões "paradas" há mais de 10 min (sem heartbeat) para
-            // não travar quem esqueceu de sair do sistema em outro aparelho.
-            const cnpjLimit = cnpjUserLimits[normalizedInputCnpj];
-            if (cnpjLimit !== undefined) {
-              if ((isStoreOnline(store) ? 1 : 0) >= cnpjLimit) {
-                setError(
-                  cnpjLimit === 0
-                    ? 'Este CNPJ está bloqueado para acesso pelo administrador.'
-                    : `Este CNPJ já está em uso em outro dispositivo. Limite de ${cnpjLimit} acesso(s) simultâneo(s) atingido.`
-                );
-                setIsLoading(false);
-                return;
-              }
-            }
-
-            // Save last used CNPJ
-            localStorage.setItem('smartprice_last_cnpj', formData.cnpj);
-
-            await login('user', {
-              username: formData.username,
-              cnpj: formData.cnpj,
-              bandeira: formData.bandeira
-            });
-          } else {
-            setError('Este CNPJ não está autorizado a acessar o sistema.');
+        if (formData.cnpj && formData.username) {
+          // Autorização, suspensão e limites de acesso são conferidos no
+          // servidor, que só então abre a sessão (cookie).
+          const resultado = await entrarComoLoja(formData.cnpj, formData.username);
+          if ('erro' in resultado) {
+            setError(resultado.erro);
             setIsLoading(false);
+            return;
           }
+
+          // Save last used CNPJ
+          localStorage.setItem('smartprice_last_cnpj', formData.cnpj);
+
+          await login('user', {
+            username: formData.username,
+            cnpj: formData.cnpj,
+            bandeira: resultado.bandeira || formData.bandeira
+          });
         } else {
           setError('Por favor, preencha todos os campos.');
           setIsLoading(false);

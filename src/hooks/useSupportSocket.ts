@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useStore } from '../store';
 import { ligarNotificacoesSuporte, pedirPermissaoNotificacoes } from '../lib/notificacaoSuporte';
+import { renovarSessao } from '../lib/sessaoCliente';
 
 export interface Message {
   id: string;
@@ -25,6 +26,12 @@ let socket: Socket | null = null;
 // lidas soma +2 por mensagem. Guardamos os ids já tratados pra processar
 // cada mensagem uma vez só, não importa quantas instâncias do hook existam.
 const mensagensRecebidas = new Set<string>();
+
+// O servidor identifica quem é pelo cookie de sessão lido no handshake do
+// socket. Socket aberto antes do login (o App já usa o socket na tela de
+// Login) não tem sessão — então reconecta quando a pessoa logada muda.
+let identidadeDoSocket: string | null = null;
+let ultimaRenovacaoDoSocket = 0;
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -226,10 +233,28 @@ export function useSupportSocket() {
     s.on('session:force_logout', onForceLogout);
     s.on('session:force_reload', onForceReload);
 
-    if (s.connected) onConnect();
+    // Servidor recusou o user:join (sem sessão no handshake): renova a sessão
+    // e reconecta. No máximo uma vez a cada 30s, pra nunca virar loop.
+    const onSessaoInvalida = () => {
+      if (Date.now() - ultimaRenovacaoDoSocket < 30_000) return;
+      ultimaRenovacaoDoSocket = Date.now();
+      renovarSessao().then((ok) => {
+        if (ok) { s.disconnect(); s.connect(); }
+      });
+    };
+    s.on('sessao:invalida', onSessaoInvalida);
+
+    const identidade = `${userRole}:${currentUser.cnpj}:${currentUser.username}`;
+    if (identidadeDoSocket !== identidade) {
+      identidadeDoSocket = identidade;
+      if (s.connected) { s.disconnect(); s.connect(); }
+    } else if (s.connected) {
+      onConnect();
+    }
 
     return () => {
       s.off('connect', onConnect);
+      s.off('sessao:invalida', onSessaoInvalida);
       s.off('disconnect', onDisconnect);
       s.off('message:history', onHistory);
       s.off('conversation:list', onConversationList);

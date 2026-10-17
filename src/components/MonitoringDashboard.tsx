@@ -4,7 +4,6 @@ import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import { Gauge } from './ui/Gauge';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 interface MachineData {
   id: number;
@@ -361,7 +360,7 @@ function MachineHistoryPanel({ machine, onClose }: { machine: MachineData; onClo
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    fetch(`/api/monitoring/machines/${machine.id}/history?range=${range}`, { headers: { 'x-api-token': API_SECRET } })
+    fetch(`/api/monitoring/machines/${machine.id}/history?range=${range}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Falha ao carregar histórico (status ${res.status})`);
         return res.json();
@@ -446,7 +445,7 @@ export default function MonitoringDashboard() {
   const [thresholdsForm, setThresholdsForm] = useState(monitoringThresholds);
 
   const fetchOverview = () => {
-    fetch('/api/monitoring/overview', { headers: { 'x-api-token': API_SECRET } })
+    fetch('/api/monitoring/overview')
       .then((res) => {
         if (!res.ok) throw new Error(`Falha ao carregar visão geral (status ${res.status})`);
         return res.json();

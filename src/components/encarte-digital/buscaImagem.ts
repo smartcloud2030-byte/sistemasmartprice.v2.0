@@ -3,7 +3,6 @@
 // catálogo. As URLs já vêm apontando pro nosso proxy (/api/encarte/image-proxy)
 // pra não sujar o canvas na exportação do PNG.
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 export interface ImagemInternet {
   title: string;
@@ -15,9 +14,7 @@ export interface ImagemInternet {
 }
 
 export async function buscarImagensInternet(q: string, limit = 6): Promise<ImagemInternet[]> {
-  const res = await fetch(`/api/encarte/image-search?q=${encodeURIComponent(q)}&limit=${limit}`, {
-    headers: { 'x-api-token': API_SECRET },
-  });
+  const res = await fetch(`/api/encarte/image-search?q=${encodeURIComponent(q)}&limit=${limit}`);
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 501) throw new Error('Busca de imagens não configurada no servidor (GOOGLE_CSE_*).');

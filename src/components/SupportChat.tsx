@@ -6,7 +6,6 @@ import { cn, getProxyUrl } from '../lib/utils';
 import { toast } from 'sonner';
 import { pedirPermissaoNotificacoes } from '../lib/notificacaoSuporte';
 
-const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
 
 const EMOJI_LIST = [
   '😀', '😂', '😊', '😍', '🥳', '😉', '😢', '😡', '😱', '🤔',
@@ -20,7 +19,6 @@ async function uploadChatImage(file: File): Promise<{ url: string; type: string 
   formData.append('image', file);
   const res = await fetch('/gallery/upload/chat', {
     method: 'POST',
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
     body: formData,
   });
   if (!res.ok) {

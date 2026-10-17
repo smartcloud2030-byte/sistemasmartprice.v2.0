@@ -4,17 +4,15 @@ import { toast } from 'sonner';
 import { isStoreOnline } from './lib/utils';
 import { patchTogglePago, type Despesa } from './lib/despesas';
 import type { LancamentoSaldo } from './lib/lancamentosSaldo';
+import { sairDaSessao } from './lib/sessaoCliente';
 
 export type { Despesa };
 
 // ─── API helper ────────────────────────────────────────────────────────────────
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 const API_BASE = '/api';
 
 async function apiGet(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'x-api-token': API_SECRET }
-  });
+  const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -22,7 +20,7 @@ async function apiGet(path: string) {
 async function apiPost(path: string, body: unknown) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
@@ -1810,7 +1808,7 @@ export const useStore = create<AppState>()(
         try {
           const res = await fetch(`${API_BASE}/admin/credentials`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ currentUsername, currentPassword, newUsername, newPassword }),
           });
           const data = await res.json().catch(() => ({}));
@@ -1890,6 +1888,10 @@ export const useStore = create<AppState>()(
         }
         // Nao reseta printQueue/rascunho aqui: se a mesma loja logar de novo,
         // o login compara lastUserIdentity e mantem o que ela deixou.
+        // Limpa o estado antes de fechar a sessão no servidor, senão o 401 de
+        // algum pedido em andamento reabriria a sessão da loja sozinho.
+        set({ isAuthenticated: false, userRole: null, currentUser: null });
+        await sairDaSessao();
         set({ isAuthenticated: false, userRole: null, currentUser: null, lastLoginTimestamp: null, editingQueueIndex: null, editingSavedPlaquinhaId: null });
       },
 

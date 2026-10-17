@@ -88,6 +88,7 @@ export function mapNfseError(httpStatus: number, body: any): string {
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
+import { exigirAdmin } from './lib/sessao';
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'postgres',
@@ -118,11 +119,8 @@ export async function ensureNotaFiscalSchema() {
   `);
 }
 
-function apiAuth(req: Request, res: Response, next: Function) {
-  const token = req.headers['x-api-token'];
-  if (token === process.env.API_SECRET) return next();
-  res.status(401).json({ error: 'Não autorizado' });
-}
+// Só admin logado (sessão em cookie) ou script da própria VPS — ver src/lib/sessao.ts.
+const apiAuth = exigirAdmin;
 
 // Checagem extra de credencial real de admin, exigida apenas em /emitir por
 // se tratar da emissão de um documento fiscal real (não basta o x-api-token

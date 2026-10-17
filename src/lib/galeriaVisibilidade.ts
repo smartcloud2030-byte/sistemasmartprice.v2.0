@@ -2,7 +2,6 @@
 // Guardado num único blob em settings (`/api/settings/:id`), mesma abordagem
 // de persistencia.ts — sem endpoint novo no servidor.
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 const SETTINGS_KEY = 'encarte_galeria_visibilidade';
 
 export interface VisibilidadeClassificacao {
@@ -30,7 +29,7 @@ const soDigitos = (s: string | undefined | null) => (s || '').replace(/\D/g, '')
 
 export async function carregarVisibilidade(): Promise<MapaVisibilidade> {
   try {
-    const res = await fetch(`/api/settings/${SETTINGS_KEY}`, { headers: { 'x-api-token': API_SECRET } });
+    const res = await fetch(`/api/settings/${SETTINGS_KEY}`);
     if (!res.ok) return {};
     const data = await res.json().catch(() => null);
     const value = data?.value;
@@ -43,7 +42,7 @@ export async function carregarVisibilidade(): Promise<MapaVisibilidade> {
 export async function salvarVisibilidade(mapa: MapaVisibilidade): Promise<void> {
   const res = await fetch(`/api/settings/${SETTINGS_KEY}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-token': API_SECRET },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: mapa }),
   });
   if (!res.ok) throw new Error('Falha ao salvar a visibilidade da classificação.');

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { DatabaseBackup, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 const STALE_HOURS = 26;
 
 interface BackupStatusValue {
@@ -19,7 +18,7 @@ const BackupStatus: React.FC = () => {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch('/api/settings/backup_status', { headers: { 'x-api-token': API_SECRET } });
+        const res = await fetch('/api/settings/backup_status');
         const json = await res.json();
         setData(json?.value || null);
       } catch (e) {

@@ -15,6 +15,8 @@ import os from 'os';
 import { Pool } from 'pg';
 import { isAlreadyCutOut } from './backgroundDetect';
 import { composeDuplicate } from './duplicateComposite';
+import { tokenDeServidorValido } from './lib/sessao';
+import { exigirSessaoValida } from './lib/acessoLojas';
 const execAsync = promisify(exec);
 
 const router = Router();
@@ -51,11 +53,12 @@ export { BUCKET };
 const PUBLIC_URL = process.env.MINIO_PUBLIC_URL || 'https://imagens.sistemasmartprice.com.br';
 const GALLERY_PASSWORD = process.env.GALLERY_PASSWORD || 'smartprice@admin2026';
 
+// SVG fora: o bucket é público e um SVG pode carregar script.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 },
+  limits: { fileSize: 30 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp|svg/;
+    const allowed = /jpeg|jpg|png|gif|webp/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
     const mime = allowed.test(file.mimetype);
     if (ext && mime) cb(null, true);
@@ -63,10 +66,17 @@ const upload = multer({
   },
 });
 
+// A senha da galeria ia no bundle do navegador (qualquer um lia). Agora ela
+// só vale pra script dentro da VPS (cleanup-chat-images.sh); pela internet
+// vale a sessão do SmartPrice (cookie) — loja lista e envia, admin faz tudo.
 function authGallery(req: Request, res: Response, next: Function) {
-  const token = req.headers['x-gallery-token'] || req.query.token;
-  if (token === GALLERY_PASSWORD) return next();
-  res.status(401).json({ error: 'Acesso negado' });
+  if (tokenDeServidorValido(req, 'x-gallery-token', GALLERY_PASSWORD)) return next();
+  exigirSessaoValida()(req, res, next as any);
+}
+
+function authGalleryAdmin(req: Request, res: Response, next: Function) {
+  if (tokenDeServidorValido(req, 'x-gallery-token', GALLERY_PASSWORD)) return next();
+  exigirSessaoValida('admin')(req, res, next as any);
 }
 
 function sanitizeName(original: string): string {
@@ -123,7 +133,7 @@ router.get('/categories', authGallery, async (req: Request, res: Response) => {
 });
 
 // ── Criar categoria ───────────────────────
-router.post('/categories', authGallery, async (req: Request, res: Response) => {
+router.post('/categories', authGalleryAdmin, async (req: Request, res: Response) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
   const safeName = sanitizeCategoryName(name);
@@ -137,7 +147,7 @@ router.post('/categories', authGallery, async (req: Request, res: Response) => {
 });
 
 // ── Deletar categoria ─────────────────────
-router.delete('/categories/:name', authGallery, async (req: Request, res: Response) => {
+router.delete('/categories/:name', authGalleryAdmin, async (req: Request, res: Response) => {
   const category = req.params.name;
   try {
     const objects: string[] = [];
@@ -158,7 +168,7 @@ router.delete('/categories/:name', authGallery, async (req: Request, res: Respon
 // pastas antigas criadas antes de permitirmos acento) e atualiza as URLs já
 // salvas em products e settings (onde ficam os layouts), pra nenhuma imagem
 // ficar órfã.
-router.post('/categories/:name/rename', authGallery, async (req: Request, res: Response) => {
+router.post('/categories/:name/rename', authGalleryAdmin, async (req: Request, res: Response) => {
   const oldName = req.params.name;
   const newName = sanitizeCategoryName(req.body?.newName || '');
   if (!newName) return res.status(400).json({ error: 'Novo nome inválido' });
@@ -258,7 +268,7 @@ router.post('/upload/:category', authGallery, upload.single('image'), async (req
 });
 
 // ── Mover imagem entre pastas/categorias ──
-router.post('/move', authGallery, async (req: Request, res: Response) => {
+router.post('/move', authGalleryAdmin, async (req: Request, res: Response) => {
   const { fullPath, targetCategory } = req.body || {};
   if (!fullPath || !targetCategory) return res.status(400).json({ error: 'fullPath e targetCategory são obrigatórios' });
 
@@ -285,7 +295,7 @@ router.post('/move', authGallery, async (req: Request, res: Response) => {
 });
 
 // ── Deletar imagem ────────────────────────
-router.delete('/delete/*', authGallery, async (req: Request, res: Response) => {
+router.delete('/delete/*', authGalleryAdmin, async (req: Request, res: Response) => {
   const fullPath = (req.params as any)[0];
   try {
     await minioClient.removeObject(BUCKET, fullPath);
@@ -298,7 +308,7 @@ router.delete('/delete/*', authGallery, async (req: Request, res: Response) => {
 // ── Limpeza automática das imagens do chat (retenção de 7 dias) ──
 // Chamada diariamente via cron (scripts/cleanup-chat-images.sh). Só apaga
 // arquivos dentro da pasta "chat/" — nenhuma outra galeria é afetada.
-router.post('/cleanup-chat', authGallery, async (_req: Request, res: Response) => {
+router.post('/cleanup-chat', authGalleryAdmin, async (_req: Request, res: Response) => {
   const RETENTION_DAYS = 7;
   const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
   try {
@@ -504,7 +514,7 @@ function galleryHTML() {
     <p>Galeria de Imagens — Acesso Admin</p>
     <input type="password" id="pwd-input" placeholder="Senha de acesso" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn" onclick="doLogin()">Entrar</button>
-    <div class="error-msg" id="login-error">Senha incorreta</div>
+    <div class="error-msg" id="login-error">Acesso negado. Entre no SmartPrice como administrador neste navegador e recarregue esta página.</div>
   </div>
 </div>
 
@@ -585,7 +595,10 @@ function galleryHTML() {
   let currentPreviewName = '';
   let moveTargetFullPath = null;
 
-  function doLogin() {
+  // Admin já logado no SmartPrice neste navegador entra direto (cookie).
+  window.addEventListener('DOMContentLoaded', () => doLogin(true));
+
+  function doLogin(silencioso) {
     token = document.getElementById('pwd-input').value;
     fetch('/gallery/categories?all=1', { headers: { 'x-gallery-token': token } })
       .then(r => { if (r.status === 401) throw new Error(); return r.json(); })
@@ -596,7 +609,7 @@ function galleryHTML() {
         renderSidebar();
       })
       .catch(() => {
-        document.getElementById('login-error').style.display = 'block';
+        if (silencioso !== true) document.getElementById('login-error').style.display = 'block';
         token = '';
       });
   }
@@ -723,9 +736,9 @@ function galleryHTML() {
 
   function deleteCategory(cat) {
     if (!confirm(\`Deletar a galeria "\${formatCatName(cat)}" e todas as imagens dentro dela?\`)) return;
-    const pwd = prompt('Para confirmar, digite novamente a senha de acesso da galeria:');
-    if (pwd === null) return;
-    if (pwd !== token) { showToast('❌ Senha incorreta. Exclusão cancelada.', true); return; }
+    const conf = prompt('Para confirmar, digite APAGAR:');
+    if (conf === null) return;
+    if (conf.trim().toUpperCase() !== 'APAGAR') { showToast('❌ Confirmação incorreta. Exclusão cancelada.', true); return; }
     fetch(\`/gallery/categories/\${cat}\`, { method:'DELETE', headers:{'x-gallery-token':token} })
       .then(r => r.json())
       .then(() => {
@@ -940,9 +953,9 @@ function galleryHTML() {
 
   function deleteImage(fullPath) {
     if (!confirm('Deletar esta imagem?')) return;
-    const pwd = prompt('Para confirmar, digite novamente a senha de acesso da galeria:');
-    if (pwd === null) return;
-    if (pwd !== token) { showToast('❌ Senha incorreta. Exclusão cancelada.', true); return; }
+    const conf = prompt('Para confirmar, digite APAGAR:');
+    if (conf === null) return;
+    if (conf.trim().toUpperCase() !== 'APAGAR') { showToast('❌ Confirmação incorreta. Exclusão cancelada.', true); return; }
     fetch('/gallery/delete/' + encodeURIComponent(fullPath), { method:'DELETE', headers:{'x-gallery-token':token} })
       .then(r => r.json())
       .then(data => { if (data.success) { refreshView(); showToast('🗑️ Imagem deletada'); } });

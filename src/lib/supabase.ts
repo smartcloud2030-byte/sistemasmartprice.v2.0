@@ -5,14 +5,12 @@
 // ─────────────────────────────────────────
 
 const API_URL = '/api';
-const API_TOKEN = import.meta.env.VITE_API_SECRET || '';
 
 async function request(method: string, path: string, body?: any) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'x-api-token': API_TOKEN,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -80,7 +78,7 @@ function from(table: string) {
     async execute() {
       // COUNT only
       if (_countOnly) {
-        const res = await fetch(`${API_URL}/${table}/count`, { headers: { 'x-api-token': API_TOKEN } });
+        const res = await fetch(`${API_URL}/${table}/count`);
         const d = await res.json();
         return { count: d.count, data: null, error: null };
       }
@@ -95,7 +93,7 @@ function from(table: string) {
       Object.entries(_params).forEach(([k, v]) => qs.set(k, String(v)));
       if (_range) { qs.set('offset', String(_range[0])); qs.set('limit', String(_range[1] - _range[0] + 1)); }
 
-      const res = await fetch(`${API_URL}/${table}?${qs}`, { headers: { 'x-api-token': API_TOKEN } });
+      const res = await fetch(`${API_URL}/${table}?${qs}`);
       const d = await res.json();
 
       if (!res.ok) return { data: null, error: { message: d.error, code: res.status.toString() } };

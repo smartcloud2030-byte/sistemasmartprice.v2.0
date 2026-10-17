@@ -3,7 +3,6 @@ import { Barcode, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateString } from '../lib/cosmosUsage';
 
-const API_SECRET = import.meta.env.VITE_API_SECRET || 'smartprice-api-2026';
 
 interface CosmosUsageByUser {
   username: string;
@@ -25,7 +24,7 @@ const CosmosUsageStatus: React.FC = () => {
   useEffect(() => {
     const fetchUsage = async () => {
       try {
-        const res = await fetch('/api/settings/cosmos_usage_daily', { headers: { 'x-api-token': API_SECRET } });
+        const res = await fetch('/api/settings/cosmos_usage_daily');
         const json = await res.json();
         setData(json?.value || null);
       } catch (e) {

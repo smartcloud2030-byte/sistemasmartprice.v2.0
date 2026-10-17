@@ -1,6 +1,5 @@
 import { extractGalleryPath } from './utils';
 
-export const GALLERY_PASSWORD = import.meta.env.VITE_GALLERY_PASSWORD || 'smartprice@admin2026';
 
 export function slugifyCategory(value: string): string {
   return value
@@ -15,7 +14,6 @@ export async function uploadBackgroundImage(file: File, category: string): Promi
   formData.append('image', file);
   const res = await fetch(`/gallery/upload/${category}`, {
     method: 'POST',
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
     body: formData,
   });
   if (!res.ok) {
@@ -35,9 +33,7 @@ export interface GalleryImage {
 }
 
 export async function listGalleryImages(category: string): Promise<GalleryImage[]> {
-  const res = await fetch(`/gallery/list/${category}`, {
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
-  });
+  const res = await fetch(`/gallery/list/${category}`);
   if (!res.ok) throw new Error('Falha ao carregar as imagens.');
   const data = await res.json();
   return Array.isArray(data) ? data : [];
@@ -50,7 +46,6 @@ export async function deleteGalleryImage(url: string | null | undefined): Promis
   if (!path) return;
   await fetch(`/gallery/delete/${path}`, {
     method: 'DELETE',
-    headers: { 'x-gallery-token': GALLERY_PASSWORD },
   });
 }
 
@@ -59,10 +54,8 @@ export async function deleteGalleryImage(url: string | null | undefined): Promis
 // As classificações são pastas irmãs no padrão `<base>--<slug>`; a própria
 // base é a classificação "Geral". Renomear/criar/excluir é coisa de admin.
 
-const GALLERY_HEADERS = { 'x-gallery-token': GALLERY_PASSWORD };
-
 export async function listGalleryCategories(): Promise<string[]> {
-  const res = await fetch('/gallery/categories?all=1', { headers: GALLERY_HEADERS });
+  const res = await fetch('/gallery/categories?all=1');
   if (!res.ok) throw new Error('Falha ao carregar as classificações.');
   const data = await res.json();
   return Array.isArray(data) ? data : [];
@@ -71,7 +64,7 @@ export async function listGalleryCategories(): Promise<string[]> {
 export async function createGalleryCategory(name: string): Promise<void> {
   const res = await fetch('/gallery/categories', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...GALLERY_HEADERS },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
   if (!res.ok) {
@@ -83,7 +76,7 @@ export async function createGalleryCategory(name: string): Promise<void> {
 export async function renameGalleryCategory(oldName: string, newName: string): Promise<void> {
   const res = await fetch(`/gallery/categories/${encodeURIComponent(oldName)}/rename`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...GALLERY_HEADERS },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ newName }),
   });
   if (!res.ok) {
@@ -95,7 +88,6 @@ export async function renameGalleryCategory(oldName: string, newName: string): P
 export async function deleteGalleryCategory(name: string): Promise<void> {
   const res = await fetch(`/gallery/categories/${encodeURIComponent(name)}`, {
     method: 'DELETE',
-    headers: GALLERY_HEADERS,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -12,6 +12,8 @@ import despesasViagemRouter, { ensureDespesasViagemSchema } from './src/despesas
 import whatsappBotRouter, { ensureWhatsappSchema } from './src/whatsappBot';
 import { ensureBucketRecibos } from './src/lib/recibos';
 import apiRouter, { pool, setSocketServer } from './api';
+import { decodificarSessao, lerCookie } from './src/lib/sessao';
+import { acharLoja } from './src/lib/acessoLojas';
 
 // ── Suporte / Chat: schema no Postgres local ──
 // Observação: se a tabela já existir (criada por uma migration.sql antiga com
@@ -105,20 +107,40 @@ async function startServer() {
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     path: "/socket.io/",
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"],
-      credentials: true
+    // Sem CORS: o app e o socket são do mesmo domínio. Conexão vinda de outro
+    // site (Origin diferente) é recusada — senão uma página qualquer abria o
+    // socket usando o cookie de sessão de quem estivesse logado.
+    allowRequest: (req, callback) => {
+      const origin = req.headers.origin;
+      if (!origin) return callback(null, true);
+      try {
+        callback(null, new URL(origin).host === req.headers.host);
+      } catch {
+        callback(null, false);
+      }
     },
     transports: ['polling', 'websocket'],
-    allowEIO3: true,
-    maxHttpBufferSize: 1e8
+    maxHttpBufferSize: 2e6
   });
   setSocketServer(io);
   setPaymentsSocketServer(io);
   startMonitoringJobs(io);
 
   const PORT = parseInt(process.env.PORT || '3000', 10);
+
+  // Cabeçalhos de segurança (equivalente ao básico do helmet, sem dependência)
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), payment=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    if (process.env.NODE_ENV === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
 
   app.use(express.json({ limit: '50mb', verify: (req, _res, buf) => { (req as any).rawBody = buf; } }));
 
@@ -141,17 +163,41 @@ async function startServer() {
   io.on("connection", (socket) => {
     console.log("New socket connection attempt:", socket.id);
 
+    // Sessão vencida não manda mais nada pelo socket (a checagem do
+    // user:join sozinha deixava o socket aberto vivo depois de expirar).
+    socket.use((_packet, next) => {
+      const exp = socket.data.sessaoExp as number | undefined;
+      if (exp && Date.now() > exp) {
+        socket.emit('sessao:invalida');
+        socket.disconnect(true);
+        return;
+      }
+      next();
+    });
+
     socket.on("error", (err) => {
       console.error("Socket error for", socket.id, ":", err);
     });
 
     socket.on("user:join", async (userData) => {
       if (!userData) return;
-      const cnpj = String(userData.cnpj || '').replace(/[^\d]/g, '');
-      const username = String(userData.username || 'Usuário');
-      const role = userData.role === 'admin' ? 'admin' : 'user';
-      const bandeira = userData.bandeira ? String(userData.bandeira) : undefined;
+      // Quem é a pessoa vem do cookie de sessão (lido no handshake), não do
+      // que o navegador manda — antes bastava mandar role: 'admin'.
+      const sessao = decodificarSessao(lerCookie(socket.request.headers.cookie));
+      if (!sessao) {
+        socket.emit('sessao:invalida');
+        return;
+      }
+      const role = sessao.papel === 'admin' ? 'admin' : 'user';
+      const cnpj = role === 'admin' ? '' : String(sessao.cnpj || '');
+      const username = String(userData.username || sessao.usuario || 'Usuário').slice(0, 80);
+      const bandeira = userData.bandeira ? String(userData.bandeira).slice(0, 80) : undefined;
+      if (role === 'user') {
+        const loja = await acharLoja(cnpj).catch(() => null);
+        if (!loja || loja.isSuspended) return;
+      }
 
+      socket.data.sessaoExp = sessao.exp;
       socket.data.cnpj = cnpj;
       socket.data.username = username;
       socket.data.role = role;
@@ -195,9 +241,12 @@ async function startServer() {
       const targetCnpj = senderRole === 'admin'
         ? String(data?.cnpj || '').replace(/[^\d]/g, '')
         : String(socket.data.cnpj || '');
-      const text = typeof data?.text === 'string' ? data.text.trim() : '';
-      const attachmentUrl = data?.attachmentUrl ? String(data.attachmentUrl) : null;
-      const attachmentType = data?.attachmentType ? String(data.attachmentType) : null;
+      const text = typeof data?.text === 'string' ? data.text.trim().slice(0, 5000) : '';
+      // Anexo só pode ser arquivo enviado pela própria galeria (http/https),
+      // nunca javascript:/data: — o link é aberto pelo outro lado do chat.
+      const attachmentUrlBruta = data?.attachmentUrl ? String(data.attachmentUrl).slice(0, 1000) : null;
+      const attachmentUrl = attachmentUrlBruta && /^(https?:\/\/|\/)/i.test(attachmentUrlBruta) ? attachmentUrlBruta : null;
+      const attachmentType = data?.attachmentType ? String(data.attachmentType).slice(0, 40) : null;
 
       if (!targetCnpj || (!text && !attachmentUrl)) return;
 
