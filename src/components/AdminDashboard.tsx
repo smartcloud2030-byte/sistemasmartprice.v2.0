@@ -154,16 +154,16 @@ const AdminDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
         {/* Header */}
         <motion.div {...entrance(0, shouldReduceMotion)} className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <img src="/logo-light.png" alt="SmartPrice" className="h-7 w-auto dark:hidden" />
-            <img src="/logo-dark.png" alt="SmartPrice" className="h-7 w-auto hidden dark:block" />
-            <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-800" />
-            <div>
-              <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white">
+          <div className="flex items-center gap-3 md:gap-4 flex-wrap min-w-0">
+            <img src="/logo-light.png" alt="SmartPrice" className="h-6 md:h-7 w-auto dark:hidden" />
+            <img src="/logo-dark.png" alt="SmartPrice" className="h-6 md:h-7 w-auto hidden dark:block" />
+            <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-800 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-black dark:text-white">
                 Painel <span className="text-blue-600">Administrativo</span>
               </h1>
               <p className="text-black dark:text-white opacity-60 text-sm font-medium">

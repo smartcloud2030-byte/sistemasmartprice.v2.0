@@ -160,9 +160,9 @@ export default function ListaPV() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
+      <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
             <button
               onClick={() => setView('dashboard')}
               className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-600 dark:text-zinc-300 hover:border-blue-500/50 transition-all"
@@ -171,17 +171,17 @@ export default function ListaPV() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white flex items-center gap-2">
-                <CalendarClock className="w-7 h-7 text-blue-600" />
+              <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-black dark:text-white flex items-center gap-2">
+                <CalendarClock className="w-6 h-6 md:w-7 md:h-7 text-blue-600" />
                 Lista <span className="text-blue-600">PV</span>
               </h1>
-              <p className="text-zinc-500 text-sm font-medium">Produtos próximos do vencimento</p>
+              <p className="text-zinc-500 text-xs md:text-sm font-medium">Produtos próximos do vencimento</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="grid grid-cols-3 gap-2 md:flex md:items-center">
             <button
               onClick={baixarModeloPV}
-              className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all"
+              className="flex items-center justify-center gap-2 px-3 md:px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold text-sm md:text-base hover:border-blue-500/50 transition-all"
               title="Baixar planilha modelo"
             >
               <FileSpreadsheet className="w-5 h-5" />
@@ -189,7 +189,7 @@ export default function ListaPV() {
             </button>
             <button
               onClick={exportar}
-              className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all"
+              className="flex items-center justify-center gap-2 px-3 md:px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold text-sm md:text-base hover:border-blue-500/50 transition-all"
               title="Exportar a lista filtrada para Excel"
             >
               <Download className="w-5 h-5" />
@@ -198,33 +198,33 @@ export default function ListaPV() {
             <button
               onClick={() => inputRef.current?.click()}
               disabled={importando}
-              className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70"
+              className="flex items-center justify-center gap-2 px-3 md:px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter text-sm md:text-base shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70"
             >
               {importando ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-              Importar lista
+              Importar<span className="hidden md:inline"> lista</span>
             </button>
             <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={aoEscolherArquivo} />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
           {CARTOES.map((c) => (
             <button
               key={c.chave}
               onClick={() => setFiltro(c.chave)}
               className={cn(
-                'text-left p-4 bg-white dark:bg-zinc-900 border rounded-2xl transition-all',
+                'text-left p-3 md:p-4 bg-white dark:bg-zinc-900 border rounded-xl md:rounded-2xl transition-all',
                 filtro === c.chave ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800 hover:border-blue-500/50',
               )}
             >
-              <div className={cn('text-2xl font-black', c.cor)}>{c.valor}</div>
-              <div className="text-xs font-bold text-zinc-500 mt-1">{c.rotulo}</div>
+              <div className={cn('text-xl md:text-2xl font-black', c.cor)}>{c.valor}</div>
+              <div className="text-[11px] md:text-xs font-bold text-zinc-500 mt-0.5 md:mt-1 leading-tight">{c.rotulo}</div>
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[220px]">
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+          <div className="relative flex-1 md:min-w-[220px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               value={busca}
@@ -233,23 +233,25 @@ export default function ListaPV() {
               className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:border-blue-500"
             />
           </div>
+          <div className="flex gap-2">
           <button
             onClick={() => setMaisProximoPrimeiro((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
             title="Inverter a ordem"
           >
             <ArrowUpDown className="w-4 h-4" />
-            {maisProximoPrimeiro ? 'Mais próximo do vencimento primeiro' : 'Mais distante primeiro'}
+            {maisProximoPrimeiro ? <>Mais próximo<span className="hidden md:inline"> do vencimento</span> primeiro</> : 'Mais distante primeiro'}
           </button>
           {dados.itens.length > 0 && (
             <button
               onClick={() => setConfirmarLimpar(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-red-600 border border-zinc-200 dark:border-zinc-800 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 border border-zinc-200 dark:border-zinc-800 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm"
             >
               <Trash2 className="w-4 h-4" />
-              Limpar lista
+              Limpar<span className="hidden md:inline"> lista</span>
             </button>
           )}
+          </div>
         </div>
 
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
@@ -262,7 +264,44 @@ export default function ListaPV() {
                 : 'Nenhum produto ainda. Clique em "Importar lista" e envie uma planilha com produto e data de vencimento (baixe o modelo se precisar).'}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Celular: um cartão por produto */}
+            <ul className="md:hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+              {visiveis.map((i) => (
+                <li key={i.id} className={cn('border-l-4 px-4 py-3 flex gap-3', BORDA_STATUS[i.status])}>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{i.produto || '—'}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={cn('px-2 py-0.5 rounded-lg text-[11px] font-bold whitespace-nowrap', COR_STATUS[i.status])}>
+                        {ROTULO_STATUS[i.status]}
+                      </span>
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300">Vence {dataBR(i.vencimento)}</span>
+                    </div>
+                    <div className="text-xs text-zinc-500 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {i.codigo && <span className="font-mono">{i.codigo}</span>}
+                      {i.quantidade != null && <span>Qtd {i.quantidade}</span>}
+                      {i.lote && <span>Lote {i.lote}</span>}
+                      {i.loja && <span>{i.loja}</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end justify-between shrink-0">
+                    <button
+                      onClick={() => remover(i.id)}
+                      className="p-1.5 -mr-1.5 -mt-1 text-zinc-400 hover:text-red-600 rounded-lg"
+                      title="Remover da lista"
+                      aria-label={`Remover ${i.produto || i.codigo} da lista`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div className="text-right">
+                      <div className={cn('text-xl font-black leading-none', i.dias < 0 ? 'text-red-600' : 'text-zinc-800 dark:text-zinc-200')}>{i.dias}</div>
+                      <div className="text-[10px] font-bold uppercase text-zinc-500 mt-0.5">{Math.abs(i.dias) === 1 ? 'dia' : 'dias'}</div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-xs uppercase tracking-wider">
                   <tr>
@@ -312,6 +351,7 @@ export default function ListaPV() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -329,7 +369,7 @@ export default function ListaPV() {
                 A lista atual tem {dados.itens.length} produto(s). Você quer substituir ou somar?
               </p>
             )}
-            <div className="flex gap-2 justify-end flex-wrap">
+            <div className="flex gap-2 justify-end flex-wrap [&>button]:flex-1 sm:[&>button]:flex-none">
               <button onClick={() => setPendente(null)} className="px-4 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                 Cancelar
               </button>
