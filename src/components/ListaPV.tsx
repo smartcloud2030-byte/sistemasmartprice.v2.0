@@ -230,7 +230,7 @@ export default function ListaPV() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por produto, código, lote ou loja"
-              className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-blue-500"
             />
           </div>
           <div className="flex gap-2">
