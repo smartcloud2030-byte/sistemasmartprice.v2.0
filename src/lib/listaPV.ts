@@ -13,10 +13,9 @@ export interface ItemPV {
   loja: string;
 }
 
-export type StatusPV = 'vencido' | 'proximo' | 'atencao' | 'ok';
+export type StatusPV = 'vencido' | 'vermelho' | 'amareloEscuro' | 'amareloClaro' | 'verde';
 
 export const SETTINGS_KEY_PV = 'lista_pv';
-export const DIAS_PROXIMO_PADRAO = 30;
 
 // Cabeçalhos aceitos na planilha (sem acento, minúsculo). A primeira coluna
 // cujo nome contém um destes termos é usada.
@@ -135,19 +134,26 @@ export function diasParaVencer(vencimento: string, hoje = new Date()): number {
   return Math.round((alvo - base) / 86_400_000);
 }
 
-/** Vencido (<0), próximo (≤ diasProximo), atenção (≤ 2× diasProximo), ok. */
-export function statusPV(dias: number, diasProximo: number): StatusPV {
+// Faixas por dias até vencer (6 meses ≈ 180 dias, 3 meses ≈ 90):
+//   vencido        < 0
+//   vermelho       0–30   (vence hoje conta aqui)
+//   amarelo escuro 31–60
+//   amarelo claro  61–179 (3 a 5 meses; cobre também o vão 61–90 e 5–6 meses)
+//   verde          180+   (6 meses ou mais)
+export function statusPV(dias: number): StatusPV {
   if (dias < 0) return 'vencido';
-  if (dias <= diasProximo) return 'proximo';
-  if (dias <= diasProximo * 2) return 'atencao';
-  return 'ok';
+  if (dias <= 30) return 'vermelho';
+  if (dias <= 60) return 'amareloEscuro';
+  if (dias < 180) return 'amareloClaro';
+  return 'verde';
 }
 
 export const ROTULO_STATUS: Record<StatusPV, string> = {
   vencido: 'Vencido',
-  proximo: 'Próximo do vencimento',
-  atencao: 'Atenção',
-  ok: 'Dentro do prazo',
+  vermelho: 'Vence em até 30 dias',
+  amareloEscuro: '31 a 60 dias',
+  amareloClaro: '3 a 5 meses',
+  verde: '6 meses ou mais',
 };
 
 export const dataBR = (iso: string) => {
@@ -155,7 +161,7 @@ export const dataBR = (iso: string) => {
   return `${d}/${m}/${a}`;
 };
 
-export function exportarPV(itens: ItemPV[], diasProximo: number, nomeArquivo: string) {
+export function exportarPV(itens: ItemPV[], nomeArquivo: string) {
   const linhas = itens.map((i) => {
     const dias = diasParaVencer(i.vencimento);
     return {
@@ -163,7 +169,7 @@ export function exportarPV(itens: ItemPV[], diasProximo: number, nomeArquivo: st
       Código: i.codigo,
       Vencimento: dataBR(i.vencimento),
       'Dias para vencer': dias,
-      Situação: ROTULO_STATUS[statusPV(dias, diasProximo)],
+      Situação: ROTULO_STATUS[statusPV(dias)],
       Quantidade: i.quantidade ?? '',
       Lote: i.lote,
       Loja: i.loja,

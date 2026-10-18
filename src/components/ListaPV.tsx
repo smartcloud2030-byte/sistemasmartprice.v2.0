@@ -6,26 +6,35 @@ import {
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import {
-  DIAS_PROXIMO_PADRAO, ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
+  ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
   exportarPV, importarArquivoPV, statusPV, type ItemPV, type StatusPV,
 } from '../lib/listaPV';
 
 // Lista PV — produtos próximos (ou não) do vencimento. Só admin por enquanto.
-// A lista fica no servidor em settings.lista_pv ({ itens, diasProximo }),
+// A lista fica no servidor em settings.lista_pv ({ itens }),
 // chave que loja não lê nem grava (ver settingParaLoja em api.ts).
 
 interface DadosPV {
   itens: ItemPV[];
-  diasProximo: number;
 }
 
 type Filtro = 'todos' | StatusPV;
 
 const COR_STATUS: Record<StatusPV, string> = {
-  vencido: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  proximo: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  atencao: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  vencido: 'bg-red-700 text-white dark:bg-red-800',
+  vermelho: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  amareloEscuro: 'bg-amber-300 text-amber-950 dark:bg-amber-500/80 dark:text-amber-950',
+  amareloClaro: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-300/20 dark:text-yellow-200',
+  verde: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+};
+
+// Faixa colorida na borda esquerda da linha, pra bater o olho na tabela.
+const BORDA_STATUS: Record<StatusPV, string> = {
+  vencido: 'border-l-red-700',
+  vermelho: 'border-l-red-500',
+  amareloEscuro: 'border-l-amber-500',
+  amareloClaro: 'border-l-yellow-300',
+  verde: 'border-l-emerald-500',
 };
 
 async function carregarPV(): Promise<DadosPV> {
@@ -35,7 +44,6 @@ async function carregarPV(): Promise<DadosPV> {
   const v = json?.value;
   return {
     itens: Array.isArray(v?.itens) ? v.itens : [],
-    diasProximo: typeof v?.diasProximo === 'number' ? v.diasProximo : DIAS_PROXIMO_PADRAO,
   };
 }
 
@@ -50,7 +58,7 @@ async function salvarPV(dados: DadosPV) {
 
 export default function ListaPV() {
   const { setView } = useStore();
-  const [dados, setDados] = useState<DadosPV>({ itens: [], diasProximo: DIAS_PROXIMO_PADRAO });
+  const [dados, setDados] = useState<DadosPV>({ itens: [] });
   const [carregando, setCarregando] = useState(true);
   const [importando, setImportando] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>('todos');
@@ -85,14 +93,14 @@ export default function ListaPV() {
       dados.itens
         .map((i) => {
           const dias = diasParaVencer(i.vencimento);
-          return { ...i, dias, status: statusPV(dias, dados.diasProximo) };
+          return { ...i, dias, status: statusPV(dias) };
         })
         .sort((a, b) => (maisProximoPrimeiro ? a.dias - b.dias : b.dias - a.dias) || a.produto.localeCompare(b.produto)),
     [dados, maisProximoPrimeiro],
   );
 
   const contagem = useMemo(() => {
-    const c: Record<StatusPV, number> = { vencido: 0, proximo: 0, atencao: 0, ok: 0 };
+    const c: Record<StatusPV, number> = { vencido: 0, vermelho: 0, amareloEscuro: 0, amareloClaro: 0, verde: 0 };
     comStatus.forEach((i) => c[i.status]++);
     return c;
   }, [comStatus]);
@@ -136,22 +144,18 @@ export default function ListaPV() {
   const exportar = () => {
     if (!visiveis.length) return toast.error('Não há produtos para exportar.');
     const sufixo = filtro === 'todos' ? '' : `-${filtro}`;
-    exportarPV(visiveis, dados.diasProximo, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const remover = (id: string) => gravar({ ...dados, itens: dados.itens.filter((i) => i.id !== id) });
 
-  const mudarDias = (valor: string) => {
-    const n = Math.max(1, Math.min(365, parseInt(valor, 10) || DIAS_PROXIMO_PADRAO));
-    if (n !== dados.diasProximo) gravar({ ...dados, diasProximo: n });
-  };
-
   const CARTOES: { chave: Filtro; rotulo: string; valor: number; cor: string }[] = [
     { chave: 'todos', rotulo: 'Total', valor: comStatus.length, cor: 'text-zinc-900 dark:text-white' },
-    { chave: 'vencido', rotulo: 'Vencidos', valor: contagem.vencido, cor: 'text-red-600' },
-    { chave: 'proximo', rotulo: `Vencem em até ${dados.diasProximo} dias`, valor: contagem.proximo, cor: 'text-orange-600' },
-    { chave: 'atencao', rotulo: `Até ${dados.diasProximo * 2} dias`, valor: contagem.atencao, cor: 'text-yellow-600' },
-    { chave: 'ok', rotulo: 'Dentro do prazo', valor: contagem.ok, cor: 'text-emerald-600' },
+    { chave: 'vencido', rotulo: 'Vencidos', valor: contagem.vencido, cor: 'text-red-700 dark:text-red-500' },
+    { chave: 'vermelho', rotulo: '1 a 30 dias', valor: contagem.vermelho, cor: 'text-red-500' },
+    { chave: 'amareloEscuro', rotulo: '31 a 60 dias', valor: contagem.amareloEscuro, cor: 'text-amber-500' },
+    { chave: 'amareloClaro', rotulo: '3 a 5 meses', valor: contagem.amareloClaro, cor: 'text-yellow-500 dark:text-yellow-300' },
+    { chave: 'verde', rotulo: '6 meses ou mais', valor: contagem.verde, cor: 'text-emerald-600' },
   ];
 
   return (
@@ -203,7 +207,7 @@ export default function ListaPV() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           {CARTOES.map((c) => (
             <button
               key={c.chave}
@@ -229,20 +233,6 @@ export default function ListaPV() {
               className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:border-blue-500"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm font-bold text-zinc-600 dark:text-zinc-300">
-            Próximo do vencimento:
-            <input
-              type="number"
-              min={1}
-              max={365}
-              defaultValue={dados.diasProximo}
-              key={dados.diasProximo}
-              onBlur={(e) => mudarDias(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-              className="w-20 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-center outline-none focus:border-blue-500"
-            />
-            dias
-          </label>
           <button
             onClick={() => setMaisProximoPrimeiro((v) => !v)}
             className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
@@ -293,7 +283,7 @@ export default function ListaPV() {
                 </thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {visiveis.map((i) => (
-                    <tr key={i.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                    <tr key={i.id} className={cn('border-l-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/40', BORDA_STATUS[i.status])}>
                       <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">{i.produto || '—'}</td>
                       <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{i.codigo || '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-zinc-700 dark:text-zinc-300">{dataBR(i.vencimento)}</td>

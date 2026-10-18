@@ -42,10 +42,17 @@ async function main() {
   const hoje = new Date(2026, 9, 17);
   assert.equal(diasParaVencer(dipirona.vencimento, hoje), 3);
   assert.equal(diasParaVencer(amoxi.vencimento, hoje), -7);
-  assert.equal(statusPV(-7, 30), 'vencido');
-  assert.equal(statusPV(3, 30), 'proximo');
-  assert.equal(statusPV(45, 30), 'atencao');
-  assert.equal(statusPV(400, 30), 'ok');
+  assert.equal(statusPV(-7), 'vencido');
+  assert.equal(statusPV(0), 'vermelho');
+  assert.equal(statusPV(1), 'vermelho');
+  assert.equal(statusPV(30), 'vermelho');
+  assert.equal(statusPV(31), 'amareloEscuro');
+  assert.equal(statusPV(60), 'amareloEscuro');
+  assert.equal(statusPV(61), 'amareloClaro');
+  assert.equal(statusPV(150), 'amareloClaro');
+  assert.equal(statusPV(179), 'amareloClaro');
+  assert.equal(statusPV(180), 'verde');
+  assert.equal(statusPV(400), 'verde');
 
   // Sem coluna de vencimento → erro claro
   await assert.rejects(() => importarArquivoPV(arquivoDe([['Produto', 'Qtd'], ['X', 1]])), /vencimento/);
