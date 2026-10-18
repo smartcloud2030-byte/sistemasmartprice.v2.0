@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X,
+  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
@@ -55,6 +55,8 @@ export default function ListaPV() {
   const [importando, setImportando] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [busca, setBusca] = useState('');
+  // true = do mais próximo do vencimento (vencidos no topo) ao mais distante
+  const [maisProximoPrimeiro, setMaisProximoPrimeiro] = useState(true);
   const [pendente, setPendente] = useState<{ itens: ItemPV[]; ignoradas: number; nome: string } | null>(null);
   const [confirmarLimpar, setConfirmarLimpar] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,8 +87,8 @@ export default function ListaPV() {
           const dias = diasParaVencer(i.vencimento);
           return { ...i, dias, status: statusPV(dias, dados.diasProximo) };
         })
-        .sort((a, b) => a.dias - b.dias || a.produto.localeCompare(b.produto)),
-    [dados],
+        .sort((a, b) => (maisProximoPrimeiro ? a.dias - b.dias : b.dias - a.dias) || a.produto.localeCompare(b.produto)),
+    [dados, maisProximoPrimeiro],
   );
 
   const contagem = useMemo(() => {
@@ -241,6 +243,14 @@ export default function ListaPV() {
             />
             dias
           </label>
+          <button
+            onClick={() => setMaisProximoPrimeiro((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
+            title="Inverter a ordem"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            {maisProximoPrimeiro ? 'Mais próximo do vencimento primeiro' : 'Mais distante primeiro'}
+          </button>
           {dados.itens.length > 0 && (
             <button
               onClick={() => setConfirmarLimpar(true)}
@@ -268,7 +278,11 @@ export default function ListaPV() {
                   <tr>
                     <th className="text-left px-4 py-3">Produto</th>
                     <th className="text-left px-4 py-3">Código</th>
-                    <th className="text-left px-4 py-3">Vencimento</th>
+                    <th className="text-left px-4 py-3">
+                      <button onClick={() => setMaisProximoPrimeiro((v) => !v)} className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-blue-600" title="Inverter a ordem">
+                        Vencimento <span aria-hidden="true">{maisProximoPrimeiro ? '↑' : '↓'}</span>
+                      </button>
+                    </th>
                     <th className="text-right px-4 py-3">Dias</th>
                     <th className="text-left px-4 py-3">Situação</th>
                     <th className="text-right px-4 py-3">Qtd</th>
