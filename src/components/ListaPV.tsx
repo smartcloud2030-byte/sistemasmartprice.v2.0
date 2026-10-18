@@ -1,0 +1,366 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import {
+  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X,
+} from 'lucide-react';
+import { useStore } from '../store';
+import { cn } from '../lib/utils';
+import {
+  DIAS_PROXIMO_PADRAO, ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
+  exportarPV, importarArquivoPV, statusPV, type ItemPV, type StatusPV,
+} from '../lib/listaPV';
+
+// Lista PV — produtos próximos (ou não) do vencimento. Só admin por enquanto.
+// A lista fica no servidor em settings.lista_pv ({ itens, diasProximo }),
+// chave que loja não lê nem grava (ver settingParaLoja em api.ts).
+
+interface DadosPV {
+  itens: ItemPV[];
+  diasProximo: number;
+}
+
+type Filtro = 'todos' | StatusPV;
+
+const COR_STATUS: Record<StatusPV, string> = {
+  vencido: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  proximo: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  atencao: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+};
+
+async function carregarPV(): Promise<DadosPV> {
+  const res = await fetch(`/api/settings/${SETTINGS_KEY_PV}`);
+  if (!res.ok) throw new Error(`Falha ao carregar a lista (${res.status})`);
+  const json = await res.json();
+  const v = json?.value;
+  return {
+    itens: Array.isArray(v?.itens) ? v.itens : [],
+    diasProximo: typeof v?.diasProximo === 'number' ? v.diasProximo : DIAS_PROXIMO_PADRAO,
+  };
+}
+
+async function salvarPV(dados: DadosPV) {
+  const res = await fetch(`/api/settings/${SETTINGS_KEY_PV}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: dados }),
+  });
+  if (!res.ok) throw new Error(`Falha ao salvar a lista (${res.status})`);
+}
+
+export default function ListaPV() {
+  const { setView } = useStore();
+  const [dados, setDados] = useState<DadosPV>({ itens: [], diasProximo: DIAS_PROXIMO_PADRAO });
+  const [carregando, setCarregando] = useState(true);
+  const [importando, setImportando] = useState(false);
+  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [busca, setBusca] = useState('');
+  const [pendente, setPendente] = useState<{ itens: ItemPV[]; ignoradas: number; nome: string } | null>(null);
+  const [confirmarLimpar, setConfirmarLimpar] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    carregarPV()
+      .then(setDados)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const gravar = async (novo: DadosPV, msg?: string) => {
+    const anterior = dados;
+    setDados(novo);
+    try {
+      await salvarPV(novo);
+      if (msg) toast.success(msg);
+    } catch (e: any) {
+      setDados(anterior);
+      toast.error(e.message || 'Falha ao salvar a lista.');
+    }
+  };
+
+  const comStatus = useMemo(
+    () =>
+      dados.itens
+        .map((i) => {
+          const dias = diasParaVencer(i.vencimento);
+          return { ...i, dias, status: statusPV(dias, dados.diasProximo) };
+        })
+        .sort((a, b) => a.dias - b.dias || a.produto.localeCompare(b.produto)),
+    [dados],
+  );
+
+  const contagem = useMemo(() => {
+    const c: Record<StatusPV, number> = { vencido: 0, proximo: 0, atencao: 0, ok: 0 };
+    comStatus.forEach((i) => c[i.status]++);
+    return c;
+  }, [comStatus]);
+
+  const visiveis = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return comStatus.filter(
+      (i) =>
+        (filtro === 'todos' || i.status === filtro) &&
+        (!q || [i.produto, i.codigo, i.lote, i.loja].some((c) => c.toLowerCase().includes(q))),
+    );
+  }, [comStatus, filtro, busca]);
+
+  const aoEscolherArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    setImportando(true);
+    try {
+      const r = await importarArquivoPV(arquivo);
+      if (!r.itens.length) {
+        toast.error('Nenhum produto com data de vencimento válida foi encontrado na planilha.');
+        return;
+      }
+      setPendente({ itens: r.itens, ignoradas: r.ignoradas, nome: arquivo.name });
+    } catch (err: any) {
+      toast.error(err.message || 'Não foi possível ler o arquivo.');
+    } finally {
+      setImportando(false);
+    }
+  };
+
+  const confirmarImportacao = async (modo: 'substituir' | 'adicionar') => {
+    if (!pendente) return;
+    const itens = modo === 'substituir' ? pendente.itens : [...dados.itens, ...pendente.itens];
+    const extra = pendente.ignoradas ? ` (${pendente.ignoradas} linha(s) sem data válida ignorada(s))` : '';
+    setPendente(null);
+    await gravar({ ...dados, itens }, `${pendente.itens.length} produto(s) importado(s)${extra}.`);
+  };
+
+  const exportar = () => {
+    if (!visiveis.length) return toast.error('Não há produtos para exportar.');
+    const sufixo = filtro === 'todos' ? '' : `-${filtro}`;
+    exportarPV(visiveis, dados.diasProximo, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const remover = (id: string) => gravar({ ...dados, itens: dados.itens.filter((i) => i.id !== id) });
+
+  const mudarDias = (valor: string) => {
+    const n = Math.max(1, Math.min(365, parseInt(valor, 10) || DIAS_PROXIMO_PADRAO));
+    if (n !== dados.diasProximo) gravar({ ...dados, diasProximo: n });
+  };
+
+  const CARTOES: { chave: Filtro; rotulo: string; valor: number; cor: string }[] = [
+    { chave: 'todos', rotulo: 'Total', valor: comStatus.length, cor: 'text-zinc-900 dark:text-white' },
+    { chave: 'vencido', rotulo: 'Vencidos', valor: contagem.vencido, cor: 'text-red-600' },
+    { chave: 'proximo', rotulo: `Vencem em até ${dados.diasProximo} dias`, valor: contagem.proximo, cor: 'text-orange-600' },
+    { chave: 'atencao', rotulo: `Até ${dados.diasProximo * 2} dias`, valor: contagem.atencao, cor: 'text-yellow-600' },
+    { chave: 'ok', rotulo: 'Dentro do prazo', valor: contagem.ok, cor: 'text-emerald-600' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setView('dashboard')}
+              className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-600 dark:text-zinc-300 hover:border-blue-500/50 transition-all"
+              title="Voltar ao painel"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter text-black dark:text-white flex items-center gap-2">
+                <CalendarClock className="w-7 h-7 text-blue-600" />
+                Lista <span className="text-blue-600">PV</span>
+              </h1>
+              <p className="text-zinc-500 text-sm font-medium">Produtos próximos do vencimento</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={baixarModeloPV}
+              className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all"
+              title="Baixar planilha modelo"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+              Modelo
+            </button>
+            <button
+              onClick={exportar}
+              className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all"
+              title="Exportar a lista filtrada para Excel"
+            >
+              <Download className="w-5 h-5" />
+              Exportar
+            </button>
+            <button
+              onClick={() => inputRef.current?.click()}
+              disabled={importando}
+              className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70"
+            >
+              {importando ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+              Importar lista
+            </button>
+            <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={aoEscolherArquivo} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {CARTOES.map((c) => (
+            <button
+              key={c.chave}
+              onClick={() => setFiltro(c.chave)}
+              className={cn(
+                'text-left p-4 bg-white dark:bg-zinc-900 border rounded-2xl transition-all',
+                filtro === c.chave ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800 hover:border-blue-500/50',
+              )}
+            >
+              <div className={cn('text-2xl font-black', c.cor)}>{c.valor}</div>
+              <div className="text-xs font-bold text-zinc-500 mt-1">{c.rotulo}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por produto, código, lote ou loja"
+              className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm font-bold text-zinc-600 dark:text-zinc-300">
+            Próximo do vencimento:
+            <input
+              type="number"
+              min={1}
+              max={365}
+              defaultValue={dados.diasProximo}
+              key={dados.diasProximo}
+              onBlur={(e) => mudarDias(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              className="w-20 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-center outline-none focus:border-blue-500"
+            />
+            dias
+          </label>
+          {dados.itens.length > 0 && (
+            <button
+              onClick={() => setConfirmarLimpar(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-red-600 border border-zinc-200 dark:border-zinc-800 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              Limpar lista
+            </button>
+          )}
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+          {carregando ? (
+            <div className="p-12 flex justify-center text-zinc-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          ) : !visiveis.length ? (
+            <div className="p-12 text-center text-zinc-500 text-sm">
+              {dados.itens.length
+                ? 'Nenhum produto neste filtro.'
+                : 'Nenhum produto ainda. Clique em "Importar lista" e envie uma planilha com produto e data de vencimento (baixe o modelo se precisar).'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="text-left px-4 py-3">Produto</th>
+                    <th className="text-left px-4 py-3">Código</th>
+                    <th className="text-left px-4 py-3">Vencimento</th>
+                    <th className="text-right px-4 py-3">Dias</th>
+                    <th className="text-left px-4 py-3">Situação</th>
+                    <th className="text-right px-4 py-3">Qtd</th>
+                    <th className="text-left px-4 py-3">Lote</th>
+                    <th className="text-left px-4 py-3">Loja</th>
+                    <th className="px-2 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {visiveis.map((i) => (
+                    <tr key={i.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                      <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">{i.produto || '—'}</td>
+                      <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{i.codigo || '—'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-zinc-700 dark:text-zinc-300">{dataBR(i.vencimento)}</td>
+                      <td className={cn('px-4 py-3 text-right font-bold', i.dias < 0 ? 'text-red-600' : 'text-zinc-700 dark:text-zinc-300')}>
+                        {i.dias}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn('px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap', COR_STATUS[i.status])}>
+                          {ROTULO_STATUS[i.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">{i.quantidade ?? '—'}</td>
+                      <td className="px-4 py-3 text-zinc-500">{i.lote || '—'}</td>
+                      <td className="px-4 py-3 text-zinc-500">{i.loja || '—'}</td>
+                      <td className="px-2 py-3">
+                        <button
+                          onClick={() => remover(i.id)}
+                          className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg"
+                          title="Remover da lista"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {pendente && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-md w-full space-y-4 border border-zinc-200 dark:border-zinc-800">
+            <h2 className="text-lg font-black text-zinc-900 dark:text-white">Importar {pendente.itens.length} produto(s)?</h2>
+            <p className="text-sm text-zinc-500">
+              Arquivo: {pendente.nome}
+              {pendente.ignoradas > 0 && <><br />{pendente.ignoradas} linha(s) sem data de vencimento válida serão ignoradas.</>}
+            </p>
+            {dados.itens.length > 0 && (
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                A lista atual tem {dados.itens.length} produto(s). Você quer substituir ou somar?
+              </p>
+            )}
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button onClick={() => setPendente(null)} className="px-4 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                Cancelar
+              </button>
+              {dados.itens.length > 0 && (
+                <button onClick={() => confirmarImportacao('adicionar')} className="px-4 py-2.5 rounded-xl font-bold border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-blue-500">
+                  Somar à lista
+                </button>
+              )}
+              <button onClick={() => confirmarImportacao('substituir')} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">
+                {dados.itens.length > 0 ? 'Substituir lista' : 'Importar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmarLimpar && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full space-y-4 border border-zinc-200 dark:border-zinc-800">
+            <h2 className="text-lg font-black text-zinc-900 dark:text-white">Limpar a Lista PV?</h2>
+            <p className="text-sm text-zinc-500">Os {dados.itens.length} produto(s) serão removidos. Exporte antes se quiser guardar.</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmarLimpar(false)} className="px-4 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                Cancelar
+              </button>
+              <button
+                onClick={() => { setConfirmarLimpar(false); gravar({ ...dados, itens: [] }, 'Lista limpa.'); }}
+                className="px-4 py-2.5 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700"
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

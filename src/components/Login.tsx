@@ -224,8 +224,8 @@ export default function Login() {
               )}
             >
               <span className="botao-animado-sp-ponto" />
-              <span className="botao-animado-sp-texto">Acessar Sistema</span>
-              <span className="botao-animado-sp-hover">
+              <span className="botao-animado-sp-texto">{isLoading ? 'Atualizando Dados...' : 'Acessar Sistema'}</span>
+              <span className="botao-animado-sp-hover" aria-hidden="true">
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />

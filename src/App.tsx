@@ -17,6 +17,7 @@ import MonitoringDashboard from './components/MonitoringDashboard';
 import LayoutSelectorModal from './components/LayoutSelectorModal';
 import EncarteBuilder from './components/encarte/EncarteBuilder';
 import EncarteDigital from './components/encarte-digital/EncarteDigital';
+import ListaPV from './components/ListaPV';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
@@ -697,6 +698,10 @@ export default function App() {
 
     if (currentView === 'encarte-digital' && userRole === 'admin') {
       return <EncarteDigital />;
+    }
+
+    if (currentView === 'lista-pv' && userRole === 'admin') {
+      return <ListaPV />;
     }
 
     return (
