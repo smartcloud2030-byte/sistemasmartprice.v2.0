@@ -265,7 +265,7 @@ export default function CriarEstiloModal({ isOpen, onClose, editTarget }: Props)
               Arraste as caixas na folha A4 • use "Centralizar" para alinhar
             </p>
           </div>
-          <button onClick={handleClose} className="p-3 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500">
+          <button onClick={handleClose} className="p-3 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200">
             <X className="w-5 h-5" />
           </button>
         </div>

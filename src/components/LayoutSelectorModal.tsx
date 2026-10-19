@@ -202,7 +202,7 @@ export default function LayoutSelectorModal({ isOpen, onClose, layouts, onSelect
               </button>
               <button
                 onClick={onClose}
-                className="p-3 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500"
+                className="p-3 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200"
               >
                 <X className="w-6 h-6" />
               </button>

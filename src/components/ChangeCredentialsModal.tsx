@@ -54,7 +54,7 @@ export default function ChangeCredentialsModal() {
           </div>
           <button
             onClick={() => setChangeCredsModalOpen(false)}
-            className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-500"
+            className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200"
           >
             <X className="w-5 h-5" />
           </button>

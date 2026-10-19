@@ -64,7 +64,7 @@ const SaveToFolderModal: React.FC<SaveToFolderModalProps> = ({ isOpen, onClose, 
             </div>
             <h3 className="text-lg font-bold text-black dark:text-white">Salvar em Pasta</h3>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200">
             <X className="w-5 h-5" />
           </button>
         </div>
