@@ -12,6 +12,7 @@ import BackupStatus from './BackupStatus';
 import CosmosUsageStatus from './CosmosUsageStatus';
 import FinanceiroPanel from './FinanceiroPanel';
 import DespesaVencimentoNotificacao from './DespesaVencimentoNotificacao';
+import DominioVencimentoNotificacao from './DominioVencimentoNotificacao';
 
 type QuickListKind = 'stores' | 'suspended' | 'online' | 'flags' | 'paymentPending' | null;
 
@@ -35,7 +36,7 @@ const AdminDashboard: React.FC = () => {
 
   const [quickList, setQuickList] = useState<QuickListKind>(null);
   const [showFinanceiro, setShowFinanceiro] = useState(false);
-  const [financeiroTab, setFinanceiroTab] = useState<'despesas' | 'saldo' | 'viagens'>('despesas');
+  const [financeiroTab, setFinanceiroTab] = useState<'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios'>('despesas');
   const [financeiroMesAno, setFinanceiroMesAno] = useState<{ ano: number; mes: number } | null>(null);
 
   // allowedStores só muda quando chega um evento do servidor — sem isso, uma
@@ -330,9 +331,14 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {!showFinanceiro && (
-        <DespesaVencimentoNotificacao
-          onVerDespesas={(mesAno) => { setFinanceiroTab('despesas'); setFinanceiroMesAno(mesAno); setShowFinanceiro(true); }}
-        />
+        <div className="fixed bottom-6 right-6 z-40 w-full max-w-sm flex flex-col gap-3 no-print">
+          <DominioVencimentoNotificacao
+            onVerDominios={() => { setFinanceiroTab('dominios'); setShowFinanceiro(true); }}
+          />
+          <DespesaVencimentoNotificacao
+            onVerDespesas={(mesAno) => { setFinanceiroTab('despesas'); setFinanceiroMesAno(mesAno); setShowFinanceiro(true); }}
+          />
+        </div>
       )}
     </div>
   );

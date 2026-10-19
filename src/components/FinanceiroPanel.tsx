@@ -7,10 +7,11 @@ import FinanceiroDespesasTab from './FinanceiroDespesasTab';
 import FinanceiroSaldoTab from './FinanceiroSaldoTab';
 import DespesasViagemModal from './DespesasViagemModal';
 import FinanceiroNotasTab from './FinanceiroNotasTab';
+import FinanceiroDominiosTab from './FinanceiroDominiosTab';
 
 interface Props {
   onClose: () => void;
-  initialTab?: 'despesas' | 'saldo' | 'viagens' | 'notas';
+  initialTab?: 'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios';
   /** mês/ano que abre na aba Despesas (padrão: o atual) — o aviso de vencimento
    * abre direto no mês da despesa cobrada. */
   initialMesAno?: { ano: number; mes: number } | null;
@@ -20,7 +21,7 @@ const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', c
 
 export default function FinanceiroPanel({ onClose, initialTab = 'despesas', initialMesAno }: Props) {
   const { despesas, saldoEmConta } = useStore();
-  const [activeTab, setActiveTab] = useState<'despesas' | 'saldo' | 'viagens' | 'notas'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios'>(initialTab);
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(initialMesAno?.ano ?? now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(initialMesAno?.mes ?? now.getMonth() + 1);
@@ -51,7 +52,7 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
             </div>
             <div>
               <h3 className="text-xl font-bold text-black dark:text-white">Financeiro</h3>
-              <p className="text-xs text-black dark:text-white opacity-60">Despesas, saldo e notas fiscais</p>
+              <p className="text-xs text-black dark:text-white opacity-60">Despesas, saldo, notas fiscais e domínios</p>
             </div>
           </div>
           <button onClick={onClose} title="Fechar" className="p-2 rounded-full border border-zinc-300 dark:border-zinc-600 text-black dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
@@ -59,7 +60,7 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
           </button>
         </div>
 
-        <div className={cn('p-6 grid grid-cols-2 md:grid-cols-3 gap-4 border-b border-zinc-200 dark:border-zinc-800', (activeTab === 'viagens' || activeTab === 'notas') && 'hidden')}>
+        <div className={cn('p-6 grid grid-cols-2 md:grid-cols-3 gap-4 border-b border-zinc-200 dark:border-zinc-800', (activeTab === 'viagens' || activeTab === 'notas' || activeTab === 'dominios') && 'hidden')}>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
             <p className="text-2xl font-black text-red-600 tracking-tighter">{currency(despesasDoMesTotal)}</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Despesas · {formatMesAno(selectedYear, selectedMonth)}</p>
@@ -132,6 +133,15 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
           >
             Notas Fiscais
           </button>
+          <button
+            onClick={() => setActiveTab('dominios')}
+            className={cn(
+              'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors',
+              activeTab === 'dominios' ? 'bg-amber-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+            )}
+          >
+            Domínios
+          </button>
         </div>
 
         {activeTab === 'viagens' ? (
@@ -140,6 +150,8 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
           </div>
         ) : activeTab === 'notas' ? (
           <FinanceiroNotasTab />
+        ) : activeTab === 'dominios' ? (
+          <FinanceiroDominiosTab />
         ) : activeTab === 'saldo' ? (
           <FinanceiroSaldoTab />
         ) : (

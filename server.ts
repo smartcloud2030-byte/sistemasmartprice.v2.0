@@ -7,6 +7,7 @@ import 'dotenv/config';
 import galleryRouter from './src/gallery';
 import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
 import notaFiscalRouter, { ensureNotaFiscalSchema, iniciarAgendadorDeNotas } from './src/notaFiscal';
+import dominiosRouter, { ensureDominiosSchema } from './src/dominios';
 import monitoringRouter, { ensureMonitoringSchema, startMonitoringJobs } from './src/monitoring';
 import despesasViagemRouter, { ensureDespesasViagemSchema } from './src/despesasViagem';
 import whatsappBotRouter, { ensureWhatsappSchema } from './src/whatsappBot';
@@ -148,6 +149,7 @@ async function startServer() {
   app.use('/gallery', galleryRouter);
   app.use('/api/payments', paymentsRouter);
   app.use('/api/notafiscal', notaFiscalRouter);
+  app.use('/api/dominios', dominiosRouter);
   app.use('/api/monitoring', monitoringRouter);
   app.use('/api/despesas-viagem', despesasViagemRouter);
   app.use('/api/whatsapp', whatsappBotRouter);
@@ -156,6 +158,7 @@ async function startServer() {
   await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
   await ensureNotaFiscalSchema().catch(err => console.error('Erro ao preparar schema de notas fiscais:', err));
   iniciarAgendadorDeNotas();
+  await ensureDominiosSchema().catch(err => console.error('Erro ao preparar schema de domínios:', err));
   await ensureMonitoringSchema().catch(err => console.error('Erro ao preparar schema de monitoramento:', err));
   await ensureDespesasViagemSchema().catch(err => console.error('Erro ao preparar schema de despesas de viagem:', err));
   await ensureWhatsappSchema().catch(err => console.error('Erro ao preparar schema do WhatsApp:', err));

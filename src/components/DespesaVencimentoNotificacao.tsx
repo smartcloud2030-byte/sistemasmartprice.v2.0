@@ -27,7 +27,7 @@ export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
   const primeiras = alertas.slice(0, 3);
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 w-full max-w-sm no-print">
+    <div className="w-full no-print">
       <div className={cn(
         'rounded-2xl shadow-2xl border p-4 bg-white dark:bg-zinc-900',
         'border-red-300 dark:border-red-800',
