@@ -179,6 +179,27 @@ async function callNfsePrefeitura(path: string, options: { method?: string; body
   return { status: res.status, data };
 }
 
+// XML oficial da RFB (GET /erp/nfse-nacional/{id}/xml — a API não tem rota de
+// PDF). Aceita o UUID interno ou a chave de 50 dígitos. Falha → null, o e-mail
+// sai só com o PDF.
+async function baixarXmlOficial(nota: any): Promise<string | null> {
+  const id = nota.nfse_id || nota.chave_acesso;
+  if (!id || !NFSE_BASE_URL || !NFSE_TOKEN) return null;
+  try {
+    const res = await fetch(`${NFSE_BASE_URL}/erp/nfse-nacional/${encodeURIComponent(id)}/xml`, {
+      headers: { 'Authorization': `Token ${NFSE_TOKEN}`, 'X-Contribuinte-Cnpj': PRESTADOR_CNPJ },
+    });
+    if (!res.ok) {
+      console.error('[notaFiscal] XML oficial indisponível:', res.status, id);
+      return null;
+    }
+    return await res.text();
+  } catch (err) {
+    console.error('[notaFiscal] erro ao baixar XML oficial:', err);
+    return null;
+  }
+}
+
 function danfseLinkDoGoverno(): string {
   return 'https://www.nfse.gov.br/consultapublica';
 }
@@ -215,19 +236,24 @@ async function enviarEmailNota(destinatario: string, nota: any) {
 
   const comprovante = comprovanteDaNota(nota);
   const pdf = Buffer.from(montarComprovanteNotaFiscalPdf(comprovante).output('arraybuffer'));
+  const xml = await baixarXmlOficial(nota);
+  const anexos: { filename: string; content: Buffer | string; contentType: string }[] = [
+    { filename: nomeArquivoComprovante(comprovante), content: pdf, contentType: 'application/pdf' },
+  ];
+  if (xml) anexos.push({ filename: nomeArquivoComprovante(comprovante).replace(/\.pdf$/, '.xml'), content: xml, contentType: 'application/xml' });
 
   await transporte.sendMail({
     from: `SMART HELP <${process.env.GMAIL_USER}>`,
     to: destinatario,
     subject: `Nota Fiscal de Serviço nº ${comprovante.numeroNota}`,
     html: `
-      <p>Segue em anexo sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${escapeHtml(comprovante.numeroNota)}</b>, no valor de R$ ${comprovante.valor.toFixed(2)}.</p>
+      <p>Segue em anexo sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${escapeHtml(comprovante.numeroNota)}</b>, no valor de R$ ${comprovante.valor.toFixed(2)}${xml ? ' (PDF e XML oficial)' : ''}.</p>
       <p>Descrição: ${escapeHtml(comprovante.descricaoServico)}</p>
       <p>Para visualizar ou imprimir o documento oficial (DANFSe), acesse a consulta pública do governo e informe a chave de acesso abaixo:</p>
       <p><a href="${danfseLinkDoGoverno()}">${danfseLinkDoGoverno()}</a></p>
       <p>Chave de acesso: <code>${escapeHtml(comprovante.chaveAcesso)}</code></p>
     `,
-    attachments: [{ filename: nomeArquivoComprovante(comprovante), content: pdf, contentType: 'application/pdf' }],
+    attachments: anexos,
   });
 }
 
