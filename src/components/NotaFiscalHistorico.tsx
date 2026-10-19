@@ -17,6 +17,8 @@ interface NotaHistorico {
   chave_acesso: string | null;
   status: 'transmitindo' | 'autorizada' | 'rejeitada';
   erro_detalhe: string | null;
+  cnae: string | null;
+  codigo_servico: string | null;
   created_at: string;
 }
 
@@ -101,6 +103,8 @@ export default function NotaFiscalHistorico() {
                           descricaoServico: nota.descricao_servico,
                           valor: Number(nota.valor),
                           dataEmissao: nota.created_at,
+                          cnae: nota.cnae,
+                          codigoServico: nota.codigo_servico,
                         })}
                         title="Baixar PDF"
                         className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-emerald-500/50 transition-colors"

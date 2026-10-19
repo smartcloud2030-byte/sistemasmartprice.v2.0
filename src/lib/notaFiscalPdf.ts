@@ -8,6 +8,8 @@ export interface ComprovanteNotaFiscalInput {
   descricaoServico: string;
   valor: number;
   dataEmissao: string;
+  cnae?: string | null;
+  codigoServico?: string | null;
 }
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -18,7 +20,11 @@ export function formatCnpj(cnpj: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
-export function baixarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput) {
+const formatCnae = (c: string) => c.replace(/^(\d{4})(\d)(\d{2})$/, '$1-$2/$3');
+
+// Monta o comprovante — usado no navegador (baixar) e no servidor (anexo do
+// e-mail), por isso não toca em DOM nem em fuso do navegador.
+export function montarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput): jsPDF {
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const margin = 20;
   let y = margin;
@@ -54,14 +60,16 @@ export function baixarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput
     y += Math.max(7, texto.length * 5.5);
   };
 
-  linha('Prestador (CNPJ):', formatCnpj('66125544000198'));
+  linha('Prestador:', `SMART HELP LTDA · ${formatCnpj('66125544000198')}`);
   linha('Tomador:', input.nomeTomador);
   linha('CNPJ do tomador:', formatCnpj(input.cnpjTomador));
   linha('Número da nota:', input.numeroNota);
   linha('Chave de acesso:', input.chaveAcesso);
+  if (input.cnae) linha('CNAE:', formatCnae(input.cnae));
+  if (input.codigoServico) linha('Código de serviço:', input.codigoServico);
   linha('Descrição do serviço:', input.descricaoServico);
   linha('Valor:', currency(input.valor));
-  linha('Data de emissão:', new Date(input.dataEmissao).toLocaleString('pt-BR'));
+  linha('Data de emissão:', new Date(input.dataEmissao).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }));
 
   y += 5;
   pdf.setDrawColor(200, 200, 200);
@@ -73,5 +81,13 @@ export function baixarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput
   pdf.setTextColor(120, 120, 120);
   pdf.text('Consulta pública oficial: https://www.nfse.gov.br/consultapublica', margin, y);
 
-  pdf.save(`nota-fiscal-${input.numeroNota || input.chaveAcesso}.pdf`);
+  return pdf;
+}
+
+export function nomeArquivoComprovante(input: Pick<ComprovanteNotaFiscalInput, 'numeroNota' | 'chaveAcesso'>): string {
+  return `nota-fiscal-${input.numeroNota || input.chaveAcesso}.pdf`;
+}
+
+export function baixarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput) {
+  montarComprovanteNotaFiscalPdf(input).save(nomeArquivoComprovante(input));
 }

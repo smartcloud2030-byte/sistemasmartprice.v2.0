@@ -281,6 +281,8 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                     descricaoServico: descricao,
                     valor: Number(valor),
                     dataEmissao: nota.created_at || new Date().toISOString(),
+                    cnae,
+                    codigoServico: servicoCodigo,
                   })}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-bold text-black dark:text-white hover:border-emerald-500/50 transition-colors"
                 >

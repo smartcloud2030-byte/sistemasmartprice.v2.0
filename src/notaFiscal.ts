@@ -104,6 +104,7 @@ import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
 import { exigirAdmin } from './lib/sessao';
+import { montarComprovanteNotaFiscalPdf, nomeArquivoComprovante, ComprovanteNotaFiscalInput } from './lib/notaFiscalPdf';
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'postgres',
@@ -191,23 +192,42 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-async function enviarEmailNota(destinatario: string, nota: { numeroNota: string; chaveAcesso: string; valor: number; descricao: string }) {
+function comprovanteDaNota(nota: any): ComprovanteNotaFiscalInput {
+  return {
+    numeroNota: nota.numero_nota || '',
+    chaveAcesso: nota.chave_acesso || '',
+    cnpjTomador: nota.cnpj_tomador,
+    nomeTomador: nota.nome_tomador,
+    descricaoServico: nota.descricao_servico,
+    valor: Number(nota.valor),
+    dataEmissao: nota.created_at,
+    cnae: nota.cnae,
+    codigoServico: nota.codigo_servico,
+  };
+}
+
+// Recebe a linha de notas_fiscais e manda o e-mail com o PDF da nota anexado.
+async function enviarEmailNota(destinatario: string, nota: any) {
   const transporte = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
   });
 
+  const comprovante = comprovanteDaNota(nota);
+  const pdf = Buffer.from(montarComprovanteNotaFiscalPdf(comprovante).output('arraybuffer'));
+
   await transporte.sendMail({
-    from: process.env.GMAIL_USER,
+    from: `SMART HELP <${process.env.GMAIL_USER}>`,
     to: destinatario,
-    subject: `Nota Fiscal de Serviço nº ${nota.numeroNota}`,
+    subject: `Nota Fiscal de Serviço nº ${comprovante.numeroNota}`,
     html: `
-      <p>Segue sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${escapeHtml(nota.numeroNota)}</b>, no valor de R$ ${nota.valor.toFixed(2)}.</p>
-      <p>Descrição: ${escapeHtml(nota.descricao)}</p>
+      <p>Segue em anexo sua Nota Fiscal de Serviço Eletrônica (NFS-e) nº <b>${escapeHtml(comprovante.numeroNota)}</b>, no valor de R$ ${comprovante.valor.toFixed(2)}.</p>
+      <p>Descrição: ${escapeHtml(comprovante.descricaoServico)}</p>
       <p>Para visualizar ou imprimir o documento oficial (DANFSe), acesse a consulta pública do governo e informe a chave de acesso abaixo:</p>
       <p><a href="${danfseLinkDoGoverno()}">${danfseLinkDoGoverno()}</a></p>
-      <p>Chave de acesso: <code>${escapeHtml(nota.chaveAcesso)}</code></p>
+      <p>Chave de acesso: <code>${escapeHtml(comprovante.chaveAcesso)}</code></p>
     `,
+    attachments: [{ filename: nomeArquivoComprovante(comprovante), content: pdf, contentType: 'application/pdf' }],
   });
 }
 
@@ -221,12 +241,7 @@ async function enviarEmailAutomatico(nota: any) {
     return nota;
   }
   try {
-    await enviarEmailNota(nota.email_tomador, {
-      numeroNota: nota.numero_nota,
-      chaveAcesso: nota.chave_acesso,
-      valor: Number(nota.valor),
-      descricao: nota.descricao_servico,
-    });
+    await enviarEmailNota(nota.email_tomador, nota);
     const updated = await pool.query(
       `UPDATE notas_fiscais SET ultimo_email_enviado_em = NOW() WHERE id = $1 RETURNING *`,
       [nota.id]
@@ -424,12 +439,7 @@ router.post('/:id/email', apiAuth, async (req: Request, res: Response) => {
     if (!nota) return res.status(404).json({ error: 'Nota não encontrada.' });
     if (nota.status !== 'autorizada') return res.status(400).json({ error: 'Só é possível enviar por e-mail uma nota autorizada.' });
 
-    await enviarEmailNota(destinatario, {
-      numeroNota: nota.numero_nota,
-      chaveAcesso: nota.chave_acesso,
-      valor: Number(nota.valor),
-      descricao: nota.descricao_servico,
-    });
+    await enviarEmailNota(destinatario, nota);
 
     const updated = await pool.query(
       `UPDATE notas_fiscais SET ultimo_email_enviado_em = NOW() WHERE id = $1 RETURNING *`,
