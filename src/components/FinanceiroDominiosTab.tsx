@@ -8,7 +8,7 @@ const inputCls = 'w-full mt-1 px-3 py-2 rounded-xl text-sm border border-zinc-20
 const labelCls = 'text-[10px] font-black uppercase tracking-widest text-zinc-400';
 const SUGESTOES_ONDE = ['Locaweb', 'Hostinger', 'Registro.br', 'GoDaddy', 'Cloudflare'];
 
-const VAZIO = { dominio: '', vencimento: '', registrador: '' };
+const VAZIO = { dominio: '', vencimento: '', registrador: '', conta: '' };
 
 export default function FinanceiroDominiosTab() {
   const [dominios, setDominios] = useState<Dominio[] | null>(null);
@@ -34,7 +34,7 @@ export default function FinanceiroDominiosTab() {
   const abrirNovo = () => { setEditandoId(null); setForm(VAZIO); setErro(null); };
   const abrirEdicao = (d: Dominio) => {
     setEditandoId(d.id);
-    setForm({ dominio: d.dominio, vencimento: d.vencimento, registrador: d.registrador || '' });
+    setForm({ dominio: d.dominio, vencimento: d.vencimento, registrador: d.registrador || '', conta: d.conta || '' });
     setErro(null);
   };
   const fecharForm = () => { setForm(null); setEditandoId(null); setErro(null); };
@@ -88,7 +88,7 @@ export default function FinanceiroDominiosTab() {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Domínio</label>
               <input autoFocus value={form.dominio} onChange={(e) => setForm({ ...form, dominio: e.target.value })} placeholder="meusite.com.br" className={inputCls} />
@@ -103,6 +103,10 @@ export default function FinanceiroDominiosTab() {
               <datalist id="dominio-onde">
                 {SUGESTOES_ONDE.map((s) => <option key={s} value={s} />)}
               </datalist>
+            </div>
+            <div>
+              <label className={labelCls}>E-mail da conta</label>
+              <input type="email" value={form.conta} onChange={(e) => setForm({ ...form, conta: e.target.value })} placeholder="login onde renova" className={inputCls} />
             </div>
           </div>
           {erro && (
@@ -133,7 +137,10 @@ export default function FinanceiroDominiosTab() {
                 <Globe className={cn('w-4 h-4 flex-shrink-0', status === 'vencido' ? 'text-red-600' : status === 'vence_em_breve' ? 'text-amber-600' : 'text-zinc-400')} />
                 <div className="min-w-0 flex-grow">
                   <p className="text-sm font-bold text-black dark:text-white truncate">{d.dominio}</p>
-                  <p className="text-[11px] text-zinc-400">{d.registrador || 'Onde está: não informado'}</p>
+                  <p className="text-[11px] text-zinc-400 truncate">
+                    {d.registrador || 'Onde está: não informado'}
+                    {d.conta && <> · <span className="text-zinc-600 dark:text-zinc-300 select-all">{d.conta}</span></>}
+                  </p>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm font-bold text-black dark:text-white">{formatarData(d.vencimento)}</p>

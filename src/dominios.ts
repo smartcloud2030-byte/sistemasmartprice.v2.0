@@ -25,17 +25,23 @@ export async function ensureDominiosSchema() {
       criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  // e-mail da conta do registrador onde o domínio é renovado
+  await pool.query(`ALTER TABLE dominios ADD COLUMN IF NOT EXISTS conta TEXT`);
 }
 
-const COLUNAS = `id, dominio, to_char(vencimento, 'YYYY-MM-DD') AS vencimento, registrador`;
+const COLUNAS = `id, dominio, to_char(vencimento, 'YYYY-MM-DD') AS vencimento, registrador, conta`;
 
-function lerCorpo(body: any): { dominio: string; vencimento: string; registrador: string | null } | string {
+type DadosDominio = { dominio: string; vencimento: string; registrador: string | null; conta: string | null };
+
+function lerCorpo(body: any): DadosDominio | string {
   const dominio = normalizarDominio(String(body?.dominio ?? ''));
   const vencimento = String(body?.vencimento ?? '').slice(0, 10);
   const registrador = String(body?.registrador ?? '').trim().slice(0, 60) || null;
+  const conta = String(body?.conta ?? '').trim().toLowerCase().slice(0, 120) || null;
   if (!dominioValido(dominio)) return 'Domínio inválido. Ex.: meusite.com.br';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimento) || isNaN(Date.parse(vencimento))) return 'Informe a data de vencimento.';
-  return { dominio, vencimento, registrador };
+  if (conta && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(conta)) return 'E-mail da conta inválido.';
+  return { dominio, vencimento, registrador, conta };
 }
 
 router.get('/', exigirAdmin, async (_req: Request, res: Response) => {
@@ -48,8 +54,8 @@ router.post('/', exigirAdmin, async (req: Request, res: Response) => {
   if (typeof dados === 'string') return res.status(400).json({ error: dados });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO dominios (dominio, vencimento, registrador) VALUES ($1, $2, $3) RETURNING ${COLUNAS}`,
-      [dados.dominio, dados.vencimento, dados.registrador],
+      `INSERT INTO dominios (dominio, vencimento, registrador, conta) VALUES ($1, $2, $3, $4) RETURNING ${COLUNAS}`,
+      [dados.dominio, dados.vencimento, dados.registrador, dados.conta],
     );
     res.status(201).json(rows[0]);
   } catch (err: any) {
@@ -63,8 +69,8 @@ router.put('/:id', exigirAdmin, async (req: Request, res: Response) => {
   if (typeof dados === 'string') return res.status(400).json({ error: dados });
   try {
     const { rows } = await pool.query(
-      `UPDATE dominios SET dominio = $1, vencimento = $2, registrador = $3 WHERE id = $4 RETURNING ${COLUNAS}`,
-      [dados.dominio, dados.vencimento, dados.registrador, Number(req.params.id)],
+      `UPDATE dominios SET dominio = $1, vencimento = $2, registrador = $3, conta = $4 WHERE id = $5 RETURNING ${COLUNAS}`,
+      [dados.dominio, dados.vencimento, dados.registrador, dados.conta, Number(req.params.id)],
     );
     if (!rows[0]) return res.status(404).json({ error: 'Domínio não encontrado.' });
     res.json(rows[0]);

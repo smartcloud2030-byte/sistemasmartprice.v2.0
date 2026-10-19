@@ -4,6 +4,8 @@ export interface Dominio {
   /** YYYY-MM-DD */
   vencimento: string;
   registrador: string | null;
+  /** e-mail da conta onde o domínio é renovado */
+  conta: string | null;
 }
 
 export type StatusDominio = 'vencido' | 'vence_em_breve' | 'ok';

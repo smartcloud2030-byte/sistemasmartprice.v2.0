@@ -19,9 +19,9 @@ function avisaComTrintaDiasDeAntecedencia() {
 
 function listaSoOsUrgentesDoMaisProximo() {
   const lista: Dominio[] = [
-    { id: 1, dominio: 'a.com.br', vencimento: '2027-09-08', registrador: null },
-    { id: 2, dominio: 'b.site', vencimento: '2026-11-01', registrador: null },
-    { id: 3, dominio: 'c.online', vencimento: '2026-10-10', registrador: null },
+    { id: 1, dominio: 'a.com.br', vencimento: '2027-09-08', registrador: null, conta: null },
+    { id: 2, dominio: 'b.site', vencimento: '2026-11-01', registrador: null, conta: null },
+    { id: 3, dominio: 'c.online', vencimento: '2026-10-10', registrador: null, conta: null },
   ];
   assert.deepStrictEqual(dominiosAVencer(lista, hoje).map((d) => d.id), [3, 2]);
 }
