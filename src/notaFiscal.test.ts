@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { buildEmissaoPayload, validateEmissaoInput, mapNfseError, EmissaoInput, agoraEmBacabal, jaPassouDoHorario } from './notaFiscal';
+import { buildEmissaoPayload, validateEmissaoInput, mapNfseError, EmissaoInput, agoraEmBacabal, jaPassouDoHorario, validarCancelamento } from './notaFiscal';
 
 const validInput: EmissaoInput = {
   tomadorCnpj: '99888777000166',
@@ -116,7 +116,15 @@ function agendamentoSoEmiteNoDiaAPartirDas10h() {
   assert.strictEqual(jaPassouDoHorario(5, { dia: 7, hora: 0 }), true);
 }
 
+function cancelamentoExigeMotivoEJustificativa() {
+  assert.match(validarCancelamento('5', 'Nota emitida por engano em teste'), /motivo/);
+  assert.match(validarCancelamento('1', 'curto'), /15 caracteres/);
+  assert.match(validarCancelamento('9', 'x'.repeat(256)), /255/);
+  assert.strictEqual(validarCancelamento('1', 'Nota emitida por engano em teste'), null);
+}
+
 try {
+  cancelamentoExigeMotivoEJustificativa();
   agendamentoUsaOFusoDeBacabal();
   agendamentoSoEmiteNoDiaAPartirDas10h();
   buildsThePayloadWithFixedPrestadorConfig();

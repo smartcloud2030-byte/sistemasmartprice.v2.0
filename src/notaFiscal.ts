@@ -56,6 +56,17 @@ export function validateEmissaoInput(input: EmissaoInput): string | null {
   return null;
 }
 
+// Códigos de justificativa do cancelamento (TSCodJustCanc, XSD NFS-e v1.01).
+export const MOTIVOS_CANCELAMENTO: Record<string, string> = { '1': 'Erro na emissão', '2': 'Serviço não prestado', '9': 'Outros' };
+
+export function validarCancelamento(cMotivo: string, motivo: string): string | null {
+  if (!MOTIVOS_CANCELAMENTO[cMotivo]) return 'Escolha o motivo do cancelamento.';
+  const texto = motivo.trim();
+  if (texto.length < 15) return 'Explique o motivo com pelo menos 15 caracteres.';
+  if (texto.length > 255) return 'A justificativa pode ter no máximo 255 caracteres.';
+  return null;
+}
+
 export function buildEmissaoPayload(input: EmissaoInput, prestadorCnpj: string) {
   return {
     prestadorCnpj,
@@ -137,6 +148,9 @@ export async function ensureNotaFiscalSchema() {
     );
     ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cnae VARCHAR(7);
     ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS email_automatico BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cancelada_em TIMESTAMPTZ;
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cancelamento_motivo TEXT;
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cancelamento_protocolo TEXT;
     CREATE TABLE IF NOT EXISTS nfse_agendamentos (
       id SERIAL PRIMARY KEY,
       chave TEXT NOT NULL UNIQUE,
@@ -909,6 +923,63 @@ router.post('/lotes/:id/enviar', apiAuth, async (req: Request, res: Response) =>
   } catch (err: any) {
     console.error('[notaFiscal] POST /lotes/:id/enviar:', err);
     res.status(500).json({ error: 'Erro ao enviar o lote. Tente novamente.' });
+  }
+});
+
+// Cancela a NFS-e na prefeitura/Receita (POST /erp/nfse-nacional/{chave}/cancelar).
+router.post('/:id/cancelar', apiAuth, async (req: Request, res: Response) => {
+  if (!NFSE_BASE_URL || !NFSE_TOKEN || !PRESTADOR_CNPJ) {
+    return res.status(500).json({ error: 'Configuração da integração com a prefeitura inválida — contate o suporte.' });
+  }
+  try {
+    if (!(await verificarSenhaAdmin(req.body?.adminPassword))) {
+      return res.status(403).json({ error: 'Senha de admin incorreta ou não informada.' });
+    }
+  } catch (err) {
+    console.error('[notaFiscal] erro ao verificar senha de admin:', err);
+    return res.status(500).json({ error: 'Erro ao verificar credenciais. Tente novamente.' });
+  }
+
+  const cMotivo = String(req.body?.cMotivo || '');
+  const motivo = String(req.body?.motivo || '').trim();
+  const erroValidacao = validarCancelamento(cMotivo, motivo);
+  if (erroValidacao) return res.status(422).json({ error: erroValidacao });
+
+  try {
+    const nota = (await pool.query('SELECT * FROM notas_fiscais WHERE id = $1', [req.params.id])).rows[0];
+    if (!nota) return res.status(404).json({ error: 'Nota não encontrada.' });
+    if (nota.status === 'cancelada') return res.status(409).json({ error: 'Essa nota já está cancelada.' });
+    if (nota.status !== 'autorizada' || !nota.chave_acesso) return res.status(400).json({ error: 'Só dá pra cancelar nota autorizada.' });
+
+    const { status, data } = await callNfsePrefeitura(`/erp/nfse-nacional/${nota.chave_acesso}/cancelar`, {
+      method: 'POST',
+      body: { motivo, cMotivo },
+    });
+
+    const marcarCancelada = (protocolo: string | null, quando: string | null) => pool.query(
+      `UPDATE notas_fiscais SET status = 'cancelada', cancelada_em = COALESCE($2::timestamptz, NOW()),
+         cancelamento_motivo = $3, cancelamento_protocolo = $4 WHERE id = $1 RETURNING *`,
+      [nota.id, quando, `${MOTIVOS_CANCELAMENTO[cMotivo]} — ${motivo}`, protocolo]
+    );
+
+    if (status === 200) {
+      const atualizada = await marcarCancelada(data?.protocolo || null, data?.canceladaEm || null);
+      return res.json(atualizada.rows[0]);
+    }
+    if (status === 409) {
+      // Já estava cancelada lá (ex.: cancelada pelo portal) — só acerta aqui.
+      const atualizada = await marcarCancelada(null, null);
+      return res.json(atualizada.rows[0]);
+    }
+
+    console.error('[notaFiscal] cancelamento recusado:', status, JSON.stringify(data));
+    if (status === 401 || status === 403) return res.status(502).json({ error: mapNfseError(status, data) });
+    if (status === 400) return res.status(400).json({ error: 'A prefeitura diz que essa nota não está autorizada (não dá pra cancelar).' });
+    const msg = data?.details?.descricaoErro || data?.message || 'A Receita Federal recusou o cancelamento.';
+    return res.status(status >= 400 && status < 600 ? status : 500).json({ error: data?.details?.acaoSugerida ? `${msg} — ${data.details.acaoSugerida}` : msg });
+  } catch (err: any) {
+    console.error('[notaFiscal] POST /:id/cancelar:', err);
+    res.status(500).json({ error: 'Erro ao cancelar a nota. Confira no histórico antes de tentar de novo.' });
   }
 });
 

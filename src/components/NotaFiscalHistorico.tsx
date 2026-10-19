@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, Mail, Loader2, FileText, Download } from 'lucide-react';
+import { ExternalLink, Mail, Loader2, FileText, Download, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import NotaFiscalCancelarModal from './NotaFiscalCancelarModal';
 
 const AUTH_HEADERS = { 'Content-Type': 'application/json' };
 
@@ -14,10 +15,11 @@ interface NotaHistorico {
   valor: string;
   numero_nota: string | null;
   chave_acesso: string | null;
-  status: 'transmitindo' | 'autorizada' | 'rejeitada';
+  status: 'transmitindo' | 'autorizada' | 'rejeitada' | 'cancelada';
   erro_detalhe: string | null;
   cnae: string | null;
   codigo_servico: string | null;
+  cancelamento_motivo: string | null;
   created_at: string;
 }
 
@@ -27,20 +29,23 @@ const STATUS_LABEL: Record<NotaHistorico['status'], { label: string; className: 
   autorizada: { label: 'Autorizada', className: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
   transmitindo: { label: 'Transmitindo', className: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' },
   rejeitada: { label: 'Rejeitada', className: 'bg-red-100 dark:bg-red-900/30 text-red-600' },
+  cancelada: { label: 'Cancelada', className: 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500' },
 };
 
 export default function NotaFiscalHistorico() {
   const [notas, setNotas] = useState<NotaHistorico[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviandoId, setEnviandoId] = useState<number | null>(null);
+  const [cancelando, setCancelando] = useState<NotaHistorico | null>(null);
 
-  useEffect(() => {
+  const carregar = () =>
     fetch('/api/notafiscal', { headers: AUTH_HEADERS })
       .then((res) => res.json())
       .then((data) => setNotas(Array.isArray(data) ? data : []))
       .catch(() => toast.error('Erro ao carregar histórico de notas fiscais.'))
       .finally(() => setLoading(false));
-  }, []);
+
+  useEffect(() => { carregar(); }, []);
 
   const reenviarEmail = async (nota: NotaHistorico) => {
     if (!nota.email_tomador) {
@@ -82,9 +87,9 @@ export default function NotaFiscalHistorico() {
             return (
               <div key={nota.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-black dark:text-white truncate">{nota.nome_tomador} <span className="text-zinc-400 font-normal">· {currency(nota.valor)}</span></p>
+                  <p className="text-sm font-bold text-black dark:text-white truncate">{nota.numero_nota && <span className="text-zinc-400 font-normal">Nº {nota.numero_nota} · </span>}{nota.nome_tomador} <span className="text-zinc-400 font-normal">· {currency(nota.valor)}</span></p>
                   <p className="text-[11px] text-zinc-400 truncate">
-                    {nota.descricao_servico} · {new Date(nota.created_at).toLocaleDateString('pt-BR')}
+                    {nota.status === 'cancelada' && nota.cancelamento_motivo ? `Cancelada: ${nota.cancelamento_motivo}` : nota.descricao_servico} · {new Date(nota.created_at).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -117,6 +122,13 @@ export default function NotaFiscalHistorico() {
                       >
                         {enviandoId === nota.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5 text-zinc-500" />}
                       </button>
+                      <button
+                        onClick={() => setCancelando(nota)}
+                        title="Cancelar nota"
+                        className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-red-500/50 transition-colors"
+                      >
+                        <Ban className="w-3.5 h-3.5 text-zinc-500" />
+                      </button>
                     </>
                   )}
                 </div>
@@ -124,6 +136,18 @@ export default function NotaFiscalHistorico() {
             );
           })}
         </div>
+      )}
+
+      {cancelando && (
+        <NotaFiscalCancelarModal
+          nota={cancelando}
+          onClose={() => setCancelando(null)}
+          onCancelada={() => {
+            toast.success(`Nota nº ${cancelando.numero_nota} cancelada.`);
+            setCancelando(null);
+            carregar();
+          }}
+        />
       )}
     </div>
   );
