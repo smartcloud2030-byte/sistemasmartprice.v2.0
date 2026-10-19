@@ -15,6 +15,7 @@ const validInput: EmissaoInput = {
     cep: '01310100',
   },
   servicoCodigo: '010101',
+  cnae: '7319003',
   descricao: 'Suporte de TI - manutencao mensal',
   valor: 150,
 };
@@ -25,7 +26,7 @@ function buildsThePayloadWithFixedPrestadorConfig() {
   assert.strictEqual(payload.tomadorDoc, '99888777000166');
   assert.strictEqual(payload.servicoCodigo, '010101');
   assert.strictEqual(payload.valorTotal, '150.00');
-  assert.strictEqual(payload.cnae, '9511800');
+  assert.strictEqual(payload.cnae, '7319003');
   assert.strictEqual(payload.descricao, 'Suporte de TI - manutencao mensal');
   assert.strictEqual(payload.tomador.nome, 'Empresa Tomadora Exemplo Ltda');
   assert.strictEqual(payload.tomador.email, 'fiscal@exemplo.com.br');
@@ -54,6 +55,11 @@ function validateEmissaoInputRejectsInvalidCnpj() {
 function validateEmissaoInputRejectsServicoCodigoWithWrongLength() {
   const erro = validateEmissaoInput({ ...validInput, servicoCodigo: '12' });
   assert.ok(erro && /6 dígitos/.test(erro));
+}
+
+function validateEmissaoInputRejectsCnaeWithWrongLength() {
+  const erro = validateEmissaoInput({ ...validInput, cnae: '7319' });
+  assert.ok(erro && /CNAE/.test(erro));
 }
 
 function validateEmissaoInputRejectsZeroValue() {
@@ -101,6 +107,7 @@ try {
   stripsFormattingFromTelefoneBecauseTheXsdOnlyAcceptsDigits();
   validateEmissaoInputRejectsInvalidCnpj();
   validateEmissaoInputRejectsServicoCodigoWithWrongLength();
+  validateEmissaoInputRejectsCnaeWithWrongLength();
   validateEmissaoInputRejectsZeroValue();
   validateEmissaoInputAcceptsAValidInput();
   mapsRfbRejectionUsingDescricaoErroAndAcaoSugerida();

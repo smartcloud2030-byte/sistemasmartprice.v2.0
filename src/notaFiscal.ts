@@ -5,9 +5,22 @@
 // Integração NFS-e" fornecido pela prefeitura, contrato v1.0.0 (14/05/2026).
 // ─────────────────────────────────────────
 
+// CNAEs do cartão CNPJ da Smart Help (BrasilAPI, 2026-10-19). O CNAE vai por
+// nota; o admin pode cadastrar outros pela tela (settings.nfse_cnaes).
+export interface CnaeOpcao { codigo: string; descricao: string }
+export const CNAE_PADRAO = '7319003';
+export const CNAES_DO_CARTAO: CnaeOpcao[] = [
+  { codigo: '7319003', descricao: 'Marketing direto' },
+  { codigo: '9511800', descricao: 'Reparação e manutenção de computadores e periféricos' },
+  { codigo: '6209100', descricao: 'Suporte técnico, manutenção e outros serviços em TI' },
+  { codigo: '6319400', descricao: 'Portais, provedores de conteúdo e serviços de informação na internet' },
+  { codigo: '7319004', descricao: 'Consultoria em publicidade' },
+  { codigo: '7320300', descricao: 'Pesquisas de mercado e de opinião pública' },
+  { codigo: '9512600', descricao: 'Reparação e manutenção de equipamentos de comunicação' },
+];
+
 // Config tributária fixa do prestador — não muda por nota. Ver "Cenário A"
 // (Optante ME/EPP, caso mais comum) na documentação da prefeitura.
-const PRESTADOR_CNAE = '9511800';
 const PRESTADOR_LOCAL_PRESTACAO_IBGE = '2101202'; // Bacabal/MA
 const PRESTADOR_REGIME = { opSimpNac: 3, regApTribSn: 1, regEspTrib: 0, issRetido: 1 } as const;
 
@@ -27,6 +40,7 @@ export interface EmissaoInput {
   tomadorTelefone?: string;
   tomadorEndereco: EnderecoInput;
   servicoCodigo: string;
+  cnae: string;
   descricao: string;
   valor: number;
 }
@@ -36,6 +50,7 @@ export function validateEmissaoInput(input: EmissaoInput): string | null {
   if (!input.tomadorNome?.trim()) return 'Nome do tomador é obrigatório.';
   if (!input.tomadorEmail?.trim()) return 'E-mail do tomador é obrigatório.';
   if (!/^\d{6}$/.test(input.servicoCodigo)) return 'Código de serviço precisa ter exatamente 6 dígitos.';
+  if (!/^\d{7}$/.test(input.cnae)) return 'CNAE precisa ter exatamente 7 dígitos.';
   if (!input.descricao?.trim()) return 'Descrição do serviço é obrigatória.';
   if (!(input.valor > 0)) return 'Valor precisa ser maior que zero.';
   return null;
@@ -47,7 +62,7 @@ export function buildEmissaoPayload(input: EmissaoInput, prestadorCnpj: string) 
     tomadorDoc: input.tomadorCnpj,
     servicoCodigo: input.servicoCodigo,
     valorTotal: input.valor.toFixed(2),
-    cnae: PRESTADOR_CNAE,
+    cnae: input.cnae,
     descricao: input.descricao,
     tomador: {
       nome: input.tomadorNome,
@@ -116,7 +131,14 @@ export async function ensureNotaFiscalSchema() {
       ultimo_email_enviado_em TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cnae VARCHAR(7);
   `);
+}
+
+async function listarCnaes(): Promise<CnaeOpcao[]> {
+  const result = await pool.query('SELECT value FROM settings WHERE id = $1', ['nfse_cnaes']);
+  const salvos = result.rows[0]?.value;
+  return Array.isArray(salvos) && salvos.length > 0 ? salvos : CNAES_DO_CARTAO;
 }
 
 // Só admin logado (sessão em cookie) ou script da própria VPS — ver src/lib/sessao.ts.
@@ -189,7 +211,65 @@ async function enviarEmailNota(destinatario: string, nota: { numeroNota: string;
   });
 }
 
+// Manda a nota pro e-mail do tomador assim que ela é autorizada. Falha de
+// e-mail não pode derrubar a emissão (a nota já existe na prefeitura) — fica
+// só no log, e o admin reenvia pelo histórico.
+async function enviarEmailAutomatico(nota: any) {
+  if (nota?.status !== 'autorizada' || !nota.email_tomador || !nota.numero_nota) return nota;
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.warn('[notaFiscal] GMAIL_USER/GMAIL_APP_PASSWORD ausentes — e-mail automático não enviado.');
+    return nota;
+  }
+  try {
+    await enviarEmailNota(nota.email_tomador, {
+      numeroNota: nota.numero_nota,
+      chaveAcesso: nota.chave_acesso,
+      valor: Number(nota.valor),
+      descricao: nota.descricao_servico,
+    });
+    const updated = await pool.query(
+      `UPDATE notas_fiscais SET ultimo_email_enviado_em = NOW() WHERE id = $1 RETURNING *`,
+      [nota.id]
+    );
+    return updated.rows[0];
+  } catch (err) {
+    console.error('[notaFiscal] falha no e-mail automático da nota', nota.id, err);
+    return nota;
+  }
+}
+
 const router = Router();
+
+router.get('/cnaes', apiAuth, async (_req: Request, res: Response) => {
+  try {
+    res.json({ padrao: CNAE_PADRAO, cnaes: await listarCnaes() });
+  } catch (err: any) {
+    console.error('[notaFiscal] GET /cnaes:', err);
+    res.status(500).json({ error: 'Erro ao carregar CNAEs.' });
+  }
+});
+
+router.post('/cnaes', apiAuth, async (req: Request, res: Response) => {
+  const codigo = String(req.body?.codigo || '').replace(/\D/g, '');
+  const descricao = String(req.body?.descricao || '').trim();
+  if (!/^\d{7}$/.test(codigo)) return res.status(422).json({ error: 'CNAE precisa ter exatamente 7 dígitos.' });
+  if (!descricao) return res.status(422).json({ error: 'Descrição do CNAE é obrigatória.' });
+
+  try {
+    const atuais = await listarCnaes();
+    if (atuais.some((c) => c.codigo === codigo)) return res.status(409).json({ error: 'Esse CNAE já está na lista.' });
+    const novos = [...atuais, { codigo, descricao }];
+    await pool.query(
+      `INSERT INTO settings (id, value, updated_at) VALUES ('nfse_cnaes', $1, NOW())
+       ON CONFLICT (id) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(novos)]
+    );
+    res.json({ padrao: CNAE_PADRAO, cnaes: novos });
+  } catch (err: any) {
+    console.error('[notaFiscal] POST /cnaes:', err);
+    res.status(500).json({ error: 'Erro ao salvar CNAE.' });
+  }
+});
 
 router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
   if (!NFSE_BASE_URL || !NFSE_TOKEN || !PRESTADOR_CNPJ) {
@@ -213,6 +293,7 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     tomadorTelefone: req.body?.tomadorTelefone || '',
     tomadorEndereco: req.body?.tomadorEndereco || {},
     servicoCodigo: req.body?.servicoCodigo || '',
+    cnae: String(req.body?.cnae || CNAE_PADRAO).replace(/\D/g, ''),
     descricao: req.body?.descricao || '',
     valor: Number(req.body?.valor),
   };
@@ -239,8 +320,8 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
         console.error('[notaFiscal] 200 sem numero/chave — prefeitura pode ter mudado o contrato:', JSON.stringify(data));
       }
       const inserted = await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status, cnae)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
         [
           data.id,
           input.tomadorCnpj,
@@ -252,9 +333,10 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
           semNumeroOuChave ? null : data.numero,
           semNumeroOuChave ? null : data.chave,
           semNumeroOuChave ? 'transmitindo' : 'autorizada',
+          input.cnae,
         ]
       );
-      return res.json(inserted.rows[0]);
+      return res.json(await enviarEmailAutomatico(inserted.rows[0]));
     }
 
     if (status === 202) {
@@ -262,9 +344,9 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
         console.error('[notaFiscal] 202 sem id — nota vai ficar presa em transmitindo:', JSON.stringify(data));
       }
       const inserted = await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo') RETURNING *`,
-        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor]
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, cnae)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo', $8) RETURNING *`,
+        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, input.cnae]
       );
       return res.status(202).json(inserted.rows[0]);
     }
@@ -273,9 +355,9 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     const rejeitadaComCodigoErro = status === 422 && data?.details?.codigoErro;
     if (rejeitadaComCodigoErro) {
       await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, erro_detalhe)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'rejeitada', $8)`,
-        [data?.details?.id || null, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, mensagem]
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, erro_detalhe, cnae)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'rejeitada', $8, $9)`,
+        [data?.details?.id || null, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, mensagem, input.cnae]
       );
     }
     if (status === 401 || status === 403) {
@@ -304,7 +386,7 @@ router.get('/:id', apiAuth, async (req: Request, res: Response) => {
           `UPDATE notas_fiscais SET status = 'autorizada', numero_nota = $1, chave_acesso = $2 WHERE id = $3 RETURNING *`,
           [data.numero, data.chave, nota.id]
         );
-        return res.json(updated.rows[0]);
+        return res.json(await enviarEmailAutomatico(updated.rows[0]));
       }
       if (status === 200 && data.status === 'rejeitado') {
         const updated = await pool.query(

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, FileText, Loader2, ExternalLink, Mail, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
+import { X, FileText, Loader2, ExternalLink, Mail, CheckCircle2, AlertTriangle, Download, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store';
 import { fetchCnpjDataEstruturado, EnderecoEstruturado } from '../lib/cnpjLookup';
@@ -19,8 +19,13 @@ interface Nota {
   numero_nota: string | null;
   chave_acesso: string | null;
   erro_detalhe: string | null;
+  ultimo_email_enviado_em?: string | null;
   created_at?: string;
 }
+
+interface CnaeOpcao { codigo: string; descricao: string }
+
+const formatarCnae = (c: string) => c.replace(/^(\d{4})(\d)(\d{2})$/, '$1-$2/$3');
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX_ATTEMPTS = 10;
@@ -34,6 +39,12 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
   const [tomadorEndereco, setTomadorEndereco] = useState<EnderecoEstruturado | null>(null);
   const [tomadorEmail, setTomadorEmail] = useState('');
   const [servicoCodigo, setServicoCodigo] = useState('');
+  const [cnae, setCnae] = useState('');
+  const [cnaes, setCnaes] = useState<CnaeOpcao[]>([]);
+  const [novoCnaeAberto, setNovoCnaeAberto] = useState(false);
+  const [novoCnaeCodigo, setNovoCnaeCodigo] = useState('');
+  const [novoCnaeDescricao, setNovoCnaeDescricao] = useState('');
+  const [salvandoCnae, setSalvandoCnae] = useState(false);
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -49,12 +60,49 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const handleSelecionarCnpj = async (cnpj: string) => {
+  useEffect(() => {
+    fetch('/api/notafiscal/cnaes', { headers: AUTH_HEADERS })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!Array.isArray(data?.cnaes)) return;
+        setCnaes(data.cnaes);
+        setCnae((atual) => atual || data.padrao);
+      })
+      .catch(() => toast.error('Erro ao carregar a lista de CNAEs.'));
+  }, []);
+
+  const handleAdicionarCnae = async () => {
+    setSalvandoCnae(true);
+    try {
+      const res = await fetch('/api/notafiscal/cnaes', {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({ codigo: novoCnaeCodigo, descricao: novoCnaeDescricao }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar CNAE.');
+      setCnaes(data.cnaes);
+      setCnae(novoCnaeCodigo.replace(/\D/g, ''));
+      setNovoCnaeAberto(false);
+      setNovoCnaeCodigo('');
+      setNovoCnaeDescricao('');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar CNAE.');
+    } finally {
+      setSalvandoCnae(false);
+    }
+  };
+
+  // Aceita tanto escolher um cliente da lista quanto digitar um CNPJ qualquer;
+  // a busca dos dados só dispara quando o CNPJ fica completo (14 dígitos).
+  const handleSelecionarCnpj = async (valorDigitado: string) => {
+    const cnpj = valorDigitado.replace(/\D/g, '').slice(0, 14);
+    if (cnpj === tomadorCnpj) return;
     setTomadorCnpj(cnpj);
     setTomadorNome('');
     setTomadorEndereco(null);
     setTomadorTelefone('');
-    if (!cnpj) return;
+    if (cnpj.length !== 14) return;
 
     setBuscandoCnpj(true);
     try {
@@ -114,7 +162,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
 
   const handleEmitir = async () => {
     if (!tomadorEndereco) {
-      setErro('Selecione um CNPJ válido e aguarde o preenchimento automático do endereço.');
+      setErro('Informe um CNPJ válido e aguarde o preenchimento automático do endereço.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())) {
@@ -135,6 +183,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
           tomadorTelefone,
           tomadorEndereco,
           servicoCodigo,
+          cnae,
           descricao,
           valor: Number(valor),
           adminPassword,
@@ -205,6 +254,11 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                 <div>
                   <p className="text-sm font-bold text-black dark:text-white">Nota emitida com sucesso!</p>
                   <p className="text-xs text-zinc-500">Nº {nota?.numero_nota} · Chave: {nota?.chave_acesso}</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {nota?.ultimo_email_enviado_em
+                      ? `Enviada automaticamente para ${tomadorEmail}.`
+                      : 'Não foi possível enviar o e-mail automaticamente — use o botão abaixo.'}
+                  </p>
                 </div>
               </div>
               <div>
@@ -246,23 +300,27 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                 disabled={enviandoEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60"
               >
-                {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Enviar por E-mail
+                {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} {nota?.ultimo_email_enviado_em ? 'Reenviar por E-mail' : 'Enviar por E-mail'}
               </button>
             </div>
           ) : (
             <>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Cliente (tomador)</label>
-                <select
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  list="nf-clientes"
                   value={tomadorCnpj}
                   onChange={(e) => handleSelecionarCnpj(e.target.value)}
+                  placeholder="Digite o CNPJ ou escolha um cliente"
                   className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
-                >
-                  <option value="">Selecione um CNPJ...</option>
+                />
+                <datalist id="nf-clientes">
                   {allowedStores.map((s) => (
-                    <option key={s.cnpj} value={s.cnpj}>{s.bandeira} · {s.cnpj}</option>
+                    <option key={s.cnpj} value={s.cnpj.replace(/\D/g, '')}>{s.bandeira}</option>
                   ))}
-                </select>
+                </datalist>
               </div>
 
               {buscandoCnpj && <p className="text-xs text-zinc-400 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Buscando dados do CNPJ...</p>}
@@ -283,6 +341,56 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                   placeholder="cliente@exemplo.com.br"
                   className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">CNAE</label>
+                  <button
+                    type="button"
+                    onClick={() => setNovoCnaeAberto((v) => !v)}
+                    className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700"
+                  >
+                    <Plus className="w-3 h-3" /> Adicionar CNAE
+                  </button>
+                </div>
+                <select
+                  value={cnae}
+                  onChange={(e) => setCnae(e.target.value)}
+                  className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
+                >
+                  {cnaes.map((c) => (
+                    <option key={c.codigo} value={c.codigo}>{formatarCnae(c.codigo)} · {c.descricao}</option>
+                  ))}
+                </select>
+                {novoCnaeAberto && (
+                  <div className="mt-2 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={9}
+                      value={novoCnaeCodigo}
+                      onChange={(e) => setNovoCnaeCodigo(e.target.value)}
+                      placeholder="Código (7 dígitos, ex.: 6209-1/00)"
+                      className="w-full px-3 py-2 rounded-lg text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={novoCnaeDescricao}
+                      onChange={(e) => setNovoCnaeDescricao(e.target.value)}
+                      placeholder="Descrição"
+                      className="w-full px-3 py-2 rounded-lg text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAdicionarCnae}
+                      disabled={salvandoCnae || novoCnaeCodigo.replace(/\D/g, '').length !== 7 || !novoCnaeDescricao.trim()}
+                      className="w-full py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      {salvandoCnae ? 'Salvando...' : 'Salvar CNAE'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -339,10 +447,10 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
 
               <button
                 onClick={handleEmitir}
-                disabled={emitindo || !tomadorCnpj}
+                disabled={emitindo || tomadorCnpj.length !== 14}
                 className={cn(
                   'w-full py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-colors',
-                  emitindo || !tomadorCnpj ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  emitindo || tomadorCnpj.length !== 14 ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400' : 'bg-emerald-600 text-white hover:bg-emerald-700'
                 )}
               >
                 {emitindo ? 'Emitindo...' : 'Emitir Nota Fiscal'}
