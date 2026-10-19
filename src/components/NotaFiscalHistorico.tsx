@@ -23,8 +23,6 @@ interface NotaHistorico {
   created_at: string;
 }
 
-const currency = (v: string | number) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
 const STATUS_LABEL: Record<NotaHistorico['status'], { label: string; className: string }> = {
   autorizada: { label: 'Autorizada', className: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
   transmitindo: { label: 'Transmitindo', className: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' },
@@ -87,9 +85,9 @@ export default function NotaFiscalHistorico() {
             return (
               <div key={nota.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-black dark:text-white truncate">{nota.numero_nota && <span className="text-zinc-400 font-normal">Nº {nota.numero_nota} · </span>}{nota.nome_tomador} <span className="text-zinc-400 font-normal">· {currency(nota.valor)}</span></p>
+                  <p className="text-sm font-bold text-black dark:text-white truncate">{nota.nome_tomador}</p>
                   <p className="text-[11px] text-zinc-400 truncate">
-                    {nota.status === 'cancelada' && nota.cancelamento_motivo ? `Cancelada: ${nota.cancelamento_motivo}` : nota.descricao_servico} · {new Date(nota.created_at).toLocaleDateString('pt-BR')}
+                    {new Date(nota.created_at).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
