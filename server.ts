@@ -6,7 +6,7 @@ import { Server } from "socket.io";
 import 'dotenv/config';
 import galleryRouter from './src/gallery';
 import paymentsRouter, { setPaymentsSocketServer } from './src/payments';
-import notaFiscalRouter, { ensureNotaFiscalSchema } from './src/notaFiscal';
+import notaFiscalRouter, { ensureNotaFiscalSchema, iniciarAgendadorDeNotas } from './src/notaFiscal';
 import monitoringRouter, { ensureMonitoringSchema, startMonitoringJobs } from './src/monitoring';
 import despesasViagemRouter, { ensureDespesasViagemSchema } from './src/despesasViagem';
 import whatsappBotRouter, { ensureWhatsappSchema } from './src/whatsappBot';
@@ -155,6 +155,7 @@ async function startServer() {
 
   await ensureChatSchema().catch(err => console.error('Erro ao preparar schema do chat:', err));
   await ensureNotaFiscalSchema().catch(err => console.error('Erro ao preparar schema de notas fiscais:', err));
+  iniciarAgendadorDeNotas();
   await ensureMonitoringSchema().catch(err => console.error('Erro ao preparar schema de monitoramento:', err));
   await ensureDespesasViagemSchema().catch(err => console.error('Erro ao preparar schema de despesas de viagem:', err));
   await ensureWhatsappSchema().catch(err => console.error('Erro ao preparar schema do WhatsApp:', err));

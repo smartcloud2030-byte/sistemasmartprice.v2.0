@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Files, Loader2, CheckCircle2, AlertTriangle, Download, Mail, Plus } from 'lucide-react';
+import { X, Files, Loader2, CheckCircle2, AlertTriangle, Download, Mail, Plus, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store';
 import { fetchCnpjDataEstruturado } from '../lib/cnpjLookup';
@@ -30,6 +30,12 @@ interface ItemLote {
 
 interface CnaeOpcao { codigo: string; descricao: string }
 
+// Alvo do lote: um grupo de lojas (Grupo Piauí...) ou uma bandeira.
+// A chave identifica o lote salvo e o agendamento ("grupo:<id>" / "bandeira:<nome>").
+interface AlvoLote { chave: string; nome: string; cnpjs: string[] }
+
+interface Agendamento { id: number; chave: string; dia: number; ativo: boolean }
+
 interface ModeloLote {
   itens: { cnpj: string; valor: number }[];
   descricao: string;
@@ -57,13 +63,34 @@ const STATUS_TEXTO: Record<StatusItem, string> = {
 
 export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   const allowedStores = useStore((s) => s.allowedStores);
+  const userGroups = useStore((s) => s.userGroups);
 
-  const bandeiras = useMemo(
-    () => [...new Set(allowedStores.map((s) => (s.bandeira || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [allowedStores]
-  );
+  const { grupos, bandeiras } = useMemo(() => {
+    const soDigitos = (c: string) => c.replace(/\D/g, '');
+    const porNome = (a: AlvoLote, b: AlvoLote) => a.nome.localeCompare(b.nome, 'pt-BR');
+    const grupos: AlvoLote[] = userGroups
+      .map((g) => ({
+        chave: `grupo:${g.id}`,
+        nome: g.name,
+        cnpjs: allowedStores.filter((s) => s.groupId === g.id).map((s) => soDigitos(s.cnpj)),
+      }))
+      .filter((g) => g.cnpjs.length > 0)
+      .sort(porNome);
+    const nomesBandeira = [...new Set(allowedStores.map((s) => (s.bandeira || '').trim()).filter(Boolean))];
+    const bandeiras: AlvoLote[] = nomesBandeira
+      .map((b) => ({
+        chave: `bandeira:${b}`,
+        nome: b,
+        cnpjs: allowedStores.filter((s) => (s.bandeira || '').trim() === b).map((s) => soDigitos(s.cnpj)),
+      }))
+      .sort(porNome);
+    return { grupos, bandeiras };
+  }, [allowedStores, userGroups]);
 
-  const [bandeira, setBandeira] = useState('');
+  const [alvo, setAlvo] = useState<AlvoLote | null>(null);
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [diaAgendamento, setDiaAgendamento] = useState('5');
+  const [agendando, setAgendando] = useState(false);
   const [itens, setItens] = useState<ItemLote[]>([]);
   const [valorPadrao, setValorPadrao] = useState('');
   const [novoCnpj, setNovoCnpj] = useState('');
@@ -93,18 +120,23 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
       .then((res) => res.json())
       .then((data) => { if (data && typeof data === 'object' && !data.error) setModelos(data); })
       .catch(() => { /* sem lote salvo: começa em branco */ });
+    fetch('/api/notafiscal/agendamentos', { headers: AUTH_HEADERS })
+      .then((res) => res.json())
+      .then((data) => { if (Array.isArray(data)) setAgendamentos(data); })
+      .catch(() => { /* lista de agendamentos é só informativa aqui */ });
   }, []);
 
-  // Escolher a bandeira marca todos os CNPJs dela; se já houve um lote dessa
-  // bandeira, reaproveita valores, descrição, código, CNAE e e-mail.
-  const handleBandeira = (b: string) => {
-    setBandeira(b);
-    const modelo = modelos[b];
+  const agendamentoAtual = alvo ? agendamentos.find((a) => a.chave === alvo.chave) : undefined;
+
+  // Escolher o grupo/bandeira marca todos os CNPJs dele; se já houve um lote
+  // pra ele, reaproveita valores, descrição, código, CNAE e e-mail.
+  const handleAlvo = (chave: string) => {
+    const escolhido = [...grupos, ...bandeiras].find((a) => a.chave === chave) || null;
+    setAlvo(escolhido);
+    if (!escolhido) return setItens([]);
+    const modelo = modelos[chave];
     const valorDoModelo = (cnpj: string) => modelo?.itens.find((i) => i.cnpj === cnpj)?.valor;
-    const daBandeira = allowedStores
-      .filter((s) => (s.bandeira || '').trim() === b)
-      .map((s) => s.cnpj.replace(/\D/g, ''))
-      .filter((c, i, arr) => c.length === 14 && arr.indexOf(c) === i);
+    const daBandeira = escolhido.cnpjs.filter((c, i, arr) => c.length === 14 && arr.indexOf(c) === i);
     const extrasDoModelo = (modelo?.itens || []).map((i) => i.cnpj).filter((c) => !daBandeira.includes(c));
     setItens([...daBandeira, ...extrasDoModelo].map((c) => {
       const v = valorDoModelo(c);
@@ -242,16 +274,16 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   };
 
   const salvarModelo = () => {
-    if (!bandeira) return;
+    if (!alvo) return;
     const modelo: ModeloLote = {
       itens: selecionados.map((i) => ({ cnpj: i.cnpj, valor: Number(i.valor) })),
       descricao, servicoCodigo, cnae, email: email.trim(),
     };
-    setModelos((m) => ({ ...m, [bandeira]: modelo }));
+    setModelos((m) => ({ ...m, [alvo.chave]: modelo }));
     fetch('/api/notafiscal/lote/modelos', {
       method: 'PUT',
       headers: AUTH_HEADERS,
-      body: JSON.stringify({ chave: bandeira, modelo }),
+      body: JSON.stringify({ chave: alvo.chave, modelo }),
     }).catch(() => { /* lote salvo é só conveniência */ });
   };
 
@@ -266,6 +298,37 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
     onEmitted();
     setFase('fim');
     await enviarZip(ids);
+  };
+
+  const handleAgendar = async () => {
+    const erro = validar();
+    if (erro) return setErroGeral(erro);
+    if (!alvo) return;
+    setErroGeral(null);
+    setAgendando(true);
+    try {
+      const res = await fetch('/api/notafiscal/agendamentos', {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({
+          chave: alvo.chave,
+          nome: alvo.nome,
+          dia: Number(diaAgendamento),
+          itens: selecionados.map((i) => ({ cnpj: i.cnpj, valor: Number(i.valor) })),
+          descricao, servicoCodigo, cnae, email: email.trim(), adminPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao agendar.');
+      salvarModelo();
+      setAgendamentos((atual) => [...atual.filter((a) => a.chave !== data.chave), data]);
+      onEmitted();
+      toast.success(`Agendado: todo dia ${data.dia} às 10h. Você confere antes de ir pro cliente.`);
+    } catch (err: any) {
+      setErroGeral(err.message || 'Erro ao agendar.');
+    } finally {
+      setAgendando(false);
+    }
   };
 
   const idsAutorizados = itens.filter((i) => i.status === 'autorizada' && i.notaId).map((i) => i.notaId!);
@@ -288,12 +351,21 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
         <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Cliente (bandeira)</label>
-              <select value={bandeira} onChange={(e) => handleBandeira(e.target.value)} disabled={fase !== 'form'} className={inputCls}>
+              <label className={labelCls}>Cliente (grupo ou bandeira)</label>
+              <select value={alvo?.chave || ''} onChange={(e) => handleAlvo(e.target.value)} disabled={fase !== 'form'} className={inputCls}>
                 <option value="">Selecione...</option>
-                {bandeiras.map((b) => (
-                  <option key={b} value={b}>{b}{modelos[b] ? ' · lote salvo' : ''}</option>
-                ))}
+                {grupos.length > 0 && (
+                  <optgroup label="Grupos">
+                    {grupos.map((g) => (
+                      <option key={g.chave} value={g.chave}>{g.nome} ({g.cnpjs.length}){modelos[g.chave] ? ' · lote salvo' : ''}</option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Bandeiras">
+                  {bandeiras.map((b) => (
+                    <option key={b.chave} value={b.chave}>{b.nome} ({b.cnpjs.length}){modelos[b.chave] ? ' · lote salvo' : ''}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             <div>
@@ -347,7 +419,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
             </div>
           )}
 
-          {fase === 'form' && bandeira && (
+          {fase === 'form' && alvo && (
             <div className="flex gap-2">
               <input
                 type="text"
@@ -395,6 +467,33 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
                   <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Sua senha de administrador" className={inputCls} />
                 </div>
               </div>
+
+              {alvo && (
+                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-black dark:text-white">
+                    <CalendarClock className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-bold">Emitir sozinho todo mês</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    No dia escolhido, às 10h, o sistema emite estas notas e te manda o ZIP pra conferir. Só vai pro cliente quando você clicar em "Enviar pro cliente" na aba Notas Fiscais.
+                    {agendamentoAtual && ` Já agendado: todo dia ${agendamentoAtual.dia}${agendamentoAtual.ativo ? '' : ' (pausado)'} — salvar de novo atualiza.`}
+                  </p>
+                  <div className="flex gap-2">
+                    <select value={diaAgendamento} onChange={(e) => setDiaAgendamento(e.target.value)} className="px-3 py-2 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white">
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                        <option key={d} value={d}>Dia {d}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleAgendar}
+                      disabled={agendando || selecionados.length === 0}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-emerald-600 text-emerald-600 text-xs font-black uppercase tracking-widest hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
+                    >
+                      {agendando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />} {agendamentoAtual ? 'Atualizar agendamento' : 'Agendar todo mês às 10h'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { buildEmissaoPayload, validateEmissaoInput, mapNfseError, EmissaoInput } from './notaFiscal';
+import { buildEmissaoPayload, validateEmissaoInput, mapNfseError, EmissaoInput, agoraEmBacabal, jaPassouDoHorario } from './notaFiscal';
 
 const validInput: EmissaoInput = {
   tomadorCnpj: '99888777000166',
@@ -101,7 +101,24 @@ function mapsServiceUnavailableToARetryMessage() {
   assert.strictEqual(msg, 'Serviço da prefeitura indisponível no momento, tente novamente em alguns segundos.');
 }
 
+function agendamentoUsaOFusoDeBacabal() {
+  // 02:30 UTC do dia 1 ainda é dia 31 às 23h30 em Bacabal (UTC-3).
+  const a = agoraEmBacabal(new Date('2026-11-01T02:30:00Z'));
+  assert.deepStrictEqual(a, { ano: 2026, mes: 10, dia: 31, hora: 23, competencia: '2026-10' });
+  assert.strictEqual(agoraEmBacabal(new Date('2026-11-05T13:00:00Z')).hora, 10);
+}
+
+function agendamentoSoEmiteNoDiaAPartirDas10h() {
+  assert.strictEqual(jaPassouDoHorario(5, { dia: 5, hora: 9 }), false);
+  assert.strictEqual(jaPassouDoHorario(5, { dia: 5, hora: 10 }), true);
+  assert.strictEqual(jaPassouDoHorario(5, { dia: 4, hora: 23 }), false);
+  // Servidor fora do ar no dia: emite assim que voltar no mesmo mês.
+  assert.strictEqual(jaPassouDoHorario(5, { dia: 7, hora: 0 }), true);
+}
+
 try {
+  agendamentoUsaOFusoDeBacabal();
+  agendamentoSoEmiteNoDiaAPartirDas10h();
   buildsThePayloadWithFixedPrestadorConfig();
   formatsValorWithTwoDecimalsEvenForWholeNumbers();
   stripsFormattingFromTelefoneBecauseTheXsdOnlyAcceptsDigits();

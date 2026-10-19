@@ -3,6 +3,7 @@ import { FileText, Files } from 'lucide-react';
 import NotaFiscalModal from './NotaFiscalModal';
 import NotaFiscalLoteModal from './NotaFiscalLoteModal';
 import NotaFiscalHistorico from './NotaFiscalHistorico';
+import NotaFiscalAgendamentos from './NotaFiscalAgendamentos';
 
 export default function FinanceiroNotasTab() {
   const [aberto, setAberto] = useState<'uma' | 'lote' | null>(null);
@@ -26,6 +27,8 @@ export default function FinanceiroNotasTab() {
           <Files className="w-4 h-4" /> Emitir em lote
         </button>
       </div>
+
+      <NotaFiscalAgendamentos key={`ag-${historicoKey}`} onMudou={atualizarHistorico} />
 
       <NotaFiscalHistorico key={historicoKey} />
 
