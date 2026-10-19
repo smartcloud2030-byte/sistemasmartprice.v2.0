@@ -91,6 +91,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [diaAgendamento, setDiaAgendamento] = useState('5');
   const [agendando, setAgendando] = useState(false);
+  const [querAgendar, setQuerAgendar] = useState(false);
   const [itens, setItens] = useState<ItemLote[]>([]);
   const [valorPadrao, setValorPadrao] = useState('');
   const [novoCnpj, setNovoCnpj] = useState('');
@@ -127,6 +128,10 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   }, []);
 
   const agendamentoAtual = alvo ? agendamentos.find((a) => a.chave === alvo.chave) : undefined;
+  useEffect(() => {
+    setQuerAgendar(false);
+    if (agendamentoAtual) setDiaAgendamento(String(agendamentoAtual.dia));
+  }, [alvo?.chave]);
 
   // Escolher o grupo/bandeira marca todos os CNPJs dele; se já houve um lote
   // pra ele, reaproveita valores, descrição, código, CNAE e e-mail.
@@ -470,10 +475,15 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
 
               {alvo && (
                 <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-black dark:text-white">
+                  <label className="flex items-center gap-2 text-black dark:text-white cursor-pointer select-none">
+                    <input type="checkbox" checked={querAgendar} onChange={(e) => setQuerAgendar(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
                     <CalendarClock className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs font-bold">Emitir sozinho todo mês</span>
-                  </div>
+                    <span className="text-xs font-bold">Agendar pra emitir sozinho todo mês (opcional)</span>
+                  </label>
+                  {agendamentoAtual && !querAgendar && (
+                    <p className="text-[11px] text-zinc-400">Já agendado: todo dia {agendamentoAtual.dia} às 10h{agendamentoAtual.ativo ? '' : ' (pausado)'}.</p>
+                  )}
+                  {querAgendar && (<>
                   <p className="text-[11px] text-zinc-400">
                     No dia escolhido, às 10h, o sistema emite estas notas e te manda o ZIP pra conferir. Só vai pro cliente quando você clicar em "Enviar pro cliente" na aba Notas Fiscais.
                     {agendamentoAtual && ` Já agendado: todo dia ${agendamentoAtual.dia}${agendamentoAtual.ativo ? '' : ' (pausado)'} — salvar de novo atualiza.`}
@@ -492,6 +502,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
                       {agendando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />} {agendamentoAtual ? 'Atualizar agendamento' : 'Agendar todo mês às 10h'}
                     </button>
                   </div>
+                  </>)}
                 </div>
               )}
             </>
@@ -549,7 +560,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
                 ? 'Emitindo... não feche esta janela'
                 : itens.some((i) => i.status === 'autorizada')
                   ? `Emitir as que faltam`
-                  : `Emitir ${selecionados.length} nota${selecionados.length === 1 ? '' : 's'} · ${moeda(totalLote)}`}
+                  : `Emitir agora · ${selecionados.length} nota${selecionados.length === 1 ? '' : 's'} · ${moeda(totalLote)}`}
             </button>
           )}
         </div>
