@@ -87,7 +87,3 @@ export function montarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput
 export function nomeArquivoComprovante(input: Pick<ComprovanteNotaFiscalInput, 'numeroNota' | 'chaveAcesso'>): string {
   return `nota-fiscal-${input.numeroNota || input.chaveAcesso}.pdf`;
 }
-
-export function baixarComprovanteNotaFiscalPdf(input: ComprovanteNotaFiscalInput) {
-  montarComprovanteNotaFiscalPdf(input).save(nomeArquivoComprovante(input));
-}

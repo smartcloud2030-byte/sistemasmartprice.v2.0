@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { ExternalLink, Mail, Loader2, FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
-import { baixarComprovanteNotaFiscalPdf } from '../lib/notaFiscalPdf';
 
 const AUTH_HEADERS = { 'Content-Type': 'application/json' };
 
@@ -95,17 +94,7 @@ export default function NotaFiscalHistorico() {
                   {nota.status === 'autorizada' && (
                     <>
                       <button
-                        onClick={() => baixarComprovanteNotaFiscalPdf({
-                          numeroNota: nota.numero_nota || '',
-                          chaveAcesso: nota.chave_acesso || '',
-                          cnpjTomador: nota.cnpj_tomador,
-                          nomeTomador: nota.nome_tomador,
-                          descricaoServico: nota.descricao_servico,
-                          valor: Number(nota.valor),
-                          dataEmissao: nota.created_at,
-                          cnae: nota.cnae,
-                          codigoServico: nota.codigo_servico,
-                        })}
+                        onClick={() => window.open(`/api/notafiscal/${nota.id}/pdf`, '_blank')}
                         title="Baixar PDF"
                         className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-emerald-500/50 transition-colors"
                       >

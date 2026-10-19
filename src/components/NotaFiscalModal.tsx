@@ -3,7 +3,6 @@ import { X, FileText, Loader2, ExternalLink, Mail, CheckCircle2, AlertTriangle, 
 import { toast } from 'sonner';
 import { useStore } from '../store';
 import { fetchCnpjDataEstruturado, EnderecoEstruturado } from '../lib/cnpjLookup';
-import { baixarComprovanteNotaFiscalPdf } from '../lib/notaFiscalPdf';
 import { cn } from '../lib/utils';
 
 const AUTH_HEADERS = { 'Content-Type': 'application/json' };
@@ -273,17 +272,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => nota && baixarComprovanteNotaFiscalPdf({
-                    numeroNota: nota.numero_nota || '',
-                    chaveAcesso: nota.chave_acesso || '',
-                    cnpjTomador: tomadorCnpj,
-                    nomeTomador: tomadorNome,
-                    descricaoServico: descricao,
-                    valor: Number(valor),
-                    dataEmissao: nota.created_at || new Date().toISOString(),
-                    cnae,
-                    codigoServico: servicoCodigo,
-                  })}
+                  onClick={() => nota && window.open(`/api/notafiscal/${nota.id}/pdf`, '_blank')}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-bold text-black dark:text-white hover:border-emerald-500/50 transition-colors"
                 >
                   <Download className="w-4 h-4" /> Baixar PDF

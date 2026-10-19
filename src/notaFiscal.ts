@@ -105,6 +105,7 @@ import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
 import { exigirAdmin, conferirSenha } from './lib/sessao';
 import { montarComprovanteNotaFiscalPdf, nomeArquivoComprovante, ComprovanteNotaFiscalInput } from './lib/notaFiscalPdf';
+import { gerarDanfsePdf } from './lib/danfse';
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'postgres',
@@ -228,6 +229,19 @@ function comprovanteDaNota(nota: any): ComprovanteNotaFiscalInput {
   };
 }
 
+// PDF da nota: DANFSe v2.0 desenhado a partir do XML oficial. Sem XML (API
+// fora do ar), cai no comprovante simples pra o cliente não ficar sem nada.
+async function pdfDaNota(nota: any, xml: string | null): Promise<Buffer> {
+  if (xml) {
+    try {
+      return await gerarDanfsePdf(xml);
+    } catch (err) {
+      console.error('[notaFiscal] falha ao montar DANFSe, usando comprovante:', nota.id, err);
+    }
+  }
+  return Buffer.from(montarComprovanteNotaFiscalPdf(comprovanteDaNota(nota)).output('arraybuffer'));
+}
+
 // Recebe a linha de notas_fiscais e manda o e-mail com o PDF da nota anexado.
 async function enviarEmailNota(destinatario: string, nota: any) {
   const transporte = nodemailer.createTransport({
@@ -236,8 +250,8 @@ async function enviarEmailNota(destinatario: string, nota: any) {
   });
 
   const comprovante = comprovanteDaNota(nota);
-  const pdf = Buffer.from(montarComprovanteNotaFiscalPdf(comprovante).output('arraybuffer'));
   const xml = await baixarXmlOficial(nota);
+  const pdf = await pdfDaNota(nota, xml);
   const anexos: { filename: string; content: Buffer | string; contentType: string }[] = [
     { filename: nomeArquivoComprovante(comprovante), content: pdf, contentType: 'application/pdf' },
   ];
@@ -413,6 +427,23 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[notaFiscal] CRÍTICO — prefeitura respondeu mas falha ao salvar localmente:', { status, data, err });
     res.status(500).json({ error: 'A prefeitura pode ter emitido a nota, mas houve um erro ao salvar aqui. NÃO tente emitir de novo — contate o suporte com os dados exibidos no console do servidor.' });
+  }
+});
+
+router.get('/:id/pdf', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query('SELECT * FROM notas_fiscais WHERE id = $1', [req.params.id]);
+    const nota = result.rows[0];
+    if (!nota) return res.status(404).json({ error: 'Nota não encontrada.' });
+    if (nota.status !== 'autorizada') return res.status(400).json({ error: 'Só nota autorizada tem PDF.' });
+
+    const pdf = await pdfDaNota(nota, await baixarXmlOficial(nota));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${nomeArquivoComprovante(comprovanteDaNota(nota))}"`);
+    res.send(pdf);
+  } catch (err: any) {
+    console.error('[notaFiscal] GET /:id/pdf:', err);
+    res.status(500).json({ error: 'Erro ao gerar o PDF da nota.' });
   }
 });
 
