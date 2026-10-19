@@ -103,7 +103,7 @@ export function mapNfseError(httpStatus: number, body: any): string {
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
-import { exigirAdmin } from './lib/sessao';
+import { exigirAdmin, conferirSenha } from './lib/sessao';
 import { montarComprovanteNotaFiscalPdf, nomeArquivoComprovante, ComprovanteNotaFiscalInput } from './lib/notaFiscalPdf';
 
 const pool = new Pool({
@@ -158,7 +158,8 @@ async function verificarSenhaAdmin(senha: string): Promise<boolean> {
   const credentials: Record<string, string> = stored && Object.keys(stored).length > 0
     ? stored
     : { daylon: process.env.ADMIN_PASSWORD_DAYLON || '8814', jh: process.env.ADMIN_PASSWORD_JH || '1993' };
-  return Object.values(credentials).includes(senha);
+  // Desde 536ca94 as senhas ficam em hash scrypt — compara via conferirSenha.
+  return Object.values(credentials).some((guardado) => conferirSenha(senha, guardado));
 }
 
 const NFSE_BASE_URL = process.env.NFSE_API_BASE_URL || '';
@@ -320,7 +321,8 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
   const senhaAdmin = req.body?.adminPassword;
   try {
     if (!(await verificarSenhaAdmin(senhaAdmin))) {
-      return res.status(401).json({ error: 'Senha de admin incorreta ou não informada.' });
+      // 403, não 401: o fetch do app trata 401 como sessão vencida e desloga.
+      return res.status(403).json({ error: 'Senha de admin incorreta ou não informada.' });
     }
   } catch (err) {
     console.error('[notaFiscal] erro ao verificar senha de admin:', err);

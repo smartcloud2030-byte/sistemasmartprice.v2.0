@@ -152,7 +152,7 @@ router.post('/admin/credentials', exigirAdmin, limitarLoginAdmin, async (req: Re
     const credentials = await getAdminCredentials();
     const guardado = Object.prototype.hasOwnProperty.call(credentials, currentUsername) ? credentials[currentUsername] : undefined;
     if (!conferirSenha(currentPassword, guardado)) {
-      return res.status(401).json({ error: 'Senha atual incorreta.' });
+      return res.status(403).json({ error: 'Senha atual incorreta.' });
     }
     if (newUsername !== currentUsername && credentials[newUsername]) {
       return res.status(409).json({ error: 'Esse nome de usuário já está em uso.' });
