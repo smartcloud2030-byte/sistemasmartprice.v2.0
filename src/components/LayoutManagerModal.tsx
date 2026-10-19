@@ -602,7 +602,7 @@ export default function LayoutManagerModal() {
                 {selectedGalleryFolder && (
                   <button
                     onClick={() => { setSelectedGalleryFolder(null); setGalleryImages([]); }}
-                    className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-zinc-500 flex-shrink-0"
+                    className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-zinc-600 dark:text-zinc-200 flex-shrink-0"
                     title="Voltar para as pastas"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -614,7 +614,7 @@ export default function LayoutManagerModal() {
               </div>
               <button
                 onClick={() => setIsGalleryPickerOpen(false)}
-                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-zinc-500 flex-shrink-0"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-zinc-600 dark:text-zinc-200 flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>

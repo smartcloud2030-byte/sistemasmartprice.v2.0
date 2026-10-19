@@ -261,7 +261,7 @@ export default function SupportChat() {
             className={cn(
               "p-2 rounded-full transition-colors flex-shrink-0",
               isAdmin
-                ? "hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
+                ? "hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-200"
                 : "hover:bg-white/15 text-white/90"
             )}
           >

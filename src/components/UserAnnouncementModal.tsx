@@ -38,7 +38,7 @@ export default function UserAnnouncementModal({ announcements, onClose }: UserAn
             onClick={onClose} 
             className="p-2 hover:bg-white/50 dark:hover:bg-zinc-800 rounded-full transition-colors"
           >
-            <X className="w-6 h-6 text-zinc-400" />
+            <X className="w-6 h-6 text-zinc-600 dark:text-zinc-200" />
           </button>
         </div>
 

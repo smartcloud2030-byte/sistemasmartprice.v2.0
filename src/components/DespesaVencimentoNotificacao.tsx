@@ -49,7 +49,7 @@ export default function DespesaVencimentoNotificacao({ onVerDespesas }: Props) {
             aria-label="Dispensar notificação"
             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors flex-shrink-0"
           >
-            <X className="w-4 h-4 text-zinc-400" />
+            <X className="w-4 h-4 text-zinc-600 dark:text-zinc-200" />
           </button>
         </div>
 

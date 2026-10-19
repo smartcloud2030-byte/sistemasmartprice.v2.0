@@ -1293,7 +1293,7 @@ export default function App() {
               </div>
               <button 
                 onClick={() => setProductModalOpen(false)} 
-                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -1320,7 +1320,7 @@ export default function App() {
               </div>
               <button
                 onClick={() => setProductReportModalOpen(false)}
-                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -1354,7 +1354,7 @@ export default function App() {
               </div>
               <button 
                 onClick={() => setUserModalOpen(false)} 
-                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -1429,7 +1429,7 @@ export default function App() {
               </div>
               <button 
                 onClick={() => setAnnouncementModalOpen(false)} 
-                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors"
+                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors text-zinc-600 dark:text-zinc-200"
               >
                 <X className="w-6 h-6" />
               </button>

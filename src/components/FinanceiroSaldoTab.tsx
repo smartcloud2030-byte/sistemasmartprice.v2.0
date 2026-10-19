@@ -101,7 +101,7 @@ export default function FinanceiroSaldoTab() {
           <form onSubmit={handleDepositar} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl space-y-3 mb-2">
             <div className="flex justify-between items-center">
               <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Adicionar ao saldo</p>
-              <button type="button" onClick={closeDeposito} aria-label="Fechar formulário" className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full">
+              <button type="button" onClick={closeDeposito} aria-label="Fechar formulário" className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full text-zinc-600 dark:text-zinc-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -136,7 +136,7 @@ export default function FinanceiroSaldoTab() {
           <form onSubmit={handleAjustar} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl space-y-3 mb-2">
             <div className="flex justify-between items-center">
               <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Ajustar saldo (correção)</p>
-              <button type="button" onClick={closeAjuste} aria-label="Fechar formulário" className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full">
+              <button type="button" onClick={closeAjuste} aria-label="Fechar formulário" className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full text-zinc-600 dark:text-zinc-200">
                 <X className="w-4 h-4" />
               </button>
             </div>

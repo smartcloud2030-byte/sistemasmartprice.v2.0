@@ -77,7 +77,7 @@ export default function PaymentCheckoutModal({ cnpj, onClose }: Props) {
         <div className="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
           <h3 className="text-sm font-black uppercase tracking-tighter text-black dark:text-white">Regularizar Pagamento</h3>
           <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-            <X className="w-4 h-4 text-zinc-500" />
+            <X className="w-4 h-4 text-zinc-600 dark:text-zinc-200" />
           </button>
         </div>
 
