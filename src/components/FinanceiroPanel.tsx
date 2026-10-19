@@ -54,7 +54,7 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
               <p className="text-xs text-black dark:text-white opacity-60">Despesas, saldo e notas fiscais</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors">
+          <button onClick={onClose} title="Fechar" className="p-2 rounded-full border border-zinc-300 dark:border-zinc-600 text-black dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>

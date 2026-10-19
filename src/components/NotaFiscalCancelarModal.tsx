@@ -56,8 +56,8 @@ export default function NotaFiscalCancelarModal({ nota, onClose, onCancelada }: 
             <Ban className="w-5 h-5 text-red-600" />
             <h3 className="text-sm font-black uppercase tracking-tighter text-black dark:text-white">Cancelar nota nº {nota.numero_nota}</h3>
           </div>
-          <button onClick={onClose} disabled={cancelando} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-            <X className="w-4 h-4 text-zinc-500" />
+          <button onClick={onClose} disabled={cancelando} className="w-9 h-9 rounded-full flex items-center justify-center border border-zinc-300 dark:border-zinc-600 text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
