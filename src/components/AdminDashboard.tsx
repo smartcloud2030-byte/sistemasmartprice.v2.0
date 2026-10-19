@@ -207,11 +207,11 @@ const AdminDashboard: React.FC = () => {
           {stats.map((stat, i) => {
             const Wrapper = stat.onClick ? 'button' : 'div';
             return (
-              <motion.div key={stat.label} {...entrance(0.06 + i * 0.04, shouldReduceMotion)}>
+              <motion.div key={stat.label} className="h-full" {...entrance(0.06 + i * 0.04, shouldReduceMotion)}>
                 <Wrapper
                   {...(stat.onClick ? { onClick: stat.onClick } : {})}
                   className={cn(
-                    'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-2 shadow-sm text-left w-full',
+                    'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-2 shadow-sm text-left w-full h-full flex flex-col justify-start',
                     stat.onClick && 'hover:border-blue-500/50 hover:shadow-md transition-all active:scale-95'
                   )}
                 >
