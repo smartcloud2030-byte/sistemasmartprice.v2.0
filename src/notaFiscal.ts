@@ -103,8 +103,9 @@ export function mapNfseError(httpStatus: number, body: any): string {
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import nodemailer from 'nodemailer';
+import JSZip from 'jszip';
 import { exigirAdmin, conferirSenha } from './lib/sessao';
-import { montarComprovanteNotaFiscalPdf, nomeArquivoComprovante, ComprovanteNotaFiscalInput } from './lib/notaFiscalPdf';
+import { montarComprovanteNotaFiscalPdf, nomeArquivoComprovante, ComprovanteNotaFiscalInput, formatCnpj } from './lib/notaFiscalPdf';
 import { gerarDanfsePdf } from './lib/danfse';
 
 const pool = new Pool({
@@ -134,6 +135,7 @@ export async function ensureNotaFiscalSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cnae VARCHAR(7);
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS email_automatico BOOLEAN NOT NULL DEFAULT TRUE;
   `);
 }
 
@@ -277,6 +279,8 @@ async function enviarEmailNota(destinatario: string, nota: any) {
 // só no log, e o admin reenvia pelo histórico.
 async function enviarEmailAutomatico(nota: any) {
   if (nota?.status !== 'autorizada' || !nota.email_tomador || !nota.numero_nota) return nota;
+  // Notas de lote não mandam e-mail uma a uma — vão juntas no ZIP (POST /lote/email).
+  if (nota.email_automatico === false) return nota;
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     console.warn('[notaFiscal] GMAIL_USER/GMAIL_APP_PASSWORD ausentes — e-mail automático não enviado.');
     return nota;
@@ -354,6 +358,7 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     descricao: req.body?.descricao || '',
     valor: Number(req.body?.valor),
   };
+  const emailAutomatico = req.body?.enviarEmail !== false;
 
   const erroValidacao = validateEmissaoInput(input);
   if (erroValidacao) return res.status(422).json({ error: erroValidacao });
@@ -377,8 +382,8 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
         console.error('[notaFiscal] 200 sem numero/chave — prefeitura pode ter mudado o contrato:', JSON.stringify(data));
       }
       const inserted = await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status, cnae)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status, cnae, email_automatico)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
         [
           data.id,
           input.tomadorCnpj,
@@ -391,6 +396,7 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
           semNumeroOuChave ? null : data.chave,
           semNumeroOuChave ? 'transmitindo' : 'autorizada',
           input.cnae,
+          emailAutomatico,
         ]
       );
       return res.json(await enviarEmailAutomatico(inserted.rows[0]));
@@ -401,9 +407,9 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
         console.error('[notaFiscal] 202 sem id — nota vai ficar presa em transmitindo:', JSON.stringify(data));
       }
       const inserted = await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, cnae)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo', $8) RETURNING *`,
-        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, input.cnae]
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, cnae, email_automatico)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo', $8, $9) RETURNING *`,
+        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, input.cnae, emailAutomatico]
       );
       return res.status(202).json(inserted.rows[0]);
     }
@@ -427,6 +433,146 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[notaFiscal] CRÍTICO — prefeitura respondeu mas falha ao salvar localmente:', { status, data, err });
     res.status(500).json({ error: 'A prefeitura pode ter emitido a nota, mas houve um erro ao salvar aqui. NÃO tente emitir de novo — contate o suporte com os dados exibidos no console do servidor.' });
+  }
+});
+
+// ── Lote: várias notas do mesmo cliente num ZIP só ──
+// A emissão em si é feita nota a nota pelo front (POST /emitir com
+// enviarEmail:false); aqui só junta as autorizadas e entrega/manda.
+
+function idsDoPedido(bruto: unknown): number[] {
+  const lista = Array.isArray(bruto) ? bruto : String(bruto || '').split(',');
+  return [...new Set(lista.map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 50);
+}
+
+async function notasAutorizadas(ids: number[]) {
+  if (ids.length === 0) return [];
+  const result = await pool.query(
+    `SELECT * FROM notas_fiscais WHERE id = ANY($1::int[]) AND status = 'autorizada' ORDER BY numero_nota::bigint NULLS LAST, id`,
+    [ids]
+  );
+  return result.rows;
+}
+
+async function montarZipDasNotas(notas: any[]): Promise<Buffer> {
+  const zip = new JSZip();
+  for (const nota of notas) {
+    const xml = await baixarXmlOficial(nota);
+    const base = `nota-fiscal-${nota.numero_nota || nota.id}-${nota.cnpj_tomador}`;
+    zip.file(`${base}.pdf`, await pdfDaNota(nota, xml));
+    if (xml) zip.file(`${base}.xml`, xml);
+  }
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+function nomeDoZip(): string {
+  const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Fortaleza' });
+  return `notas-fiscais-${hoje}.zip`;
+}
+
+router.get('/lote/zip', apiAuth, async (req: Request, res: Response) => {
+  try {
+    const notas = await notasAutorizadas(idsDoPedido(req.query.ids));
+    if (notas.length === 0) return res.status(404).json({ error: 'Nenhuma nota autorizada nesse lote.' });
+    const zip = await montarZipDasNotas(notas);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeDoZip()}"`);
+    res.send(zip);
+  } catch (err: any) {
+    console.error('[notaFiscal] GET /lote/zip:', err);
+    res.status(500).json({ error: 'Erro ao montar o ZIP das notas.' });
+  }
+});
+
+router.post('/lote/email', apiAuth, async (req: Request, res: Response) => {
+  const destinatario = String(req.body?.email || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destinatario)) return res.status(422).json({ error: 'Informe um e-mail válido.' });
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    return res.status(500).json({ error: 'Envio de e-mail não configurado no servidor.' });
+  }
+
+  try {
+    const notas = await notasAutorizadas(idsDoPedido(req.body?.ids));
+    if (notas.length === 0) return res.status(404).json({ error: 'Nenhuma nota autorizada nesse lote.' });
+
+    const zip = await montarZipDasNotas(notas);
+    const total = notas.reduce((soma, n) => soma + Number(n.valor), 0);
+    const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const linhas = notas
+      .map((n) => `<tr><td>${escapeHtml(n.numero_nota)}</td><td>${escapeHtml(formatCnpj(n.cnpj_tomador))}</td><td>${escapeHtml(n.nome_tomador || '')}</td><td style="text-align:right">${moeda(Number(n.valor))}</td></tr>`)
+      .join('');
+
+    await nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+    }).sendMail({
+      from: `SMART HELP <${process.env.GMAIL_USER}>`,
+      to: destinatario,
+      subject: `Notas Fiscais de Serviço — ${notas.length} nota${notas.length === 1 ? '' : 's'} (nº ${notas.map((n) => n.numero_nota).join(', ')})`,
+      html: `
+        <p>Segue em anexo (ZIP) ${notas.length === 1 ? 'a Nota Fiscal de Serviço Eletrônica' : `as ${notas.length} Notas Fiscais de Serviço Eletrônicas`}, com o PDF (DANFSe) e o XML oficial de cada uma.</p>
+        <table cellpadding="6" style="border-collapse:collapse;border:1px solid #ccc;font-size:13px">
+          <tr style="background:#f2f2f2"><th>Nº</th><th>CNPJ</th><th>Tomador</th><th>Valor</th></tr>
+          ${linhas}
+          <tr><td colspan="3"><b>Total</b></td><td style="text-align:right"><b>${moeda(total)}</b></td></tr>
+        </table>
+        <p>As notas podem ser consultadas em <a href="${danfseLinkDoGoverno()}">${danfseLinkDoGoverno()}</a> pela chave de acesso.</p>
+      `,
+      attachments: [{ filename: nomeDoZip(), content: zip, contentType: 'application/zip' }],
+    });
+
+    await pool.query(`UPDATE notas_fiscais SET ultimo_email_enviado_em = NOW() WHERE id = ANY($1::int[])`, [notas.map((n) => n.id)]);
+    res.json({ enviadas: notas.length });
+  } catch (err: any) {
+    console.error('[notaFiscal] POST /lote/email:', err);
+    res.status(500).json({ error: 'Erro ao enviar o e-mail com as notas. Tente novamente.' });
+  }
+});
+
+// Último lote usado por cliente (bandeira) — no mês seguinte a tela já vem
+// preenchida. settings.nfse_lote_modelos = { [bandeira]: { itens, descricao, ... } }
+async function lerModelosDeLote(): Promise<Record<string, any>> {
+  const result = await pool.query('SELECT value FROM settings WHERE id = $1', ['nfse_lote_modelos']);
+  const v = result.rows[0]?.value;
+  return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+}
+
+router.get('/lote/modelos', apiAuth, async (_req: Request, res: Response) => {
+  try {
+    res.json(await lerModelosDeLote());
+  } catch (err: any) {
+    console.error('[notaFiscal] GET /lote/modelos:', err);
+    res.status(500).json({ error: 'Erro ao carregar lotes salvos.' });
+  }
+});
+
+router.put('/lote/modelos', apiAuth, async (req: Request, res: Response) => {
+  const chave = String(req.body?.chave || '').trim().slice(0, 100);
+  const modelo = req.body?.modelo;
+  if (!chave || !modelo || !Array.isArray(modelo.itens)) return res.status(422).json({ error: 'Lote inválido.' });
+
+  try {
+    const modelos = await lerModelosDeLote();
+    modelos[chave] = {
+      itens: modelo.itens
+        .map((i: any) => ({ cnpj: String(i?.cnpj || '').replace(/\D/g, ''), valor: Number(i?.valor) || 0 }))
+        .filter((i: any) => /^\d{14}$/.test(i.cnpj))
+        .slice(0, 50),
+      descricao: String(modelo.descricao || '').slice(0, 2000),
+      servicoCodigo: String(modelo.servicoCodigo || '').replace(/\D/g, '').slice(0, 6),
+      cnae: String(modelo.cnae || '').replace(/\D/g, '').slice(0, 7),
+      email: String(modelo.email || '').trim().slice(0, 200),
+      atualizadoEm: new Date().toISOString(),
+    };
+    await pool.query(
+      `INSERT INTO settings (id, value, updated_at) VALUES ('nfse_lote_modelos', $1, NOW())
+       ON CONFLICT (id) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(modelos)]
+    );
+    res.json(modelos[chave]);
+  } catch (err: any) {
+    console.error('[notaFiscal] PUT /lote/modelos:', err);
+    res.status(500).json({ error: 'Erro ao salvar o lote.' });
   }
 });
 
