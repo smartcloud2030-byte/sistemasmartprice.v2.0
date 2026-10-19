@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Files, Loader2, CheckCircle2, AlertTriangle, Download, Mail, Plus, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store';
@@ -92,6 +92,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   const [diaAgendamento, setDiaAgendamento] = useState('5');
   const [agendando, setAgendando] = useState(false);
   const [querAgendar, setQuerAgendar] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
   const [itens, setItens] = useState<ItemLote[]>([]);
   const [valorPadrao, setValorPadrao] = useState('');
   const [novoCnpj, setNovoCnpj] = useState('');
@@ -179,7 +180,11 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
     if (selecionados.some((i) => !(Number(i.valor) > 0))) return 'Todos os CNPJs marcados precisam de um valor maior que zero.';
     if (!/^\d{6}$/.test(servicoCodigo)) return 'Código de serviço precisa ter 6 dígitos.';
     if (!descricao.trim()) return 'Descrição do serviço é obrigatória.';
-    if (!emailValido(email)) return 'Informe o e-mail do cliente que vai receber o ZIP.';
+    if (!emailValido(email)) {
+      emailRef.current?.focus();
+      emailRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return 'Informe o e-mail do cliente que vai receber o ZIP (campo no topo).';
+    }
     if (!adminPassword) return 'Confirme sua senha de admin.';
     return null;
   };
@@ -379,8 +384,37 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
             </div>
           </div>
 
+          {fase === 'form' && (
+            <>
+              <div>
+                <label className={labelCls}>E-mail do cliente (recebe o ZIP)</label>
+                <input ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@exemplo.com.br" className={inputCls} />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>CNAE</label>
+                  <select value={cnae} onChange={(e) => setCnae(e.target.value)} className={inputCls}>
+                    {cnaes.map((c) => (
+                      <option key={c.codigo} value={c.codigo}>{formatarCnae(c.codigo)} · {c.descricao}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Código de serviço (6 dígitos)</label>
+                  <input type="text" maxLength={6} value={servicoCodigo} onChange={(e) => setServicoCodigo(e.target.value.replace(/\D/g, ''))} placeholder="010301" className={inputCls} />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Descrição do serviço (vai em todas as notas)</label>
+                <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} className={cn(inputCls, 'resize-none')} />
+              </div>
+            </>
+          )}
+
           {itens.length > 0 && (
-            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800 max-h-72 overflow-y-auto custom-scrollbar">
               {itens.map((item) => (
                 <div key={item.cnpj} className="flex items-center gap-3 px-3 py-2">
                   <input
@@ -442,36 +476,6 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
 
           {fase === 'form' && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>CNAE</label>
-                  <select value={cnae} onChange={(e) => setCnae(e.target.value)} className={inputCls}>
-                    {cnaes.map((c) => (
-                      <option key={c.codigo} value={c.codigo}>{formatarCnae(c.codigo)} · {c.descricao}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Código de serviço (6 dígitos)</label>
-                  <input type="text" maxLength={6} value={servicoCodigo} onChange={(e) => setServicoCodigo(e.target.value.replace(/\D/g, ''))} placeholder="010301" className={inputCls} />
-                </div>
-              </div>
-
-              <div>
-                <label className={labelCls}>Descrição do serviço (vai em todas as notas)</label>
-                <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} className={cn(inputCls, 'resize-none')} />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>E-mail do cliente (recebe o ZIP)</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@exemplo.com.br" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Confirme sua senha de admin</label>
-                  <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Sua senha de administrador" className={inputCls} />
-                </div>
-              </div>
 
               {alvo && (
                 <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
@@ -505,6 +509,11 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
                   </>)}
                 </div>
               )}
+
+              <div>
+                <label className={labelCls}>Confirme sua senha de admin</label>
+                <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Sua senha de administrador" className={inputCls} />
+              </div>
             </>
           )}
 
