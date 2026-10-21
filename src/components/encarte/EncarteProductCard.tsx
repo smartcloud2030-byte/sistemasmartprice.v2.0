@@ -800,14 +800,16 @@ function PrecoEtiqueta({
           </span>
         )}
 
-        {/* UNI — colado na base, puxado pra esquerda (bem perto dos centavos); no
-            percentual não tem centavos empurrando ele, então afasta um pouco do "%" */}
-        <span
-          className="self-stretch flex flex-col items-start justify-end leading-none"
-          style={{ marginLeft: ehPercentual ? '0.1em' : '-0.16em' }}
-        >
-          <span className="leading-none" style={{ fontSize: `${0.24 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UN</span>
-        </span>
+        {/* UNI — colado na base, puxado pra esquerda (bem perto dos centavos).
+            Some no percentual (ex.: "20%"): desconto não tem unidade. */}
+        {!ehPercentual && (
+          <span
+            className="self-stretch flex flex-col items-start justify-end leading-none"
+            style={{ marginLeft: '-0.16em' }}
+          >
+            <span className="leading-none" style={{ fontSize: `${0.24 * escalaRotulos}em`, letterSpacing: '0.04em' }}>UN</span>
+          </span>
+        )}
       </span>
     </span>
   );
