@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore, Product, isThreeProduct } from '../store';
-import { Search, Package, Check, X, RefreshCw } from 'lucide-react';
+import { Search, Package, Check, X, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { getProxyUrl } from '../lib/utils';
 
-const ProductSelector: React.FC<{ onSelect?: (product: Product) => void; mostrarTodosSemBusca?: boolean }> = ({
+const ProductSelector: React.FC<{
+  onSelect?: (product: Product) => void;
+  mostrarTodosSemBusca?: boolean;
+  /** só admin: cadastrar o que foi buscado e não existe */
+  onCadastrar?: (termo: string) => void;
+  /** só admin: excluir o produto do cadastro */
+  onExcluir?: (product: Product) => void;
+}> = ({
   onSelect,
   mostrarTodosSemBusca = false,
+  onCadastrar,
+  onExcluir,
 }) => {
   const {
     products, fetchProducts, selectProduct,
@@ -74,10 +83,10 @@ const ProductSelector: React.FC<{ onSelect?: (product: Product) => void; mostrar
 
         <div className="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
           {generalList.map((product) => (
+            <div key={product.id} className="relative group/linha">
             <button
-              key={product.id}
               onClick={() => onSelect(product)}
-              className="w-full text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-zinc-900 transition-colors flex items-center gap-3 group"
+              className={`w-full text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-zinc-900 transition-colors flex items-center gap-3 group ${onExcluir ? 'pr-11' : ''}`}
             >
               <div className="w-11 h-11 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
                 {product.image ? (
@@ -105,11 +114,34 @@ const ProductSelector: React.FC<{ onSelect?: (product: Product) => void; mostrar
                 </div>
               </div>
             </button>
+            {onExcluir && (
+              <button
+                onClick={() => onExcluir(product)}
+                title="Excluir produto do cadastro"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            </div>
           ))}
           {generalList.length === 0 && (
             <div className="text-center py-12 text-zinc-400 text-sm">
               {generalSearchTerm.trim() ? 'Nenhum produto encontrado.' : 'Digite para buscar produtos.'}
             </div>
+          )}
+          {onCadastrar && generalSearchTerm.trim() && (
+            <button
+              onClick={() => onCadastrar(generalSearchTerm.trim())}
+              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-xs font-bold transition-colors ${
+                generalList.length === 0
+                  ? 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10'
+                  : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-emerald-500 hover:border-emerald-500'
+              }`}
+            >
+              <Plus className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">Cadastrar "{generalSearchTerm.trim()}"</span>
+            </button>
           )}
         </div>
       </div>

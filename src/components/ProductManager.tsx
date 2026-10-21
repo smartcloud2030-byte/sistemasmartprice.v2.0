@@ -80,7 +80,18 @@ async function apagarImagemGaleria(imageUrl: string | null | undefined) {
   } catch {}
 }
 
-const ProductManager = () => {
+/** Modo rápido: abre só o formulário de cadastro (ou só a confirmação de
+ * exclusão) por cima de outra tela — usado no encarte pra o admin cadastrar o
+ * produto que não achou na busca sem ir pro Gerenciar Estoque. */
+export interface CadastroRapido {
+  termo?: string;
+  excluir?: Product;
+  onCadastrado?: (p: Product) => void;
+  onExcluido?: (id: string | number) => void;
+  onFechar: () => void;
+}
+
+const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
   const { products, fetchProducts, currentUser } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -346,8 +357,9 @@ const ProductManager = () => {
         }
         toast.success('Produto atualizado!');
       } else {
-        await apiCall('POST', '/products', dataToSave);
+        const criado = await apiCall('POST', '/products', dataToSave);
         toast.success('Produto cadastrado!');
+        if (criado?.data) rapido?.onCadastrado?.(criado.data);
       }
       setIsModalOpen(false);
       setEditingProduct(null);
@@ -401,6 +413,7 @@ const ProductManager = () => {
         await apagarImagemGaleria(product?.image);
       }
       toast.success('Produto excluído!');
+      rapido?.onExcluido?.(id);
       closeDeleteConfirm();
       fetchProducts(); fetchProductCount();
     } catch { toast.error('Erro ao excluir produto.'); closeDeleteConfirm(); }
@@ -459,8 +472,31 @@ const ProductManager = () => {
     setIsModalOpen(true);
   };
 
+  // Modo rápido: abre direto o formulário (com o que foi buscado já
+  // preenchido — número vira código de barras) ou a confirmação de exclusão,
+  // e avisa quem chamou quando tudo isso fechar.
+  const [rapidoAbriu, setRapidoAbriu] = useState(false);
+  useEffect(() => {
+    if (!rapido) return;
+    if (rapido.excluir?.id != null) {
+      setConfirmDelete({ id: rapido.excluir.id });
+    } else {
+      openModal();
+      const termo = (rapido.termo || '').trim();
+      if (/^\d{8,14}$/.test(termo)) setFormData((f) => ({ ...f, barcode: termo }));
+      else setFormData((f) => ({ ...f, name: termo.toUpperCase() }));
+    }
+    setRapidoAbriu(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (rapido && rapidoAbriu && !isModalOpen && !confirmDelete && !duplicateMatch) rapido.onFechar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rapidoAbriu, isModalOpen, confirmDelete, duplicateMatch]);
+
   return (
-    <div className="p-6 space-y-5">
+    <div className={rapido ? 'contents' : 'p-6 space-y-5'}>
+      {!rapido && (<>
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
@@ -537,6 +573,8 @@ const ProductManager = () => {
           <p className="font-medium text-black dark:text-white">Nenhum produto encontrado.</p>
         </div>
       )}
+
+      </>)}
 
       {/* Modal Novo/Editar */}
       {isModalOpen && (
