@@ -356,6 +356,26 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
+  /** Move imagem, forma ou texto pro outro lado na MESMA posição e tamanho
+   * (os lados têm o mesmo formato e tudo é em % do canvas). Só faz sentido com
+   * verso ativo — o botão nem aparece sem ele. Vai pra frente da pilha do destino. */
+  const enviarElementoParaOutroLado = (tipo: 'imagem' | 'forma' | 'texto', id: string) => {
+    setDoc((d) => {
+      if (!d.ladoVerso) return d;
+      const chave = tipo === 'imagem' ? 'imagens' : tipo === 'forma' ? 'formas' : 'textos';
+      const origem = ladoAtivo === 'verso' ? d.ladoVerso : d.ladoFrente;
+      const destino = ladoAtivo === 'verso' ? d.ladoFrente : d.ladoVerso;
+      const lista = (origem[chave] ?? []) as { id: string }[];
+      const el = lista.find((x) => x.id === id);
+      if (!el) return d;
+      const novaOrigem = { ...origem, [chave]: lista.filter((x) => x.id !== id) };
+      const novoDestino = { ...destino, [chave]: [...((destino[chave] ?? []) as { id: string }[]), { ...el, z: maiorZ(destino) + 1 }] };
+      return ladoAtivo === 'verso'
+        ? { ...d, ladoVerso: novaOrigem, ladoFrente: novoDestino }
+        : { ...d, ladoFrente: novaOrigem, ladoVerso: novoDestino };
+    });
+  };
+
   const atualizarProduto = (
     id: string | number | undefined,
     patch: Partial<EncarteProduto>,
@@ -898,6 +918,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onGradeChange={definirGrade}
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}
+          onEnviarElementoParaOutroLado={enviarElementoParaOutroLado}
           onLadoChange={trocarLado}
           onSalvarEncarte={gravarEncarte}
           onExportado={(preview) => {

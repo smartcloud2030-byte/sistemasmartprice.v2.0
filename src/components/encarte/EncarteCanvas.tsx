@@ -7,7 +7,7 @@ import {
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
-  BringToFront, SendToBack, RotateCw, BoxSelect,
+  BringToFront, SendToBack, RotateCw, BoxSelect, ArrowLeftRight,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -460,6 +460,8 @@ interface EncarteCanvasProps {
   onGradeChange: (grade: GradeId) => void;
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
+  /** Imagem/forma/texto pro outro lado, mesma posição e tamanho (só com verso ativo). */
+  onEnviarElementoParaOutroLado: (tipo: 'imagem' | 'forma' | 'texto', id: string) => void;
   onLadoChange: (lado: 'frente' | 'verso') => void;
   /** "Salvar": manda o encarte (frente + verso) pra aba Encartes pra editar depois. */
   onSalvarEncarte: (imagemPreview: string) => Promise<void>;
@@ -587,6 +589,7 @@ export default function EncarteCanvas({
   onEditarTexto,
   onEstilizarTexto,
   onRemoverTexto,
+  onEnviarElementoParaOutroLado,
   guias,
   onAdicionarGuia,
   onMoverGuia,
@@ -721,6 +724,7 @@ export default function EncarteCanvas({
     marcas: [],
   });
   const canvasRef = useRef<HTMLDivElement>(null);
+  const tituloOutroLado = ladoAtivo === 'frente' ? 'Enviar pro verso (mesma posição e tamanho)' : 'Enviar pra frente (mesma posição e tamanho)';
   const dragRef = useRef<DragState | null>(null);
   /** "Abrir Detalhes" pendente (ver `handlePointerUp`) — cancelado se um
    * duplo clique no nome/descrição chegar antes dos 400ms (ver
@@ -1796,6 +1800,15 @@ export default function EncarteCanvas({
                   <span className="w-px h-4 bg-zinc-700 mx-0.5" />
                 </>
               )}
+              {temVerso && (
+                <button
+                  onClick={() => { onEnviarElementoParaOutroLado('forma', fm.id); setFormaSelecionadaId(null); }}
+                  title={tituloOutroLado}
+                  className="p-1 text-zinc-400 hover:text-emerald-400 transition-colors"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => { onRemoverForma(fm.id); setFormaSelecionadaId(null); }}
                 title="Remover forma"
@@ -1981,6 +1994,9 @@ export default function EncarteCanvas({
               </label>
               <span className="w-px h-4 bg-zinc-700 mx-0.5" />
               <button onClick={() => setTextoEditandoId(t.id)} title="Editar texto" className="p-1 text-zinc-400 hover:text-emerald-400"><Pencil className="w-3.5 h-3.5" /></button>
+              {temVerso && (
+                <button onClick={() => { onEnviarElementoParaOutroLado('texto', t.id); setTextoSelecionadoId(null); }} title={tituloOutroLado} className="p-1 text-zinc-400 hover:text-emerald-400"><ArrowLeftRight className="w-3.5 h-3.5" /></button>
+              )}
               <button onClick={() => { onRemoverTexto(t.id); setTextoSelecionadoId(null); }} title="Remover" className="p-1 text-zinc-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
 
@@ -2257,6 +2273,20 @@ export default function EncarteCanvas({
           />
         </div>
 
+        {temVerso && (
+          <button
+            onClick={() => { onEnviarElementoParaOutroLado('imagem', im.id); setImagemSelecionadaId(null); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            data-html2canvas-ignore="true"
+            title={tituloOutroLado}
+            className={cn(
+              'absolute -top-8 right-7 flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 shadow-lg transition-colors',
+              selecionada ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            )}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={() => { onRemoverImagem(im.id); setImagemSelecionadaId(null); }}
           onPointerDown={(e) => e.stopPropagation()}
