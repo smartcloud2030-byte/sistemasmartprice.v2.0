@@ -207,6 +207,8 @@ export interface EncarteProduto {
   yPct: number;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com imagens, formas e textos. */
   z?: number;
+  /** preço do card "em destaque" arrastado do lugar padrão — deslocamento em px do card (antes do zoom/escala) */
+  deslocPreco?: { x: number; y: number } | null;
   /** escondido pelo olho da lista Selecionados: fica no encarte mas não aparece no canvas, no download nem nas plaquinhas */
   oculto?: boolean;
   /** foto solta do lugar padrão do card (duplo clique nela pra ativar) — ver `AjusteFotoProduto`. */

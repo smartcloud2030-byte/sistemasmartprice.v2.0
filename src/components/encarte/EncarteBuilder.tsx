@@ -872,6 +872,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onMoverGrupo={moverGrupo}
           grupo={grupo}
           onGrupoChange={setGrupo}
+          onMoverPrecoProduto={(id, desloc, opcoes) => atualizarProduto(id, { deslocPreco: desloc }, opcoes)}
           onAjustarFotoProduto={(id, ajuste, opcoes) => atualizarProduto(id, { fotoAjuste: ajuste }, opcoes)}
           onAjustarNomeDescricao={(id, ajuste, opcoes) => atualizarProduto(id, { nomeDescricaoAjuste: ajuste }, opcoes)}
           onMoverDivisor={moverDivisor}

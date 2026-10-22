@@ -432,6 +432,7 @@ interface EncarteCanvasProps {
   grupo: MembroGrupo[];
   onGrupoChange: (grupo: MembroGrupo[]) => void;
   onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
+  onMoverPrecoProduto: (id: string | number | undefined, desloc: { x: number; y: number } | null, opcoes?: { coalesce?: string }) => void;
   /** Nome/descrição soltos — livres por todo o encarte (não presos ao card, ver `AjusteNomeDescricao`). */
   onAjustarNomeDescricao: (id: string | number | undefined, ajuste: AjusteNomeDescricao | null, opcoes?: { coalesce?: string }) => void;
   onMoverDivisor: (id: string, yPct: number) => void;
@@ -568,6 +569,7 @@ export default function EncarteCanvas({
   grupo,
   onGrupoChange: setGrupo,
   onAjustarFotoProduto,
+  onMoverPrecoProduto,
   onAjustarNomeDescricao,
   onMoverDivisor,
   onMoverImagem,
@@ -2018,6 +2020,7 @@ export default function EncarteCanvas({
           setProdutoSelecionadoId(null);
         }}
         onAjustarFoto={(ajuste, opcoes) => onAjustarFotoProduto(ep.product.id, ajuste, opcoes)}
+        onMoverPreco={(desloc, opcoes) => onMoverPrecoProduto(ep.product.id, desloc, opcoes)}
       />
     </div>
   );

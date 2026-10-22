@@ -30,6 +30,8 @@ interface EncarteProductCardProps {
    * ruim de usar).
    */
   onAjustarFoto?: (ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
+  /** card "em destaque" selecionado: arrastar o preço tira ele do lugar fixo (`null` volta pro padrão) */
+  onMoverPreco?: (desloc: { x: number; y: number } | null, opcoes?: { coalesce?: string }) => void;
 }
 
 /**
@@ -334,6 +336,7 @@ export default function EncarteProductCard({
   onSelecionarFoto,
   onCliqueFoto,
   onAjustarFoto,
+  onMoverPreco,
 }: EncarteProductCardProps) {
   const { product } = produto;
   const medida = [produto.medidaQtd, produto.medidaUnidade].filter(Boolean).join(' ').trim();
@@ -434,6 +437,40 @@ export default function EncarteProductCard({
   // mesmo com z-index bem maior, nunca conseguia ficar atrás dessa etiqueta
   // (o card inteiro pinta como bloco único primeiro) — só sobra atrás dela
   // desenhando a foto DENTRO do mesmo contexto, disputando o mesmo z-10.
+  // Preço do card "em destaque": com o produto selecionado, arrastar o preço
+  // move só ele (o card não vai junto); 2 cliques volta pro lugar padrão.
+  // O deslocamento é guardado em px do card — divide pela escala real na
+  // tela (zoom do canvas × escala do card) pra acompanhar o mouse.
+  const precoDragRef = useRef<{ x0: number; y0: number; d0: { x: number; y: number }; escala: number; chave: string; pointerId: number } | null>(null);
+  const precoArrastavel = !!(selecionado && onMoverPreco && produto.emDestaque);
+  const arrastePreco: PrecoArrastavel | undefined = precoArrastavel
+    ? {
+        onPointerDown: (e) => {
+          e.stopPropagation();
+          const w = wrapperRef.current;
+          const escala = w && w.offsetWidth ? w.getBoundingClientRect().width / w.offsetWidth : 1;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          precoDragRef.current = {
+            x0: e.clientX, y0: e.clientY, d0: produto.deslocPreco ?? { x: 0, y: 0 },
+            escala: escala || 1, chave: `${Date.now()}`, pointerId: e.pointerId,
+          };
+        },
+        onPointerMove: (e) => {
+          const st = precoDragRef.current;
+          if (!st || e.pointerId !== st.pointerId) return;
+          onMoverPreco!(
+            { x: st.d0.x + (e.clientX - st.x0) / st.escala, y: st.d0.y + (e.clientY - st.y0) / st.escala },
+            { coalesce: `mover-preco-${st.chave}-${produto.product.id}` },
+          );
+        },
+        onPointerUp: (e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+          precoDragRef.current = null;
+        },
+        onDoubleClick: (e) => { e.stopPropagation(); onMoverPreco!(null); },
+      }
+    : undefined;
+
   const fotoAjustavelNode =
     temAjusteFoto && produto.fotoAjuste && onAjustarFoto ? (
       <FotoAjustavel
@@ -468,6 +505,7 @@ export default function EncarteProductCard({
           onFotoSlotDoubleClick={onFotoSlotDoubleClick}
           fotoAjustavelNode={fotoAjustavelNode}
           nomeDescOculto={temAjusteNomeDescricao}
+          arrastePreco={arrastePreco}
         />
       ) : estilo.modeloCard === 'destaque' ? (
         <CardDestaque
@@ -528,7 +566,16 @@ interface CardProps {
   /** Nome/descrição já soltos (livres no encarte) — esconde o conteúdo do
    * lugar padrão, mas mantém o espaço reservado (mesmo esquema da foto). */
   nomeDescOculto?: boolean;
+  /** só o card "em destaque": handlers pra arrastar o preço (produto selecionado) */
+  arrastePreco?: PrecoArrastavel;
 }
+
+type PrecoArrastavel = {
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onDoubleClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+};
 
 /**
  * Encolhe o conteúdo só o quanto precisar pra caber no espaço disponível
@@ -1199,7 +1246,7 @@ function CardClean({
  */
 function CardProdutoDestaque({
   produto, estilo, medida, foto, onFotoSlotPointerDown, onFotoSlotDoubleClick, fotoAjustavelNode,
-  nomeDescOculto,
+  nomeDescOculto, arrastePreco,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}|${estilo.escalaFonte}`;
   return (
@@ -1270,9 +1317,23 @@ function CardProdutoDestaque({
 
         {/* Preço grande dourado com efeito: POR / R$ / número / centavos / UNI */}
         <div
-          className="relative z-10 flex flex-col items-end origin-right"
-          style={{ transform: `scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})` }}
+          className={cn(
+            'relative z-10 flex flex-col items-end origin-right',
+            arrastePreco && 'cursor-move touch-none',
+          )}
+          style={{
+            transform: `${produto.deslocPreco ? `translate(${produto.deslocPreco.x}px, ${produto.deslocPreco.y}px) ` : ''}scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})`,
+          }}
+          title={arrastePreco ? 'Arraste pra mover o preço (2 cliques volta pro lugar)' : undefined}
+          onPointerDown={arrastePreco?.onPointerDown}
+          onPointerMove={arrastePreco?.onPointerMove}
+          onPointerUp={arrastePreco?.onPointerUp}
+          onPointerCancel={arrastePreco?.onPointerUp}
+          onDoubleClick={arrastePreco?.onDoubleClick}
         >
+          {arrastePreco && (
+            <div data-html2canvas-ignore="true" className="pointer-events-none absolute -inset-1 rounded border border-dashed border-emerald-400" />
+          )}
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
           <PrecoEtiqueta
