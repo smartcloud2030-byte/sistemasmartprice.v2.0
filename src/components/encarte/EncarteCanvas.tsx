@@ -7,7 +7,7 @@ import {
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
-  BringToFront, SendToBack, RotateCw,
+  BringToFront, SendToBack, RotateCw, BoxSelect,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -1381,6 +1381,34 @@ export default function EncarteCanvas({
     return true;
   };
 
+  /** Selecionar tudo da página (botão ou Ctrl/Cmd+A): todos os produtos
+   * visíveis, imagens, formas e textos entram no grupo — arrastar qualquer um
+   * move tudo junto. */
+  const selecionarTudo = () => {
+    const todos: MembroGrupo[] = [
+      ...produtos.filter((p) => !p.oculto && p.product.id != null).map((p) => ({ tipo: 'produto' as const, id: p.product.id! })),
+      ...imagens.map((im) => ({ tipo: 'imagem' as const, id: im.id })),
+      ...formas.map((fm) => ({ tipo: 'forma' as const, id: fm.id })),
+      ...textos.map((t) => ({ tipo: 'texto' as const, id: t.id })),
+    ];
+    if (!todos.length) return;
+    desselecionarOutros();
+    setTextoEditandoId(null);
+    setNomeDescSelecionadoId(null);
+    if (todos.length === 1) { setGrupo([]); selecionarUnico(todos[0]); } else setGrupo(todos);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'a') return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
+      e.preventDefault();
+      selecionarTudo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   // Esc desfaz a seleção múltipla; trocar de lado (frente/verso) também.
   useEffect(() => {
     if (!grupo.length) return;
@@ -2499,6 +2527,19 @@ export default function EncarteCanvas({
               </div>
             )}
           </div>
+
+          {/* Selecionar tudo da página (Ctrl/Cmd+A) */}
+          <button
+            onClick={selecionarTudo}
+            title="Selecionar tudo da página (Ctrl+A) — arraste qualquer item pra mover tudo junto; Esc desfaz"
+            className={cn(
+              'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              tbCompacta ? 'px-2' : 'px-3',
+            )}
+          >
+            <BoxSelect className="w-3.5 h-3.5" />
+            {!tbCompacta && 'Selecionar tudo'}
+          </button>
 
           {/* Réguas / guias */}
           <button
