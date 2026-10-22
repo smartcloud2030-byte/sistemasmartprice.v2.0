@@ -472,6 +472,8 @@ export interface ElementoImagem {
   hPct: number;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com produtos, formas e textos. */
   z?: number;
+  /** giro em graus no sentido horário, em torno do centro (alça de girar) */
+  rotacao?: number;
 }
 
 export function criarElementoImagem(url: string, categoria: string): ElementoImagem {
@@ -512,6 +514,8 @@ export interface FormaEncarte {
   cor2?: string;
   /** direção do degradê em graus (CSS: 0 = pra cima, 90 = pra direita). Padrão 135. */
   anguloGrad?: number;
+  /** giro em graus no sentido horário, em torno do centro (alça de girar) */
+  rotacao?: number;
   /** raio dos cantos, em px no espaço do canvas (0 = reto). Não vale pra círculo. */
   raioBorda?: number;
   /** LEGADO: só usado pra migrar rascunhos antigos pro campo `z` em `normalizarLado`. */
@@ -607,6 +611,8 @@ export interface TextoEncarte {
   yPct: number;
   /** largura da caixa em % do canvas (altura acompanha o conteúdo) */
   wPct: number;
+  /** giro em graus no sentido horário, em torno do centro (alça de girar) */
+  rotacao?: number;
   /** tamanho da fonte em px no espaço do canvas (CANVAS_W = 480); escala no export */
   tamanho: number;
   fontFamily: string;

@@ -7,7 +7,7 @@ import {
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
-  BringToFront, SendToBack,
+  BringToFront, SendToBack, RotateCw,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -320,6 +320,64 @@ function gerarThumbnail(canvas: HTMLCanvasElement, maxW = 240): string {
 }
 
 /** Mini-diagrama da grade (cols × rows) pro seletor "Produtos por página". */
+/** Ângulo final do giro: Shift trava de 15 em 15°; perto de 0/90/180/270 gruda sozinho. */
+function ajustarGiro(graus: number, travar15: boolean): number {
+  let g = ((graus % 360) + 540) % 360 - 180; // -180..180
+  if (travar15) g = Math.round(g / 15) * 15;
+  else {
+    const reto = Math.round(g / 90) * 90;
+    if (Math.abs(g - reto) <= 3) g = reto;
+  }
+  return g === -180 ? 180 : g;
+}
+
+/** Alça redonda abaixo do elemento selecionado: arraste em volta pra girar
+ * (Shift = de 15 em 15°), 2 cliques volta pra 0°. O elemento pai precisa ser
+ * o que leva o `rotate` — o centro do giro é o centro da caixa dele. */
+function AlcaGirar({ rotacao, onGirar }: { rotacao: number; onGirar: (graus: number) => void }) {
+  const st = useRef<{ cx: number; cy: number; a0: number; r0: number; pointerId: number } | null>(null);
+  const [arrastando, setArrastando] = useState(false);
+  const angulo = (x: number, y: number, cx: number, cy: number) => (Math.atan2(y - cy, x - cx) * 180) / Math.PI;
+  return (
+    <div
+      data-html2canvas-ignore="true"
+      title="Girar (Shift = de 15 em 15°, 2 cliques volta ao normal)"
+      className="absolute left-1/2 -bottom-9 -translate-x-1/2 flex flex-col items-center touch-none"
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => { e.stopPropagation(); onGirar(0); }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        const caixa = e.currentTarget.parentElement?.getBoundingClientRect();
+        if (!caixa) return;
+        const cx = caixa.left + caixa.width / 2;
+        const cy = caixa.top + caixa.height / 2;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        st.current = { cx, cy, a0: angulo(e.clientX, e.clientY, cx, cy), r0: rotacao, pointerId: e.pointerId };
+        setArrastando(true);
+      }}
+      onPointerMove={(e) => {
+        const s = st.current;
+        if (!s || e.pointerId !== s.pointerId) return;
+        onGirar(ajustarGiro(s.r0 + angulo(e.clientX, e.clientY, s.cx, s.cy) - s.a0, e.shiftKey));
+      }}
+      onPointerUp={(e) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+        st.current = null;
+        setArrastando(false);
+      }}
+      onPointerCancel={() => { st.current = null; setArrastando(false); }}
+    >
+      <div className="w-px h-3 bg-emerald-400/70" />
+      <div className="w-6 h-6 rounded-full bg-zinc-900 border border-emerald-500 text-emerald-400 flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing">
+        <RotateCw className="w-3.5 h-3.5" />
+      </div>
+      {arrastando && (
+        <span className="mt-1 px-1.5 py-0.5 rounded bg-zinc-900 text-[10px] font-bold text-emerald-300 whitespace-nowrap">{Math.round(rotacao)}°</span>
+      )}
+    </div>
+  );
+}
+
 function MiniGrade({ cols, rows, ativa }: { cols: number; rows: number; ativa: boolean }) {
   const base = cn(
     'w-full aspect-[4/3] rounded-md border p-1 transition-colors',
@@ -1625,6 +1683,7 @@ export default function EncarteCanvas({
           top: `${fm.yPct}%`,
           width: `${fm.wPct}%`,
           height: `${fm.hPct}%`,
+          ...(fm.rotacao ? { transform: `rotate(${fm.rotacao}deg)` } : {}),
           // Sem zIndex forçado: a forma fica na camada que o `z` dela mandar,
           // pra as setas ↑ ↓ terem efeito visível na hora.
         }}
@@ -1733,6 +1792,7 @@ export default function EncarteCanvas({
                 )}
               />
             ))}
+            <AlcaGirar rotacao={fm.rotacao ?? 0} onGirar={(rotacao) => onRedimensionarForma(fm.id, { rotacao })} />
           </>
         )}
       </div>
@@ -1813,7 +1873,10 @@ export default function EncarteCanvas({
       <div
         key={t.id}
         className="absolute"
-        style={{ left: `${t.xPct}%`, top: `${t.yPct}%`, width: `${t.wPct}%` }}
+        style={{
+          left: `${t.xPct}%`, top: `${t.yPct}%`, width: `${t.wPct}%`,
+          ...(t.rotacao ? { transform: `rotate(${t.rotacao}deg)` } : {}),
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {editando ? (
@@ -1912,6 +1975,9 @@ export default function EncarteCanvas({
               onPointerCancel={handleTextoPointerUp}
               className="absolute top-1/2 right-0 w-3 h-3 -translate-y-1/2 translate-x-1/2 rounded-sm bg-emerald-500 border-2 border-white shadow cursor-ew-resize"
             />
+            {!fonteInlineAberta && (
+              <AlcaGirar rotacao={t.rotacao ?? 0} onGirar={(rotacao) => onEstilizarTexto(t.id, { rotacao })} />
+            )}
           </>
         )}
       </div>
@@ -2134,7 +2200,10 @@ export default function EncarteCanvas({
       <div
         key={`i:${im.id}`}
         className="absolute group touch-none"
-        style={{ left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%` }}
+        style={{
+          left: `${im.xPct}%`, top: `${im.yPct}%`, width: `${im.wPct}%`, height: `${im.hPct}%`,
+          ...(im.rotacao ? { transform: `rotate(${im.rotacao}deg)` } : {}),
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
@@ -2187,6 +2256,10 @@ export default function EncarteCanvas({
             )}
           />
         ))}
+
+        {selecionada && (
+          <AlcaGirar rotacao={im.rotacao ?? 0} onGirar={(rotacao) => onRedimensionarImagem(im.id, { rotacao })} />
+        )}
       </div>
     );
   };
