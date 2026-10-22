@@ -25,6 +25,7 @@ import {
   GuiaEncarte,
   TextoEncarte,
   CamadaTipo,
+  MembroGrupo,
   criarEncarteProduto,
   criarLado,
   clonarLado,
@@ -121,6 +122,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
+  // seleção múltipla do canvas — aqui em cima pra a lista Selecionados (caixinhas) mexer nela também
+  const [grupo, setGrupo] = useState<MembroGrupo[]>([]);
   const [placaModalAberto, setPlacaModalAberto] = useState(false);
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
   // Nome do encarte (campo no topo) — fora do desfazer/refazer, mas vai no rascunho.
@@ -668,7 +671,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
   // Frente + verso juntos, na ordem — "Add placa de preço" transforma cada
   // produto do encarte inteiro (os dois lados) numa plaquinha pra fila.
-  const produtosParaPlaquinha = [...ladoFrente.produtos, ...(ladoVerso?.produtos ?? [])];
+  const produtosParaPlaquinha = [...ladoFrente.produtos, ...(ladoVerso?.produtos ?? [])].filter((ep) => !ep.oculto);
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
@@ -792,6 +795,24 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onSelecionar={adicionarProduto}
               onRemover={removerProduto}
               onAbrirDetalhes={setProdutoDetalhadoId}
+              marcados={grupo.filter((m) => m.tipo === 'produto').map((m) => String(m.id))}
+              onMarcar={(id) =>
+                setGrupo((g) =>
+                  g.some((m) => m.tipo === 'produto' && String(m.id) === String(id))
+                    ? g.filter((m) => !(m.tipo === 'produto' && String(m.id) === String(id)))
+                    : [...g, { tipo: 'produto', id }],
+                )
+              }
+              onMarcarTodos={(marcar) =>
+                setGrupo((g) => [
+                  ...g.filter((m) => m.tipo !== 'produto'),
+                  ...(marcar ? lado.produtos.filter((ep) => ep.product.id != null).map((ep) => ({ tipo: 'produto' as const, id: ep.product.id! })) : []),
+                ])
+              }
+              onAlternarOculto={(id) => {
+                const ep = lado.produtos.find((p) => p.product.id === id);
+                if (ep) atualizarProduto(id, { oculto: !ep.oculto });
+              }}
             />
           ) : activeMenu === 'formatos' ? (
             <FormatosTab selecionado={formato.id} onSelecionar={trocarFormato} />
@@ -849,6 +870,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onAbrirDetalhes={setProdutoDetalhadoId}
           onMoverProduto={moverProduto}
           onMoverGrupo={moverGrupo}
+          grupo={grupo}
+          onGrupoChange={setGrupo}
           onAjustarFotoProduto={(id, ajuste, opcoes) => atualizarProduto(id, { fotoAjuste: ajuste }, opcoes)}
           onAjustarNomeDescricao={(id, ajuste, opcoes) => atualizarProduto(id, { nomeDescricaoAjuste: ajuste }, opcoes)}
           onMoverDivisor={moverDivisor}

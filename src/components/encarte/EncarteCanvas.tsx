@@ -20,7 +20,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  CamadaTipo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
+  CamadaTipo, MembroGrupo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -370,6 +370,9 @@ interface EncarteCanvasProps {
   onMoverProduto: (id: string | number | undefined, xPct: number, yPct: number) => void;
   /** Arraste da seleção múltipla (Shift+clique) — `chave` identifica o arraste (um passo de desfazer). */
   onMoverGrupo: (novas: PosicaoGrupo[], chave: string) => void;
+  /** seleção múltipla — fica no EncarteBuilder pra a lista Selecionados também marcar produtos */
+  grupo: MembroGrupo[];
+  onGrupoChange: (grupo: MembroGrupo[]) => void;
   onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
   /** Nome/descrição soltos — livres por todo o encarte (não presos ao card, ver `AjusteNomeDescricao`). */
   onAjustarNomeDescricao: (id: string | number | undefined, ajuste: AjusteNomeDescricao | null, opcoes?: { coalesce?: string }) => void;
@@ -504,6 +507,8 @@ export default function EncarteCanvas({
   onAbrirDetalhes,
   onMoverProduto,
   onMoverGrupo,
+  grupo,
+  onGrupoChange: setGrupo,
   onAjustarFotoProduto,
   onAjustarNomeDescricao,
   onMoverDivisor,
@@ -580,8 +585,6 @@ export default function EncarteCanvas({
   useEffect(() => { setFonteInlineAberta(false); }, [textoSelecionadoId]);
 
   // Seleção múltipla (Shift+clique) — ver `tratarGrupoNoPointerDown`.
-  type MembroGrupo = { tipo: CamadaTipo; id: string | number };
-  const [grupo, setGrupo] = useState<MembroGrupo[]>([]);
 
   // Ctrl/Cmd+C copia a forma/texto selecionado — ou as formas e textos da
   // seleção múltipla; Ctrl/Cmd+V cola cópias deslocadas (cada colada seguida
@@ -1098,7 +1101,7 @@ export default function EncarteCanvas({
 
     // Segurar Shift durante o arraste desliga o alinhamento inteligente.
     if (arrastado && !e.shiftKey) {
-      const outros = produtos.filter((p) => p.product.id !== st.id);
+      const outros = produtos.filter((p) => p.product.id !== st.id && !p.oculto);
       const tolX = (SNAP_PRODUTO_PX / rect.width) * 100;
       const tolY = (SNAP_PRODUTO_PX / rect.height) * 100;
       const r = calcularSnapProduto(alvoX, alvoY, arrastado, outros, larguraProdutoPct, cardHpct, {
@@ -2191,7 +2194,7 @@ export default function EncarteCanvas({
   // Pilha única: produtos, imagens, formas e textos empilhados pelo `z`
   // (maior = mais pra frente), em vez de camadas fixas por tipo.
   const camadas: { chave: string; z: number; el: React.ReactNode }[] = [
-    ...produtos.map((ep) => ({ chave: `p:${ep.product.id}`, z: ep.z ?? 0, el: renderProduto(ep) })),
+    ...produtos.filter((ep) => !ep.oculto).map((ep) => ({ chave: `p:${ep.product.id}`, z: ep.z ?? 0, el: renderProduto(ep) })),
     ...imagens.map((im) => ({ chave: `i:${im.id}`, z: im.z ?? 0, el: renderImagem(im) })),
     ...formas.map((fm) => ({ chave: `f:${fm.id}`, z: fm.z ?? 0, el: renderForma(fm) })),
     ...textos.map((t) => ({ chave: `t:${t.id}`, z: t.z ?? 0, el: renderTexto(t) })),
@@ -2753,7 +2756,7 @@ export default function EncarteCanvas({
               coisa por baixo mesmo sem nada solto ali. Cada caixa solta
               religa `pointer-events-auto` pra si mesma. */}
           <div className="absolute inset-0 pointer-events-none">
-            {produtos.filter((ep) => ep.nomeDescricaoAjuste).map((ep) => renderNomeDescricaoAjustavel(ep))}
+            {produtos.filter((ep) => ep.nomeDescricaoAjuste && !ep.oculto).map((ep) => renderNomeDescricaoAjustavel(ep))}
           </div>
 
           {/* Alças da foto solta selecionada — acima de tudo, fora do PNG */}

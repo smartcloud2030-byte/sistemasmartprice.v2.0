@@ -207,6 +207,8 @@ export interface EncarteProduto {
   yPct: number;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com imagens, formas e textos. */
   z?: number;
+  /** escondido pelo olho da lista Selecionados: fica no encarte mas não aparece no canvas, no download nem nas plaquinhas */
+  oculto?: boolean;
   /** foto solta do lugar padrão do card (duplo clique nela pra ativar) — ver `AjusteFotoProduto`. */
   fotoAjuste?: AjusteFotoProduto | null;
   /** nome+descrição soltos do lugar padrão do card, livres por todo o encarte
@@ -709,6 +711,9 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
  * usar camadas fixas por tipo. Divisores, rodapé e guias ficam fora disso.
  */
 export type CamadaTipo = 'produto' | 'imagem' | 'forma' | 'texto';
+
+/** Um elemento da seleção múltipla (Shift+clique no canvas ou caixinha na lista Selecionados). */
+export type MembroGrupo = { tipo: CamadaTipo; id: string | number };
 
 /** Nova posição de um elemento num arraste de seleção múltipla (Shift+clique). */
 export interface PosicaoGrupo {

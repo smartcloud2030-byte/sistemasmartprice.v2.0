@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, ShoppingCart, ChevronRight, Search, History, Heart, Star, Plus, Check } from 'lucide-react';
+import { X, ShoppingCart, ChevronRight, Search, History, Heart, Star, Plus, Check, Eye, EyeOff, Square, CheckSquare } from 'lucide-react';
 import ProductSelector from '../ProductSelector';
 import ProductManager, { CadastroRapido } from '../ProductManager';
 import { Product, useStore } from '../../store';
@@ -12,6 +12,11 @@ interface ProdutosTabProps {
   onSelecionar: (product: Product) => void;
   onRemover: (id?: string | number) => void;
   onAbrirDetalhes: (id?: string | number) => void;
+  /** ids (string) dos produtos marcados nas caixinhas — viram a seleção múltipla do canvas */
+  marcados: string[];
+  onMarcar: (id: string | number) => void;
+  onMarcarTodos: (marcar: boolean) => void;
+  onAlternarOculto: (id?: string | number) => void;
 }
 
 type Aba = 'buscar' | 'historico' | 'favoritos';
@@ -59,7 +64,7 @@ function LinhaProduto({
   );
 }
 
-export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes }: ProdutosTabProps) {
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto }: ProdutosTabProps) {
   const { products, fetchProducts, currentUser, userRole } = useStore();
   const user = currentUser?.username ?? '';
   const isAdmin = userRole === 'admin';
@@ -85,6 +90,7 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
 
   const idsNoEncarte = useMemo(() => new Set(selecionados.map((ep) => String(ep.product.id))), [selecionados]);
   const favSet = useMemo(() => new Set(favoritos), [favoritos]);
+  const marcadosSet = useMemo(() => new Set(marcados), [marcados]);
 
   const adicionar = (p: Product) => {
     registrarHistorico(user, String(p.id));
@@ -139,15 +145,43 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
 
           {selecionados.length > 0 && (
             <div className="space-y-2 pt-3 border-t border-zinc-800">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                Selecionados ({selecionados.length})
-              </h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                  Selecionados ({selecionados.length})
+                </h3>
+                <button
+                  onClick={() => onMarcarTodos(marcadosSet.size < selecionados.length)}
+                  className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:text-sky-300 transition-colors"
+                >
+                  {marcadosSet.size > 0 && marcadosSet.size === selecionados.length ? 'Desmarcar todos' : 'Marcar todos'}
+                </button>
+              </div>
+              {marcadosSet.size >= 2 && (
+                <p className="text-[11px] text-sky-300">
+                  {marcadosSet.size} marcados — arraste qualquer um deles no encarte que todos andam juntos.
+                </p>
+              )}
               <div className="space-y-1.5">
-                {selecionados.map((ep) => (
-                  <div key={ep.product.id} className="flex items-center gap-2 bg-zinc-800 rounded-lg pl-2 pr-1 py-1.5">
+                {selecionados.map((ep) => {
+                  const marcado = marcadosSet.has(String(ep.product.id));
+                  return (
+                  <div
+                    key={ep.product.id}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-lg pl-1 pr-1 py-1.5 border',
+                      marcado ? 'bg-sky-500/10 border-sky-500/50' : 'bg-zinc-800 border-transparent',
+                    )}
+                  >
+                    <button
+                      onClick={() => ep.product.id != null && onMarcar(ep.product.id)}
+                      title={marcado ? 'Desmarcar' : 'Marcar (pra mover junto com outros)'}
+                      className={cn('p-1 flex-shrink-0 transition-colors', marcado ? 'text-sky-400' : 'text-zinc-500 hover:text-sky-300')}
+                    >
+                      {marcado ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
                     <button
                       onClick={() => onAbrirDetalhes(ep.product.id)}
-                      className="flex items-center gap-2 flex-grow min-w-0 text-left group"
+                      className={cn('flex items-center gap-2 flex-grow min-w-0 text-left group', ep.oculto && 'opacity-40')}
                     >
                       <div className="w-7 h-7 rounded bg-zinc-700 flex-shrink-0 overflow-hidden">
                         {ep.product.image && (
@@ -170,6 +204,13 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                       <Star className="w-3.5 h-3.5" fill={favSet.has(String(ep.product.id)) ? 'currentColor' : 'none'} />
                     </button>
                     <button
+                      onClick={() => onAlternarOculto(ep.product.id)}
+                      title={ep.oculto ? 'Mostrar no encarte' : 'Ocultar do encarte'}
+                      className={cn('p-1 flex-shrink-0 transition-colors', ep.oculto ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-200')}
+                    >
+                      {ep.oculto ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
                       onClick={() => onRemover(ep.product.id)}
                       className="text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
                       title="Tirar do encarte"
@@ -177,7 +218,8 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
