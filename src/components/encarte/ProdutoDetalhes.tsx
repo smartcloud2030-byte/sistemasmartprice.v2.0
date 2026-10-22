@@ -300,6 +300,27 @@ export default function ProdutoDetalhes({
           className="w-4 h-4 accent-emerald-500"
         />
       </label>
+      {produto.emDestaque && (
+        <div className="flex items-center gap-2">
+          <div className="flex-grow">
+            <BotaoAcaoCor
+              icon={DollarSign}
+              label="Cor do preço (só deste destaque)"
+              value={produto.corPrecoDestaque ?? estilo.corPreco ?? '#ef9d1c'}
+              onChange={(corPrecoDestaque) => onAtualizar({ corPrecoDestaque })}
+            />
+          </div>
+          {produto.corPrecoDestaque && (
+            <button
+              onClick={() => onAtualizar({ corPrecoDestaque: undefined })}
+              title="Voltar pra cor padrão"
+              className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:text-zinc-200 flex-shrink-0"
+            >
+              Padrão
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tamanhos */}
       <div className="space-y-3 pt-1">

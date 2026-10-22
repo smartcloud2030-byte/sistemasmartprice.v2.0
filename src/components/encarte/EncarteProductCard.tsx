@@ -1339,13 +1339,13 @@ function CardProdutoDestaque({
           <PrecoEtiqueta
             valor={produto.precoOferta}
             tamanho={58}
-            dourado={!estilo.corPreco}
-            cor={estilo.corPreco}
+            dourado={!(produto.corPrecoDestaque ?? estilo.corPreco)}
+            cor={produto.corPrecoDestaque ?? estilo.corPreco}
             escalaRotulos={0.58}
             escalaCentavos={0.6}
             textoProduto={produto.textoProduto}
             escalaTextoProduto={produto.escalaTextoProduto}
-            corTextoProduto={produto.corTextoProduto ?? estilo.corPreco ?? PRECO_LARANJA.color}
+            corTextoProduto={produto.corTextoProduto ?? produto.corPrecoDestaque ?? estilo.corPreco ?? PRECO_LARANJA.color}
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
             faixaTextoProduto={produto.faixaTextoProduto}
           />

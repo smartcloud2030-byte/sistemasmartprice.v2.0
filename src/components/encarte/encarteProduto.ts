@@ -207,6 +207,8 @@ export interface EncarteProduto {
   yPct: number;
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com imagens, formas e textos. */
   z?: number;
+  /** cor do preço só deste produto em destaque (sem ela usa a "Cor do preço" geral, ou o dourado) */
+  corPrecoDestaque?: string;
   /** preço do card "em destaque" arrastado do lugar padrão — deslocamento em px do card (antes do zoom/escala) */
   deslocPreco?: { x: number; y: number } | null;
   /** escondido pelo olho da lista Selecionados: fica no encarte mas não aparece no canvas, no download nem nas plaquinhas */
