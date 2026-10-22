@@ -407,13 +407,16 @@ function BotaoAcaoCor({
             className="absolute inset-0 rounded-md border border-zinc-600 bg-[linear-gradient(45deg,#71717a_25%,transparent_25%),linear-gradient(-45deg,#71717a_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#71717a_75%),linear-gradient(-45deg,transparent_75%,#71717a_75%)] bg-[length:8px_8px] bg-[position:0_0,0_4px,4px_-4px,-4px_0px]"
             style={transparente ? undefined : { backgroundColor: value, backgroundImage: 'none' }}
           />
+          {/* Input de verdade em cima do quadradinho (invisível): o seletor de
+              cor do navegador abre colado nele. Com `sr-only` ele ficava solto
+              no painel e o seletor abria no meio da tela, em branco. */}
+          <input
+            type="color"
+            value={transparente ? '#ffffff' : value}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
         </span>
-        <input
-          type="color"
-          value={transparente ? '#ffffff' : value}
-          onChange={(e) => onChange(e.target.value)}
-          className="sr-only"
-        />
       </label>
       {permiteTransparente && (
         <button
