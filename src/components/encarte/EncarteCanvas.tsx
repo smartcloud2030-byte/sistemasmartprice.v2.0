@@ -713,6 +713,18 @@ export default function EncarteCanvas({
   const esperarFrame = () =>
     new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
+  /** O html2canvas não entende `transform` em elemento PAI do capturado: ele
+   * pega a posição de cada palavra já ampliada pelo zoom da visualização, mas
+   * desenha a fonte no tamanho real — o arquivo saía com buracos entre as
+   * palavras e o preço desmontado (só voltava ao normal com F5, que reseta o
+   * zoom). No documento clonado a gente desliga a camada de zoom antes da
+   * medição; a tela não é tocada. */
+  const semZoomNoClone = (doc: Document) => {
+    doc.querySelectorAll<HTMLElement>('[data-encarte-zoom]').forEach((el) => {
+      el.style.transform = 'none';
+    });
+  };
+
   const capturarCanvas = async (qualidade = 1) => {
     // Garante que as fontes (as ~140 do encarte carregam sob demanda) e as
     // imagens já estejam prontas antes de capturar — senão o export sai com
@@ -726,6 +738,7 @@ export default function EncarteCanvas({
       scale: (formato.width / CANVAS_W) * qualidade,
       imageTimeout: 20000,
       logging: false,
+      onclone: semZoomNoClone,
     });
   };
 
@@ -808,6 +821,7 @@ export default function EncarteCanvas({
         useCORS: true,
         backgroundColor: '#000000',
         scale: 480 / CANVAS_W,
+        onclone: semZoomNoClone,
       });
       const thumb = gerarThumbnail(canvas);
       liberarCanvas(canvas);
@@ -2611,7 +2625,7 @@ export default function EncarteCanvas({
           >
             {/* Camada de zoom: só visual. O canvasRef abaixo fica sem transform,
                 então o PNG/PDF sempre sai no tamanho real. */}
-            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+            <div data-encarte-zoom style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
               {/* Wrapper com margem pras réguas ficarem FORA do encarte */}
               <div
                 className="relative"
