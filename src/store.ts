@@ -1225,6 +1225,10 @@ export const useStore = create<AppState>()(
             if (data.length < limit) break;
             offset += limit;
           }
+          // Garantia extra contra o mesmo produto vir em duas páginas
+          // (aparecia repetido na busca do encarte e no Gerenciar Estoque).
+          const vistos = new Set<Product['id']>();
+          allProducts = allProducts.filter((p) => (vistos.has(p.id) ? false : (vistos.add(p.id), true)));
           set({ products: allProducts });
         } catch (error) {
           console.error('Error fetching products:', error);

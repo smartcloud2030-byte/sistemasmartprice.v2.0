@@ -276,7 +276,10 @@ router.get('/products', exigirSessaoValida(), async (req: Request, res: Response
       query += ` AND category = $${params.length}`;
     }
 
-    query += ` ORDER BY name ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    // `id` desempata nomes iguais: só `name` deixava a ordem entre eles por
+    // conta do Postgres, e na paginação (limit/offset) o mesmo produto vinha
+    // em duas páginas enquanto outro sumia — aparecia repetido nas buscas.
+    query += ` ORDER BY name ASC, id ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
