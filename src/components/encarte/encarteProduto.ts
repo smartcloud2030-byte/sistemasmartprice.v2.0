@@ -321,6 +321,21 @@ export const getGrade = (id: GradeId) => GRADES.find((g) => g.id === id) ?? GRAD
 export const AREA_TOPO_PADRAO = 24;
 export const AREA_BASE_PADRAO = 4;
 
+/** Área dos produtos nas grades (% da altura). Sem ela = folha inteira (5%–95%, o jeito antigo). */
+export interface AreaProdutos { topo: number; base: number }
+
+function medidasArea(area?: AreaProdutos) {
+  const usableX = 0.9;
+  const origemX = ((1 - usableX) / 2) * 100;
+  if (!area) return { origemX, usableX, origemY: origemX, usableY: usableX };
+  return { origemX, usableX, origemY: area.topo, usableY: Math.max(10, 100 - area.topo - area.base) / 100 };
+}
+
+export const areaDoLado = (l: { areaTopo?: number; areaBase?: number }): AreaProdutos => ({
+  topo: l.areaTopo ?? AREA_TOPO_PADRAO,
+  base: l.areaBase ?? AREA_BASE_PADRAO,
+});
+
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 /**
@@ -337,29 +352,29 @@ export function organizarEmGrade(
   produtos: EncarteProduto[],
   grade: GradeId,
   formato: Formato,
+  area?: AreaProdutos,
 ): { produtos: EncarteProduto[]; escalaCard: number } {
   const g = getGrade(grade);
   if (g.cols < 1 || g.rows < 1) return { produtos, escalaCard: 1 };
 
   const canvasH = CANVAS_W / formato.ratio;
-  const usable = 0.9;
+  const { origemX, origemY, usableX, usableY } = medidasArea(area);
   const cols = g.cols;
   const rows = Math.max(g.rows, Math.ceil(produtos.length / cols) || 1);
-  const cellWpx = (CANVAS_W * usable) / cols;
-  const cellHpx = (canvasH * usable) / rows;
+  const cellWpx = (CANVAS_W * usableX) / cols;
+  const cellHpx = (canvasH * usableY) / rows;
   const escalaCard = clamp(Math.min(cellWpx / (CARD_W + 6), cellHpx / (CARD_H + 6)), 0.15, 1);
 
   const cardWpct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
   const cardHpct = ((CARD_H * escalaCard) / canvasH) * 100;
-  const cellWpct = (100 * usable) / cols;
-  const cellHpct = (100 * usable) / rows;
-  const origem = ((1 - usable) / 2) * 100;
+  const cellWpct = (100 * usableX) / cols;
+  const cellHpct = (100 * usableY) / rows;
 
   const novos = produtos.map((p, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const novoX = origem + col * cellWpct + (cellWpct - cardWpct) / 2;
-    const novoY = origem + row * cellHpct + (cellHpct - cardHpct) / 2;
+    const novoX = origemX + col * cellWpct + (cellWpct - cardWpct) / 2;
+    const novoY = origemY + row * cellHpct + (cellHpct - cardHpct) / 2;
     return {
       ...p,
       xPct: novoX,
@@ -477,23 +492,23 @@ export function posicaoLivreNaGrade(
   grade: GradeId,
   formato: Formato,
   escalaCard: number,
+  area?: AreaProdutos,
 ): { xPct: number; yPct: number } | null {
   const g = getGrade(grade);
   if (g.cols < 1 || g.rows < 1) return null;
 
   const canvasH = CANVAS_W / formato.ratio;
-  const usable = 0.9;
+  const { origemX, origemY, usableX, usableY } = medidasArea(area);
   const cardWpct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
   const cardHpct = ((CARD_H * escalaCard) / canvasH) * 100;
-  const origem = ((1 - usable) / 2) * 100;
-  const cellWpct = (100 * usable) / g.cols;
+  const cellWpct = (100 * usableX) / g.cols;
   const celulas = (rows: number) => {
-    const cellHpct = (100 * usable) / rows;
+    const cellHpct = (100 * usableY) / rows;
     const lista: { x0: number; y0: number; xPct: number; yPct: number }[] = [];
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < g.cols; col++) {
-        const x0 = origem + col * cellWpct;
-        const y0 = origem + row * cellHpct;
+        const x0 = origemX + col * cellWpct;
+        const y0 = origemY + row * cellHpct;
         lista.push({ x0, y0, xPct: x0 + (cellWpct - cardWpct) / 2, yPct: y0 + (cellHpct - cardHpct) / 2 });
       }
     }

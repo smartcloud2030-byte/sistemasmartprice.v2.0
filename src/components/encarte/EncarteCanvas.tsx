@@ -2413,11 +2413,13 @@ export default function EncarteCanvas({
                 <p className="text-[11px] text-zinc-500">
                   {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'} nesta página
                 </p>
-                {grade === 'auto' && (
+                {grade !== 'livre' && (
                   <div className="mt-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5">
-                    <p className="text-[11px] text-emerald-200 leading-snug">
-                      Automática: cada produto que entra ou sai realinha todos, com o mesmo espaço entre eles.
-                    </p>
+                    {grade === 'auto' && (
+                      <p className="text-[11px] text-emerald-200 leading-snug">
+                        Automática: cada produto que entra ou sai realinha todos, com o mesmo espaço entre eles.
+                      </p>
+                    )}
                     <label className="block mt-2">
                       <span className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                         Produtos começam em <span className="font-mono text-zinc-300">{Math.round(areaTopo ?? AREA_TOPO_PADRAO)}%</span>
@@ -2923,7 +2925,7 @@ export default function EncarteCanvas({
           )}
 
           {/* Grade Automática: linha de onde os produtos começam, enquanto o menu da grade está aberto */}
-          {gradeAberta && grade === 'auto' && (
+          {gradeAberta && grade !== 'livre' && (
             <div
               data-html2canvas-ignore="true"
               className="absolute left-0 right-0 border-t-2 border-dashed border-emerald-400 pointer-events-none z-[45]"

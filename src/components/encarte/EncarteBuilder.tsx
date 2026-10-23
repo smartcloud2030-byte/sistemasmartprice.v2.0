@@ -39,6 +39,7 @@ import {
   PosicaoGrupo,
   organizarEmGrade,
   organizarAutomatico,
+  areaDoLado,
   posicaoLivreNaGrade,
 } from './encarteProduto';
 import {
@@ -82,7 +83,7 @@ function realinharSeAuto(lado: LadoEncarte, formato: Formato): LadoEncarte {
 function regridLado(lado: LadoEncarte, formato: Formato): LadoEncarte {
   if (lado.grade === 'auto') return realinharSeAuto(lado, formato);
   if (lado.grade === 'livre') return lado;
-  const { produtos, escalaCard } = organizarEmGrade(lado.produtos, lado.grade, formato);
+  const { produtos, escalaCard } = organizarEmGrade(lado.produtos, lado.grade, formato, areaDoLado(lado));
   return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
 }
 
@@ -320,7 +321,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
       const novo = { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 };
       if (l.grade === 'auto') return realinharSeAuto({ ...l, produtos: [...l.produtos, novo] }, formato);
-      const livre = l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard);
+      const livre = l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard, areaDoLado(l));
       return { produtos: [...l.produtos, livre ? { ...novo, ...livre } : novo] };
     });
   };
@@ -344,7 +345,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
         // Como no `adicionarProduto`: quem já está no destino não se mexe.
         const livre =
-          destino.grade === 'livre' ? null : posicaoLivreNaGrade(destino.produtos, destino.grade, formato, destino.estilo.escalaCard);
+          destino.grade === 'livre' ? null : posicaoLivreNaGrade(destino.produtos, destino.grade, formato, destino.estilo.escalaCard, areaDoLado(destino));
         const nd = produto.nomeDescricaoAjuste;
         const posicionado = livre
           ? {
@@ -438,14 +439,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado((l) => {
       if (grade === 'livre') return { grade };
       if (grade === 'auto') return realinharSeAuto({ ...l, grade }, formato);
-      const r = organizarEmGrade(l.produtos, grade, formato);
+      const r = organizarEmGrade(l.produtos, grade, formato, areaDoLado(l));
       return { grade, produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
     });
   };
 
-  /** Grade Automática: onde começam os produtos (abaixo do cabeçalho do tema). */
+  /** Onde começam os produtos (abaixo do cabeçalho do tema) — Automática e grades fixas. */
   const definirAreaTopo = (areaTopo: number) =>
-    atualizarLado((l) => realinharSeAuto({ ...l, areaTopo }, formato), { coalesce: 'area-topo' });
+    atualizarLado((l) => regridLado({ ...l, areaTopo }, formato), { coalesce: 'area-topo' });
 
   const trocarFormato = (f: Formato) => {
     setDoc((d) => ({
