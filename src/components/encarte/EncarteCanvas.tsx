@@ -7,7 +7,7 @@ import {
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
-  BringToFront, SendToBack, RotateCw, BoxSelect, ArrowLeftRight,
+  BringToFront, SendToBack, RotateCw, BoxSelect, Wand2, ArrowLeftRight,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -20,7 +20,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  CamadaTipo, MembroGrupo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
+  AREA_TOPO_PADRAO, CamadaTipo, MembroGrupo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -378,11 +378,18 @@ function AlcaGirar({ rotacao, onGirar }: { rotacao: number; onGirar: (graus: num
   );
 }
 
-function MiniGrade({ cols, rows, ativa }: { cols: number; rows: number; ativa: boolean }) {
+function MiniGrade({ cols, rows, ativa, auto }: { cols: number; rows: number; ativa: boolean; auto?: boolean }) {
   const base = cn(
     'w-full aspect-[4/3] rounded-md border p-1 transition-colors',
     ativa ? 'border-emerald-500/70 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50',
   );
+  if (auto) {
+    return (
+      <div className={cn(base, 'flex items-center justify-center')}>
+        <Wand2 className={cn('w-4 h-4', ativa ? 'text-emerald-400' : 'text-zinc-500')} />
+      </div>
+    );
+  }
   if (cols < 1 || rows < 1) {
     return (
       <div className={cn(base, 'flex items-center justify-center')}>
@@ -458,6 +465,9 @@ interface EncarteCanvasProps {
   onRemoverGuia: (id: string) => void;
   onLimparGuias: () => void;
   onGradeChange: (grade: GradeId) => void;
+  /** grade Automática: onde começam os produtos (% da altura) */
+  areaTopo?: number;
+  onAreaTopoChange: (v: number) => void;
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
   /** Imagem/forma/texto pro outro lado, mesma posição e tamanho (só com verso ativo). */
@@ -596,6 +606,8 @@ export default function EncarteCanvas({
   onRemoverGuia,
   onLimparGuias,
   onGradeChange,
+  areaTopo,
+  onAreaTopoChange,
   onAdicionarVerso,
   onRemoverVerso,
   onLadoChange,
@@ -2401,6 +2413,27 @@ export default function EncarteCanvas({
                 <p className="text-[11px] text-zinc-500">
                   {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'} nesta página
                 </p>
+                {grade === 'auto' && (
+                  <div className="mt-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5">
+                    <p className="text-[11px] text-emerald-200 leading-snug">
+                      Automática: cada produto que entra ou sai realinha todos, com o mesmo espaço entre eles.
+                    </p>
+                    <label className="block mt-2">
+                      <span className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                        Produtos começam em <span className="font-mono text-zinc-300">{Math.round(areaTopo ?? AREA_TOPO_PADRAO)}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={60}
+                        value={areaTopo ?? AREA_TOPO_PADRAO}
+                        onChange={(e) => onAreaTopoChange(Number(e.target.value))}
+                        className="w-full accent-emerald-500"
+                      />
+                      <span className="block text-[10px] text-zinc-500">Desça até sair de cima do cabeçalho do tema (a linha tracejada mostra).</span>
+                    </label>
+                  </div>
+                )}
                 <p className="mt-2.5 mb-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-600">Regular</p>
                 <div className="grid grid-cols-3 gap-2">
                   {GRADES.map((g) => {
@@ -2414,7 +2447,7 @@ export default function EncarteCanvas({
                           ativa ? 'border-emerald-500/70 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600',
                         )}
                       >
-                        <MiniGrade cols={g.cols} rows={g.rows} ativa={ativa} />
+                        <MiniGrade cols={g.cols} rows={g.rows} ativa={ativa} auto={g.id === 'auto'} />
                         <span className={cn('text-[10px] font-semibold', ativa ? 'text-emerald-300' : 'text-zinc-400')}>
                           {g.nome}
                         </span>
@@ -2887,6 +2920,17 @@ export default function EncarteCanvas({
               </div>
               <p className="text-xs font-semibold text-white drop-shadow">Adicionar produtos no encarte</p>
             </button>
+          )}
+
+          {/* Grade Automática: linha de onde os produtos começam, enquanto o menu da grade está aberto */}
+          {gradeAberta && grade === 'auto' && (
+            <div
+              data-html2canvas-ignore="true"
+              className="absolute left-0 right-0 border-t-2 border-dashed border-emerald-400 pointer-events-none z-[45]"
+              style={{ top: `${areaTopo ?? AREA_TOPO_PADRAO}%` }}
+            >
+              <span className="absolute left-1 -top-5 text-[10px] font-bold text-emerald-300 bg-zinc-900/80 px-1 rounded">produtos começam aqui</span>
+            </div>
           )}
 
           {/* Produtos, imagens, formas e textos — uma pilha só, ordenada pelo `z` */}

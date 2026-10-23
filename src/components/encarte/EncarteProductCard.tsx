@@ -931,7 +931,10 @@ function EtiquetaPreco({
     paddingBottom: padY,
     paddingLeft: padLeft,
     paddingRight: padX,
-    minWidth: compacta ? 56 : undefined,
+    // Largura mínima padrão (a de um preço "00,00"): preço curto como "9,99" não
+    // gera mais etiqueta menor que as outras — todas ficam do mesmo tamanho e só
+    // preço bem longo ("2.799,00") passa disso.
+    minWidth: compacta ? 56 : Math.round(tamanho * 3.15),
   };
 
   if (!svgPath) {

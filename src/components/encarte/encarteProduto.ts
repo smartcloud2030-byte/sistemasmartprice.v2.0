@@ -291,6 +291,7 @@ export function criarEncarteProduto(product: Product, index = 0): EncarteProduto
 // ── Grade (quantidade de produtos por página) ──────────────────────────
 
 export type GradeId =
+  | 'auto'
   | 'livre'
   | '2x2' | '2x3' | '3x2'
   | '2x4' | '4x2' | '3x3'
@@ -298,6 +299,7 @@ export type GradeId =
   | '5x3';
 
 export const GRADES: { id: GradeId; nome: string; cols: number; rows: number }[] = [
+  { id: 'auto', nome: 'Automática', cols: 0, rows: 0 },
   { id: 'livre', nome: 'Livre', cols: 0, rows: 0 },
   { id: '2x2', nome: '2 × 2', cols: 2, rows: 2 },
   { id: '2x3', nome: '2 × 3', cols: 2, rows: 3 },
@@ -313,6 +315,11 @@ export const GRADES: { id: GradeId; nome: string; cols: number; rows: number }[]
 ];
 
 export const getGrade = (id: GradeId) => GRADES.find((g) => g.id === id) ?? GRADES[0];
+
+/** Grade "Automática": onde começa e termina a área dos produtos (% da altura),
+ * pra não cair em cima do cabeçalho/rodapé da arte do tema. */
+export const AREA_TOPO_PADRAO = 24;
+export const AREA_BASE_PADRAO = 4;
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -373,6 +380,88 @@ export function organizarEmGrade(
   });
 
   return { produtos: novos, escalaCard };
+}
+
+/**
+ * Grade "Automática" (igual ao Encarte Fácil): a cada produto que entra ou
+ * sai, todos se realinham numa grade com o mesmo espaçamento, começando logo
+ * abaixo do cabeçalho (`topo`, % da altura). Escolhe o nº de colunas que deixa
+ * o card maior; as linhas descem do topo e só se espalham até um limite (com
+ * poucos produtos eles não ficam soltos pela folha toda). Produto em destaque
+ * (card largo) ocupa 2 colunas.
+ */
+export function organizarAutomatico(
+  produtos: EncarteProduto[],
+  formato: Formato,
+  topo: number = AREA_TOPO_PADRAO,
+  base: number = AREA_BASE_PADRAO,
+): { produtos: EncarteProduto[]; escalaCard: number } {
+  if (!produtos.length) return { produtos, escalaCard: 1 };
+  const canvasH = CANVAS_W / formato.ratio;
+  const margemX = 3;
+  const areaW = (CANVAS_W * (100 - 2 * margemX)) / 100;
+  const areaH = (canvasH * Math.max(10, 100 - topo - base)) / 100;
+  const folga = 1.08; // espaço entre cards (8% do card)
+  const LARGURA_DESTAQUE = 2.2; // mesmo fator do card em destaque (EncarteProductCard)
+  const temDestaque = produtos.some((p) => p.emDestaque);
+  const unidades = produtos.reduce((s, p) => s + (p.emDestaque ? 2 : 1), 0);
+
+  const montar = (cols: number) => {
+    const slots: { col: number; row: number; span: number }[] = [];
+    let col = 0;
+    let row = 0;
+    for (const p of produtos) {
+      const span = p.emDestaque ? Math.min(2, cols) : 1;
+      if (col + span > cols) { col = 0; row++; }
+      slots.push({ col, row, span });
+      col += span;
+      if (col >= cols) { col = 0; row++; }
+    }
+    const rows = slots.reduce((m, s) => Math.max(m, s.row + 1), 1);
+    const cellW = areaW / cols;
+    const escW = cellW / (CARD_W * folga);
+    const escD = temDestaque ? (cellW * Math.min(2, cols)) / (CARD_W * LARGURA_DESTAQUE * folga) : Infinity;
+    const escH = areaH / (rows * CARD_H * folga);
+    return { slots, rows, cellW, escala: clamp(Math.min(escW, escD, escH), 0.15, 1) };
+  };
+
+  let melhor = montar(1);
+  for (let cols = 2; cols <= Math.min(6, unidades); cols++) {
+    const m = montar(cols);
+    // empate (os dois já no tamanho máximo) → mais colunas, fica lado a lado
+    if (m.escala > melhor.escala + 0.001 || (Math.abs(m.escala - melhor.escala) <= 0.001 && cols <= unidades)) melhor = m;
+  }
+
+  const { slots, escala } = melhor;
+  // Mesmo espaço entre colunas e entre linhas; o bloco fica centralizado na
+  // largura e começa logo no topo da área (não se espalha pela folha).
+  const cols = slots.reduce((m, s) => Math.max(m, s.col + s.span), 1);
+  const cardW = CARD_W * escala;
+  const cardH = CARD_H * escala;
+  const gap = cardW * (folga - 1);
+  const colW = cardW + gap;
+  const blocoW = cols * cardW + (cols - 1) * gap;
+  const x0 = (CANVAS_W - blocoW) / 2;
+  const y0 = (canvasH * topo) / 100;
+
+  const novos = produtos.map((p, i) => {
+    const s = slots[i];
+    const w = cardW * (p.emDestaque ? LARGURA_DESTAQUE : 1);
+    const slotW = s.span * cardW + (s.span - 1) * gap;
+    const xPx = x0 + s.col * colW + (slotW - w) / 2;
+    const yPx = y0 + s.row * (cardH + gap);
+    const novoX = (xPx / CANVAS_W) * 100;
+    const novoY = (yPx / canvasH) * 100;
+    return {
+      ...p,
+      xPct: novoX,
+      yPct: novoY,
+      nomeDescricaoAjuste: p.nomeDescricaoAjuste
+        ? { ...p.nomeDescricaoAjuste, xPct: p.nomeDescricaoAjuste.xPct + (novoX - p.xPct), yPct: p.nomeDescricaoAjuste.yPct + (novoY - p.yPct) }
+        : p.nomeDescricaoAjuste,
+    };
+  });
+  return { produtos: novos, escalaCard: escala };
 }
 
 /**
@@ -656,6 +745,9 @@ export interface LadoEncarte {
   estilo: EstiloEncarte;
   tema: string | null;
   grade: GradeId;
+  /** grade Automática: começo/fim da área dos produtos, em % da altura (sem = padrão) */
+  areaTopo?: number;
+  areaBase?: number;
   divisores: DivisorEncarte[];
   imagens: ElementoImagem[];
   formas: FormaEncarte[];
@@ -669,7 +761,7 @@ export function criarLado(): LadoEncarte {
     produtos: [],
     estilo: { ...ESTILO_PADRAO },
     tema: null,
-    grade: 'livre',
+    grade: 'auto',
     divisores: [],
     imagens: [],
     formas: [],
@@ -693,7 +785,7 @@ export function ladoVazio(l: LadoEncarte): boolean {
     (l.textos?.length ?? 0) === 0 &&
     l.divisores.length === 0 &&
     !l.tema &&
-    l.grade === 'livre' &&
+    (l.grade === 'livre' || l.grade === 'auto') &&
     !l.rodape.ativo
   );
 }

@@ -38,6 +38,7 @@ import {
   maiorZ,
   PosicaoGrupo,
   organizarEmGrade,
+  organizarAutomatico,
   posicaoLivreNaGrade,
 } from './encarteProduto';
 import {
@@ -69,8 +70,17 @@ const MENU_ITEMS: { id: MenuItem; label: string; icon: React.ElementType }[] = [
   { id: 'encartes', label: 'Encartes', icon: LayoutGrid },
 ];
 
+/** Grade Automática: realinha todos os produtos do lado (entrou/saiu produto,
+ * mudou destaque, formato ou a área). Outras grades devolvem o lado igual. */
+function realinharSeAuto(lado: LadoEncarte, formato: Formato): LadoEncarte {
+  if (lado.grade !== 'auto') return lado;
+  const { produtos, escalaCard } = organizarAutomatico(lado.produtos, formato, lado.areaTopo, lado.areaBase);
+  return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
+}
+
 /** Reaplica a grade de um lado (usado quando produtos ou formato mudam). */
 function regridLado(lado: LadoEncarte, formato: Formato): LadoEncarte {
+  if (lado.grade === 'auto') return realinharSeAuto(lado, formato);
   if (lado.grade === 'livre') return lado;
   const { produtos, escalaCard } = organizarEmGrade(lado.produtos, lado.grade, formato);
   return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
@@ -309,6 +319,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado((l) => {
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
       const novo = { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 };
+      if (l.grade === 'auto') return realinharSeAuto({ ...l, produtos: [...l.produtos, novo] }, formato);
       const livre = l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard);
       return { produtos: [...l.produtos, livre ? { ...novo, ...livre } : novo] };
     });
@@ -318,7 +329,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   // deixou (mesmo com grade ativa — antes reorganizava a grade e todo mundo
   // pulava de lugar/tamanho). Só mudam de posição se mexidos à mão.
   const removerProduto = (id?: string | number) => {
-    atualizarLado((l) => ({ produtos: l.produtos.filter((ep) => ep.product.id !== id) }));
+    atualizarLado((l) => realinharSeAuto({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) }, formato));
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
@@ -343,10 +354,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               nomeDescricaoAjuste: nd ? { ...nd, xPct: nd.xPct + (livre.xPct - produto.xPct), yPct: nd.yPct + (livre.yPct - produto.yPct) } : nd,
             }
           : produto;
-        return { ...destino, produtos: [...destino.produtos, { ...posicionado, z: maiorZ(destino) + 1 }] };
+        return realinharSeAuto({ ...destino, produtos: [...destino.produtos, { ...posicionado, z: maiorZ(destino) + 1 }] }, formato);
       };
-      // Como no `removerProduto`: os que ficam no lado de origem não se mexem.
-      const tirar = (l: LadoEncarte): LadoEncarte => ({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) });
+      // Como no `removerProduto`: os que ficam no lado de origem não se mexem (a não ser na grade Automática).
+      const tirar = (l: LadoEncarte): LadoEncarte => realinharSeAuto({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) }, formato);
 
       if (ladoAtivo === 'frente') {
         return { ...d, ladoFrente: tirar(d.ladoFrente), ladoVerso: inserir(d.ladoVerso ?? criarLado()) };
@@ -381,10 +392,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     patch: Partial<EncarteProduto>,
     opcoes?: OpcoesSet,
   ) => {
-    atualizarLado(
-      (l) => ({ produtos: l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep)) }),
-      opcoes,
-    );
+    atualizarLado((l) => {
+      const produtos = l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep));
+      // virar/deixar de ser destaque muda a largura do card → realinha a grade Automática
+      return 'emDestaque' in patch ? realinharSeAuto({ ...l, produtos }, formato) : { produtos };
+    }, opcoes);
   };
 
   /** Arraste da seleção múltipla: move tudo num passo só de desfazer (`chave` = um arraste). */
@@ -425,10 +437,15 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const definirGrade = (grade: GradeId) => {
     atualizarLado((l) => {
       if (grade === 'livre') return { grade };
+      if (grade === 'auto') return realinharSeAuto({ ...l, grade }, formato);
       const r = organizarEmGrade(l.produtos, grade, formato);
       return { grade, produtos: r.produtos, estilo: { ...l.estilo, escalaCard: r.escalaCard } };
     });
   };
+
+  /** Grade Automática: onde começam os produtos (abaixo do cabeçalho do tema). */
+  const definirAreaTopo = (areaTopo: number) =>
+    atualizarLado((l) => realinharSeAuto({ ...l, areaTopo }, formato), { coalesce: 'area-topo' });
 
   const trocarFormato = (f: Formato) => {
     setDoc((d) => ({
@@ -916,6 +933,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onRemoverGuia={removerGuia}
           onLimparGuias={limparGuias}
           onGradeChange={definirGrade}
+          areaTopo={lado.areaTopo}
+          onAreaTopoChange={definirAreaTopo}
           onAdicionarVerso={adicionarVerso}
           onRemoverVerso={removerVerso}
           onEnviarElementoParaOutroLado={enviarElementoParaOutroLado}
