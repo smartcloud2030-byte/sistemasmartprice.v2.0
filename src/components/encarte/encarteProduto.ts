@@ -324,29 +324,70 @@ export const AREA_BASE_PADRAO = 4;
 /** Área dos produtos nas grades (% da altura). Sem ela = folha inteira (5%–95%, o jeito antigo). */
 export interface AreaProdutos { topo: number; base: number }
 
-function medidasArea(area?: AreaProdutos) {
-  const usableX = 0.9;
-  const origemX = ((1 - usableX) / 2) * 100;
-  if (!area) return { origemX, usableX, origemY: origemX, usableY: usableX };
-  return { origemX, usableX, origemY: area.topo, usableY: Math.max(10, 100 - area.topo - area.base) / 100 };
+/** Espaço padrão entre os cards nas grades: 2% da largura entre colunas e
+ * 2% da altura entre linhas (o espaçamento que o José montou à mão). */
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+const GAP_X = 0.02;
+const GAP_Y = 0.02;
+const MARGEM_X = 3; // % de cada lado
+
+/** Medidas (em px do canvas) da área onde as grades põem os produtos. Sem
+ * `area` = folha quase inteira (5%–95% na altura). */
+function geometria(formato: Formato, area?: AreaProdutos) {
+  const canvasH = CANVAS_W / formato.ratio;
+  const topo = area ? area.topo : 5;
+  const base = area ? area.base : 5;
+  const ox = (CANVAS_W * MARGEM_X) / 100;
+  const aw = CANVAS_W - 2 * ox;
+  const oy = (canvasH * topo) / 100;
+  const ah = (canvasH * Math.max(10, 100 - topo - base)) / 100;
+  return { canvasH, ox, aw, oy, ah, gx: CANVAS_W * GAP_X, gy: canvasH * GAP_Y };
 }
+type Geo = ReturnType<typeof geometria>;
+
+/** Maior escala de card que faz `cols` × `rows` caberem na área, com o espaço padrão. */
+function escalaPara(cols: number, rows: number, geo: Geo): number {
+  const w = (geo.aw - (cols - 1) * geo.gx) / cols / CARD_W;
+  const h = (geo.ah - (rows - 1) * geo.gy) / rows / CARD_H;
+  return clamp(Math.min(w, h), 0.15, 1);
+}
+
+/** Canto (em % do canvas) da célula (col,row): bloco de `cols` colunas
+ * centralizado na largura, linhas descendo do topo da área. */
+function celulaPct(col: number, row: number, cols: number, escala: number, geo: Geo, deslocX = 0) {
+  const cw = CARD_W * escala;
+  const ch = CARD_H * escala;
+  const blocoW = cols * cw + (cols - 1) * geo.gx;
+  const x = geo.ox + (geo.aw - blocoW) / 2 + col * (cw + geo.gx) + deslocX;
+  const y = geo.oy + row * (ch + geo.gy);
+  return { xPct: (x / CANVAS_W) * 100, yPct: (y / geo.canvasH) * 100 };
+}
+
+const moverNomeDesc = (p: EncarteProduto, novoX: number, novoY: number): EncarteProduto => ({
+  ...p,
+  xPct: novoX,
+  yPct: novoY,
+  // Nome/descrição solto (livre por todo o encarte, ver `AjusteNomeDescricao`)
+  // anda a MESMA distância que o card — é em % do canvas, não acompanha sozinho.
+  nomeDescricaoAjuste: p.nomeDescricaoAjuste
+    ? { ...p.nomeDescricaoAjuste, xPct: p.nomeDescricaoAjuste.xPct + (novoX - p.xPct), yPct: p.nomeDescricaoAjuste.yPct + (novoY - p.yPct) }
+    : p.nomeDescricaoAjuste,
+});
 
 export const areaDoLado = (l: { areaTopo?: number; areaBase?: number }): AreaProdutos => ({
   topo: l.areaTopo ?? AREA_TOPO_PADRAO,
   base: l.areaBase ?? AREA_BASE_PADRAO,
 });
 
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-
 /**
- * Distribui os produtos numa grade de `g.cols` colunas, centralizando cada
- * card na sua célula e devolvendo a escala de card que faz tudo caber.
+ * Distribui os produtos numa grade de `g.cols` colunas, com o espaço padrão
+ * entre os cards, e devolve a escala de card que faz tudo caber na área.
  * Depois disso o usuário ainda pode arrastar cada card livremente.
  *
  * Ajuste inteligente: as linhas da grade (`g.rows`) são só o ponto de
  * partida — se tiver mais produtos do que cabe nelas, cresce em linhas
- * (nunca volta pro início) e encolhe o card na mesma proporção, então os
- * produtos nunca ficam empilhados uns em cima dos outros.
+ * e encolhe o card se precisar, então nunca ficam empilhados.
  */
 export function organizarEmGrade(
   produtos: EncarteProduto[],
@@ -356,54 +397,21 @@ export function organizarEmGrade(
 ): { produtos: EncarteProduto[]; escalaCard: number } {
   const g = getGrade(grade);
   if (g.cols < 1 || g.rows < 1) return { produtos, escalaCard: 1 };
-
-  const canvasH = CANVAS_W / formato.ratio;
-  const { origemX, origemY, usableX, usableY } = medidasArea(area);
-  const cols = g.cols;
-  const rows = Math.max(g.rows, Math.ceil(produtos.length / cols) || 1);
-  const cellWpx = (CANVAS_W * usableX) / cols;
-  const cellHpx = (canvasH * usableY) / rows;
-  const escalaCard = clamp(Math.min(cellWpx / (CARD_W + 6), cellHpx / (CARD_H + 6)), 0.15, 1);
-
-  const cardWpct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
-  const cardHpct = ((CARD_H * escalaCard) / canvasH) * 100;
-  const cellWpct = (100 * usableX) / cols;
-  const cellHpct = (100 * usableY) / rows;
-
+  const geo = geometria(formato, area);
+  const rows = Math.max(g.rows, Math.ceil(produtos.length / g.cols) || 1);
+  const escalaCard = escalaPara(g.cols, rows, geo);
   const novos = produtos.map((p, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const novoX = origemX + col * cellWpct + (cellWpct - cardWpct) / 2;
-    const novoY = origemY + row * cellHpct + (cellHpct - cardHpct) / 2;
-    return {
-      ...p,
-      xPct: novoX,
-      yPct: novoY,
-      // Nome/descrição solto (livre por todo o encarte, ver `AjusteNomeDescricao`)
-      // desloca junto pela MESMA distância que o card andou pra caber na
-      // grade — sem isso, reorganizar em grade deixava ele pra trás, separado
-      // do produto (posição em % do CANVAS, não do card, então não acompanha
-      // sozinho quando o card pula de lugar).
-      nomeDescricaoAjuste: p.nomeDescricaoAjuste
-        ? {
-            ...p.nomeDescricaoAjuste,
-            xPct: p.nomeDescricaoAjuste.xPct + (novoX - p.xPct),
-            yPct: p.nomeDescricaoAjuste.yPct + (novoY - p.yPct),
-          }
-        : p.nomeDescricaoAjuste,
-    };
+    const c = celulaPct(i % g.cols, Math.floor(i / g.cols), g.cols, escalaCard, geo);
+    return moverNomeDesc(p, c.xPct, c.yPct);
   });
-
   return { produtos: novos, escalaCard };
 }
 
 /**
  * Grade "Automática" (igual ao Encarte Fácil): a cada produto que entra ou
- * sai, todos se realinham numa grade com o mesmo espaçamento, começando logo
- * abaixo do cabeçalho (`topo`, % da altura). Escolhe o nº de colunas que deixa
- * o card maior; as linhas descem do topo e só se espalham até um limite (com
- * poucos produtos eles não ficam soltos pela folha toda). Produto em destaque
- * (card largo) ocupa 2 colunas.
+ * sai, todos se realinham com o espaço padrão, começando logo abaixo do
+ * cabeçalho. Escolhe o nº de colunas que deixa o card maior. Produto em
+ * destaque (card largo) ocupa uma linha de até 3 colunas, centralizado.
  */
 export function organizarAutomatico(
   produtos: EncarteProduto[],
@@ -412,80 +420,53 @@ export function organizarAutomatico(
   base: number = AREA_BASE_PADRAO,
 ): { produtos: EncarteProduto[]; escalaCard: number } {
   if (!produtos.length) return { produtos, escalaCard: 1 };
-  const canvasH = CANVAS_W / formato.ratio;
-  const margemX = 3;
-  const areaW = (CANVAS_W * (100 - 2 * margemX)) / 100;
-  const areaH = (canvasH * Math.max(10, 100 - topo - base)) / 100;
-  const folga = 1.08; // espaço entre cards (8% do card)
+  const geo = geometria(formato, { topo, base });
   const LARGURA_DESTAQUE = 2.2; // mesmo fator do card em destaque (EncarteProductCard)
-  const temDestaque = produtos.some((p) => p.emDestaque);
-  const unidades = produtos.reduce((s, p) => s + (p.emDestaque ? 2 : 1), 0);
+  const unidades = produtos.reduce((s, p) => s + (p.emDestaque ? 3 : 1), 0);
 
   const montar = (cols: number) => {
     const slots: { col: number; row: number; span: number }[] = [];
     let col = 0;
     let row = 0;
     for (const p of produtos) {
-      const span = p.emDestaque ? Math.min(2, cols) : 1;
+      // card largo (2,2×) ocupa 3 colunas (2 não comportam a largura dele + o espaço)
+      const span = p.emDestaque ? Math.min(3, cols) : 1;
       if (col + span > cols) { col = 0; row++; }
       slots.push({ col, row, span });
       col += span;
       if (col >= cols) { col = 0; row++; }
     }
     const rows = slots.reduce((m, s) => Math.max(m, s.row + 1), 1);
-    const cellW = areaW / cols;
-    const escW = cellW / (CARD_W * folga);
-    const escD = temDestaque ? (cellW * Math.min(2, cols)) / (CARD_W * LARGURA_DESTAQUE * folga) : Infinity;
-    const escH = areaH / (rows * CARD_H * folga);
-    return { slots, rows, cellW, escala: clamp(Math.min(escW, escD, escH), 0.15, 1) };
+    return { slots, escala: escalaPara(cols, rows, geo) };
   };
 
-  let melhor = montar(1);
+  let melhor = { cols: 1, ...montar(1) };
   for (let cols = 2; cols <= Math.min(6, unidades); cols++) {
     const m = montar(cols);
-    // empate (os dois já no tamanho máximo) → mais colunas, fica lado a lado
-    if (m.escala > melhor.escala + 0.001 || (Math.abs(m.escala - melhor.escala) <= 0.001 && cols <= unidades)) melhor = m;
+    // empate (os dois já no tamanho máximo) → mais colunas, ficam lado a lado
+    if (m.escala >= melhor.escala - 0.001) melhor = { cols, ...m };
   }
 
-  const { slots, escala } = melhor;
-  // Mesmo espaço entre colunas e entre linhas; o bloco fica centralizado na
-  // largura e começa logo no topo da área (não se espalha pela folha).
-  const cols = slots.reduce((m, s) => Math.max(m, s.col + s.span), 1);
-  const cardW = CARD_W * escala;
-  const cardH = CARD_H * escala;
-  const gap = cardW * (folga - 1);
-  const colW = cardW + gap;
-  const blocoW = cols * cardW + (cols - 1) * gap;
-  const x0 = (CANVAS_W - blocoW) / 2;
-  const y0 = (canvasH * topo) / 100;
-
+  const { cols, slots, escala } = melhor;
+  const cw = CARD_W * escala;
   const novos = produtos.map((p, i) => {
     const s = slots[i];
-    const w = cardW * (p.emDestaque ? LARGURA_DESTAQUE : 1);
-    const slotW = s.span * cardW + (s.span - 1) * gap;
-    const xPx = x0 + s.col * colW + (slotW - w) / 2;
-    const yPx = y0 + s.row * (cardH + gap);
-    const novoX = (xPx / CANVAS_W) * 100;
-    const novoY = (yPx / canvasH) * 100;
-    return {
-      ...p,
-      xPct: novoX,
-      yPct: novoY,
-      nomeDescricaoAjuste: p.nomeDescricaoAjuste
-        ? { ...p.nomeDescricaoAjuste, xPct: p.nomeDescricaoAjuste.xPct + (novoX - p.xPct), yPct: p.nomeDescricaoAjuste.yPct + (novoY - p.yPct) }
-        : p.nomeDescricaoAjuste,
-    };
+    const w = cw * (p.emDestaque ? LARGURA_DESTAQUE : 1);
+    const slotW = s.span * cw + (s.span - 1) * geo.gx;
+    const c = celulaPct(s.col, s.row, cols, escala, geo, (slotW - w) / 2);
+    return moverNomeDesc(p, c.xPct, c.yPct);
   });
   return { produtos: novos, escalaCard: escala };
 }
 
 /**
  * Lugar pro produto NOVO numa grade já montada, sem mexer em ninguém: a
- * primeira célula da grade (mesmo desenho do `organizarEmGrade`, com o
- * tamanho de card ATUAL) que não tem o centro de nenhum produto dentro.
+ * primeira célula (mesma geometria do `organizarEmGrade`, com o tamanho de
+ * card ATUAL) que não tem o centro de nenhum produto dentro — inclusive
+ * linhas além de `g.rows` enquanto ainda couberem na área.
  * Regra do José: produto só muda de posição/tamanho se o usuário mexer à
  * mão — então adicionar não reorganiza nem encolhe os outros.
- * Grade cheia → `null` (quem chama decide onde pôr).
+ * Não cabe mais nada → `null` (quem chama decide onde pôr).
  */
 export function posicaoLivreNaGrade(
   produtos: EncarteProduto[],
@@ -496,46 +477,21 @@ export function posicaoLivreNaGrade(
 ): { xPct: number; yPct: number } | null {
   const g = getGrade(grade);
   if (g.cols < 1 || g.rows < 1) return null;
-
-  const canvasH = CANVAS_W / formato.ratio;
-  const { origemX, origemY, usableX, usableY } = medidasArea(area);
-  const cardWpct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
-  const cardHpct = ((CARD_H * escalaCard) / canvasH) * 100;
-  const cellWpct = (100 * usableX) / g.cols;
-  const celulas = (rows: number) => {
-    const cellHpct = (100 * usableY) / rows;
-    const lista: { x0: number; y0: number; xPct: number; yPct: number }[] = [];
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < g.cols; col++) {
-        const x0 = origemX + col * cellWpct;
-        const y0 = origemY + row * cellHpct;
-        lista.push({ x0, y0, xPct: x0 + (cellWpct - cardWpct) / 2, yPct: y0 + (cellHpct - cardHpct) / 2 });
-      }
-    }
-    return { cellHpct, lista };
-  };
-  // Quantas linhas a grade tem: `g.rows`, ou mais se ela já tinha crescido
-  // por excesso de produtos. Vale o número de linhas em que mais produtos
-  // estão EXATAMENTE no lugar da célula (empate → menos linhas).
-  let rows = g.rows;
-  let melhor = -1;
-  for (let r = g.rows; r <= g.rows + 20; r++) {
-    const { lista } = celulas(r);
-    const alinhados = produtos.filter((p) =>
-      lista.some((c) => Math.abs(c.xPct - p.xPct) < 0.05 && Math.abs(c.yPct - p.yPct) < 0.05),
-    ).length;
-    if (alinhados > melhor) {
-      melhor = alinhados;
-      rows = r;
+  const geo = geometria(formato, area);
+  const cw = CARD_W * escalaCard;
+  const ch = CARD_H * escalaCard;
+  const cabem = Math.floor((geo.ah + geo.gy) / (ch + geo.gy) + 1e-6);
+  const rows = Math.max(g.rows, cabem);
+  const cwPct = (cw / CANVAS_W) * 100;
+  const chPct = (ch / geo.canvasH) * 100;
+  const centros = produtos.map((p) => ({ x: p.xPct + cwPct / 2, y: p.yPct + chPct / 2 }));
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < g.cols; col++) {
+      const c = celulaPct(col, row, g.cols, escalaCard, geo);
+      const ocupada = centros.some((k) => k.x >= c.xPct && k.x < c.xPct + cwPct && k.y >= c.yPct && k.y < c.yPct + chPct);
+      if (!ocupada) return c;
     }
   }
-  const { cellHpct, lista } = celulas(rows);
-
-  const centros = produtos.map((p) => ({ x: p.xPct + cardWpct / 2, y: p.yPct + cardHpct / 2 }));
-  const livre = lista.find(
-    (c) => !centros.some((k) => k.x >= c.x0 && k.x < c.x0 + cellWpct && k.y >= c.y0 && k.y < c.y0 + cellHpct),
-  );
-  if (livre) return { xPct: livre.xPct, yPct: livre.yPct };
   return null;
 }
 

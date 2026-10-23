@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { organizarEmGrade, posicaoLivreNaGrade, criarEncarteProduto, getGrade, GRADES } from './encarteProduto';
+import { organizarEmGrade, posicaoLivreNaGrade, criarEncarteProduto, GRADES } from './encarteProduto';
 
 // Adicionar produto não pode reorganizar a grade: o novo vai pra primeira
 // célula vazia, que tem que ser EXATAMENTE onde o organizarEmGrade poria.
@@ -20,14 +20,14 @@ for (const ratio of [210 / 297, 1, 9 / 16, 16 / 9]) {
         assert(livre && perto(livre, g.produtos[k]), `${G.id} ratio=${ratio} n=${n} vaga ${k}`);
       }
 
-      // grade com espaço → próxima célula; grade cheia → null (nada se mexe)
-      const rows = Math.max(getGrade(G.id).rows, Math.ceil(n / G.cols));
+      // ainda cabe outra linha/célula com o card do tamanho atual → é onde o
+      // organizarEmGrade poria o próximo (sem encolher ninguém); senão → null
       const livre = posicaoLivreNaGrade(g.produtos, G.id, formato, g.escalaCard);
-      if (n < rows * G.cols) {
-        const prox = organizarEmGrade([...lista, mk(99)], G.id, formato);
-        assert(livre && perto(livre, prox.produtos[n]), `${G.id} ratio=${ratio} n=${n} próxima`);
+      const prox = organizarEmGrade([...lista, mk(99)], G.id, formato);
+      if (livre) {
+        assert(Math.abs(prox.escalaCard - g.escalaCard) < 1e-9 && perto(livre, prox.produtos[n]), `${G.id} ratio=${ratio} n=${n} próxima`);
       } else {
-        assert.strictEqual(livre, null, `${G.id} ratio=${ratio} n=${n} cheia`);
+        assert(prox.escalaCard < g.escalaCard, `${G.id} ratio=${ratio} n=${n} cheia`);
       }
     }
   }
