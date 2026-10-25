@@ -116,6 +116,8 @@ export interface Layout {
   isSingleProduct?: boolean;
   showSingleProductControl?: boolean;
   showOptionalTextControl?: boolean;
+  // Estilo do preço na plaquinha: 'padrao' (R$: 4,49 cada) ou 'encarte' (inteiro grande, centavos pequenos no alto).
+  priceStyle?: 'padrao' | 'encarte';
   optionalText1?: OptionalTextSettings;
   optionalText2?: OptionalTextSettings;
   optionalText3?: OptionalTextSettings;

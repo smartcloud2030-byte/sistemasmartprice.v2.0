@@ -8,6 +8,15 @@ import { getProxyUrl } from '../lib/utils';
 const A4_WIDTH = 794; // 210mm at 96dpi
 const A4_HEIGHT = 1123; // 297mm at 96dpi
 
+// Largura real de um texto na fonte do preço, pra encaixar os centavos logo depois do inteiro.
+let measureCtx: CanvasRenderingContext2D | null = null;
+const measureTextWidth = (text: string, fontSize: number, fontFamily: string, fontStyle: string) => {
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return text.length * fontSize * 0.55;
+  measureCtx.font = `${fontStyle === 'normal' ? '' : fontStyle} ${fontSize}px "${fontFamily}"`.trim();
+  return measureCtx.measureText(text).width;
+};
+
 const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; registerExport?: boolean }) => {
   const { 
     textElements1, textElements2, textElements3,
@@ -229,6 +238,68 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
     if (cents.length > 2) cents = cents.substring(0, 2);
     
     const isSelected = selectedId === `text-${slot}-price`;
+    const fontStyle = `${el.isBold ? 'bold' : ''} ${el.isItalic ? 'italic' : ''}`.trim() || 'normal';
+    const fontFamily = el.fontFamily || 'Inter';
+
+    const handlePriceTransformEnd = (e: any) => {
+      const node = e.target;
+      const scaleX = node.scaleX();
+      node.scaleX(1);
+      node.scaleY(1);
+      setElement(slot, 'price', {
+        x: node.x(),
+        y: node.y(),
+        fontSize: Math.max(10, el.fontSize * scaleX),
+      });
+    };
+
+    // Modo encarte: "R$" pequeno embaixo à esquerda, inteiro grande e ",49" pequeno no alto.
+    if (activeLayout?.priceStyle === 'encarte') {
+      const currencySize = el.fontSize * 0.25;
+      const centsSize = el.fontSize * 0.45;
+      const mainX = el.fontSize * 0.32;
+      const mainWidth = measureTextWidth(mainValue, el.fontSize, fontFamily, fontStyle) - 2 * mainValue.length; // letterSpacing -2
+      return (
+        <Group
+          key={key}
+          id={`text-${slot}-price`}
+          x={el.x}
+          y={el.y}
+          draggable
+          onClick={() => setSelectedId(`text-${slot}-price`)}
+          onTap={() => setSelectedId(`text-${slot}-price`)}
+          onDragEnd={(e) => setElement(slot, 'price', { x: e.target.x(), y: e.target.y() })}
+          onTransformEnd={handlePriceTransformEnd}
+        >
+          <Text
+            text="R$"
+            fontSize={currencySize}
+            fill={el.color}
+            fontStyle={fontStyle}
+            fontFamily={fontFamily}
+            y={el.fontSize * 0.42}
+          />
+          <Text
+            text={mainValue}
+            x={mainX}
+            fontSize={el.fontSize}
+            fill={el.color}
+            fontStyle={fontStyle}
+            fontFamily={fontFamily}
+            letterSpacing={-2}
+          />
+          <Text
+            text={`,${cents}`}
+            x={mainX + mainWidth + el.fontSize * 0.02}
+            y={el.fontSize * 0.06}
+            fontSize={centsSize}
+            fill={el.color}
+            fontStyle={fontStyle}
+            fontFamily={fontFamily}
+          />
+        </Group>
+      );
+    }
 
     return (
       <Group 

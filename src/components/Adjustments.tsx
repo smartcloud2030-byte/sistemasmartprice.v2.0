@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore, TextSettings, Layout as LayoutType, isThreeProduct } from '../store';
-import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2, Plus, Pencil } from 'lucide-react';
+import { Settings, Type, Image as ImageIcon, Layout, Eye, EyeOff, Lock, Unlock, AlignLeft, AlignCenter, AlignRight, Bold, Italic, AlertCircle, ChevronRight, Upload, Flag, MapPin, FolderOpen, Wand2, Save, Trash2, Plus, Pencil, Palette } from 'lucide-react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { toast } from 'sonner';
 import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
@@ -414,6 +414,16 @@ const Adjustments = () => {
     toast.success('Novo modelo em branco criado! Configure o fundo abaixo.');
   };
 
+  const priceStyle = currentLayout?.priceStyle || 'padrao';
+  const setPriceStyle = (style: 'padrao' | 'encarte') => {
+    useStore.setState((s) => {
+      const newLayouts = [...s.layouts];
+      newLayouts[s.activeLayoutIndex] = { ...newLayouts[s.activeLayoutIndex], priceStyle: style };
+      return { layouts: newLayouts };
+    });
+    useStore.getState().saveLayoutDebounced();
+  };
+
   const applyToAllModels = (type: 'single' | 'optional') => {
     const { layouts, activeLayoutIndex } = useStore.getState();
     const currentVal = type === 'single' ? showSingleProductControl : showOptionalTextControl;
@@ -769,6 +779,47 @@ const Adjustments = () => {
                   <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
+            </div>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Personalização: estilo do preço deste modelo */}
+      {userRole === 'admin' && (
+        <CollapsibleSection title="Personalização" icon={Palette}>
+          <div className="space-y-3">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-tight opacity-80">Estilo do Preço</span>
+              <span className="text-[8px] text-zinc-500 font-medium">Vale para este modelo</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: 'padrao', label: 'Padrão', exemplo: 'R$: 4,49' },
+                { value: 'encarte', label: 'Modo encarte', exemplo: null },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPriceStyle(opt.value)}
+                  className={cn(
+                    'flex flex-col items-center gap-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-wide transition-colors',
+                    priceStyle === opt.value
+                      ? 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300'
+                      : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-blue-300'
+                  )}
+                >
+                  <span className="text-base font-black normal-case tracking-normal text-red-600 leading-none">
+                    {opt.exemplo ?? (
+                      <>
+                        <span className="text-[9px] align-baseline">R$</span>
+                        <span>4</span>
+                        <span className="text-[10px] align-top">,49</span>
+                      </>
+                    )}
+                  </span>
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
         </CollapsibleSection>
