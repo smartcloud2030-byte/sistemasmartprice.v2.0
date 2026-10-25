@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { cn, isValidImageUrl, getProxyUrl } from '../lib/utils';
 
 
+const TRAVA_SENHA = '789';
+
 function slugifyCategory(value: string): string {
   return value
     .trim()
@@ -415,13 +417,29 @@ const Adjustments = () => {
   };
 
   const priceStyle = currentLayout?.priceStyle || 'padrao';
-  const setPriceStyle = (style: 'padrao' | 'encarte') => {
+  const updateCurrentLayout = (fields: Partial<LayoutType>) => {
     useStore.setState((s) => {
       const newLayouts = [...s.layouts];
-      newLayouts[s.activeLayoutIndex] = { ...newLayouts[s.activeLayoutIndex], priceStyle: style };
+      newLayouts[s.activeLayoutIndex] = { ...newLayouts[s.activeLayoutIndex], ...fields };
       return { layouts: newLayouts };
     });
     useStore.getState().saveLayoutDebounced();
+  };
+  const setPriceStyle = (style: 'padrao' | 'encarte') => updateCurrentLayout({ priceStyle: style });
+
+  const textLock = !!currentLayout?.textLock;
+  const [showLockPassword, setShowLockPassword] = React.useState(false);
+  const [lockPassword, setLockPassword] = React.useState('');
+  const confirmTextLock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (lockPassword !== TRAVA_SENHA) {
+      toast.error('Senha incorreta.');
+      return;
+    }
+    updateCurrentLayout({ textLock: !textLock });
+    toast.success(textLock ? 'Trava desativada neste modelo.' : 'Trava ativada neste modelo.');
+    setShowLockPassword(false);
+    setLockPassword('');
   };
 
   const applyToAllModels = (type: 'single' | 'optional') => {
@@ -821,6 +839,27 @@ const Adjustments = () => {
                 </button>
               ))}
             </div>
+
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700" />
+
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-tight opacity-80 flex items-center gap-1">
+                  {textLock ? <Lock className="w-3 h-3 text-blue-600" /> : <Unlock className="w-3 h-3" />}
+                  Trava
+                </span>
+                <span className="text-[8px] text-zinc-500 font-medium">Nome, descrição e preço fixos e ajustados pra não cortar</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer scale-90">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={textLock}
+                  onChange={() => { setLockPassword(''); setShowLockPassword(true); }}
+                />
+                <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
           </div>
         </CollapsibleSection>
       )}
@@ -861,6 +900,38 @@ const Adjustments = () => {
           </span>
           <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
         </button>
+      )}
+
+      {showLockPassword && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <form onSubmit={confirmTextLock} className="bg-white dark:bg-zinc-900 w-full max-w-xs rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-blue-600">
+              <Lock className="w-5 h-5" />
+              <h3 className="text-lg font-bold">{textLock ? 'Desativar Trava' : 'Ativar Trava'}</h3>
+            </div>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              placeholder="Senha"
+              value={lockPassword}
+              onChange={(e) => setLockPassword(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 text-black dark:text-white"
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowLockPassword(false); setLockPassword(''); }}
+                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-bold text-black dark:text-white"
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold">
+                Confirmar
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {showDeleteConfirm && (

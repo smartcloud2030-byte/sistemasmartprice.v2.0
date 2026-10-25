@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useStore, isThreeProduct } from '../store';
 import useImage from 'use-image';
 import { getProxyUrl } from '../lib/utils';
+import Konva from 'konva';
+import { ajustarCaixasTravadas, CaixaTexto } from '../lib/travaTexto';
 
 const A4_WIDTH = 794; // 210mm at 96dpi
 const A4_HEIGHT = 1123; // 297mm at 96dpi
@@ -174,6 +176,46 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
     }
   }, [id, registerExport]);
 
+  // Trava: caixas de nome/subtítulo/descrição/preço fixas e fonte reduzida pra não cortar nem sobrepor.
+  const textLock = !!activeLayout?.textLock;
+  const fontStyleOf = (el: any) => `${el.isBold ? 'bold' : ''} ${el.isItalic ? 'italic' : ''}`.trim() || 'normal';
+  const slotRendered = (slot: 1 | 2 | 3) => {
+    const productImage = slot === 1 ? productImage1 : slot === 2 ? productImage2 : productImage3;
+    if (!productImage.visible || (slot > 1 && isSingleProduct)) return false;
+    if (slot === 3 && !(activeLayout?.hasThirdProduct || isThreeProduct(activeLayout?.name || '', activeLayoutIndex))) return false;
+    return true;
+  };
+  const lockedFontSizes: Record<string, number> = {};
+  if (textLock) {
+    const caixas: (CaixaTexto & { el: any })[] = [];
+    ([1, 2, 3] as const).forEach((slot) => {
+      if (!slotRendered(slot)) return;
+      const els = slot === 1 ? textElements1 : slot === 2 ? textElements2 : textElements3;
+      (['name', 'subtitle', 'description', 'price'] as const).forEach((key) => {
+        const el = els[key];
+        if (!el?.visible) return;
+        const text = String(el.text || '');
+        const isPrice = key === 'price' && !text.includes('%');
+        const width = isPrice
+          ? el.fontSize * 0.45 + measureTextWidth(text.replace(/[^\d,.]/g, '') || '0,00', el.fontSize, el.fontFamily || 'Inter', fontStyleOf(el))
+          : (el.width || (key === 'price' ? 200 : 700));
+        caixas.push({ id: `${slot}-${key}`, tipo: isPrice ? 'preco' : 'texto', x: el.x, y: el.y, width, fontSize: el.fontSize, text, el });
+      });
+    });
+    Object.assign(lockedFontSizes, ajustarCaixasTravadas(caixas, currentHeight, {
+      altura: (c, fs) => new Konva.Text({
+        text: c.text, fontSize: fs, width: c.width, wrap: 'word', lineHeight: 1.2,
+        fontFamily: (c as any).el.fontFamily || 'Inter', fontStyle: fontStyleOf((c as any).el),
+      }).height(),
+      larguraPalavra: (c, palavra, fs) => measureTextWidth(palavra, fs, (c as any).el.fontFamily || 'Inter', fontStyleOf((c as any).el)),
+    }));
+  }
+  const withLockedSize = (slot: 1 | 2 | 3, key: string, el: any) => {
+    const fs = lockedFontSizes[`${slot}-${key}`];
+    return fs !== undefined && fs !== el.fontSize ? { ...el, fontSize: fs } : el;
+  };
+  const selectUnlessLocked = (id: string) => { if (!textLock) setSelectedId(id); };
+
   // Price formatting logic
   const renderPrice = (slot: 1 | 2 | 3, el: any, key: string) => {
     if (!el.visible) return null;
@@ -188,9 +230,9 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
           id={`text-${slot}-price`}
           x={el.x} 
           y={el.y} 
-          draggable 
-          onClick={() => setSelectedId(`text-${slot}-price`)}
-          onTap={() => setSelectedId(`text-${slot}-price`)}
+          draggable={!textLock}
+          onClick={() => selectUnlessLocked(`text-${slot}-price`)}
+          onTap={() => selectUnlessLocked(`text-${slot}-price`)}
           onDragEnd={(e) => setElement(slot, 'price', { x: e.target.x(), y: e.target.y() })}
           onTransformEnd={(e) => {
             const node = e.target;
@@ -265,9 +307,9 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
           id={`text-${slot}-price`}
           x={el.x}
           y={el.y}
-          draggable
-          onClick={() => setSelectedId(`text-${slot}-price`)}
-          onTap={() => setSelectedId(`text-${slot}-price`)}
+          draggable={!textLock}
+          onClick={() => selectUnlessLocked(`text-${slot}-price`)}
+          onTap={() => selectUnlessLocked(`text-${slot}-price`)}
           onDragEnd={(e) => setElement(slot, 'price', { x: e.target.x(), y: e.target.y() })}
           onTransformEnd={handlePriceTransformEnd}
         >
@@ -307,9 +349,9 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
         id={`text-${slot}-price`}
         x={el.x} 
         y={el.y} 
-        draggable 
-        onClick={() => setSelectedId(`text-${slot}-price`)}
-        onTap={() => setSelectedId(`text-${slot}-price`)}
+        draggable={!textLock}
+        onClick={() => selectUnlessLocked(`text-${slot}-price`)}
+        onTap={() => selectUnlessLocked(`text-${slot}-price`)}
         onDragEnd={(e) => setElement(slot, 'price', { x: e.target.x(), y: e.target.y() })}
         onTransformEnd={(e) => {
           const node = e.target;
@@ -450,7 +492,7 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
 
         {/* Text Elements */}
         {(Object.keys(textElements) as Array<keyof typeof textElements1>).map((key) => {
-          const el = textElements[key as keyof typeof textElements];
+          const el = withLockedSize(slot, String(key), textElements[key as keyof typeof textElements]);
           if (!el.visible) return null;
           
           if (key === 'price') return renderPrice(slot, el, `${slot}-${key}`);
@@ -483,10 +525,10 @@ const CanvasPreview = ({ id = "placa", registerExport = true }: { id?: string; r
                 align={el.align}
                 width={el.width || 700}
                 lineHeight={1.2}
-                draggable
+                draggable={!textLock}
                 wrap="word"
-                onClick={() => setSelectedId(`text-${slot}-${String(key)}`)}
-                onTap={() => setSelectedId(`text-${slot}-${String(key)}`)}
+                onClick={() => selectUnlessLocked(`text-${slot}-${String(key)}`)}
+                onTap={() => selectUnlessLocked(`text-${slot}-${String(key)}`)}
                 onDragEnd={(e) => {
                   setElement(slot, key as any, { x: e.target.x(), y: e.target.y() });
                 }}
