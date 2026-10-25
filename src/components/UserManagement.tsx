@@ -358,12 +358,12 @@ export default function UserManagement() {
   return (
     <div className="flex flex-col h-full">
       {/* Tabs */}
-      <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-6">
-        <div className="flex overflow-x-auto no-scrollbar">
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 px-4">
+        <div className="flex min-w-0 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveTab('stores')}
             className={cn(
-              "py-4 px-6 text-xs font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap",
+              "py-4 px-3 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap",
               activeTab === 'stores' 
                 ? "border-blue-600 text-blue-600" 
                 : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
@@ -375,7 +375,7 @@ export default function UserManagement() {
           <button 
             onClick={() => setActiveTab('flags')}
             className={cn(
-              "py-4 px-6 text-xs font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap",
+              "py-4 px-3 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap",
               activeTab === 'flags' 
                 ? "border-blue-600 text-blue-600" 
                 : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
@@ -387,7 +387,7 @@ export default function UserManagement() {
           <button 
             onClick={() => setActiveTab('groups')}
             className={cn(
-              "py-4 px-6 text-xs font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap",
+              "py-4 px-3 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap",
               activeTab === 'groups' 
                 ? "border-blue-600 text-blue-600" 
                 : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
@@ -399,7 +399,7 @@ export default function UserManagement() {
           <button 
             onClick={() => setActiveTab('locations')}
             className={cn(
-              "py-4 px-6 text-xs font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap",
+              "py-4 px-3 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap",
               activeTab === 'locations' 
                 ? "border-blue-600 text-blue-600" 
                 : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
@@ -411,7 +411,7 @@ export default function UserManagement() {
           <button 
             onClick={() => setActiveTab('access')}
             className={cn(
-              "py-4 px-6 text-xs font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap",
+              "py-4 px-3 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap",
               activeTab === 'access' 
                 ? "border-blue-600 text-blue-600" 
                 : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
@@ -425,14 +425,14 @@ export default function UserManagement() {
         <button
           onClick={handleSaveAll}
           disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20 hover:bg-green-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap hover:bg-green-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : (
-            <Save className="w-4 h-4" />
+            <Save className="w-3.5 h-3.5" />
           )}
-          Salvar Alterações
+          Salvar
         </button>
       </div>
 
