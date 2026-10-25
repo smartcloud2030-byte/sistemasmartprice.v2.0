@@ -34,7 +34,10 @@ declare global {
 }
 
 const COOKIE = 'sp_sessao';
-export const DURACAO_ADMIN_MS = 12 * 60 * 60 * 1000;
+// Admin não cai por tempo: o cookie vale 1 ano e é renovado a cada dia de uso
+// (ver exigirSessao). Só a loja tem logout por inatividade (App.tsx).
+export const DURACAO_ADMIN_MS = 365 * 24 * 60 * 60 * 1000;
+const RENOVAR_ADMIN_APOS_MS = 24 * 60 * 60 * 1000;
 export const DURACAO_LOJA_MS = 30 * 24 * 60 * 60 * 1000;
 
 // SESSION_SECRET no .env é o ideal. Sem ele, deriva de segredos que o
@@ -171,6 +174,10 @@ export function exigirSessao(...papeis: Papel[]) {
     if (!sessao) return res.status(401).json({ error: 'Sessão expirada. Entre de novo.' });
     if (papeis.length && !papeis.includes(sessao.papel)) return res.status(403).json({ error: 'Sem permissão.' });
     req.sessao = sessao;
+    if (sessao.papel === 'admin' && sessao.exp - Date.now() < DURACAO_ADMIN_MS - RENOVAR_ADMIN_APOS_MS) {
+      const { exp: _exp, ...dados } = sessao;
+      req.sessao = emitirSessao(req, res, dados, DURACAO_ADMIN_MS);
+    }
     next();
   };
 }
