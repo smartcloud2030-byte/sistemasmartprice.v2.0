@@ -11,7 +11,23 @@ export interface ItemPV {
   quantidade: number | null;
   lote: string;
   loja: string;
+  /** Custo unitário em R$ (listas importadas antes de 2026-10-25 não têm). */
+  custo?: number | null;
+  /** Desconto em % (10 = 10%). */
+  desconto?: number | null;
 }
+
+// Colunas que o usuário liga/desliga na tela e na exportação.
+export type ColunaOpcionalPV = 'quantidade' | 'lote' | 'loja' | 'custo' | 'desconto';
+export const COLUNAS_OPCIONAIS_PV: { chave: ColunaOpcionalPV; rotulo: string }[] = [
+  { chave: 'quantidade', rotulo: 'Qtd' },
+  { chave: 'lote', rotulo: 'Lote' },
+  { chave: 'loja', rotulo: 'Loja' },
+  { chave: 'custo', rotulo: 'Custo' },
+  { chave: 'desconto', rotulo: 'Desconto' },
+];
+export type ColunasPV = Record<ColunaOpcionalPV, boolean>;
+export const COLUNAS_PV_PADRAO: ColunasPV = { quantidade: true, lote: true, loja: true, custo: true, desconto: true };
 
 export type StatusPV = 'vencido' | 'vermelho' | 'amareloEscuro' | 'amareloClaro' | 'verde';
 
@@ -26,6 +42,8 @@ const COLUNAS: Record<keyof Omit<ItemPV, 'id'>, string[]> = {
   quantidade: ['quantidade', 'qtd', 'qtde', 'estoque'],
   lote: ['lote'],
   loja: ['loja', 'filial', 'unidade'],
+  custo: ['custo'],
+  desconto: ['desconto'],
 };
 
 const normalizar = (s: unknown) =>
@@ -37,6 +55,29 @@ const normalizar = (s: unknown) =>
 
 const doisDig = (n: number) => String(n).padStart(2, '0');
 const isoDe = (d: Date) => `${d.getFullYear()}-${doisDig(d.getMonth() + 1)}-${doisDig(d.getDate())}`;
+
+/** "R$ 1.234,56", "12,5", 12.5 → número; vazio ou inválido → null. */
+export function lerNumero(valor: unknown): number | null {
+  if (valor === '' || valor == null) return null;
+  if (typeof valor === 'number') return isFinite(valor) ? valor : null;
+  let s = String(valor).replace(/[^\d,.-]/g, '');
+  if (!s) return null;
+  // vírgula decimal brasileira: ponto vira separador de milhar
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
+
+/** "10%", "10", 10 → 10. Célula formatada como % no Excel chega como 0,1 → 10. */
+export function lerDesconto(valor: unknown): number | null {
+  const n = lerNumero(valor);
+  if (n == null) return null;
+  if (typeof valor === 'number' && n > 0 && n < 1) return Math.round(n * 10000) / 100;
+  return n;
+}
+
+export const moedaBR = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+export const percentualBR = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 
 /** Aceita Date (célula de data), número serial do Excel, dd/mm/aaaa, dd-mm-aa, aaaa-mm-dd. */
 export function lerData(valor: unknown): string | null {
@@ -86,7 +127,7 @@ export async function importarArquivoPV(arquivo: File): Promise<ResultadoImporta
   const mapa: Partial<Record<keyof typeof COLUNAS, string>> = {};
   const usados = new Set<string>();
   // vencimento antes de código ("cod" casaria com muita coisa) e de data genérica
-  for (const campo of ['vencimento', 'produto', 'quantidade', 'lote', 'loja', 'codigo'] as (keyof typeof COLUNAS)[]) {
+  for (const campo of ['vencimento', 'produto', 'quantidade', 'lote', 'loja', 'custo', 'desconto', 'codigo'] as (keyof typeof COLUNAS)[]) {
     // Termo por termo, na ordem de prioridade: "Validade" ganha de uma
     // "Data de fabricação" que vem antes na planilha.
     let achado: string | undefined;
@@ -112,16 +153,17 @@ export async function importarArquivoPV(arquivo: File): Promise<ResultadoImporta
       ignoradas++;
       continue;
     }
-    const qtdBruta = mapa.quantidade ? l[mapa.quantidade] : '';
-    const qtd = qtdBruta === '' || qtdBruta == null ? null : Number(String(qtdBruta).replace(',', '.'));
+    const qtd = mapa.quantidade ? lerNumero(l[mapa.quantidade]) : null;
     itens.push({
       id: crypto.randomUUID(),
       produto,
       codigo,
       vencimento,
-      quantidade: qtd != null && isFinite(qtd) ? qtd : null,
+      quantidade: qtd,
       lote: mapa.lote ? String(l[mapa.lote] ?? '').trim() : '',
       loja: mapa.loja ? String(l[mapa.loja] ?? '').trim() : '',
+      custo: mapa.custo ? lerNumero(l[mapa.custo]) : null,
+      desconto: mapa.desconto ? lerDesconto(l[mapa.desconto]) : null,
     });
   }
   return { itens, ignoradas, colunasEncontradas: Object.entries(mapa).map(([k, v]) => `${k}: ${v}`) };
@@ -161,22 +203,26 @@ export const dataBR = (iso: string) => {
   return `${d}/${m}/${a}`;
 };
 
-export function exportarPV(itens: ItemPV[], nomeArquivo: string) {
+export function exportarPV(itens: ItemPV[], nomeArquivo: string, colunas: ColunasPV = COLUNAS_PV_PADRAO) {
   const linhas = itens.map((i) => {
     const dias = diasParaVencer(i.vencimento);
-    return {
+    const linha: Record<string, string | number> = {
       Produto: i.produto,
       Código: i.codigo,
       Vencimento: dataBR(i.vencimento),
       'Dias para vencer': dias,
       Situação: ROTULO_STATUS[statusPV(dias)],
-      Quantidade: i.quantidade ?? '',
-      Lote: i.lote,
-      Loja: i.loja,
     };
+    if (colunas.quantidade) linha.Quantidade = i.quantidade ?? '';
+    if (colunas.lote) linha.Lote = i.lote;
+    if (colunas.loja) linha.Loja = i.loja;
+    if (colunas.custo) linha.Custo = i.custo ?? '';
+    if (colunas.desconto) linha['Desconto (%)'] = i.desconto ?? '';
+    return linha;
   });
   const ws = XLSX.utils.json_to_sheet(linhas);
-  ws['!cols'] = [{ wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 11 }, { wch: 12 }, { wch: 18 }];
+  const larguras: Record<string, number> = { Quantidade: 11, Lote: 12, Loja: 18, Custo: 12, 'Desconto (%)': 13 };
+  ws['!cols'] = [40, 16, 12, 16, 22, ...Object.keys(linhas[0] || {}).slice(5).map((k) => larguras[k] || 12)].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Lista PV');
   XLSX.writeFile(wb, nomeArquivo);
@@ -184,10 +230,10 @@ export function exportarPV(itens: ItemPV[], nomeArquivo: string) {
 
 export function baixarModeloPV() {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['Produto', 'Código', 'Vencimento', 'Quantidade', 'Lote', 'Loja'],
-    ['DIPIRONA 500MG 10 COMP', '7891234567890', '15/12/2026', 12, 'L2345', 'Loja Centro'],
+    ['Produto', 'Código', 'Vencimento', 'Quantidade', 'Lote', 'Loja', 'Custo', 'Desconto (%)'],
+    ['DIPIRONA 500MG 10 COMP', '7891234567890', '15/12/2026', 12, 'L2345', 'Loja Centro', 4.35, 10],
   ]);
-  ws['!cols'] = [{ wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 18 }];
+  ws['!cols'] = [{ wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 13 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Lista PV');
   XLSX.writeFile(wb, 'modelo-lista-pv.xlsx');

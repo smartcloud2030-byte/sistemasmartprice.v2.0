@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
-import { diasParaVencer, importarArquivoPV, lerData, statusPV } from './listaPV';
+import { diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, statusPV } from './listaPV';
 
 function arquivoDe(linhas: unknown[][]): File {
   const ws = XLSX.utils.aoa_to_sheet(linhas);
@@ -11,6 +11,24 @@ function arquivoDe(linhas: unknown[][]): File {
 }
 
 async function main() {
+  // Custo e desconto
+  assert.equal(lerNumero('R$ 1.234,56'), 1234.56);
+  assert.equal(lerNumero('4,35'), 4.35);
+  assert.equal(lerNumero(4.35), 4.35);
+  assert.equal(lerNumero(''), null);
+  assert.equal(lerDesconto('10%'), 10);
+  assert.equal(lerDesconto(0.15), 15);
+  assert.equal(lerDesconto(12), 12);
+  {
+    const c = await importarArquivoPV(arquivoDe([
+      ['Descrição', 'Validade', 'Preço Custo', 'Desconto'],
+      ['DIPIRONA', '20/10/2026', 'R$ 4,35', '10%'],
+    ]));
+    assert.equal(c.itens[0].produto, 'DIPIRONA');
+    assert.equal(c.itens[0].custo, 4.35);
+    assert.equal(c.itens[0].desconto, 10);
+  }
+
   // Datas em vários formatos
   assert.equal(lerData('20/10/2026'), '2026-10-20');
   assert.equal(lerData('5/3/26'), '2026-03-05');

@@ -1,21 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown,
+  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import {
-  ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
-  exportarPV, importarArquivoPV, statusPV, type ItemPV, type StatusPV,
+  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
+  exportarPV, importarArquivoPV, moedaBR, percentualBR, statusPV,
+  type ColunaOpcionalPV, type ColunasPV, type ItemPV, type StatusPV,
 } from '../lib/listaPV';
 
 // Lista PV — produtos próximos (ou não) do vencimento. Só admin por enquanto.
-// A lista fica no servidor em settings.lista_pv ({ itens }),
+// A lista fica no servidor em settings.lista_pv ({ itens, colunas }),
 // chave que loja não lê nem grava (ver settingParaLoja em api.ts).
 
 interface DadosPV {
   itens: ItemPV[];
+  /** Colunas opcionais ligadas (vale pra tela e exportação, igual pra todos os admins). */
+  colunas?: Partial<ColunasPV>;
 }
 
 type Filtro = 'todos' | StatusPV;
@@ -44,6 +47,7 @@ async function carregarPV(): Promise<DadosPV> {
   const v = json?.value;
   return {
     itens: Array.isArray(v?.itens) ? v.itens : [],
+    colunas: v?.colunas && typeof v.colunas === 'object' ? v.colunas : undefined,
   };
 }
 
@@ -67,7 +71,10 @@ export default function ListaPV() {
   const [maisProximoPrimeiro, setMaisProximoPrimeiro] = useState(true);
   const [pendente, setPendente] = useState<{ itens: ItemPV[]; ignoradas: number; nome: string } | null>(null);
   const [confirmarLimpar, setConfirmarLimpar] = useState(false);
+  const [menuColunas, setMenuColunas] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const colunas: ColunasPV = { ...COLUNAS_PV_PADRAO, ...dados.colunas };
+  const alternarColuna = (chave: ColunaOpcionalPV) => gravar({ ...dados, colunas: { ...colunas, [chave]: !colunas[chave] } });
 
   useEffect(() => {
     carregarPV()
@@ -144,7 +151,7 @@ export default function ListaPV() {
   const exportar = () => {
     if (!visiveis.length) return toast.error('Não há produtos para exportar.');
     const sufixo = filtro === 'todos' ? '' : `-${filtro}`;
-    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`, colunas);
   };
 
   const remover = (id: string) => gravar({ ...dados, itens: dados.itens.filter((i) => i.id !== id) });
@@ -234,6 +241,35 @@ export default function ListaPV() {
             />
           </div>
           <div className="flex gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setMenuColunas((v) => !v)}
+              className="h-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
+              title="Mostrar ou esconder colunas"
+            >
+              <Columns3 className="w-4 h-4" />
+              Colunas
+            </button>
+            {menuColunas && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuColunas(false)} />
+                <div className="absolute left-0 md:left-auto md:right-0 top-full mt-2 z-20 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg py-1">
+                  {COLUNAS_OPCIONAIS_PV.map((c) => (
+                    <button
+                      key={c.chave}
+                      onClick={() => alternarColuna(c.chave)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      <span className={cn('w-4 h-4 rounded border flex items-center justify-center', colunas[c.chave] ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-300 dark:border-zinc-600')}>
+                        {colunas[c.chave] && <Check className="w-3 h-3" />}
+                      </span>
+                      {c.rotulo}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => setMaisProximoPrimeiro((v) => !v)}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
@@ -279,9 +315,11 @@ export default function ListaPV() {
                     </div>
                     <div className="text-xs text-zinc-500 flex flex-wrap gap-x-3 gap-y-0.5">
                       {i.codigo && <span className="font-mono">{i.codigo}</span>}
-                      {i.quantidade != null && <span>Qtd {i.quantidade}</span>}
-                      {i.lote && <span>Lote {i.lote}</span>}
-                      {i.loja && <span>{i.loja}</span>}
+                      {colunas.quantidade && i.quantidade != null && <span>Qtd {i.quantidade}</span>}
+                      {colunas.lote && i.lote && <span>Lote {i.lote}</span>}
+                      {colunas.loja && i.loja && <span>{i.loja}</span>}
+                      {colunas.custo && i.custo != null && <span>Custo {moedaBR(i.custo)}</span>}
+                      {colunas.desconto && i.desconto != null && <span>Desc. {percentualBR(i.desconto)}</span>}
                     </div>
                   </div>
                   <div className="flex flex-col items-end justify-between shrink-0">
@@ -314,9 +352,11 @@ export default function ListaPV() {
                     </th>
                     <th className="text-right px-4 py-3">Dias</th>
                     <th className="text-left px-4 py-3">Situação</th>
-                    <th className="text-right px-4 py-3">Qtd</th>
-                    <th className="text-left px-4 py-3">Lote</th>
-                    <th className="text-left px-4 py-3">Loja</th>
+                    {colunas.quantidade && <th className="text-right px-4 py-3">Qtd</th>}
+                    {colunas.lote && <th className="text-left px-4 py-3">Lote</th>}
+                    {colunas.loja && <th className="text-left px-4 py-3">Loja</th>}
+                    {colunas.custo && <th className="text-right px-4 py-3">Custo</th>}
+                    {colunas.desconto && <th className="text-right px-4 py-3">Desconto</th>}
                     <th className="px-2 py-3" />
                   </tr>
                 </thead>
@@ -334,9 +374,11 @@ export default function ListaPV() {
                           {ROTULO_STATUS[i.status]}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">{i.quantidade ?? '—'}</td>
-                      <td className="px-4 py-3 text-zinc-500">{i.lote || '—'}</td>
-                      <td className="px-4 py-3 text-zinc-500">{i.loja || '—'}</td>
+                      {colunas.quantidade && <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">{i.quantidade ?? '—'}</td>}
+                      {colunas.lote && <td className="px-4 py-3 text-zinc-500">{i.lote || '—'}</td>}
+                      {colunas.loja && <td className="px-4 py-3 text-zinc-500">{i.loja || '—'}</td>}
+                      {colunas.custo && <td className="px-4 py-3 text-right whitespace-nowrap text-zinc-700 dark:text-zinc-300">{i.custo != null ? moedaBR(i.custo) : '—'}</td>}
+                      {colunas.desconto && <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">{i.desconto != null ? percentualBR(i.desconto) : '—'}</td>}
                       <td className="px-2 py-3">
                         <button
                           onClick={() => remover(i.id)}
