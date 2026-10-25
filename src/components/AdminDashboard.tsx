@@ -64,7 +64,7 @@ const AdminDashboard: React.FC = () => {
     })
     .slice(0, 15);
 
-  const openFullManagement = (tab: 'stores' | 'flags' | 'groups' | 'access', suspendedOnly = false) => {
+  const openFullManagement = (tab: 'stores' | 'flags' | 'groups' | 'locations' | 'access', suspendedOnly = false) => {
     setQuickList(null);
     setUserManagementSuspendedFilter(suspendedOnly);
     setUserManagementTab(tab);

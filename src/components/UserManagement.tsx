@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw, KeyRound } from 'lucide-react';
+import { Plus, Trash2, Shield, Store, Search, X, User, Flag, Pencil, Save, Loader2, Settings as SettingsIcon, Layout as LayoutGrid, Users, AlertTriangle, ChevronDown, Database, CreditCard, LogOut, RefreshCw, KeyRound, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, isStoreOnline } from '../lib/utils';
 import { useSupportSocket } from '../hooks/useSupportSocket';
@@ -8,7 +8,7 @@ import { useSupportSocket } from '../hooks/useSupportSocket';
 
 export default function UserManagement() {
   const {
-    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleProductManagementAccess, toggleEncarteAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, isChatEnabled, setIsChatEnabled,
+    allowedStores, addAllowedStore, removeAllowedStore, flags, addFlag, removeFlag, updateFlag, saveUsersAndFlags, layouts, toggleProductManagementAccess, toggleEncarteAccess, toggleSuspension, togglePaymentBlock, generateMonitoringToken, loadUsersAndFlags, userGroups, addUserGroup, removeUserGroup, updateUserGroup, setUserGroup, localizacoes, addLocalizacao, removeLocalizacao, isChatEnabled, setIsChatEnabled,
     maxConcurrentStores, setMaxConcurrentStores, cnpjUserLimits, setCnpjUserLimit, clearAccessHistory,
     userManagementTab: activeTab, setUserManagementTab: setActiveTab,
     userManagementSuspendedFilter, setUserManagementSuspendedFilter,
@@ -236,6 +236,35 @@ export default function UserManagement() {
     setNewFlagName('');
   };
 
+  const [newLocName, setNewLocName] = useState('');
+  const [newLocGroupId, setNewLocGroupId] = useState('');
+  const [newLocFlag, setNewLocFlag] = useState('');
+
+  const handleAddLocalizacao = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newLocName.trim();
+    if (!name) return;
+    if (!newLocGroupId && !newLocFlag) {
+      toast.error('Escolha um grupo ou uma bandeira para a localização.');
+      return;
+    }
+    const existe = localizacoes.some((l) =>
+      l.name.toLowerCase() === name.toLowerCase() && (l.groupId || '') === newLocGroupId && (l.bandeira || '') === newLocFlag);
+    if (existe) {
+      toast.error('Essa localização já existe para este grupo e bandeira.');
+      return;
+    }
+    addLocalizacao({ name, groupId: newLocGroupId || undefined, bandeira: newLocFlag || undefined });
+    toast.success('Localização criada.');
+    setNewLocName('');
+  };
+
+  const filteredLocalizacoes = localizacoes.filter((l) => {
+    const termo = searchTerm.toLowerCase();
+    const grupo = userGroups.find((g) => g.id === l.groupId)?.name || '';
+    return l.name.toLowerCase().includes(termo) || grupo.toLowerCase().includes(termo) || (l.bandeira || '').toLowerCase().includes(termo);
+  });
+
   const handleAddGroup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -366,6 +395,18 @@ export default function UserManagement() {
           >
             <Users className="w-4 h-4" />
             Grupos
+          </button>
+          <button 
+            onClick={() => setActiveTab('locations')}
+            className={cn(
+              "py-4 px-6 text-xs font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap",
+              activeTab === 'locations' 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-black dark:text-white opacity-60 hover:opacity-100"
+            )}
+          >
+            <MapPin className="w-4 h-4" />
+            Localização
           </button>
           <button 
             onClick={() => setActiveTab('access')}
@@ -1309,6 +1350,124 @@ export default function UserManagement() {
                           </button>
                         </div>
                       )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'locations' ? (
+          <div className="space-y-8">
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-lg text-black dark:text-white">Adicionar Nova Localização</h3>
+              </div>
+
+              <form onSubmit={handleAddLocalizacao} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60 ml-1">Nome da Localização</label>
+                  <input
+                    type="text"
+                    value={newLocName}
+                    onChange={(e) => setNewLocName(e.target.value)}
+                    placeholder="Ex: Bacabal"
+                    className="w-full px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-black dark:text-white"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60 ml-1">Grupo (Empresa)</label>
+                  <select
+                    value={newLocGroupId}
+                    onChange={(e) => setNewLocGroupId(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-black dark:text-white"
+                  >
+                    <option value="">Sem Grupo</option>
+                    {userGroups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-black dark:text-white opacity-60 ml-1">Bandeira</label>
+                  <select
+                    value={newLocFlag}
+                    onChange={(e) => setNewLocFlag(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-black dark:text-white"
+                  >
+                    <option value="">Sem Bandeira</option>
+                    {flags.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    className="w-full h-[46px] px-8 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-tighter rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Adicionar
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-zinc-400" />
+                  <h3 className="font-bold text-lg text-black dark:text-white">Localizações Cadastradas</h3>
+                  <span className="bg-zinc-100 dark:bg-zinc-800 text-black dark:text-white opacity-60 text-[10px] px-2 py-0.5 rounded-full font-black">
+                    {localizacoes.length}
+                  </span>
+                </div>
+
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar localização..."
+                    className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-transparent rounded-xl text-sm focus:bg-white dark:focus:bg-zinc-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {filteredLocalizacoes.length === 0 ? (
+                  <div className="col-span-full text-center py-12 bg-zinc-50 dark:bg-zinc-800/30 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+                    <p className="text-black dark:text-white opacity-40 font-bold uppercase tracking-widest text-xs">Nenhuma localização encontrada</p>
+                  </div>
+                ) : (
+                  filteredLocalizacoes.map((loc) => (
+                    <div
+                      key={loc.id}
+                      className="group flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 transition-all shadow-sm"
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-black dark:text-white">{loc.name}</p>
+                          <p className="text-[10px] font-black text-black dark:text-white opacity-40 uppercase tracking-widest">
+                            {[
+                              loc.groupId ? (userGroups.find((g) => g.id === loc.groupId)?.name || 'Grupo Removido') : null,
+                              loc.bandeira || null,
+                            ].filter(Boolean).join(' • ')}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { removeLocalizacao(loc.id); toast.success('Localização excluída.'); }}
+                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        title="Excluir Localização"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     </div>
                   ))
                 )}

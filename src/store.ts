@@ -142,6 +142,15 @@ export interface UserGroup {
   name: string;
 }
 
+// Localização cadastrada em Gerenciar Usuários → Localização, vinculada a um grupo e/ou bandeira.
+// Alimenta a lista de "Localidade" dos modelos.
+export interface Localizacao {
+  id: string;
+  name: string;
+  groupId?: string;
+  bandeira?: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;
@@ -280,8 +289,8 @@ interface AppState {
   setUserModalOpen: (open: boolean) => void;
   isChangeCredsModalOpen: boolean;
   setChangeCredsModalOpen: (open: boolean) => void;
-  userManagementTab: 'stores' | 'flags' | 'groups' | 'access';
-  setUserManagementTab: (tab: 'stores' | 'flags' | 'groups' | 'access') => void;
+  userManagementTab: 'stores' | 'flags' | 'groups' | 'locations' | 'access';
+  setUserManagementTab: (tab: 'stores' | 'flags' | 'groups' | 'locations' | 'access') => void;
   userManagementSuspendedFilter: boolean;
   setUserManagementSuspendedFilter: (v: boolean) => void;
   isLayoutNamesModalOpen: boolean;
@@ -368,6 +377,10 @@ interface AppState {
   removeUserGroup: (id: string) => void;
   updateUserGroup: (id: string, name: string) => void;
   setUserGroup: (cnpj: string, groupId: string | undefined) => void;
+
+  localizacoes: Localizacao[];
+  addLocalizacao: (loc: Omit<Localizacao, 'id'>) => void;
+  removeLocalizacao: (id: string) => void;
 
   allowedStores: {
     cnpj: string;
@@ -1617,6 +1630,9 @@ export const useStore = create<AppState>()(
       userGroups: [],
       addUserGroup: (name) => set((state) => { const newState = { userGroups: [...state.userGroups, { id: crypto.randomUUID(), name }] }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       removeUserGroup: (id) => set((state) => { const newState = { userGroups: state.userGroups.filter(g => g.id !== id), allowedStores: state.allowedStores.map(s => s.groupId === id ? { ...s, groupId: undefined } : s) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
+      localizacoes: [],
+      addLocalizacao: (loc) => set((state) => { const newState = { localizacoes: [...state.localizacoes, { ...loc, id: crypto.randomUUID() }] }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
+      removeLocalizacao: (id) => set((state) => { const newState = { localizacoes: state.localizacoes.filter(l => l.id !== id) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       updateUserGroup: (id, name) => set((state) => { const newState = { userGroups: state.userGroups.map(g => g.id === id ? { ...g, name } : g) }; setTimeout(() => get().saveUsersAndFlags(), 0); return newState; }),
       setUserGroup: (cnpj, groupId) => set((state) => { const nc = cnpj?.replace(/[^\d]/g, '') || ''; const newAllowedStores = state.allowedStores.map(s => s.cnpj?.replace(/[^\d]/g, '') === nc ? { ...s, groupId } : s); setTimeout(() => get().saveUsersAndFlags(), 0); return { allowedStores: newAllowedStores }; }),
 
@@ -1719,6 +1735,7 @@ export const useStore = create<AppState>()(
               maxConcurrentStores: state.maxConcurrentStores,
               cnpjUserLimits: state.cnpjUserLimits,
               userGroups: state.userGroups,
+              localizacoes: state.localizacoes,
               announcements: state.announcements,
               seenAnnouncements: state.seenAnnouncements,
               // despesas/saldo/extrato NÃO entram mais aqui — chave própria
@@ -1762,6 +1779,7 @@ export const useStore = create<AppState>()(
             maxConcurrentStores: settings.maxConcurrentStores !== undefined ? settings.maxConcurrentStores : currentState.maxConcurrentStores,
             cnpjUserLimits: settings.cnpjUserLimits || currentState.cnpjUserLimits,
             userGroups: settings.userGroups || [],
+            localizacoes: settings.localizacoes || [],
             announcements: settings.announcements || [],
             seenAnnouncements: settings.seenAnnouncements || currentState.seenAnnouncements,
             // theme não é carregado do servidor de propósito — cada admin mantém
@@ -1943,6 +1961,7 @@ export const useStore = create<AppState>()(
         maxConcurrentStores: state.maxConcurrentStores,
         cnpjUserLimits: state.cnpjUserLimits,
         userGroups: state.userGroups,
+        localizacoes: state.localizacoes,
         isAuthenticated: state.isAuthenticated,
         lastLoginTimestamp: state.lastLoginTimestamp,
         userRole: state.userRole,

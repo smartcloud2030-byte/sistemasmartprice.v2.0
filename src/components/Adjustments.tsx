@@ -302,9 +302,10 @@ const Adjustments = () => {
 
   const autoCategory = `layout-${slugifyCategory((isUnlocked ? draftBandeira : currentLayout?.bandeira) || 'geral') || 'geral'}`;
 
+  const localizacoes = useStore((s) => s.localizacoes);
   const uniqueLocalidades = React.useMemo(() => Array.from(
-    new Set(layouts.map((l) => l.localidade).filter((v): v is string => !!v && v.trim().length > 0))
-  ).sort((a, b) => a.localeCompare(b)), [layouts]);
+    new Set([...localizacoes.map((l) => l.name), ...layouts.map((l) => l.localidade)].filter((v): v is string => !!v && v.trim().length > 0))
+  ).sort((a, b) => a.localeCompare(b)), [layouts, localizacoes]);
 
   React.useEffect(() => {
     if (userRole !== 'admin') return;

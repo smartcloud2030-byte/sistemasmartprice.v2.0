@@ -46,9 +46,10 @@ export default function LayoutManagerModal() {
   const [isLoadingGalleryFolders, setIsLoadingGalleryFolders] = useState(false);
   const [isLoadingGalleryImages, setIsLoadingGalleryImages] = useState(false);
 
+  const localizacoes = useStore((s) => s.localizacoes);
   const uniqueLocalidades = useMemo(() => Array.from(
-    new Set(layouts.map((l) => l.localidade).filter((v): v is string => !!v && v.trim().length > 0))
-  ).sort((a, b) => a.localeCompare(b)), [layouts]);
+    new Set([...localizacoes.map((l) => l.name), ...layouts.map((l) => l.localidade)].filter((v): v is string => !!v && v.trim().length > 0))
+  ).sort((a, b) => a.localeCompare(b)), [layouts, localizacoes]);
 
   // Estilos de teste salvos antes do campo `id` existir precisam de um id
   // estável para poderem ser espelhados/editados — garante isso ao abrir.
