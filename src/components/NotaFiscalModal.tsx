@@ -37,6 +37,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
   const [tomadorTelefone, setTomadorTelefone] = useState('');
   const [tomadorEndereco, setTomadorEndereco] = useState<EnderecoEstruturado | null>(null);
   const [tomadorEmail, setTomadorEmail] = useState('');
+  const [semEmail, setSemEmail] = useState(false);
   const [servicoCodigo, setServicoCodigo] = useState('');
   const [cnae, setCnae] = useState('');
   const [cnaes, setCnaes] = useState<CnaeOpcao[]>([]);
@@ -164,8 +165,8 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
       setErro('Informe um CNPJ válido e aguarde o preenchimento automático do endereço.');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())) {
-      setErro('Informe um e-mail válido do cliente (a busca automática nem sempre encontra um).');
+    if (!semEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())) {
+      setErro('Informe um e-mail válido do cliente ou marque "Cliente não tem e-mail".');
       return;
     }
     setErro(null);
@@ -178,7 +179,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
         body: JSON.stringify({
           tomadorCnpj,
           tomadorNome,
-          tomadorEmail,
+          tomadorEmail: semEmail ? '' : tomadorEmail,
           tomadorTelefone,
           tomadorEndereco,
           servicoCodigo,
@@ -186,6 +187,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
           descricao,
           valor: Number(valor),
           adminPassword,
+          enviarEmail: !semEmail,
         }),
       });
       const data = await res.json();
@@ -254,12 +256,15 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                   <p className="text-sm font-bold text-black dark:text-white">Nota emitida com sucesso!</p>
                   <p className="text-xs text-zinc-500">Nº {nota?.numero_nota} · Chave: {nota?.chave_acesso}</p>
                   <p className="text-xs text-zinc-500 mt-1">
-                    {nota?.ultimo_email_enviado_em
+                    {semEmail
+                      ? 'Cliente sem e-mail — baixe o PDF abaixo.'
+                      : nota?.ultimo_email_enviado_em
                       ? `Enviada automaticamente para ${tomadorEmail}.`
                       : 'Não foi possível enviar o e-mail automaticamente — use o botão abaixo.'}
                   </p>
                 </div>
               </div>
+              {!semEmail && (
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">E-mail de destino</label>
                 <input
@@ -270,6 +275,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                   className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
                 />
               </div>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => nota && window.open(`/api/notafiscal/${nota.id}/pdf`, '_blank')}
@@ -286,6 +292,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
                   <ExternalLink className="w-4 h-4" /> Ver DANFSe
                 </a>
               </div>
+              {!semEmail && (
               <button
                 onClick={handleEnviarEmail}
                 disabled={enviandoEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tomadorEmail.trim())}
@@ -293,6 +300,7 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
               >
                 {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} {nota?.ultimo_email_enviado_em ? 'Reenviar por E-mail' : 'Enviar por E-mail'}
               </button>
+              )}
             </div>
           ) : (
             <>
@@ -325,13 +333,24 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">E-mail do cliente</label>
-                <input
-                  type="email"
-                  value={tomadorEmail}
-                  onChange={(e) => setTomadorEmail(e.target.value)}
-                  placeholder="cliente@exemplo.com.br"
-                  className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
-                />
+                {!semEmail && (
+                  <input
+                    type="email"
+                    value={tomadorEmail}
+                    onChange={(e) => setTomadorEmail(e.target.value)}
+                    placeholder="cliente@exemplo.com.br"
+                    className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white"
+                  />
+                )}
+                <label className="flex items-center gap-2 mt-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={semEmail}
+                    onChange={(e) => setSemEmail(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-600"
+                  />
+                  Cliente não tem e-mail (só baixar o PDF)
+                </label>
               </div>
 
               <div>

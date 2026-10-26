@@ -48,7 +48,8 @@ export interface EmissaoInput {
 export function validateEmissaoInput(input: EmissaoInput): string | null {
   if (!/^\d{14}$/.test(input.tomadorCnpj)) return 'CNPJ do tomador inválido (precisa ter 14 dígitos).';
   if (!input.tomadorNome?.trim()) return 'Nome do tomador é obrigatório.';
-  if (!input.tomadorEmail?.trim()) return 'E-mail do tomador é obrigatório.';
+  // E-mail é opcional (cliente sem e-mail: só baixa o PDF), mas se vier tem que ser válido.
+  if (input.tomadorEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.tomadorEmail.trim())) return 'E-mail do tomador inválido.';
   if (!/^\d{6}$/.test(input.servicoCodigo)) return 'Código de serviço precisa ter exatamente 6 dígitos.';
   if (!/^\d{7}$/.test(input.cnae)) return 'CNAE precisa ter exatamente 7 dígitos.';
   if (!input.descricao?.trim()) return 'Descrição do serviço é obrigatória.';
@@ -77,7 +78,7 @@ export function buildEmissaoPayload(input: EmissaoInput, prestadorCnpj: string) 
     descricao: input.descricao,
     tomador: {
       nome: input.tomadorNome,
-      email: input.tomadorEmail,
+      email: input.tomadorEmail?.trim() || undefined,
       telefone: (input.tomadorTelefone || '').replace(/\D/g, ''),
       endereco: {
         xLgr: input.tomadorEndereco.xLgr,
