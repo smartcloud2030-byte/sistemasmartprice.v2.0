@@ -261,7 +261,7 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
     try {
       const res = await fetch('/gallery/categories');
       const data = await res.json();
-      const filtered = Array.isArray(data) ? data.filter((c: string) => !c.toLowerCase().startsWith('layout')) : [];
+      const filtered = Array.isArray(data) ? data.filter((c: string) => !/^(layout|encarte)/i.test(c.trim())) : [];
       setCategories(filtered);
     } catch {}
   };
