@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { armazenamentoPersist } from './lib/armazenamentoLocal';
 import { toast } from 'sonner';
 import { isStoreOnline } from './lib/utils';
 import { patchTogglePago, type Despesa } from './lib/despesas';
@@ -1940,6 +1941,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'smartprice-storage',
+      storage: armazenamentoPersist(),
       partialize: (state) => ({
         theme: state.theme,
         orientation: state.orientation,
