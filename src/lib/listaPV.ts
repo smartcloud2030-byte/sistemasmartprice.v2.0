@@ -15,19 +15,22 @@ export interface ItemPV {
   custo?: number | null;
   /** Desconto em % (10 = 10%). */
   desconto?: number | null;
+  /** Preço de oferta em R$ — base do cálculo do desconto em reais. */
+  precoOferta?: number | null;
 }
 
 // Colunas que o usuário liga/desliga na tela e na exportação.
-export type ColunaOpcionalPV = 'quantidade' | 'lote' | 'loja' | 'custo' | 'desconto';
+export type ColunaOpcionalPV = 'quantidade' | 'lote' | 'loja' | 'custo' | 'precoOferta' | 'desconto';
 export const COLUNAS_OPCIONAIS_PV: { chave: ColunaOpcionalPV; rotulo: string }[] = [
   { chave: 'quantidade', rotulo: 'Qtd' },
   { chave: 'lote', rotulo: 'Lote' },
   { chave: 'loja', rotulo: 'Loja' },
   { chave: 'custo', rotulo: 'Custo' },
+  { chave: 'precoOferta', rotulo: 'Preço de oferta' },
   { chave: 'desconto', rotulo: 'Desconto' },
 ];
 export type ColunasPV = Record<ColunaOpcionalPV, boolean>;
-export const COLUNAS_PV_PADRAO: ColunasPV = { quantidade: true, lote: true, loja: true, custo: true, desconto: true };
+export const COLUNAS_PV_PADRAO: ColunasPV = { quantidade: true, lote: true, loja: true, custo: true, precoOferta: true, desconto: true };
 
 export type StatusPV = 'vencido' | 'vermelho' | 'amareloEscuro' | 'amareloClaro' | 'verde';
 
@@ -44,6 +47,7 @@ const COLUNAS: Record<keyof Omit<ItemPV, 'id'>, string[]> = {
   loja: ['loja', 'filial', 'unidade'],
   custo: ['custo'],
   desconto: ['desconto'],
+  precoOferta: ['oferta', 'preco venda', 'preco'],
 };
 
 const normalizar = (s: unknown) =>
@@ -127,7 +131,7 @@ export async function importarArquivoPV(arquivo: File): Promise<ResultadoImporta
   const mapa: Partial<Record<keyof typeof COLUNAS, string>> = {};
   const usados = new Set<string>();
   // vencimento antes de código ("cod" casaria com muita coisa) e de data genérica
-  for (const campo of ['vencimento', 'produto', 'quantidade', 'lote', 'loja', 'custo', 'desconto', 'codigo'] as (keyof typeof COLUNAS)[]) {
+  for (const campo of ['vencimento', 'produto', 'quantidade', 'lote', 'loja', 'custo', 'desconto', 'precoOferta', 'codigo'] as (keyof typeof COLUNAS)[]) {
     // Termo por termo, na ordem de prioridade: "Validade" ganha de uma
     // "Data de fabricação" que vem antes na planilha.
     let achado: string | undefined;
@@ -164,6 +168,7 @@ export async function importarArquivoPV(arquivo: File): Promise<ResultadoImporta
       loja: mapa.loja ? String(l[mapa.loja] ?? '').trim() : '',
       custo: mapa.custo ? lerNumero(l[mapa.custo]) : null,
       desconto: mapa.desconto ? lerDesconto(l[mapa.desconto]) : null,
+      precoOferta: mapa.precoOferta ? lerNumero(l[mapa.precoOferta]) : null,
     });
   }
   return { itens, ignoradas, colunasEncontradas: Object.entries(mapa).map(([k, v]) => `${k}: ${v}`) };
@@ -198,14 +203,37 @@ export const ROTULO_STATUS: Record<StatusPV, string> = {
   verde: '6 meses ou mais',
 };
 
+/** Desconto (%) configurado por período. Período sem valor usa o % da planilha. */
+export type DescontosPorFaixa = Partial<Record<StatusPV, number>>;
+
+export const ORDEM_FAIXAS: StatusPV[] = ['vencido', 'vermelho', 'amareloEscuro', 'amareloClaro', 'verde'];
+
+export function percentualDescontoPV(item: ItemPV, status: StatusPV, faixas?: DescontosPorFaixa): number | null {
+  const daFaixa = faixas?.[status];
+  if (daFaixa != null && isFinite(daFaixa)) return daFaixa;
+  return item.desconto ?? null;
+}
+
+/** Desconto em R$ sobre o preço de oferta (arredondado em centavos); null se faltar preço ou %. */
+export function valorDescontoPV(precoOferta: number | null | undefined, percentual: number | null): number | null {
+  if (precoOferta == null || percentual == null) return null;
+  return Math.round(precoOferta * percentual) / 100;
+}
+
 export const dataBR = (iso: string) => {
   const [a, m, d] = iso.split('-');
   return `${d}/${m}/${a}`;
 };
 
-export function exportarPV(itens: ItemPV[], nomeArquivo: string, colunas: ColunasPV = COLUNAS_PV_PADRAO) {
+export function exportarPV(
+  itens: ItemPV[],
+  nomeArquivo: string,
+  colunas: ColunasPV = COLUNAS_PV_PADRAO,
+  faixas?: DescontosPorFaixa,
+) {
   const linhas = itens.map((i) => {
     const dias = diasParaVencer(i.vencimento);
+    const pct = percentualDescontoPV(i, statusPV(dias), faixas);
     const linha: Record<string, string | number> = {
       Produto: i.produto,
       Código: i.codigo,
@@ -217,11 +245,15 @@ export function exportarPV(itens: ItemPV[], nomeArquivo: string, colunas: Coluna
     if (colunas.lote) linha.Lote = i.lote;
     if (colunas.loja) linha.Loja = i.loja;
     if (colunas.custo) linha.Custo = i.custo ?? '';
-    if (colunas.desconto) linha['Desconto (%)'] = i.desconto ?? '';
+    if (colunas.precoOferta) linha['Preço de oferta'] = i.precoOferta ?? '';
+    if (colunas.desconto) {
+      linha['Desconto (%)'] = pct ?? '';
+      linha['Desconto (R$)'] = valorDescontoPV(i.precoOferta, pct) ?? '';
+    }
     return linha;
   });
   const ws = XLSX.utils.json_to_sheet(linhas);
-  const larguras: Record<string, number> = { Quantidade: 11, Lote: 12, Loja: 18, Custo: 12, 'Desconto (%)': 13 };
+  const larguras: Record<string, number> = { Quantidade: 11, Lote: 12, Loja: 18, Custo: 12, 'Preço de oferta': 15, 'Desconto (%)': 13, 'Desconto (R$)': 14 };
   ws['!cols'] = [40, 16, 12, 16, 22, ...Object.keys(linhas[0] || {}).slice(5).map((k) => larguras[k] || 12)].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Lista PV');
@@ -230,10 +262,10 @@ export function exportarPV(itens: ItemPV[], nomeArquivo: string, colunas: Coluna
 
 export function baixarModeloPV() {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['Produto', 'Código', 'Vencimento', 'Quantidade', 'Lote', 'Loja', 'Custo', 'Desconto (%)'],
-    ['DIPIRONA 500MG 10 COMP', '7891234567890', '15/12/2026', 12, 'L2345', 'Loja Centro', 4.35, 10],
+    ['Produto', 'Código', 'Vencimento', 'Quantidade', 'Lote', 'Loja', 'Custo', 'Preço de oferta', 'Desconto (%)'],
+    ['DIPIRONA 500MG 10 COMP', '7891234567890', '15/12/2026', 12, 'L2345', 'Loja Centro', 4.35, 8.99, 10],
   ]);
-  ws['!cols'] = [{ wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 13 }];
+  ws['!cols'] = [{ wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 15 }, { wch: 13 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Lista PV');
   XLSX.writeFile(wb, 'modelo-lista-pv.xlsx');

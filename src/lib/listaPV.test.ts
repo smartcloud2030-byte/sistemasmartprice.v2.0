@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
-import { diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, statusPV } from './listaPV';
+import {
+  diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, percentualDescontoPV, statusPV, valorDescontoPV,
+} from './listaPV';
 
 function arquivoDe(linhas: unknown[][]): File {
   const ws = XLSX.utils.aoa_to_sheet(linhas);
@@ -76,6 +78,18 @@ async function main() {
   await assert.rejects(() => importarArquivoPV(arquivoDe([['Produto', 'Qtd'], ['X', 1]])), /vencimento/);
 
   console.log('PASS: todos os testes de listaPV passaram');
+}
+
+// Desconto por período: faixa configurada vence o % da planilha; R$ sobre o preço de oferta.
+{
+  const item = { id: '1', produto: 'X', codigo: '', vencimento: '2026-11-10', quantidade: null, lote: '', loja: '', desconto: 10, precoOferta: 89.99 };
+  assert.equal(percentualDescontoPV(item, 'vermelho', { vermelho: 80 }), 80);
+  assert.equal(percentualDescontoPV(item, 'amareloClaro', { vermelho: 80 }), 10);
+  assert.equal(percentualDescontoPV({ ...item, desconto: null }, 'verde', {}), null);
+  assert.equal(valorDescontoPV(89.99, 80), 71.99);
+  assert.equal(valorDescontoPV(89.99, 40), 36);
+  assert.equal(valorDescontoPV(null, 40), null);
+  assert.equal(valorDescontoPV(10, null), null);
 }
 
 main().catch((e) => {

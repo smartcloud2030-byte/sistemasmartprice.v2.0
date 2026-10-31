@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check,
+  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check, Percent,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import {
-  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
-  exportarPV, importarArquivoPV, moedaBR, percentualBR, statusPV,
-  type ColunaOpcionalPV, type ColunasPV, type ItemPV, type StatusPV,
+  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ORDEM_FAIXAS, ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
+  exportarPV, importarArquivoPV, lerNumero, moedaBR, percentualBR, percentualDescontoPV, statusPV, valorDescontoPV,
+  type ColunaOpcionalPV, type ColunasPV, type DescontosPorFaixa, type ItemPV, type StatusPV,
 } from '../lib/listaPV';
 
 // Lista PV — produtos próximos (ou não) do vencimento. Só admin por enquanto.
@@ -19,6 +19,8 @@ interface DadosPV {
   itens: ItemPV[];
   /** Colunas opcionais ligadas (vale pra tela e exportação, igual pra todos os admins). */
   colunas?: Partial<ColunasPV>;
+  /** % de desconto por período de vencimento (Configurar descontos). */
+  descontos?: DescontosPorFaixa;
 }
 
 type Filtro = 'todos' | StatusPV;
@@ -48,6 +50,7 @@ async function carregarPV(): Promise<DadosPV> {
   return {
     itens: Array.isArray(v?.itens) ? v.itens : [],
     colunas: v?.colunas && typeof v.colunas === 'object' ? v.colunas : undefined,
+    descontos: v?.descontos && typeof v.descontos === 'object' ? v.descontos : undefined,
   };
 }
 
@@ -59,6 +62,42 @@ async function salvarPV(dados: DadosPV) {
   });
   if (!res.ok) throw new Error(`Falha ao salvar a lista (${res.status})`);
 }
+
+// Preço de oferta editável direto na linha: grava ao sair do campo ou no Enter.
+function CampoPrecoOferta({ valor, aoSalvar }: { valor: number | null | undefined; aoSalvar: (v: number | null) => void }) {
+  const formatar = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const [texto, setTexto] = useState(formatar(valor));
+  useEffect(() => setTexto(formatar(valor)), [valor]);
+  const confirmar = () => {
+    const n = lerNumero(texto);
+    const novo = n != null && n >= 0 ? Math.round(n * 100) / 100 : null;
+    if (novo !== (valor ?? null)) aoSalvar(novo);
+    else setTexto(formatar(valor));
+  };
+  return (
+    <div className="inline-flex items-center gap-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 focus-within:border-blue-500 bg-white dark:bg-zinc-900">
+      <span className="text-xs text-zinc-400">R$</span>
+      <input
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        inputMode="decimal"
+        placeholder="0,00"
+        className="w-16 bg-transparent text-right text-sm text-zinc-900 dark:text-zinc-100 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
+        aria-label="Preço de oferta"
+      />
+    </div>
+  );
+}
+
+const ROTULO_FAIXA_DESCONTO: Record<StatusPV, string> = {
+  vencido: 'Vencidos',
+  vermelho: '1 a 30 dias',
+  amareloEscuro: '31 a 60 dias',
+  amareloClaro: '3 a 5 meses',
+  verde: '6 meses ou mais',
+};
 
 export default function ListaPV() {
   const { setView } = useStore();
@@ -72,9 +111,33 @@ export default function ListaPV() {
   const [pendente, setPendente] = useState<{ itens: ItemPV[]; ignoradas: number; nome: string } | null>(null);
   const [confirmarLimpar, setConfirmarLimpar] = useState(false);
   const [menuColunas, setMenuColunas] = useState(false);
+  const [editandoDescontos, setEditandoDescontos] = useState<Record<StatusPV, string> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const colunas: ColunasPV = { ...COLUNAS_PV_PADRAO, ...dados.colunas };
   const alternarColuna = (chave: ColunaOpcionalPV) => gravar({ ...dados, colunas: { ...colunas, [chave]: !colunas[chave] } });
+  const descontos = dados.descontos || {};
+
+  const abrirDescontos = () => {
+    const t = {} as Record<StatusPV, string>;
+    ORDEM_FAIXAS.forEach((f) => { t[f] = descontos[f] != null ? String(descontos[f]).replace('.', ',') : ''; });
+    setEditandoDescontos(t);
+  };
+
+  const salvarDescontos = async () => {
+    if (!editandoDescontos) return;
+    const novos: DescontosPorFaixa = {};
+    for (const f of ORDEM_FAIXAS) {
+      const n = lerNumero(editandoDescontos[f]);
+      if (n == null) continue;
+      if (n < 0 || n > 100) return toast.error(`Desconto de "${ROTULO_FAIXA_DESCONTO[f]}" tem que ficar entre 0 e 100%.`);
+      novos[f] = n;
+    }
+    setEditandoDescontos(null);
+    await gravar({ ...dados, descontos: novos }, 'Descontos salvos.');
+  };
+
+  const salvarPrecoOferta = (id: string, precoOferta: number | null) =>
+    gravar({ ...dados, itens: dados.itens.map((i) => (i.id === id ? { ...i, precoOferta } : i)) });
 
   useEffect(() => {
     carregarPV()
@@ -100,7 +163,9 @@ export default function ListaPV() {
       dados.itens
         .map((i) => {
           const dias = diasParaVencer(i.vencimento);
-          return { ...i, dias, status: statusPV(dias) };
+          const status = statusPV(dias);
+          const pctDesconto = percentualDescontoPV(i, status, dados.descontos);
+          return { ...i, dias, status, pctDesconto, valorDesconto: valorDescontoPV(i.precoOferta, pctDesconto) };
         })
         .sort((a, b) => (maisProximoPrimeiro ? a.dias - b.dias : b.dias - a.dias) || a.produto.localeCompare(b.produto)),
     [dados, maisProximoPrimeiro],
@@ -151,7 +216,7 @@ export default function ListaPV() {
   const exportar = () => {
     if (!visiveis.length) return toast.error('Não há produtos para exportar.');
     const sufixo = filtro === 'todos' ? '' : `-${filtro}`;
-    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`, colunas);
+    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`, colunas, dados.descontos);
   };
 
   const remover = (id: string) => gravar({ ...dados, itens: dados.itens.filter((i) => i.id !== id) });
@@ -271,6 +336,14 @@ export default function ListaPV() {
             )}
           </div>
           <button
+            onClick={abrirDescontos}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
+            title="Configurar o desconto de cada período"
+          >
+            <Percent className="w-4 h-4" />
+            Descontos
+          </button>
+          <button
             onClick={() => setMaisProximoPrimeiro((v) => !v)}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
             title="Inverter a ordem"
@@ -319,8 +392,27 @@ export default function ListaPV() {
                       {colunas.lote && i.lote && <span>Lote {i.lote}</span>}
                       {colunas.loja && i.loja && <span>{i.loja}</span>}
                       {colunas.custo && i.custo != null && <span>Custo {moedaBR(i.custo)}</span>}
-                      {colunas.desconto && i.desconto != null && <span>Desc. {percentualBR(i.desconto)}</span>}
                     </div>
+                    {(colunas.precoOferta || colunas.desconto) && (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {colunas.precoOferta && (
+                          <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+                            Oferta
+                            <CampoPrecoOferta valor={i.precoOferta} aoSalvar={(v) => salvarPrecoOferta(i.id, v)} />
+                          </label>
+                        )}
+                        {colunas.desconto && i.pctDesconto != null && (
+                          <span className="text-xs text-zinc-500">
+                            Desc. {percentualBR(i.pctDesconto)}
+                            {i.valorDesconto != null && (
+                              <span className="ml-1.5 px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black text-sm">
+                                {moedaBR(i.valorDesconto)}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col items-end justify-between shrink-0">
                     <button
@@ -356,6 +448,7 @@ export default function ListaPV() {
                     {colunas.lote && <th className="text-left px-4 py-3">Lote</th>}
                     {colunas.loja && <th className="text-left px-4 py-3">Loja</th>}
                     {colunas.custo && <th className="text-right px-4 py-3">Custo</th>}
+                    {colunas.precoOferta && <th className="text-right px-4 py-3 whitespace-nowrap">Preço de oferta</th>}
                     {colunas.desconto && <th className="text-right px-4 py-3">Desconto</th>}
                     <th className="px-2 py-3" />
                   </tr>
@@ -378,7 +471,27 @@ export default function ListaPV() {
                       {colunas.lote && <td className="px-4 py-3 text-zinc-500">{i.lote || '—'}</td>}
                       {colunas.loja && <td className="px-4 py-3 text-zinc-500">{i.loja || '—'}</td>}
                       {colunas.custo && <td className="px-4 py-3 text-right whitespace-nowrap text-zinc-700 dark:text-zinc-300">{i.custo != null ? moedaBR(i.custo) : '—'}</td>}
-                      {colunas.desconto && <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">{i.desconto != null ? percentualBR(i.desconto) : '—'}</td>}
+                      {colunas.precoOferta && (
+                        <td className="px-4 py-2 text-right">
+                          <CampoPrecoOferta valor={i.precoOferta} aoSalvar={(v) => salvarPrecoOferta(i.id, v)} />
+                        </td>
+                      )}
+                      {colunas.desconto && (
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          {i.valorDesconto != null ? (
+                            <>
+                              <span className="inline-block px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black">
+                                {moedaBR(i.valorDesconto)}
+                              </span>
+                              <div className="text-[11px] text-zinc-500 mt-0.5">{percentualBR(i.pctDesconto!)}</div>
+                            </>
+                          ) : i.pctDesconto != null ? (
+                            <span className="text-zinc-700 dark:text-zinc-300" title="Informe o preço de oferta para ver o desconto em reais">{percentualBR(i.pctDesconto)}</span>
+                          ) : (
+                            <span className="text-zinc-400">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-2 py-3">
                         <button
                           onClick={() => remover(i.id)}
@@ -422,6 +535,45 @@ export default function ListaPV() {
               )}
               <button onClick={() => confirmarImportacao('substituir')} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">
                 {dados.itens.length > 0 ? 'Substituir lista' : 'Importar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editandoDescontos && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full space-y-4 border border-zinc-200 dark:border-zinc-800">
+            <div>
+              <h2 className="text-lg font-black text-zinc-900 dark:text-white">Descontos por período</h2>
+              <p className="text-sm text-zinc-500 mt-1">
+                Quanto cada período de vencimento ganha de desconto. O valor em reais sai do preço de oferta. Deixe em branco pra usar o % da planilha.
+              </p>
+            </div>
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800 border-y border-zinc-100 dark:border-zinc-800">
+              {ORDEM_FAIXAS.map((f) => (
+                <label key={f} className={cn('flex items-center justify-between gap-3 py-2.5 pl-3 border-l-4', BORDA_STATUS[f])}>
+                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{ROTULO_FAIXA_DESCONTO[f]}</span>
+                  <span className="inline-flex items-center gap-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 focus-within:border-blue-500">
+                    <input
+                      value={editandoDescontos[f]}
+                      onChange={(e) => setEditandoDescontos({ ...editandoDescontos, [f]: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === 'Enter') salvarDescontos(); }}
+                      inputMode="decimal"
+                      placeholder="—"
+                      className="w-14 bg-transparent text-right text-sm text-zinc-900 dark:text-zinc-100 outline-none"
+                    />
+                    <span className="text-sm text-zinc-400">%</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditandoDescontos(null)} className="px-4 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                Cancelar
+              </button>
+              <button onClick={salvarDescontos} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">
+                Salvar
               </button>
             </div>
           </div>
