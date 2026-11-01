@@ -17,6 +17,8 @@ export interface ItemPV {
   desconto?: number | null;
   /** Preço de oferta em R$ — base do cálculo do desconto em reais. */
   precoOferta?: number | null;
+  /** % digitado na mão na linha — vale mais que o do período e o da planilha. */
+  descontoManual?: number | null;
 }
 
 // Colunas que o usuário liga/desliga na tela e na exportação.
@@ -38,7 +40,7 @@ export const SETTINGS_KEY_PV = 'lista_pv';
 
 // Cabeçalhos aceitos na planilha (sem acento, minúsculo). A primeira coluna
 // cujo nome contém um destes termos é usada.
-const COLUNAS: Record<keyof Omit<ItemPV, 'id'>, string[]> = {
+const COLUNAS: Record<keyof Omit<ItemPV, 'id' | 'descontoManual'>, string[]> = {
   produto: ['produto', 'descricao', 'nome', 'item'],
   codigo: ['codigo', 'ean', 'barra', 'gtin', 'cod'],
   vencimento: ['vencimento', 'validade', 'venc', 'data'],
@@ -203,12 +205,13 @@ export const ROTULO_STATUS: Record<StatusPV, string> = {
   verde: '6 meses ou mais',
 };
 
-/** Desconto (%) configurado por período. Período sem valor usa o % da planilha. */
+/** Desconto (%) configurado por período. Ordem: % manual da linha > período > planilha. */
 export type DescontosPorFaixa = Partial<Record<StatusPV, number>>;
 
 export const ORDEM_FAIXAS: StatusPV[] = ['vencido', 'vermelho', 'amareloEscuro', 'amareloClaro', 'verde'];
 
 export function percentualDescontoPV(item: ItemPV, status: StatusPV, faixas?: DescontosPorFaixa): number | null {
+  if (item.descontoManual != null) return item.descontoManual;
   const daFaixa = faixas?.[status];
   if (daFaixa != null && isFinite(daFaixa)) return daFaixa;
   return item.desconto ?? null;

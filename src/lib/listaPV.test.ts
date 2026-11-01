@@ -86,6 +86,7 @@ async function main() {
   assert.equal(percentualDescontoPV(item, 'vermelho', { vermelho: 80 }), 80);
   assert.equal(percentualDescontoPV(item, 'amareloClaro', { vermelho: 80 }), 10);
   assert.equal(percentualDescontoPV({ ...item, desconto: null }, 'verde', {}), null);
+  assert.equal(percentualDescontoPV({ ...item, descontoManual: 50 }, 'vermelho', { vermelho: 80 }), 50);
   assert.equal(valorDescontoPV(89.99, 80), 71.99);
   assert.equal(valorDescontoPV(89.99, 40), 36);
   assert.equal(valorDescontoPV(null, 40), null);

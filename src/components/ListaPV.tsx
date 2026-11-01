@@ -63,30 +63,77 @@ async function salvarPV(dados: DadosPV) {
   if (!res.ok) throw new Error(`Falha ao salvar a lista (${res.status})`);
 }
 
-// Preço de oferta editável direto na linha: grava ao sair do campo ou no Enter.
-function CampoPrecoOferta({ valor, aoSalvar }: { valor: number | null | undefined; aoSalvar: (v: number | null) => void }) {
-  const formatar = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-  const [texto, setTexto] = useState(formatar(valor));
-  useEffect(() => setTexto(formatar(valor)), [valor]);
+// Campo editável direto na linha: grava ao sair do campo ou no Enter; Esc desfaz.
+// Sem borda até passar o mouse/focar, pra tabela não virar um formulário.
+type PropsCampo = {
+  rotulo: string;
+  largura?: string;
+  alinhar?: 'left' | 'right';
+  prefixo?: string;
+  sufixo?: string;
+  sempreComBorda?: boolean;
+} & (
+  | { tipo: 'texto'; valor: string; aoSalvar: (v: string) => void }
+  | { tipo: 'numero'; casas: number; valor: number | null | undefined; aoSalvar: (v: number | null) => void; max?: number }
+);
+
+function CampoLinha(p: PropsCampo) {
+  const formatar = () =>
+    p.tipo === 'texto'
+      ? p.valor
+      : p.valor == null
+        ? ''
+        : p.valor.toLocaleString('pt-BR', { minimumFractionDigits: p.casas === 2 && p.prefixo ? 2 : 0, maximumFractionDigits: p.casas });
+  const [texto, setTexto] = useState(formatar());
+  useEffect(() => setTexto(formatar()), [p.valor]);
   const confirmar = () => {
+    if (p.tipo === 'texto') {
+      const v = texto.trim();
+      if (v !== p.valor) p.aoSalvar(v);
+      else setTexto(formatar());
+      return;
+    }
     const n = lerNumero(texto);
-    const novo = n != null && n >= 0 ? Math.round(n * 100) / 100 : null;
-    if (novo !== (valor ?? null)) aoSalvar(novo);
-    else setTexto(formatar(valor));
+    if (texto.trim() && n == null) {
+      toast.error(`${p.rotulo}: valor inválido.`);
+      return setTexto(formatar());
+    }
+    if (n != null && (n < 0 || (p.max != null && n > p.max))) {
+      toast.error(`${p.rotulo}: tem que ficar entre 0 e ${p.max ?? '∞'}.`);
+      return setTexto(formatar());
+    }
+    const fator = 10 ** p.casas;
+    const novo = n == null ? null : Math.round(n * fator) / fator;
+    if (novo !== (p.valor ?? null)) p.aoSalvar(novo);
+    else setTexto(formatar());
   };
   return (
-    <div className="inline-flex items-center gap-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 focus-within:border-blue-500 bg-white dark:bg-zinc-900">
-      <span className="text-xs text-zinc-400">R$</span>
+    <div
+      className={cn(
+        'inline-flex items-center gap-1 border rounded-lg px-2 py-1 focus-within:border-blue-500 focus-within:bg-white dark:focus-within:bg-zinc-900',
+        p.sempreComBorda ? 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900' : 'border-transparent hover:border-zinc-200 dark:hover:border-zinc-700',
+      )}
+    >
+      {p.prefixo && <span className="text-xs text-zinc-400">{p.prefixo}</span>}
       <input
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
         onBlur={confirmar}
-        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-        inputMode="decimal"
-        placeholder="0,00"
-        className="w-16 bg-transparent text-right text-sm text-zinc-900 dark:text-zinc-100 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
-        aria-label="Preço de oferta"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') { setTexto(formatar()); setTimeout(() => (e.target as HTMLInputElement).blur()); }
+        }}
+        inputMode={p.tipo === 'numero' ? 'decimal' : 'text'}
+        placeholder="—"
+        title={`Editar ${p.rotulo.toLowerCase()}`}
+        aria-label={p.rotulo}
+        className={cn(
+          'bg-transparent text-sm text-zinc-700 dark:text-zinc-200 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600',
+          p.largura || 'w-16',
+          p.alinhar === 'left' ? 'text-left' : 'text-right',
+        )}
       />
+      {p.sufixo && <span className="text-xs text-zinc-400">{p.sufixo}</span>}
     </div>
   );
 }
@@ -136,8 +183,8 @@ export default function ListaPV() {
     await gravar({ ...dados, descontos: novos }, 'Descontos salvos.');
   };
 
-  const salvarPrecoOferta = (id: string, precoOferta: number | null) =>
-    gravar({ ...dados, itens: dados.itens.map((i) => (i.id === id ? { ...i, precoOferta } : i)) });
+  const editarItem = (id: string, mudanca: Partial<ItemPV>) =>
+    gravar({ ...dados, itens: dados.itens.map((i) => (i.id === id ? { ...i, ...mudanca } : i)) });
 
   useEffect(() => {
     carregarPV()
@@ -388,28 +435,55 @@ export default function ListaPV() {
                     </div>
                     <div className="text-xs text-zinc-500 flex flex-wrap gap-x-3 gap-y-0.5">
                       {i.codigo && <span className="font-mono">{i.codigo}</span>}
-                      {colunas.quantidade && i.quantidade != null && <span>Qtd {i.quantidade}</span>}
-                      {colunas.lote && i.lote && <span>Lote {i.lote}</span>}
-                      {colunas.loja && i.loja && <span>{i.loja}</span>}
-                      {colunas.custo && i.custo != null && <span>Custo {moedaBR(i.custo)}</span>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-zinc-500 -ml-2">
+                      {colunas.quantidade && (
+                        <label className="flex items-center">
+                          <span className="pl-2">Qtd</span>
+                          <CampoLinha tipo="numero" casas={3} rotulo="Quantidade" largura="w-10" alinhar="left" valor={i.quantidade} aoSalvar={(v) => editarItem(i.id, { quantidade: v })} />
+                        </label>
+                      )}
+                      {colunas.lote && (
+                        <label className="flex items-center">
+                          <span className="pl-2">Lote</span>
+                          <CampoLinha tipo="texto" rotulo="Lote" largura="w-16" alinhar="left" valor={i.lote} aoSalvar={(v) => editarItem(i.id, { lote: v })} />
+                        </label>
+                      )}
+                      {colunas.loja && (
+                        <label className="flex items-center">
+                          <span className="pl-2">Loja</span>
+                          <CampoLinha tipo="texto" rotulo="Loja" largura="w-24" alinhar="left" valor={i.loja} aoSalvar={(v) => editarItem(i.id, { loja: v })} />
+                        </label>
+                      )}
+                      {colunas.custo && (
+                        <label className="flex items-center">
+                          <span className="pl-2">Custo</span>
+                          <CampoLinha tipo="numero" casas={2} rotulo="Custo" prefixo="R$" largura="w-14" alinhar="left" valor={i.custo} aoSalvar={(v) => editarItem(i.id, { custo: v })} />
+                        </label>
+                      )}
                     </div>
                     {(colunas.precoOferta || colunas.desconto) && (
                       <div className="flex items-center gap-3 flex-wrap">
                         {colunas.precoOferta && (
                           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
                             Oferta
-                            <CampoPrecoOferta valor={i.precoOferta} aoSalvar={(v) => salvarPrecoOferta(i.id, v)} />
+                            <CampoLinha tipo="numero" casas={2} rotulo="Preço de oferta" prefixo="R$" sempreComBorda valor={i.precoOferta} aoSalvar={(v) => editarItem(i.id, { precoOferta: v })} />
                           </label>
                         )}
-                        {colunas.desconto && i.pctDesconto != null && (
-                          <span className="text-xs text-zinc-500">
-                            Desc. {percentualBR(i.pctDesconto)}
+                        {colunas.desconto && (
+                          <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+                            Desc.
+                            <CampoLinha
+                              tipo="numero" casas={2} max={100} rotulo="Desconto (%)" sufixo="%" largura="w-10" sempreComBorda
+                              valor={i.pctDesconto}
+                              aoSalvar={(v) => editarItem(i.id, { descontoManual: v })}
+                            />
                             {i.valorDesconto != null && (
-                              <span className="ml-1.5 px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black text-sm">
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black text-sm">
                                 {moedaBR(i.valorDesconto)}
                               </span>
                             )}
-                          </span>
+                          </label>
                         )}
                       </div>
                     )}
@@ -467,28 +541,53 @@ export default function ListaPV() {
                           {ROTULO_STATUS[i.status]}
                         </span>
                       </td>
-                      {colunas.quantidade && <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">{i.quantidade ?? '—'}</td>}
-                      {colunas.lote && <td className="px-4 py-3 text-zinc-500">{i.lote || '—'}</td>}
-                      {colunas.loja && <td className="px-4 py-3 text-zinc-500">{i.loja || '—'}</td>}
-                      {colunas.custo && <td className="px-4 py-3 text-right whitespace-nowrap text-zinc-700 dark:text-zinc-300">{i.custo != null ? moedaBR(i.custo) : '—'}</td>}
+                      {colunas.quantidade && (
+                        <td className="px-2 py-2 text-right">
+                          <CampoLinha tipo="numero" casas={3} rotulo="Quantidade" largura="w-12" valor={i.quantidade} aoSalvar={(v) => editarItem(i.id, { quantidade: v })} />
+                        </td>
+                      )}
+                      {colunas.lote && (
+                        <td className="px-2 py-2">
+                          <CampoLinha tipo="texto" rotulo="Lote" alinhar="left" largura="w-20" valor={i.lote} aoSalvar={(v) => editarItem(i.id, { lote: v })} />
+                        </td>
+                      )}
+                      {colunas.loja && (
+                        <td className="px-2 py-2">
+                          <CampoLinha tipo="texto" rotulo="Loja" alinhar="left" largura="w-28" valor={i.loja} aoSalvar={(v) => editarItem(i.id, { loja: v })} />
+                        </td>
+                      )}
+                      {colunas.custo && (
+                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                          <CampoLinha tipo="numero" casas={2} rotulo="Custo" prefixo="R$" valor={i.custo} aoSalvar={(v) => editarItem(i.id, { custo: v })} />
+                        </td>
+                      )}
                       {colunas.precoOferta && (
                         <td className="px-4 py-2 text-right">
-                          <CampoPrecoOferta valor={i.precoOferta} aoSalvar={(v) => salvarPrecoOferta(i.id, v)} />
+                          <CampoLinha tipo="numero" casas={2} rotulo="Preço de oferta" prefixo="R$" sempreComBorda valor={i.precoOferta} aoSalvar={(v) => editarItem(i.id, { precoOferta: v })} />
                         </td>
                       )}
                       {colunas.desconto && (
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                          {i.valorDesconto != null ? (
-                            <>
+                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            {i.valorDesconto != null && (
                               <span className="inline-block px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black">
                                 {moedaBR(i.valorDesconto)}
                               </span>
-                              <div className="text-[11px] text-zinc-500 mt-0.5">{percentualBR(i.pctDesconto!)}</div>
-                            </>
-                          ) : i.pctDesconto != null ? (
-                            <span className="text-zinc-700 dark:text-zinc-300" title="Informe o preço de oferta para ver o desconto em reais">{percentualBR(i.pctDesconto)}</span>
-                          ) : (
-                            <span className="text-zinc-400">—</span>
+                            )}
+                            <CampoLinha
+                              tipo="numero" casas={2} max={100} rotulo="Desconto (%)" sufixo="%" largura="w-10"
+                              valor={i.pctDesconto}
+                              aoSalvar={(v) => editarItem(i.id, { descontoManual: v })}
+                            />
+                          </div>
+                          {i.descontoManual != null && (
+                            <button
+                              onClick={() => editarItem(i.id, { descontoManual: null })}
+                              className="text-[11px] text-blue-600 hover:underline"
+                              title="Voltar a usar o desconto do período"
+                            >
+                              manual · usar o do período
+                            </button>
                           )}
                         </td>
                       )}
