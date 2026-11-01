@@ -556,6 +556,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado((l) => ({ formas: (l.formas ?? []).filter((f) => f.id !== id) }));
 
   // ── Textos ─────────────────────────────────────────────────────────
+  /** Cola uma imagem pronta (Ctrl+V) — sempre acrescenta, nunca substitui a da categoria. */
+  const colarImagem = (imagem: ElementoImagem) =>
+    atualizarLado((l) => ({ imagens: [...l.imagens, { ...imagem, z: maiorZ(l) + 1 }] }));
+
   const adicionarTexto = (texto: TextoEncarte) =>
     atualizarLado((l) => ({ textos: [...(l.textos ?? []), { ...texto, z: maiorZ(l) + 1 }] }));
 
@@ -896,6 +900,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           grade={lado.grade}
           divisores={lado.divisores}
           imagens={lado.imagens}
+          onColarImagem={colarImagem}
           formas={lado.formas ?? []}
           textos={lado.textos ?? []}
           guias={lado.guias ?? []}

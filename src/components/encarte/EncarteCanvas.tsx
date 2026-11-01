@@ -446,6 +446,8 @@ interface EncarteCanvasProps {
   onMoverImagem: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarImagem: (id: string, patch: Partial<ElementoImagem>) => void;
   onRemoverImagem: (id: string) => void;
+  /** Cola uma cópia de imagem (Ctrl+V). */
+  onColarImagem: (imagem: ElementoImagem) => void;
   /** Forma nova do tipo dado, ou uma forma pronta (colar com Ctrl+V). */
   onAdicionarForma: (forma: FormaTipo | FormaEncarte) => void;
   onMoverForma: (id: string, xPct: number, yPct: number) => void;
@@ -588,6 +590,7 @@ export default function EncarteCanvas({
   onRedimensionarImagem,
   onRemoverImagem,
   onAdicionarForma,
+  onColarImagem,
   onMoverForma,
   onRedimensionarForma,
   onDefinirCorForma,
@@ -661,12 +664,15 @@ export default function EncarteCanvas({
 
   // Seleção múltipla (Shift+clique) — ver `tratarGrupoNoPointerDown`.
 
-  // Ctrl/Cmd+C copia a forma/texto selecionado — ou as formas e textos da
+  // Ctrl/Cmd+C copia a imagem/forma/texto selecionado — ou as imagens, formas e textos da
   // seleção múltipla; Ctrl/Cmd+V cola cópias deslocadas (cada colada seguida
   // desloca um pouco mais) e já deixa elas selecionadas. Vale entre frente e
   // verso. Não intercepta quando o foco está num campo/texto em edição (aí
   // fica o copiar/colar normal).
-  type ItemCopiado = { tipo: 'forma'; item: FormaEncarte } | { tipo: 'texto'; item: TextoEncarte };
+  type ItemCopiado =
+    | { tipo: 'forma'; item: FormaEncarte }
+    | { tipo: 'texto'; item: TextoEncarte }
+    | { tipo: 'imagem'; item: ElementoImagem };
   const areaTransferenciaRef = useRef<ItemCopiado[]>([]);
   const coladasSeguidasRef = useRef(0);
   useEffect(() => {
@@ -682,7 +688,9 @@ export default function EncarteCanvas({
           grupo.length ? grupo.filter((m) => m.tipo === tipo).map((m) => String(m.id)) : unico ? [unico] : [];
         const idsForma = ids('forma', formaSelecionadaId);
         const idsTexto = ids('texto', textoSelecionadoId);
+        const idsImagem = ids('imagem', imagemSelecionadaId);
         const copiados: ItemCopiado[] = [
+          ...imagens.filter((im) => idsImagem.includes(im.id)).map((item) => ({ tipo: 'imagem' as const, item })),
           ...formas.filter((f) => idsForma.includes(f.id)).map((item) => ({ tipo: 'forma' as const, item })),
           ...textos.filter((t) => idsTexto.includes(t.id)).map((item) => ({ tipo: 'texto' as const, item })),
         ];
@@ -690,7 +698,8 @@ export default function EncarteCanvas({
         e.preventDefault();
         areaTransferenciaRef.current = copiados;
         coladasSeguidasRef.current = 0;
-        const so = copiados.length === 1 ? (copiados[0].tipo === 'forma' ? 'Forma copiada' : 'Texto copiado') : `${copiados.length} elementos copiados`;
+        const nomeUm = { forma: 'Forma copiada', texto: 'Texto copiado', imagem: 'Imagem copiada' } as const;
+        const so = copiados.length === 1 ? nomeUm[copiados[0].tipo] : `${copiados.length} elementos copiados`;
         toast.success(so, { duration: 1200 });
         return;
       }
@@ -709,6 +718,11 @@ export default function EncarteCanvas({
       const colados: MembroGrupo[] = copia.map((c, i) => {
         const sufixo = `${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`;
         const posicao = { xPct: c.item.xPct + desloc, yPct: c.item.yPct + desloc };
+        if (c.tipo === 'imagem') {
+          const nova: ElementoImagem = { ...c.item, ...posicao, id: `img_${sufixo}` };
+          onColarImagem(nova);
+          return { tipo: 'imagem', id: nova.id };
+        }
         if (c.tipo === 'forma') {
           const nova: FormaEncarte = { ...c.item, ...posicao, id: `forma_${sufixo}` };
           onAdicionarForma(nova);
@@ -723,12 +737,13 @@ export default function EncarteCanvas({
       } else {
         setGrupo([]);
         if (colados[0].tipo === 'forma') setFormaSelecionadaId(String(colados[0].id));
+        else if (colados[0].tipo === 'imagem') setImagemSelecionadaId(String(colados[0].id));
         else setTextoSelecionadoId(String(colados[0].id));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [formaSelecionadaId, textoSelecionadoId, grupo, formas, textos, onAdicionarForma, onAdicionarTexto]);
+  }, [formaSelecionadaId, textoSelecionadoId, imagemSelecionadaId, grupo, formas, textos, imagens, onAdicionarForma, onAdicionarTexto, onColarImagem]);
   // Linhas/marcas do alinhamento inteligente, mostradas só enquanto arrasta.
   const [snapVisual, setSnapVisual] = useState<{ v: number[]; h: number[]; marcas: MarcaEspaco[] }>({
     v: [],
