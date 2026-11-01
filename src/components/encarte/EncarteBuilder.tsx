@@ -41,6 +41,7 @@ import {
   organizarAutomatico,
   areaDoLado,
   posicaoLivreNaGrade,
+  trocarDestaque,
 } from './encarteProduto';
 import {
   EncarteSalvo,
@@ -398,7 +399,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     opcoes?: OpcoesSet,
   ) => {
     atualizarLado((l) => {
-      const produtos = l.produtos.map((ep) => (ep.product.id === id ? { ...ep, ...patch } : ep));
+      const produtos = l.produtos.map((ep) => {
+        if (ep.product.id !== id) return ep;
+        // virar destaque entra com tamanhos/posições no padrão; voltar devolve os do card normal
+        const base = 'emDestaque' in patch && patch.emDestaque !== undefined ? trocarDestaque(ep, patch.emDestaque) : ep;
+        const { emDestaque: _ignorado, ...resto } = patch;
+        return { ...base, ...resto };
+      });
       // virar/deixar de ser destaque muda a largura do card → realinha a grade Automática
       return 'emDestaque' in patch ? realinharSeAuto({ ...l, produtos }, formato) : { produtos };
     }, opcoes);

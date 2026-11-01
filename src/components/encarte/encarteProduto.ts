@@ -235,6 +235,31 @@ export interface EncarteProduto {
   riscarNumerosTextoProduto?: boolean;
   /** cor da faixa atrás do "texto prod" (ex.: amarela com "LEVE 2 POR"); sem valor = sem faixa. */
   faixaTextoProduto?: string;
+  /** Ajustes de tamanho/posição que o produto tinha como card normal, guardados
+   * ao virar destaque (que entra zerado) e devolvidos ao deixar de ser. */
+  formatacaoNormal?: FormatacaoProduto | null;
+}
+
+/** Ajustes de tamanho/posição que zeram ao virar destaque (ver `trocarDestaque`). */
+export const CAMPOS_FORMATACAO_PRODUTO = [
+  'deslocPreco', 'fotoAjuste', 'nomeDescricaoAjuste',
+  'escalaNomeDestaque', 'escalaPreco', 'escalaDescricaoDestaque', 'escalaTextoProduto',
+] as const;
+export type FormatacaoProduto = Partial<Pick<EncarteProduto, (typeof CAMPOS_FORMATACAO_PRODUTO)[number]>>;
+
+/**
+ * Liga/desliga o destaque: ao ligar, guarda os ajustes do card normal e entra
+ * com tudo no padrão; ao desligar, devolve os ajustes guardados.
+ */
+export function trocarDestaque(ep: EncarteProduto, emDestaque: boolean): EncarteProduto {
+  if (ep.emDestaque === emDestaque) return ep;
+  const zerado: FormatacaoProduto = Object.fromEntries(CAMPOS_FORMATACAO_PRODUTO.map((c) => [c, undefined]));
+  if (emDestaque) {
+    const guardado: FormatacaoProduto = {};
+    for (const c of CAMPOS_FORMATACAO_PRODUTO) if (ep[c] != null) (guardado as any)[c] = ep[c];
+    return { ...ep, ...zerado, emDestaque: true, formatacaoNormal: guardado };
+  }
+  return { ...ep, ...zerado, ...(ep.formatacaoNormal || {}), emDestaque: false, formatacaoNormal: null };
 }
 
 const soPreco = (price: string) => (price || '').replace(/r\$/i, '').trim();

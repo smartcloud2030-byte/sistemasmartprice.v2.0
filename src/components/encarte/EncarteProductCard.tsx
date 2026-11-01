@@ -1334,9 +1334,6 @@ function CardProdutoDestaque({
           onPointerCancel={arrastePreco?.onPointerUp}
           onDoubleClick={arrastePreco?.onDoubleClick}
         >
-          {arrastePreco && (
-            <div data-html2canvas-ignore="true" className="pointer-events-none absolute -inset-1 rounded border border-dashed border-emerald-400" />
-          )}
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
           <PrecoEtiqueta
