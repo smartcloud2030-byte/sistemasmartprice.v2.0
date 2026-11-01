@@ -63,8 +63,8 @@ async function salvarPV(dados: DadosPV) {
   if (!res.ok) throw new Error(`Falha ao salvar a lista (${res.status})`);
 }
 
-// Campo editável direto na linha: grava ao sair do campo ou no Enter; Esc desfaz.
-// Sem borda até passar o mouse/focar, pra tabela não virar um formulário.
+// Campo da linha: só vira editável com dois cliques; grava ao sair do campo
+// ou no Enter, Esc desfaz. Fora da edição é texto comum (sem cara de formulário).
 type PropsCampo = {
   rotulo: string;
   largura?: string;
@@ -84,56 +84,73 @@ function CampoLinha(p: PropsCampo) {
       : p.valor == null
         ? ''
         : p.valor.toLocaleString('pt-BR', { minimumFractionDigits: p.casas === 2 && p.prefixo ? 2 : 0, maximumFractionDigits: p.casas });
+  const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(formatar());
-  useEffect(() => setTexto(formatar()), [p.valor]);
+  useEffect(() => { if (!editando) setTexto(formatar()); }, [p.valor, editando]);
+  const sair = () => setEditando(false);
   const confirmar = () => {
+    sair();
     if (p.tipo === 'texto') {
       const v = texto.trim();
       if (v !== p.valor) p.aoSalvar(v);
-      else setTexto(formatar());
       return;
     }
     const n = lerNumero(texto);
-    if (texto.trim() && n == null) {
-      toast.error(`${p.rotulo}: valor inválido.`);
-      return setTexto(formatar());
-    }
+    if (texto.trim() && n == null) return void toast.error(`${p.rotulo}: valor inválido.`);
     if (n != null && (n < 0 || (p.max != null && n > p.max))) {
-      toast.error(`${p.rotulo}: tem que ficar entre 0 e ${p.max ?? '∞'}.`);
-      return setTexto(formatar());
+      return void toast.error(`${p.rotulo}: tem que ficar entre 0 e ${p.max ?? '∞'}.`);
     }
     const fator = 10 ** p.casas;
     const novo = n == null ? null : Math.round(n * fator) / fator;
     if (novo !== (p.valor ?? null)) p.aoSalvar(novo);
-    else setTexto(formatar());
   };
+  const exibido = formatar();
   return (
     <div
+      onDoubleClick={() => { if (!editando) { setTexto(formatar()); setEditando(true); } }}
+      title={editando ? undefined : `Dois cliques para editar ${p.rotulo.toLowerCase()}`}
       className={cn(
-        'inline-flex items-center gap-1 border rounded-lg px-2 py-1 focus-within:border-blue-500 focus-within:bg-white dark:focus-within:bg-zinc-900',
-        p.sempreComBorda ? 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900' : 'border-transparent hover:border-zinc-200 dark:hover:border-zinc-700',
+        'inline-flex items-center gap-1 border rounded-lg px-2 py-1 select-none',
+        editando
+          ? 'border-blue-500 bg-white dark:bg-zinc-900'
+          : p.sempreComBorda
+            ? 'border-zinc-200 dark:border-zinc-700 cursor-pointer'
+            : 'border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 cursor-pointer',
       )}
     >
-      {p.prefixo && <span className="text-xs text-zinc-400">{p.prefixo}</span>}
-      <input
-        value={texto}
-        onChange={(e) => setTexto(e.target.value)}
-        onBlur={confirmar}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          if (e.key === 'Escape') { setTexto(formatar()); setTimeout(() => (e.target as HTMLInputElement).blur()); }
-        }}
-        inputMode={p.tipo === 'numero' ? 'decimal' : 'text'}
-        placeholder="—"
-        title={`Editar ${p.rotulo.toLowerCase()}`}
-        aria-label={p.rotulo}
-        className={cn(
-          'bg-transparent text-sm text-zinc-700 dark:text-zinc-200 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600',
-          p.largura || 'w-16',
-          p.alinhar === 'left' ? 'text-left' : 'text-right',
-        )}
-      />
-      {p.sufixo && <span className="text-xs text-zinc-400">{p.sufixo}</span>}
+      {p.prefixo && (editando || exibido) && <span className="text-xs text-zinc-400">{p.prefixo}</span>}
+      {editando ? (
+        <input
+          autoFocus
+          onFocus={(e) => e.target.select()}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onBlur={confirmar}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            if (e.key === 'Escape') { setTexto(formatar()); sair(); }
+          }}
+          inputMode={p.tipo === 'numero' ? 'decimal' : 'text'}
+          aria-label={p.rotulo}
+          className={cn(
+            'bg-transparent text-sm text-zinc-900 dark:text-zinc-100 outline-none select-text',
+            p.largura || 'w-16',
+            p.alinhar === 'left' ? 'text-left' : 'text-right',
+          )}
+        />
+      ) : (
+        <span
+          className={cn(
+            'text-sm truncate',
+            p.largura || 'w-16',
+            p.alinhar === 'left' ? 'text-left' : 'text-right',
+            exibido ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-300 dark:text-zinc-600',
+          )}
+        >
+          {exibido || '—'}
+        </span>
+      )}
+      {p.sufixo && (editando || exibido) && <span className="text-xs text-zinc-400">{p.sufixo}</span>}
     </div>
   );
 }
