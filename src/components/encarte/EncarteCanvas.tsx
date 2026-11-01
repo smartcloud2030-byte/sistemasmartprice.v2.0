@@ -471,7 +471,7 @@ interface EncarteCanvasProps {
   onAdicionarVerso: () => void;
   onRemoverVerso: () => void;
   /** Imagem/forma/texto pro outro lado, mesma posição e tamanho (só com verso ativo). */
-  onEnviarElementoParaOutroLado: (tipo: 'imagem' | 'forma' | 'texto', id: string) => void;
+  onEnviarElementoParaOutroLado: (tipo: 'imagem' | 'forma' | 'texto', id: string, modo: 'copiar' | 'mover') => void;
   onLadoChange: (lado: 'frente' | 'verso') => void;
   /** "Salvar": manda o encarte (frente + verso) pra aba Encartes pra editar depois. */
   onSalvarEncarte: (imagemPreview: string) => Promise<void>;
@@ -736,7 +736,32 @@ export default function EncarteCanvas({
     marcas: [],
   });
   const canvasRef = useRef<HTMLDivElement>(null);
-  const tituloOutroLado = ladoAtivo === 'frente' ? 'Enviar pro verso (mesma posição e tamanho)' : 'Enviar pra frente (mesma posição e tamanho)';
+  const tituloOutroLado = ladoAtivo === 'frente'
+    ? 'Clique: copiar pro verso · Dois cliques: mover pro verso (mesma posição e tamanho)'
+    : 'Clique: copiar pra frente · Dois cliques: mover pra frente (mesma posição e tamanho)';
+  const nomeOutroLado = ladoAtivo === 'frente' ? 'verso' : 'frente';
+  /** Botão de outro lado: clique simples copia, duplo clique move. O clique
+   * simples espera 250ms pra ver se vem o segundo (senão copiaria e moveria). */
+  const cliqueOutroLadoRef = useRef<{ chave: string; timer: number } | null>(null);
+  const cliqueOutroLado = (tipo: 'imagem' | 'forma' | 'texto', id: string, desmarcar: () => void) => {
+    const chave = `${tipo}:${id}`;
+    const pendente = cliqueOutroLadoRef.current;
+    if (pendente && pendente.chave === chave) {
+      window.clearTimeout(pendente.timer);
+      cliqueOutroLadoRef.current = null;
+      onEnviarElementoParaOutroLado(tipo, id, 'mover');
+      desmarcar();
+      toast.success(`Movido pro ${nomeOutroLado}.`);
+      return;
+    }
+    if (pendente) window.clearTimeout(pendente.timer);
+    const timer = window.setTimeout(() => {
+      cliqueOutroLadoRef.current = null;
+      onEnviarElementoParaOutroLado(tipo, id, 'copiar');
+      toast.success(`Copiado pro ${nomeOutroLado}.`);
+    }, 250);
+    cliqueOutroLadoRef.current = { chave, timer };
+  };
   const dragRef = useRef<DragState | null>(null);
   /** "Abrir Detalhes" pendente (ver `handlePointerUp`) — cancelado se um
    * duplo clique no nome/descrição chegar antes dos 400ms (ver
@@ -1814,7 +1839,7 @@ export default function EncarteCanvas({
               )}
               {temVerso && (
                 <button
-                  onClick={() => { onEnviarElementoParaOutroLado('forma', fm.id); setFormaSelecionadaId(null); }}
+                  onDoubleClick={(e) => e.stopPropagation()} onClick={() => cliqueOutroLado('forma', fm.id, () => setFormaSelecionadaId(null))}
                   title={tituloOutroLado}
                   className="p-1 text-zinc-400 hover:text-emerald-400 transition-colors"
                 >
@@ -2007,7 +2032,7 @@ export default function EncarteCanvas({
               <span className="w-px h-4 bg-zinc-700 mx-0.5" />
               <button onClick={() => setTextoEditandoId(t.id)} title="Editar texto" className="p-1 text-zinc-400 hover:text-emerald-400"><Pencil className="w-3.5 h-3.5" /></button>
               {temVerso && (
-                <button onClick={() => { onEnviarElementoParaOutroLado('texto', t.id); setTextoSelecionadoId(null); }} title={tituloOutroLado} className="p-1 text-zinc-400 hover:text-emerald-400"><ArrowLeftRight className="w-3.5 h-3.5" /></button>
+                <button onDoubleClick={(e) => e.stopPropagation()} onClick={() => cliqueOutroLado('texto', t.id, () => setTextoSelecionadoId(null))} title={tituloOutroLado} className="p-1 text-zinc-400 hover:text-emerald-400"><ArrowLeftRight className="w-3.5 h-3.5" /></button>
               )}
               <button onClick={() => { onRemoverTexto(t.id); setTextoSelecionadoId(null); }} title="Remover" className="p-1 text-zinc-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
@@ -2287,7 +2312,7 @@ export default function EncarteCanvas({
 
         {temVerso && (
           <button
-            onClick={() => { onEnviarElementoParaOutroLado('imagem', im.id); setImagemSelecionadaId(null); }}
+            onDoubleClick={(e) => e.stopPropagation()} onClick={() => cliqueOutroLado('imagem', im.id, () => setImagemSelecionadaId(null))}
             onPointerDown={(e) => e.stopPropagation()}
             data-html2canvas-ignore="true"
             title={tituloOutroLado}

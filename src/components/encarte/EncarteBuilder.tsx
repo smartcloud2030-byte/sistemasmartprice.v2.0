@@ -368,10 +368,12 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
-  /** Move imagem, forma ou texto pro outro lado na MESMA posição e tamanho
+  /** Manda imagem, forma ou texto pro outro lado na MESMA posição e tamanho
    * (os lados têm o mesmo formato e tudo é em % do canvas). Só faz sentido com
-   * verso ativo — o botão nem aparece sem ele. Vai pra frente da pilha do destino. */
-  const enviarElementoParaOutroLado = (tipo: 'imagem' | 'forma' | 'texto', id: string) => {
+   * verso ativo — o botão nem aparece sem ele. Vai pra frente da pilha do destino.
+   * `copiar` (clique simples no botão) replica e mantém o original; `mover`
+   * (duplo clique) tira do lado de origem. */
+  const enviarElementoParaOutroLado = (tipo: 'imagem' | 'forma' | 'texto', id: string, modo: 'copiar' | 'mover' = 'mover') => {
     setDoc((d) => {
       if (!d.ladoVerso) return d;
       const chave = tipo === 'imagem' ? 'imagens' : tipo === 'forma' ? 'formas' : 'textos';
@@ -380,8 +382,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       const lista = (origem[chave] ?? []) as { id: string }[];
       const el = lista.find((x) => x.id === id);
       if (!el) return d;
-      const novaOrigem = { ...origem, [chave]: lista.filter((x) => x.id !== id) };
-      const novoDestino = { ...destino, [chave]: [...((destino[chave] ?? []) as { id: string }[]), { ...el, z: maiorZ(destino) + 1 }] };
+      const prefixo = tipo === 'imagem' ? 'img' : tipo === 'forma' ? 'forma' : 'txt';
+      const copia = modo === 'copiar' ? { ...el, id: `${prefixo}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` } : el;
+      const novaOrigem = modo === 'copiar' ? origem : { ...origem, [chave]: lista.filter((x) => x.id !== id) };
+      const novoDestino = { ...destino, [chave]: [...((destino[chave] ?? []) as { id: string }[]), { ...copia, z: maiorZ(destino) + 1 }] };
       return ladoAtivo === 'verso'
         ? { ...d, ladoVerso: novaOrigem, ladoFrente: novoDestino }
         : { ...d, ladoFrente: novaOrigem, ladoVerso: novoDestino };
