@@ -18,6 +18,7 @@ import {
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
+import { chaveListaPV, podeAcessarListaPV } from './src/lib/acessoListaPV';
 
 const router = Router();
 
@@ -179,7 +180,9 @@ const SETTINGS_PROIBIDAS = new Set(['admin_credentials']);
 // entrada da própria loja.
 const SETTINGS_POR_CNPJ_LOJA = new Set(['saved_plaquinhas', 'activity_status', 'encarte_historico', 'encarte_rascunho']);
 
-function settingParaLoja(id: string, valor: any, cnpj: string, loja: LojaCadastro | undefined): { ok: true; valor: any } | { ok: false } {
+function settingParaLoja(id: string, valor: any, cnpj: string, loja: LojaCadastro | undefined, usuario: string): { ok: true; valor: any } | { ok: false } {
+  // Lista PV própria do CNPJ — só se o admin liberou pro CNPJ / pra esse usuário
+  if (cnpj && id === chaveListaPV(cnpj) && podeAcessarListaPV(loja as any, usuario)) return { ok: true, valor };
   if (SETTINGS_POR_CNPJ_LOJA.has(id)) {
     const proprio = valor && typeof valor === 'object' ? valor[cnpj] : undefined;
     return { ok: true, valor: proprio === undefined ? {} : { [cnpj]: proprio } };
@@ -215,6 +218,9 @@ async function autorizarGravacaoSettings(req: Request, res: Response, next: Next
   }
   const cnpj = s.cnpj || '';
   const loja = (req as any).loja as LojaCadastro | undefined;
+
+  // Lista PV própria do CNPJ (liberada pelo admin pro CNPJ ou pro usuário)
+  if (cnpj && id === chaveListaPV(cnpj) && podeAcessarListaPV(loja as any, s.usuario)) return next();
 
   // Encarte Online da própria loja (lista salva e rascunho)
   if ((id === `encarte_historico_${cnpj}` || id === `encarte_rascunho_${cnpj}`) && loja?.hasEncarteAccess) return next();
@@ -784,7 +790,7 @@ router.get('/settings/:id', async (req: Request, res: Response, next: NextFuncti
     const result = await pool.query('SELECT * FROM settings WHERE id = $1', [id]);
     const valor = result.rows.length === 0 ? null : result.rows[0].value;
     if (req.sessao?.papel === 'loja') {
-      const filtrado = settingParaLoja(id, valor, req.sessao.cnpj || '', (req as any).loja);
+      const filtrado = settingParaLoja(id, valor, req.sessao.cnpj || '', (req as any).loja, req.sessao.usuario || '');
       if (!filtrado.ok) return res.status(403).json({ error: 'Sem permissão.' });
       return res.json({ value: valor === null ? null : filtrado.valor });
     }

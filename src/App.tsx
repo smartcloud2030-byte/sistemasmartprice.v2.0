@@ -18,6 +18,7 @@ import LayoutSelectorModal from './components/LayoutSelectorModal';
 import EncarteBuilder from './components/encarte/EncarteBuilder';
 import EncarteDigital from './components/encarte-digital/EncarteDigital';
 import ListaPV from './components/ListaPV';
+import { podeAcessarListaPV } from './lib/acessoListaPV';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
@@ -31,7 +32,7 @@ import {
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus, FolderOpen
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus, FolderOpen, CalendarClock
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -589,6 +590,11 @@ export default function App() {
   };
 
   // Encarte Online: admin sempre; loja só se o admin liberou (hasEncarteAccess)
+  // Lista PV: admin sempre; loja se o admin liberou pro CNPJ ou pro usuário
+  const canUseListaPV = userRole === 'admin' || podeAcessarListaPV(
+    allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, '')),
+    currentUser?.username,
+  );
   const canUseEncarte = userRole === 'admin' || !!allowedStores.find(s => s.cnpj?.replace(/[^\d]/g, '') === currentUser?.cnpj?.replace(/[^\d]/g, ''))?.hasEncarteAccess;
 
   const renderContent = () => {
@@ -700,7 +706,7 @@ export default function App() {
       return <EncarteDigital />;
     }
 
-    if (currentView === 'lista-pv' && userRole === 'admin') {
+    if (currentView === 'lista-pv' && canUseListaPV) {
       return <ListaPV />;
     }
 
@@ -908,6 +914,17 @@ export default function App() {
                 >
                   <Layout className="w-4 h-4" />
                   Encarte
+                </button>
+              )}
+
+              {/* Lista PV — loja liberada pelo admin (admin abre pelo painel) */}
+              {userRole !== 'admin' && canUseListaPV && (
+                <button
+                  onClick={() => setView('lista-pv')}
+                  className="h-10 flex items-center gap-1.5 px-3.5 bg-white dark:bg-zinc-800 text-blue-600 border border-blue-600/30 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all text-sm font-semibold"
+                >
+                  <CalendarClock className="w-4 h-4" />
+                  Lista PV
                 </button>
               )}
 

@@ -1,19 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check, Percent,
+  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check, Percent, KeyRound, Plus,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import {
-  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ORDEM_FAIXAS, ROTULO_STATUS, SETTINGS_KEY_PV, baixarModeloPV, dataBR, diasParaVencer,
+  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ORDEM_FAIXAS, ROTULO_STATUS, baixarModeloPV, dataBR, diasParaVencer,
   exportarPV, importarArquivoPV, lerNumero, moedaBR, percentualBR, percentualDescontoPV, statusPV, valorDescontoPV,
   type ColunaOpcionalPV, type ColunasPV, type DescontosPorFaixa, type ItemPV, type StatusPV,
 } from '../lib/listaPV';
+import { chaveListaPV, normalizarUsuarioPV, type ModoAcessoListaPV } from '../lib/acessoListaPV';
 
-// Lista PV — produtos próximos (ou não) do vencimento. Só admin por enquanto.
-// A lista fica no servidor em settings.lista_pv ({ itens, colunas }),
-// chave que loja não lê nem grava (ver settingParaLoja em api.ts).
+// Lista PV — produtos próximos (ou não) do vencimento.
+// Admin: lista geral em settings.lista_pv + pode abrir a de qualquer CNPJ.
+// Loja liberada (CNPJ inteiro ou só alguns usuários — botão Acessos, só admin):
+// lista própria em settings.lista_pv_<cnpj> (ver settingParaLoja em api.ts).
 
 interface DadosPV {
   itens: ItemPV[];
@@ -42,8 +44,8 @@ const BORDA_STATUS: Record<StatusPV, string> = {
   verde: 'border-l-emerald-500',
 };
 
-async function carregarPV(): Promise<DadosPV> {
-  const res = await fetch(`/api/settings/${SETTINGS_KEY_PV}`);
+async function carregarPV(chave: string): Promise<DadosPV> {
+  const res = await fetch(`/api/settings/${chave}`);
   if (!res.ok) throw new Error(`Falha ao carregar a lista (${res.status})`);
   const json = await res.json();
   const v = json?.value;
@@ -54,8 +56,8 @@ async function carregarPV(): Promise<DadosPV> {
   };
 }
 
-async function salvarPV(dados: DadosPV) {
-  const res = await fetch(`/api/settings/${SETTINGS_KEY_PV}`, {
+async function salvarPV(chave: string, dados: DadosPV) {
+  const res = await fetch(`/api/settings/${chave}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: dados }),
@@ -155,6 +157,93 @@ function CampoLinha(p: PropsCampo) {
   );
 }
 
+const formatarCnpj = (c: string) => {
+  const d = c.replace(/\D/g, '');
+  return d.length === 14 ? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : c;
+};
+
+type LojaPV = { cnpj: string; bandeira: string; listaPVAcesso?: ModoAcessoListaPV; listaPVUsuarios?: string[]; lastUsername?: string };
+
+// Uma loja na janela Acessos: sem acesso / todos os usuários do CNPJ / só os nomes da lista.
+function LinhaAcessoPV({ loja, aoMudar }: { loja: LojaPV; aoMudar: (modo: ModoAcessoListaPV, usuarios: string[]) => void }) {
+  const modo: ModoAcessoListaPV = loja.listaPVAcesso || 'nenhum';
+  const usuarios = loja.listaPVUsuarios || [];
+  const [novo, setNovo] = useState('');
+  const adicionar = () => {
+    const nome = novo.trim().replace(/\s+/g, ' ');
+    if (!nome) return;
+    if (usuarios.some((u) => normalizarUsuarioPV(u) === normalizarUsuarioPV(nome))) {
+      toast.error(`"${nome}" já está na lista.`);
+      return;
+    }
+    aoMudar('usuarios', [...usuarios, nome]);
+    setNovo('');
+  };
+  const OPCOES: { valor: ModoAcessoListaPV; rotulo: string }[] = [
+    { valor: 'nenhum', rotulo: 'Sem acesso' },
+    { valor: 'todos', rotulo: 'Todos do CNPJ' },
+    { valor: 'usuarios', rotulo: 'Só usuários' },
+  ];
+  return (
+    <li className="py-3 space-y-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{loja.bandeira || 'Sem nome'}</div>
+          <div className="text-xs text-zinc-500 font-mono">{formatarCnpj(loja.cnpj)}</div>
+        </div>
+        <div className="inline-flex border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden shrink-0 self-start md:self-auto">
+          {OPCOES.map((o) => (
+            <button
+              key={o.valor}
+              onClick={() => aoMudar(o.valor, usuarios)}
+              className={cn(
+                'px-3 py-1.5 text-xs font-bold border-l first:border-l-0 border-zinc-200 dark:border-zinc-700',
+                modo === o.valor ? 'bg-blue-600 text-white' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800',
+              )}
+            >
+              {o.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
+      {modo === 'usuarios' && (
+        <div className="flex flex-wrap items-center gap-1.5 pl-0 md:pl-3 md:border-l-2 border-blue-500/40">
+          {usuarios.map((u) => (
+            <span key={u} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 border border-zinc-200 dark:border-zinc-700 rounded-md text-xs text-zinc-700 dark:text-zinc-200">
+              {u}
+              <button
+                onClick={() => aoMudar('usuarios', usuarios.filter((x) => x !== u))}
+                className="p-0.5 text-zinc-400 hover:text-red-600"
+                title={`Tirar ${u}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <span className="inline-flex items-center border border-zinc-200 dark:border-zinc-700 rounded-md focus-within:border-blue-500">
+            <input
+              value={novo}
+              onChange={(e) => setNovo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }}
+              placeholder="Nome do usuário"
+              className="w-36 bg-transparent px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 outline-none placeholder:text-zinc-400"
+            />
+            <button onClick={adicionar} className="px-1.5 text-blue-600 hover:text-blue-700" title="Adicionar usuário">
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </span>
+          {!usuarios.length && <span className="text-xs text-amber-600">Ninguém liberado ainda.</span>}
+          {loja.lastUsername && !usuarios.some((u) => normalizarUsuarioPV(u) === normalizarUsuarioPV(loja.lastUsername)) && (
+            <button onClick={() => aoMudar('usuarios', [...usuarios, loja.lastUsername!])} className="text-xs text-blue-600 hover:underline">
+              + {loja.lastUsername} (último acesso)
+            </button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 const ROTULO_FAIXA_DESCONTO: Record<StatusPV, string> = {
   vencido: 'Vencidos',
   vermelho: '1 a 30 dias',
@@ -164,7 +253,17 @@ const ROTULO_FAIXA_DESCONTO: Record<StatusPV, string> = {
 };
 
 export default function ListaPV() {
-  const { setView } = useStore();
+  const { setView, userRole, currentUser, allowedStores, setListaPVAcesso } = useStore();
+  const ehAdmin = userRole === 'admin';
+  // Admin: '' = lista geral; senão o CNPJ (só dígitos) cuja lista está aberta.
+  const [cnpjAberto, setCnpjAberto] = useState('');
+  const chave = ehAdmin ? chaveListaPV(cnpjAberto) : chaveListaPV(currentUser?.cnpj);
+  const [janelaAcessos, setJanelaAcessos] = useState(false);
+  const [buscaAcessos, setBuscaAcessos] = useState('');
+  const lojasOrdenadas = useMemo(
+    () => [...allowedStores].sort((a, b) => (a.bandeira || '').localeCompare(b.bandeira || '') || a.cnpj.localeCompare(b.cnpj)),
+    [allowedStores],
+  );
   const [dados, setDados] = useState<DadosPV>({ itens: [] });
   const [carregando, setCarregando] = useState(true);
   const [importando, setImportando] = useState(false);
@@ -204,17 +303,21 @@ export default function ListaPV() {
     gravar({ ...dados, itens: dados.itens.map((i) => (i.id === id ? { ...i, ...mudanca } : i)) });
 
   useEffect(() => {
-    carregarPV()
-      .then(setDados)
-      .catch((e) => toast.error(e.message))
-      .finally(() => setCarregando(false));
-  }, []);
+    let vivo = true;
+    setCarregando(true);
+    setDados({ itens: [] });
+    carregarPV(chave)
+      .then((d) => { if (vivo) setDados(d); })
+      .catch((e) => { if (vivo) toast.error(e.message); })
+      .finally(() => { if (vivo) setCarregando(false); });
+    return () => { vivo = false; };
+  }, [chave]);
 
   const gravar = async (novo: DadosPV, msg?: string) => {
     const anterior = dados;
     setDados(novo);
     try {
-      await salvarPV(novo);
+      await salvarPV(chave, novo);
       if (msg) toast.success(msg);
     } catch (e: any) {
       setDados(anterior);
@@ -300,7 +403,7 @@ export default function ListaPV() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3 md:gap-4">
             <button
-              onClick={() => setView('dashboard')}
+              onClick={() => setView(ehAdmin ? 'dashboard' : 'editor')}
               className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-600 dark:text-zinc-300 hover:border-blue-500/50 transition-all"
               title="Voltar ao painel"
             >
@@ -314,7 +417,17 @@ export default function ListaPV() {
               <p className="text-zinc-500 text-xs md:text-sm font-medium">Produtos próximos do vencimento</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 md:flex md:items-center">
+          <div className={cn('grid gap-2 md:flex md:items-center', ehAdmin ? 'grid-cols-2' : 'grid-cols-3')}>
+            {ehAdmin && (
+              <button
+                onClick={() => setJanelaAcessos(true)}
+                className="flex items-center justify-center gap-2 px-3 md:px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold text-sm md:text-base hover:border-blue-500/50 transition-all"
+                title="Liberar a Lista PV para CNPJs e usuários"
+              >
+                <KeyRound className="w-5 h-5" />
+                Acessos
+              </button>
+            )}
             <button
               onClick={baixarModeloPV}
               className="flex items-center justify-center gap-2 px-3 md:px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold text-sm md:text-base hover:border-blue-500/50 transition-all"
@@ -369,6 +482,21 @@ export default function ListaPV() {
               className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-blue-500"
             />
           </div>
+          {ehAdmin && (
+            <select
+              value={cnpjAberto}
+              onChange={(e) => setCnpjAberto(e.target.value)}
+              className="py-3 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none focus:border-blue-500 md:max-w-xs"
+              title="Qual lista abrir"
+            >
+              <option value="">Lista geral (admin)</option>
+              {lojasOrdenadas.map((l) => (
+                <option key={l.cnpj} value={l.cnpj.replace(/\D/g, '')}>
+                  {(l.bandeira || 'Sem nome') + ' — ' + formatarCnpj(l.cnpj)}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-2">
           <div className="relative">
             <button
@@ -651,6 +779,53 @@ export default function ListaPV() {
               )}
               <button onClick={() => confirmarImportacao('substituir')} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">
                 {dados.itens.length > 0 ? 'Substituir lista' : 'Importar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {janelaAcessos && ehAdmin && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-zinc-200 dark:border-zinc-800">
+            <div className="p-6 pb-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white">Acesso à Lista PV</h2>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Libere para todos os usuários de um CNPJ ou só para os nomes que você digitar (o nome usado no login). Cada CNPJ tem a sua própria lista.
+                  </p>
+                </div>
+                <button onClick={() => setJanelaAcessos(false)} className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" title="Fechar">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  value={buscaAcessos}
+                  onChange={(e) => setBuscaAcessos(e.target.value)}
+                  placeholder="Buscar loja ou CNPJ"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+            <ul className="px-6 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 border-t border-zinc-100 dark:border-zinc-800">
+              {lojasOrdenadas
+                .filter((l) => {
+                  const q = buscaAcessos.trim().toLowerCase();
+                  if (!q) return true;
+                  const qd = q.replace(/\D/g, '');
+                  return (l.bandeira || '').toLowerCase().includes(q) || (!!qd && l.cnpj.replace(/\D/g, '').includes(qd));
+                })
+                .map((l) => (
+                  <LinhaAcessoPV key={l.cnpj} loja={l} aoMudar={(modo, usuarios) => setListaPVAcesso(l.cnpj, modo, usuarios)} />
+                ))}
+              {!lojasOrdenadas.length && <li className="py-8 text-center text-sm text-zinc-500">Nenhuma loja cadastrada.</li>}
+            </ul>
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
+              <button onClick={() => setJanelaAcessos(false)} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">
+                Pronto
               </button>
             </div>
           </div>

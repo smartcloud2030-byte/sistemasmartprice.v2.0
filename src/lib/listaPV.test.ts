@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import {
   diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, percentualDescontoPV, statusPV, valorDescontoPV,
 } from './listaPV';
+import { chaveListaPV, podeAcessarListaPV } from './acessoListaPV';
 
 function arquivoDe(linhas: unknown[][]): File {
   const ws = XLSX.utils.aoa_to_sheet(linhas);
@@ -91,6 +92,21 @@ async function main() {
   assert.equal(valorDescontoPV(89.99, 40), 36);
   assert.equal(valorDescontoPV(null, 40), null);
   assert.equal(valorDescontoPV(10, null), null);
+}
+
+// Acesso à Lista PV por CNPJ / usuário
+{
+  assert.equal(podeAcessarListaPV(undefined, 'erika'), false);
+  assert.equal(podeAcessarListaPV({}, 'erika'), false);
+  assert.equal(podeAcessarListaPV({ listaPVAcesso: 'nenhum' }, 'erika'), false);
+  assert.equal(podeAcessarListaPV({ listaPVAcesso: 'todos' }, 'paulo'), true);
+  const soErika = { listaPVAcesso: 'usuarios' as const, listaPVUsuarios: ['Érika'] };
+  assert.equal(podeAcessarListaPV(soErika, ' erika '), true);
+  assert.equal(podeAcessarListaPV(soErika, 'ERIKA'), true);
+  assert.equal(podeAcessarListaPV(soErika, 'Paulo'), false);
+  assert.equal(podeAcessarListaPV(soErika, ''), false);
+  assert.equal(chaveListaPV('11.222.333/0001-81'), 'lista_pv_11222333000181');
+  assert.equal(chaveListaPV(''), 'lista_pv');
 }
 
 main().catch((e) => {
