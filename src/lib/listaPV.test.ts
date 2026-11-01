@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
   diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, percentualDescontoPV, statusPV, valorDescontoPV,
+  FAIXAS_PV_PADRAO, editarFaixa, rotuloFaixa, diasDoInicio, diasDoFim,
 } from './listaPV';
 import { chaveListaPV, podeAcessarListaPV } from './acessoListaPV';
 
@@ -107,6 +108,27 @@ async function main() {
   assert.equal(podeAcessarListaPV(soErika, ''), false);
   assert.equal(chaveListaPV('11.222.333/0001-81'), 'lista_pv_11222333000181');
   assert.equal(chaveListaPV(''), 'lista_pv');
+}
+
+// Períodos editáveis
+{
+  const f = FAIXAS_PV_PADRAO;
+  assert.equal(rotuloFaixa('vermelho', f), '1 a 30 dias');
+  assert.equal(rotuloFaixa('amareloEscuro', f), '31 a 60 dias');
+  assert.equal(rotuloFaixa('amareloClaro', f), '3 a 5 meses');
+  assert.equal(rotuloFaixa('verde', f), '6 meses ou mais');
+  const r = editarFaixa(f, 'amareloClaro', diasDoInicio(4, 'meses'), diasDoFim(5, 'meses'), 'meses');
+  assert.ok(typeof r !== 'string');
+  if (typeof r !== 'string') {
+    assert.deepEqual(r.limites, [30, 119, 179]);
+    assert.equal(rotuloFaixa('amareloClaro', r), '4 a 5 meses');
+    assert.equal(rotuloFaixa('amareloEscuro', r), '31 a 119 dias');
+    assert.equal(statusPV(100, r.limites), 'amareloEscuro');
+    assert.equal(statusPV(120, r.limites), 'amareloClaro');
+  }
+  assert.equal(typeof editarFaixa(f, 'amareloEscuro', 31, 200, 'dias'), 'string');
+  const v = editarFaixa(f, 'verde', 100, null, 'dias');
+  assert.ok(typeof v !== 'string' && v.unidades.amareloClaro === 'dias' && rotuloFaixa('verde', v) === '100 dias ou mais');
 }
 
 main().catch((e) => {

@@ -6,9 +6,10 @@ import {
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
 import {
-  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ORDEM_FAIXAS, ROTULO_STATUS, baixarModeloPV, dataBR, diasParaVencer,
+  COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ORDEM_FAIXAS, baixarModeloPV, normalizarFaixas, rotuloFaixa, editarFaixa, intervaloFaixa,
+  diasDoInicio, diasDoFim, exibirInicio, exibirFim, dataBR, diasParaVencer,
   exportarPV, importarArquivoPV, lerNumero, moedaBR, percentualBR, percentualDescontoPV, statusPV, valorDescontoPV,
-  type ColunaOpcionalPV, type ColunasPV, type DescontosPorFaixa, type ItemPV, type StatusPV,
+  type ColunaOpcionalPV, type ColunasPV, type DescontosPorFaixa, type ItemPV, type StatusPV, type FaixasPV, type FaixaEditavel, type UnidadeFaixa,
 } from '../lib/listaPV';
 import { chaveListaPV, normalizarUsuarioPV, type ModoAcessoListaPV } from '../lib/acessoListaPV';
 
@@ -23,6 +24,8 @@ interface DadosPV {
   colunas?: Partial<ColunasPV>;
   /** % de desconto por período de vencimento (Configurar descontos). */
   descontos?: DescontosPorFaixa;
+  /** Limites dos períodos de vencimento (editáveis com duplo clique na janela Descontos). */
+  periodos?: Partial<FaixasPV>;
 }
 
 type Filtro = 'todos' | StatusPV;
@@ -53,6 +56,7 @@ async function carregarPV(chave: string): Promise<DadosPV> {
     itens: Array.isArray(v?.itens) ? v.itens : [],
     colunas: v?.colunas && typeof v.colunas === 'object' ? v.colunas : undefined,
     descontos: v?.descontos && typeof v.descontos === 'object' ? v.descontos : undefined,
+    periodos: v?.periodos && typeof v.periodos === 'object' ? v.periodos : undefined,
   };
 }
 
@@ -244,13 +248,81 @@ function LinhaAcessoPV({ loja, aoMudar }: { loja: LojaPV; aoMudar: (modo: ModoAc
   );
 }
 
-const ROTULO_FAIXA_DESCONTO: Record<StatusPV, string> = {
-  vencido: 'Vencidos',
-  vermelho: '1 a 30 dias',
-  amareloEscuro: '31 a 60 dias',
-  amareloClaro: '3 a 5 meses',
-  verde: '6 meses ou mais',
-};
+const rotuloSituacao = (st: StatusPV, f: FaixasPV) => (st === 'vencido' ? 'Vencido' : rotuloFaixa(st, f));
+
+// Edita o período de uma faixa (aberto com duplo clique no nome dela).
+function EditorPeriodo({ faixa, periodos, aoAplicar, aoCancelar }: {
+  faixa: FaixaEditavel;
+  periodos: FaixasPV;
+  aoAplicar: (novo: FaixasPV) => void;
+  aoCancelar: () => void;
+}) {
+  const { de, ate } = intervaloFaixa(faixa, periodos);
+  const [unidade, setUnidade] = useState<UnidadeFaixa>(periodos.unidades[faixa]);
+  const [txDe, setTxDe] = useState(String(exibirInicio(de, periodos.unidades[faixa])));
+  const [txAte, setTxAte] = useState(ate == null ? '' : String(exibirFim(ate, periodos.unidades[faixa])));
+  const temDe = faixa !== 'vermelho';
+  const temAte = faixa !== 'verde';
+  const trocarUnidade = (u: UnidadeFaixa) => {
+    // converte o que está digitado pra nova unidade
+    const nDe = lerNumero(txDe);
+    const nAte = lerNumero(txAte);
+    if (nDe != null) setTxDe(String(exibirInicio(diasDoInicio(nDe, unidade), u)));
+    if (nAte != null) setTxAte(String(exibirFim(diasDoFim(nAte, unidade), u)));
+    setUnidade(u);
+  };
+  const aplicar = () => {
+    const nDe = temDe ? lerNumero(txDe) : null;
+    const nAte = temAte ? lerNumero(txAte) : null;
+    if ((temDe && (nDe == null || !Number.isInteger(nDe))) || (temAte && (nAte == null || !Number.isInteger(nAte)))) {
+      toast.error('Use números inteiros.');
+      return;
+    }
+    if (temDe && temAte && nDe! > nAte!) {
+      toast.error('O início tem que ser antes do fim.');
+      return;
+    }
+    const r = editarFaixa(
+      periodos, faixa,
+      temDe ? diasDoInicio(nDe!, unidade) : null,
+      temAte ? diasDoFim(nAte!, unidade) : null,
+      unidade,
+    );
+    if (typeof r === 'string') return void toast.error(r);
+    aoAplicar(r);
+  };
+  const campo = (valor: string, set: (v: string) => void, rotulo: string) => (
+    <input
+      autoFocus={rotulo === (temDe ? 'Início' : 'Fim')}
+      onFocus={(e) => e.target.select()}
+      value={valor}
+      onChange={(e) => set(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') aplicar(); if (e.key === 'Escape') aoCancelar(); }}
+      inputMode="numeric"
+      aria-label={rotulo}
+      className="w-11 border border-zinc-200 dark:border-zinc-700 rounded-md px-1.5 py-1 bg-white dark:bg-zinc-900 text-right text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-blue-500"
+    />
+  );
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap text-sm text-zinc-600 dark:text-zinc-300">
+      {faixa === 'vermelho' && <span>até</span>}
+      {faixa === 'verde' && <span>a partir de</span>}
+      {temDe && campo(txDe, setTxDe, 'Início')}
+      {temDe && temAte && <span>a</span>}
+      {temAte && campo(txAte, setTxAte, 'Fim')}
+      <select
+        value={unidade}
+        onChange={(e) => trocarUnidade(e.target.value as UnidadeFaixa)}
+        className="border border-zinc-200 dark:border-zinc-700 rounded-md px-1 py-1 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-blue-500"
+      >
+        <option value="dias">dias</option>
+        <option value="meses">meses</option>
+      </select>
+      <button onClick={aplicar} className="p-1 text-blue-600 hover:text-blue-700" title="Aplicar"><Check className="w-4 h-4" /></button>
+      <button onClick={aoCancelar} className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" title="Cancelar"><X className="w-4 h-4" /></button>
+    </div>
+  );
+}
 
 export default function ListaPV() {
   const { setView, userRole, currentUser, allowedStores, setListaPVAcesso } = useStore();
@@ -275,15 +347,20 @@ export default function ListaPV() {
   const [confirmarLimpar, setConfirmarLimpar] = useState(false);
   const [menuColunas, setMenuColunas] = useState(false);
   const [editandoDescontos, setEditandoDescontos] = useState<Record<StatusPV, string> | null>(null);
+  const [editandoPeriodos, setEditandoPeriodos] = useState<FaixasPV | null>(null);
+  const [faixaEmEdicao, setFaixaEmEdicao] = useState<FaixaEditavel | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const colunas: ColunasPV = { ...COLUNAS_PV_PADRAO, ...dados.colunas };
   const alternarColuna = (chave: ColunaOpcionalPV) => gravar({ ...dados, colunas: { ...colunas, [chave]: !colunas[chave] } });
   const descontos = dados.descontos || {};
+  const periodos = useMemo(() => normalizarFaixas(dados.periodos), [dados.periodos]);
 
   const abrirDescontos = () => {
     const t = {} as Record<StatusPV, string>;
     ORDEM_FAIXAS.forEach((f) => { t[f] = descontos[f] != null ? String(descontos[f]).replace('.', ',') : ''; });
     setEditandoDescontos(t);
+    setEditandoPeriodos(periodos);
+    setFaixaEmEdicao(null);
   };
 
   const salvarDescontos = async () => {
@@ -292,11 +369,12 @@ export default function ListaPV() {
     for (const f of ORDEM_FAIXAS) {
       const n = lerNumero(editandoDescontos[f]);
       if (n == null) continue;
-      if (n < 0 || n > 100) return toast.error(`Desconto de "${ROTULO_FAIXA_DESCONTO[f]}" tem que ficar entre 0 e 100%.`);
+      if (n < 0 || n > 100) return toast.error(`Desconto de "${rotuloFaixa(f, editandoPeriodos || periodos)}" tem que ficar entre 0 e 100%.`);
       novos[f] = n;
     }
     setEditandoDescontos(null);
-    await gravar({ ...dados, descontos: novos }, 'Descontos salvos.');
+    setFaixaEmEdicao(null);
+    await gravar({ ...dados, descontos: novos, periodos: editandoPeriodos || periodos }, 'Descontos e períodos salvos.');
   };
 
   const editarItem = (id: string, mudanca: Partial<ItemPV>) =>
@@ -330,12 +408,12 @@ export default function ListaPV() {
       dados.itens
         .map((i) => {
           const dias = diasParaVencer(i.vencimento);
-          const status = statusPV(dias);
+          const status = statusPV(dias, periodos.limites);
           const pctDesconto = percentualDescontoPV(i, status, dados.descontos);
           return { ...i, dias, status, pctDesconto, valorDesconto: valorDescontoPV(i.precoOferta, pctDesconto) };
         })
         .sort((a, b) => (maisProximoPrimeiro ? a.dias - b.dias : b.dias - a.dias) || a.produto.localeCompare(b.produto)),
-    [dados, maisProximoPrimeiro],
+    [dados, periodos, maisProximoPrimeiro],
   );
 
   const contagem = useMemo(() => {
@@ -383,18 +461,18 @@ export default function ListaPV() {
   const exportar = () => {
     if (!visiveis.length) return toast.error('Não há produtos para exportar.');
     const sufixo = filtro === 'todos' ? '' : `-${filtro}`;
-    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`, colunas, dados.descontos);
+    exportarPV(visiveis, `lista-pv${sufixo}-${new Date().toISOString().slice(0, 10)}.xlsx`, colunas, dados.descontos, periodos);
   };
 
   const remover = (id: string) => gravar({ ...dados, itens: dados.itens.filter((i) => i.id !== id) });
 
   const CARTOES: { chave: Filtro; rotulo: string; valor: number; cor: string }[] = [
     { chave: 'todos', rotulo: 'Total', valor: comStatus.length, cor: 'text-zinc-900 dark:text-white' },
-    { chave: 'vencido', rotulo: 'Vencidos', valor: contagem.vencido, cor: 'text-red-700 dark:text-red-500' },
-    { chave: 'vermelho', rotulo: '1 a 30 dias', valor: contagem.vermelho, cor: 'text-red-500' },
-    { chave: 'amareloEscuro', rotulo: '31 a 60 dias', valor: contagem.amareloEscuro, cor: 'text-amber-500' },
-    { chave: 'amareloClaro', rotulo: '3 a 5 meses', valor: contagem.amareloClaro, cor: 'text-yellow-500 dark:text-yellow-300' },
-    { chave: 'verde', rotulo: '6 meses ou mais', valor: contagem.verde, cor: 'text-emerald-600' },
+    { chave: 'vencido', rotulo: rotuloFaixa('vencido', periodos), valor: contagem.vencido, cor: 'text-red-700 dark:text-red-500' },
+    { chave: 'vermelho', rotulo: rotuloFaixa('vermelho', periodos), valor: contagem.vermelho, cor: 'text-red-500' },
+    { chave: 'amareloEscuro', rotulo: rotuloFaixa('amareloEscuro', periodos), valor: contagem.amareloEscuro, cor: 'text-amber-500' },
+    { chave: 'amareloClaro', rotulo: rotuloFaixa('amareloClaro', periodos), valor: contagem.amareloClaro, cor: 'text-yellow-500 dark:text-yellow-300' },
+    { chave: 'verde', rotulo: rotuloFaixa('verde', periodos), valor: contagem.verde, cor: 'text-emerald-600' },
   ];
 
   return (
@@ -574,7 +652,7 @@ export default function ListaPV() {
                     <div className="font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{i.produto || '—'}</div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn('px-2 py-0.5 rounded-lg text-[11px] font-bold whitespace-nowrap', COR_STATUS[i.status])}>
-                        {ROTULO_STATUS[i.status]}
+                        {rotuloSituacao(i.status, periodos)}
                       </span>
                       <span className="text-sm text-zinc-700 dark:text-zinc-300">Vence {dataBR(i.vencimento)}</span>
                     </div>
@@ -683,7 +761,7 @@ export default function ListaPV() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={cn('px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap', COR_STATUS[i.status])}>
-                          {ROTULO_STATUS[i.status]}
+                          {rotuloSituacao(i.status, periodos)}
                         </span>
                       </td>
                       {colunas.quantidade && (
@@ -834,17 +912,36 @@ export default function ListaPV() {
 
       {editandoDescontos && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full space-y-4 border border-zinc-200 dark:border-zinc-800">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-md w-full space-y-4 border border-zinc-200 dark:border-zinc-800">
             <div>
               <h2 className="text-lg font-black text-zinc-900 dark:text-white">Descontos por período</h2>
               <p className="text-sm text-zinc-500 mt-1">
                 Quanto cada período de vencimento ganha de desconto. O valor em reais sai do preço de oferta. Deixe em branco pra usar o % da planilha.
               </p>
+              <p className="text-xs text-zinc-400 mt-1">Dois cliques no nome do período pra mudar o intervalo. Mudar o início de um ajusta o fim do anterior.</p>
             </div>
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800 border-y border-zinc-100 dark:border-zinc-800">
               {ORDEM_FAIXAS.map((f) => (
-                <label key={f} className={cn('flex items-center justify-between gap-3 py-2.5 pl-3 border-l-4', BORDA_STATUS[f])}>
-                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{ROTULO_FAIXA_DESCONTO[f]}</span>
+                <div key={f} className={cn('flex items-center justify-between gap-3 py-2.5 pl-3 border-l-4', BORDA_STATUS[f])}>
+                  {f !== 'vencido' && faixaEmEdicao === f && editandoPeriodos ? (
+                    <EditorPeriodo
+                      faixa={f}
+                      periodos={editandoPeriodos}
+                      aoAplicar={(novo) => { setEditandoPeriodos(novo); setFaixaEmEdicao(null); }}
+                      aoCancelar={() => setFaixaEmEdicao(null)}
+                    />
+                  ) : (
+                    <span
+                      onDoubleClick={() => { if (f !== 'vencido') setFaixaEmEdicao(f); }}
+                      className={cn(
+                        'text-sm font-semibold text-zinc-800 dark:text-zinc-200 select-none px-1.5 py-1 -mx-1.5 rounded-md border border-transparent',
+                        f !== 'vencido' && 'cursor-pointer hover:border-zinc-200 dark:hover:border-zinc-700',
+                      )}
+                      title={f !== 'vencido' ? 'Dois cliques para mudar o período' : undefined}
+                    >
+                      {rotuloFaixa(f, editandoPeriodos || periodos)}
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 focus-within:border-blue-500">
                     <input
                       value={editandoDescontos[f]}
@@ -856,11 +953,11 @@ export default function ListaPV() {
                     />
                     <span className="text-sm text-zinc-400">%</span>
                   </span>
-                </label>
+                </div>
               ))}
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setEditandoDescontos(null)} className="px-4 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <button onClick={() => { setEditandoDescontos(null); setFaixaEmEdicao(null); }} className="px-4 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                 Cancelar
               </button>
               <button onClick={salvarDescontos} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">

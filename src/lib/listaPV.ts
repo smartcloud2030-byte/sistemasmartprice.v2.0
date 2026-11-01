@@ -183,18 +183,96 @@ export function diasParaVencer(vencimento: string, hoje = new Date()): number {
   return Math.round((alvo - base) / 86_400_000);
 }
 
-// Faixas por dias até vencer (6 meses ≈ 180 dias, 3 meses ≈ 90):
+// Faixas por dias até vencer. Os limites são editáveis (Descontos > duplo
+// clique no período) e encadeados: o fim de uma faixa é o início da seguinte.
 //   vencido        < 0
-//   vermelho       0–30   (vence hoje conta aqui)
-//   amarelo escuro 31–60
-//   amarelo claro  61–179 (3 a 5 meses; cobre também o vão 61–90 e 5–6 meses)
-//   verde          180+   (6 meses ou mais)
-export function statusPV(dias: number): StatusPV {
+//   vermelho       0 .. limites[0]   (vence hoje conta aqui)
+//   amareloEscuro  limites[0]+1 .. limites[1]
+//   amareloClaro   limites[1]+1 .. limites[2]
+//   verde          limites[2]+1 em diante
+// Padrão: 30 / 60 / 179 (1-30 dias, 31-60 dias, 3 a 5 meses, 6 meses ou mais).
+export type UnidadeFaixa = 'dias' | 'meses';
+export type FaixaEditavel = Exclude<StatusPV, 'vencido'>;
+export interface FaixasPV {
+  limites: [number, number, number];
+  unidades: Record<FaixaEditavel, UnidadeFaixa>;
+}
+export const FAIXAS_PV_PADRAO: FaixasPV = {
+  limites: [30, 60, 179],
+  unidades: { vermelho: 'dias', amareloEscuro: 'dias', amareloClaro: 'meses', verde: 'meses' },
+};
+
+/** Junta o que veio salvo com o padrão; limites inválidos voltam pro padrão. */
+export function normalizarFaixas(f?: Partial<FaixasPV> | null): FaixasPV {
+  const l = f?.limites;
+  const ok = Array.isArray(l) && l.length === 3 && l.every((n) => Number.isInteger(n)) && l[0] >= 0 && l[0] < l[1] && l[1] < l[2];
+  return {
+    limites: ok ? [l[0], l[1], l[2]] : FAIXAS_PV_PADRAO.limites,
+    unidades: { ...FAIXAS_PV_PADRAO.unidades, ...(f?.unidades || {}) },
+  };
+}
+
+export function statusPV(dias: number, limites: [number, number, number] = FAIXAS_PV_PADRAO.limites): StatusPV {
   if (dias < 0) return 'vencido';
-  if (dias <= 30) return 'vermelho';
-  if (dias <= 60) return 'amareloEscuro';
-  if (dias < 180) return 'amareloClaro';
+  if (dias <= limites[0]) return 'vermelho';
+  if (dias <= limites[1]) return 'amareloEscuro';
+  if (dias <= limites[2]) return 'amareloClaro';
   return 'verde';
+}
+
+/** Dias de início e fim da faixa (fim null = sem limite). */
+export function intervaloFaixa(status: FaixaEditavel, f: FaixasPV): { de: number; ate: number | null } {
+  const [a, b, c] = f.limites;
+  if (status === 'vermelho') return { de: 0, ate: a };
+  if (status === 'amareloEscuro') return { de: a + 1, ate: b };
+  if (status === 'amareloClaro') return { de: b + 1, ate: c };
+  return { de: c + 1, ate: null };
+}
+
+// Meses = meses completos (30 dias): "de 4 meses" começa no dia 120,
+// "até 5 meses" vai até o dia 179 (antes de completar 6).
+export const diasDoInicio = (v: number, u: UnidadeFaixa) => (u === 'meses' ? v * 30 : v);
+export const diasDoFim = (v: number, u: UnidadeFaixa) => (u === 'meses' ? (v + 1) * 30 - 1 : v);
+export const exibirInicio = (d: number, u: UnidadeFaixa) => (u === 'meses' ? Math.ceil(d / 30) : d);
+export const exibirFim = (d: number, u: UnidadeFaixa) => (u === 'meses' ? Math.floor((d + 1) / 30) - 1 : d);
+const alinhadoInicio = (d: number) => d % 30 === 0 || (d - 1) % 30 === 0;
+const alinhadoFim = (d: number) => (d + 1) % 30 === 0 || d % 30 === 0;
+
+export function rotuloFaixa(status: StatusPV, f: FaixasPV = FAIXAS_PV_PADRAO): string {
+  if (status === 'vencido') return 'Vencidos';
+  const u = f.unidades[status];
+  const { de, ate } = intervaloFaixa(status, f);
+  const nome = (n: number) => (u === 'meses' ? (n === 1 ? 'mês' : 'meses') : n === 1 ? 'dia' : 'dias');
+  if (ate == null) {
+    const n = exibirInicio(de, u);
+    return `${n} ${nome(n)} ou mais`;
+  }
+  const fim = exibirFim(ate, u);
+  if (status === 'vermelho') return u === 'meses' ? `Até ${fim} ${nome(fim)}` : `1 a ${fim} ${nome(fim)}`;
+  const ini = exibirInicio(de, u);
+  return ini === fim ? `${ini} ${nome(ini)}` : `${ini} a ${fim} ${nome(fim)}`;
+}
+
+/**
+ * Muda o período de uma faixa (valores já em dias). Ajusta as vizinhas pra
+ * continuar encadeado. Vizinha em meses que deixa de cair num mês redondo
+ * passa a ser mostrada em dias. Erro → string.
+ */
+export function editarFaixa(f: FaixasPV, status: FaixaEditavel, de: number | null, ate: number | null, unidade: UnidadeFaixa): FaixasPV | string {
+  const l: [number, number, number] = [...f.limites];
+  if (status === 'vermelho') { if (ate == null) return 'Informe até quantos dias.'; l[0] = ate; }
+  if (status === 'amareloEscuro') { if (de == null || ate == null) return 'Informe o início e o fim.'; l[0] = de - 1; l[1] = ate; }
+  if (status === 'amareloClaro') { if (de == null || ate == null) return 'Informe o início e o fim.'; l[1] = de - 1; l[2] = ate; }
+  if (status === 'verde') { if (de == null) return 'Informe a partir de quando.'; l[2] = de - 1; }
+  if (l[0] < 0) return 'O primeiro período precisa começar depois de hoje.';
+  if (!(l[0] < l[1] && l[1] < l[2])) return 'Os períodos ficaram sobrepostos — o fim tem que ser depois do início e não pode passar do período seguinte.';
+  const novo: FaixasPV = { limites: l, unidades: { ...f.unidades, [status]: unidade } };
+  for (const v of ['vermelho', 'amareloEscuro', 'amareloClaro', 'verde'] as FaixaEditavel[]) {
+    if (v === status || novo.unidades[v] !== 'meses') continue;
+    const { de: d, ate: a } = intervaloFaixa(v, novo);
+    if ((v !== 'vermelho' && !alinhadoInicio(d)) || (a != null && !alinhadoFim(a))) novo.unidades[v] = 'dias';
+  }
+  return novo;
 }
 
 export const ROTULO_STATUS: Record<StatusPV, string> = {
@@ -233,16 +311,18 @@ export function exportarPV(
   nomeArquivo: string,
   colunas: ColunasPV = COLUNAS_PV_PADRAO,
   faixas?: DescontosPorFaixa,
+  periodos: FaixasPV = FAIXAS_PV_PADRAO,
 ) {
   const linhas = itens.map((i) => {
     const dias = diasParaVencer(i.vencimento);
-    const pct = percentualDescontoPV(i, statusPV(dias), faixas);
+    const st = statusPV(dias, periodos.limites);
+    const pct = percentualDescontoPV(i, st, faixas);
     const linha: Record<string, string | number> = {
       Produto: i.produto,
       Código: i.codigo,
       Vencimento: dataBR(i.vencimento),
       'Dias para vencer': dias,
-      Situação: ROTULO_STATUS[statusPV(dias)],
+      Situação: st === 'vencido' ? 'Vencido' : rotuloFaixa(st, periodos),
     };
     if (colunas.quantidade) linha.Quantidade = i.quantidade ?? '';
     if (colunas.lote) linha.Lote = i.lote;
