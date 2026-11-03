@@ -74,7 +74,9 @@ rotate_remote() {
   excess=$(( $(printf '%s\n' "$files" | grep -c .) - MAX_BACKUPS ))
   if [ "$excess" -gt 0 ]; then
     printf '%s\n' "$files" | head -n "$excess" | while IFS= read -r f; do
-      [ -n "$f" ] && rclone deletefile "$DRIVE_REMOTE/$f"
+      # --drive-use-trash=false: apaga de vez — na lixeira o arquivo continua
+      # ocupando a cota e o Drive encheu (storageQuotaExceeded, 02/11/2026)
+      [ -n "$f" ] && rclone deletefile --drive-use-trash=false "$DRIVE_REMOTE/$f"
     done
   fi
 }
