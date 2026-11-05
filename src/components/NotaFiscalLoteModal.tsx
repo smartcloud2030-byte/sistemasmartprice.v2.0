@@ -177,6 +177,10 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
     setItens((atual) => atual.map((i) => (i.cnpj === cnpj ? { ...i, ...mudanca } : i)));
 
   const selecionados = itens.filter((i) => i.marcado);
+  const todosMarcados = itens.length > 0 && itens.every((i) => i.marcado);
+  // Nota já autorizada continua marcada — desmarcar não desfaz a emissão.
+  const marcarTodos = (marcar: boolean) =>
+    setItens((atual) => atual.map((i) => (i.status === 'autorizada' ? i : { ...i, marcado: marcar })));
   const totalLote = selecionados.reduce((soma, i) => soma + (Number(i.valor) || 0), 0);
 
   const validar = (paraAgendar = false): string | null => {
@@ -429,6 +433,22 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
                 <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} className={cn(inputCls, 'resize-none')} />
               </div>
             </>
+          )}
+
+          {itens.length > 0 && fase === 'form' && (
+            <div className="flex items-center justify-between gap-3 px-3">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={todosMarcados}
+                  ref={(el) => { if (el) el.indeterminate = selecionados.length > 0 && !todosMarcados; }}
+                  onChange={(e) => marcarTodos(e.target.checked)}
+                  className="w-4 h-4 accent-emerald-600"
+                />
+                <span className="text-xs font-bold text-black dark:text-white">{todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}</span>
+              </label>
+              <span className="text-[11px] text-zinc-400">{selecionados.length} de {itens.length} marcado{itens.length === 1 ? '' : 's'}</span>
+            </div>
           )}
 
           {itens.length > 0 && (
