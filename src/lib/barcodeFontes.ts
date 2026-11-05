@@ -93,10 +93,37 @@ export async function buscarOpenFacts(gtin: string): Promise<ProdutoEncontrado |
   return null;
 }
 
-/** CMED primeiro (nome oficial); foto e produtos que não são remédio vêm do Open Facts. */
+/**
+ * Foto pelo CDN da Cosmos: é público e NÃO gasta a cota da API. Às vezes vem
+ * uma caixa genérica, mas na maioria é a embalagem real. Devolve a URL do
+ * nosso proxy (/api/barcode-image), porque o CDN não manda CORS.
+ */
+export async function fotoCosmosCdn(codigo: string): Promise<string | null> {
+  // O CDN só conhece o EAN-13 ("07891106000956" → "7891106000956").
+  const gtin = codigo.length === 14 && codigo.startsWith('0') ? codigo.slice(1) : codigo;
+  try {
+    const res = await fetch(`https://cdn-cosmos.bluesoft.com.br/products/${gtin}`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok ? `/api/barcode-image/${gtin}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** CMED primeiro (nome oficial); foto e produtos que não são remédio vêm do Open Facts; sem foto, tenta o CDN da Cosmos. */
 export async function buscarFontesGratuitas(gtin: string): Promise<ProdutoEncontrado | null> {
   const doCmed = buscarCmed(gtin);
-  const doOpen = await buscarOpenFacts(gtin).catch(() => null);
-  if (doCmed) return { ...doCmed, thumbnail: doOpen?.thumbnail || null, fonte: doOpen?.thumbnail ? `${doCmed.fonte} + foto ${doOpen.fonte}` : doCmed.fonte };
-  return doOpen;
+  const [doOpen, cdn] = await Promise.all([
+    buscarOpenFacts(gtin).catch(() => null),
+    fotoCosmosCdn(gtin),
+  ]);
+  const base = doCmed || doOpen;
+  if (!base) return null;
+  const fotoOpen = doOpen?.thumbnail || null;
+  const thumbnail = fotoOpen || cdn;
+  const fonteFoto = fotoOpen ? doOpen!.fonte : cdn ? 'Cosmos' : null;
+  const fonte = fonteFoto && fonteFoto !== base.fonte ? `${base.fonte} + foto ${fonteFoto}` : base.fonte;
+  return { ...base, thumbnail, fonte };
 }

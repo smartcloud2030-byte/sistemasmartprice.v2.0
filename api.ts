@@ -18,7 +18,7 @@ import {
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
-import { buscarFontesGratuitas } from './src/lib/barcodeFontes';
+import { buscarFontesGratuitas, fotoCosmosCdn } from './src/lib/barcodeFontes';
 import { chaveListaPV, podeAcessarListaPV } from './src/lib/acessoListaPV';
 
 const router = Router();
@@ -425,7 +425,18 @@ router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasPr
   if (!gtin) return res.status(400).json({ error: 'Código de barras inválido' });
 
   const cache = await lerCacheCosmos(gtin);
-  if (cache?.encontrado) return res.json(cache.resposta);
+  if (cache?.encontrado) {
+    // Cache gravado antes de existir a foto pelo CDN: tenta completar.
+    if (cache.resposta && !cache.resposta.thumbnail) {
+      const foto = await fotoCosmosCdn(gtin);
+      if (foto) {
+        const completa = { ...cache.resposta, thumbnail: foto };
+        gravarCacheCosmos(gtin, true, completa);
+        return res.json(completa);
+      }
+    }
+    return res.json(cache.resposta);
+  }
 
   // 1º as bases gratuitas (Anvisa/CMED + Open Facts) — a Cosmos só entra se
   // nenhuma delas tiver o produto, pra não gastar a cota.
