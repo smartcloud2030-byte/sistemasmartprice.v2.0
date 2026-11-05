@@ -18,7 +18,7 @@ import {
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
-import { buscarFontesGratuitas, fotoCosmosCdn } from './src/lib/barcodeFontes';
+import { buscarFontesGratuitas, fotoCosmosCdn, tarjaCmed } from './src/lib/barcodeFontes';
 import { chaveListaPV, podeAcessarListaPV } from './src/lib/acessoListaPV';
 
 const router = Router();
@@ -510,6 +510,18 @@ router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasPr
   } catch (err: any) {
     res.status(502).json({ error: err.message || 'Falha ao consultar a Cosmos' });
   }
+});
+
+// Tarja (lista CMED) de vários códigos de uma vez — o Encarte usa pra barrar
+// remédio com receita e pôr a advertência de remédio sem receita.
+router.post('/divulgacao/tarjas', exigirSessaoValida(), (req: Request, res: Response) => {
+  const codigos: string[] = Array.isArray(req.body?.codigos) ? req.body.codigos.slice(0, 500) : [];
+  const resposta: Record<string, string | null> = {};
+  for (const c of codigos) {
+    const gtin = String(c ?? '').replace(/\D/g, '');
+    if (gtin) resposta[gtin] = tarjaCmed(gtin);
+  }
+  res.json(resposta);
 });
 
 // Proxy da foto do produto (Cosmos nao manda CORS, <img> nao carrega direto)

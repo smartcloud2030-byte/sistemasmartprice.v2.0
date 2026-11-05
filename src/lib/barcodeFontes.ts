@@ -58,6 +58,17 @@ export function buscarCmed(gtin: string): ProdutoEncontrado | null {
   return null;
 }
 
+/** Tarja do remédio pela CMED: 'V' vermelha, 'P' preta, 'L' sem tarja, '' sem informação; null = código não é remédio da CMED. */
+export function tarjaCmed(gtin: string): 'V' | 'P' | 'L' | '' | null {
+  const base = carregarCmed();
+  if (!base) return null;
+  for (const g of variantes(gtin)) {
+    const item = base.itens[g];
+    if (item) return (item[4] as any) ?? '';
+  }
+  return null;
+}
+
 const OPEN_FACTS = [
   { host: 'world.openfoodfacts.org', nome: 'Open Food Facts' },
   { host: 'world.openbeautyfacts.org', nome: 'Open Beauty Facts' },

@@ -31,11 +31,15 @@ async function baixarLista() {
   const col = (nome) => cab.findIndex((c) => c === nome || c.startsWith(nome));
   const cEan = [col('EAN 1'), col('EAN 2'), col('EAN 3')].filter((i) => i >= 0);
   const cProd = col('PRODUTO'), cApres = col('APRESENTA'), cLab = col('LABORAT'), cSubst = col('SUBST');
+  const cTarja = col('TARJA');
+  // V = vermelha (com ou sem restrição), P = preta, L = sem tarja (venda livre), '' = CMED não informa
+  const tarjaDe = (v) => { const t = String(v ?? '').toLowerCase(); return t.includes('preta') ? 'P' : t.includes('vermelha') ? 'V' : t.includes('sem tarja') ? 'L' : ''; };
   if (cEan.length === 0 || cProd < 0) throw new Error('Colunas EAN/PRODUTO não encontradas — a CMED mudou o layout?');
 
   const itens = {};
   for (const r of linhas.slice(ih + 1)) {
     const dados = [r[cProd], r[cApres], r[cLab], r[cSubst]].map((v) => String(v ?? '').replace(/\s+/g, ' ').trim());
+    dados.push(cTarja >= 0 ? tarjaDe(r[cTarja]) : '');
     if (!dados[0]) continue;
     for (const c of cEan) {
       const ean = String(r[c] ?? '').replace(/\D/g, '');

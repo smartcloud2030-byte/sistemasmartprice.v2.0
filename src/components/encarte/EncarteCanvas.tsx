@@ -421,6 +421,8 @@ interface EncarteCanvasProps {
   textos: TextoEncarte[];
   guias: GuiaEncarte[];
   rodape: { ativo: boolean; texto: string };
+  /** Frases que a lei obriga (leite, remédio sem receita) — rodapé fixo, sempre no download. */
+  avisosLegais?: string[];
   ladoAtivo: 'frente' | 'verso';
   temVerso: boolean;
   produtoDetalhadoId: string | number | null;
@@ -568,6 +570,7 @@ export default function EncarteCanvas({
   formas,
   textos,
   rodape,
+  avisosLegais = [],
   ladoAtivo,
   temVerso,
   produtoDetalhadoId,
@@ -3026,13 +3029,22 @@ export default function EncarteCanvas({
             </div>
           )}
 
-          {/* Rodapé */}
-          {rodape.ativo && (
-            <div
-              className="absolute bottom-0 left-0 right-0 text-center py-2 px-3 text-[10px] font-semibold tracking-wide"
-              style={{ color: '#e8850c', background: 'rgba(255,255,255,0.55)' }}
-            >
-              {rodape.texto}
+          {/* Rodapé + frases obrigatórias por lei */}
+          {(rodape.ativo || avisosLegais.length > 0) && (
+            <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
+              {avisosLegais.length > 0 && (
+                <div className="text-center px-3 py-1 text-[7px] leading-tight font-semibold" style={{ color: '#111', background: 'rgba(255,255,255,0.85)' }}>
+                  {avisosLegais.map((f) => <p key={f}>{f}</p>)}
+                </div>
+              )}
+              {rodape.ativo && (
+                <div
+                  className="text-center py-2 px-3 text-[10px] font-semibold tracking-wide"
+                  style={{ color: '#e8850c', background: 'rgba(255,255,255,0.55)' }}
+                >
+                  {rodape.texto}
+                </div>
+              )}
             </div>
           )}
 

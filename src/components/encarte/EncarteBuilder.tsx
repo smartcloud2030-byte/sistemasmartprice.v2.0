@@ -13,6 +13,7 @@ import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
 import GerarPlaquinhasModal from './GerarPlaquinhasModal';
 import { useHistoricoEdicao, OpcoesSet } from './useHistoricoEdicao';
+import { avaliarProduto, frasesObrigatorias, Tarja } from '../../lib/regrasDivulgacao';
 import { Formato, FORMATO_PADRAO, FormatoId, getFormato } from './formatos';
 import {
   EncarteProduto,
@@ -314,10 +315,88 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     }, opcoes);
   };
 
+  // ── Regras de divulgação (lei) ───────────────────────────────────────
+  // Tarja de cada código de barras pela lista CMED (servidor). undefined =
+  // ainda não consultado; null = não é remédio da CMED.
+  const [tarjas, setTarjas] = useState<Record<string, Tarja>>({});
+  const tarjasRef = useRef(tarjas);
+  tarjasRef.current = tarjas;
+  const codigosDe = (p: Product) =>
+    [p.barcode, p.barcode2].map((c) => String(c ?? '').replace(/\D/g, '')).filter((c) => c.length >= 8);
+
+  const consultarTarjas = async (codigos: string[]) => {
+    const faltam = [...new Set(codigos)].filter((c) => !(c in tarjasRef.current));
+    if (faltam.length === 0) return tarjasRef.current;
+    const res = await fetch('/api/divulgacao/tarjas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigos: faltam }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const novas: Record<string, Tarja> = await res.json();
+    const juntas = { ...tarjasRef.current, ...novas };
+    tarjasRef.current = juntas;
+    setTarjas(juntas);
+    return juntas;
+  };
+
+  const tarjaDe = (p: Product, mapa = tarjas): Tarja => {
+    for (const c of codigosDe(p)) if (mapa[c] != null) return mapa[c];
+    return null;
+  };
+  const restricaoDe = (ep: { product: Product; nome?: string; descricao?: string }, mapa = tarjas) =>
+    avaliarProduto({ nome: `${ep.product.name || ''} ${ep.nome || ''}`, descricao: ep.descricao ?? ep.product.description ?? '' }, tarjaDe(ep.product, mapa));
+
+  // Produtos que já estavam no encarte (rascunho/encarte salvo): consulta a tarja deles também.
+  const codigosNoEncarte = [...ladoFrente.produtos, ...(ladoVerso?.produtos ?? [])].flatMap((ep) => codigosDe(ep.product));
+  const chaveCodigos = [...new Set(codigosNoEncarte)].sort().join(',');
+  useEffect(() => {
+    if (chaveCodigos) consultarTarjas(chaveCodigos.split(',')).catch(() => { /* tenta de novo na próxima mudança */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveCodigos]);
+
+  // Aviso (uma vez por produto) de remédio com receita que já estava no encarte.
+  const avisadosRef = useRef(new Set<string | number | undefined>());
+  useEffect(() => {
+    for (const ep of [...ladoFrente.produtos, ...(ladoVerso?.produtos ?? [])]) {
+      const r = restricaoDe(ep);
+      if (r?.nivel !== 'bloqueado' || avisadosRef.current.has(ep.product.id)) continue;
+      avisadosRef.current.add(ep.product.id);
+      toast.error(`${ep.nome || ep.product.name}: não pode ser divulgado no encarte`, {
+        description: `${r.motivo} (${r.lei}). Tire do encarte — na plaquinha pode.`,
+        duration: 12000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tarjas, ladoFrente.produtos, ladoVerso?.produtos]);
+
+  // Frases obrigatórias do lado aberto (leite → Ministério da Saúde; remédio sem receita → advertência).
+  const avisosLegais = frasesObrigatorias(lado.produtos.filter((ep) => !ep.oculto).map((ep) => restricaoDe(ep)));
+
   // Adicionar NÃO reorganiza a grade: os que já estão ficam exatamente onde
   // e do tamanho que o usuário deixou. O novo vai pra primeira célula vazia
   // (grade cheia → nasce na posição em cascata, por cima, pra arrastar).
-  const adicionarProduto = (product: Product) => {
+  const adicionarProduto = async (product: Product) => {
+    if (lado.produtos.some((ep) => ep.product.id === product.id)) return;
+    let mapa = tarjas;
+    try {
+      mapa = await consultarTarjas(codigosDe(product));
+    } catch {
+      /* sem resposta do servidor: segue só com a regra pelo nome (leite/fórmula) */
+    }
+    const restricao = restricaoDe({ product, nome: product.name, descricao: product.description ?? '' }, mapa);
+    if (restricao?.nivel === 'bloqueado') {
+      avisadosRef.current.add(product.id);
+      toast.error(`${product.name}: não pode ser divulgado no encarte`, {
+        description: `${restricao.motivo} (${restricao.lei}). Na plaquinha de gôndola pode.`,
+        duration: 12000,
+      });
+      return;
+    }
+    if (restricao?.nivel === 'frase' && !avisosLegais.length) {
+      toast.info('Coloquei no rodapé do encarte a frase obrigatória por lei.', { description: restricao.lei });
+    }
     atualizarLado((l) => {
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
       const novo = { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 };
@@ -912,6 +991,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           textos={lado.textos ?? []}
           guias={lado.guias ?? []}
           rodape={lado.rodape}
+          avisosLegais={avisosLegais}
           ladoAtivo={ladoAtivo}
           temVerso={ladoVerso != null}
           produtoDetalhadoId={produtoDetalhadoId}
