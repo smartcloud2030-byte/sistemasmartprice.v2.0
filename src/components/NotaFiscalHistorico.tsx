@@ -98,7 +98,7 @@ export default function NotaFiscalHistorico() {
   const baixarLote = (lote: LoteEmitido) => {
     // A rota do ZIP aceita até 50 notas por vez.
     for (let i = 0; i < lote.ids.length; i += 50) {
-      window.open(`/api/notafiscal/lote/zip?ids=${lote.ids.slice(i, i + 50).join(',')}`, '_blank');
+      window.open(`/api/notafiscal/lote/zip?ids=${lote.ids.slice(i, i + 50).join(',')}&nome=${encodeURIComponent(lote.nome)}`, '_blank');
     }
   };
 

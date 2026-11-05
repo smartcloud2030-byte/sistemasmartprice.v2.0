@@ -92,7 +92,7 @@ export default function NotaFiscalAgendamentos({ onMudou }: { onMudou: () => voi
           {lote.notas.length > 0 && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={() => window.open(`/api/notafiscal/lote/zip?ids=${lote.notas.map((n) => n.id).join(',')}`, '_blank')}
+                onClick={() => window.open(`/api/notafiscal/lote/zip?ids=${lote.notas.map((n) => n.id).join(',')}&nome=${encodeURIComponent(lote.nome || '')}`, '_blank')}
                 title="Baixar ZIP pra conferir"
                 className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-emerald-500/50 transition-colors"
               >

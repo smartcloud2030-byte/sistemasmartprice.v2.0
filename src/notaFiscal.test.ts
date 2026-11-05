@@ -144,3 +144,12 @@ try {
   console.error('FAIL:', err.message);
   process.exit(1);
 }
+
+// nome de ZIP seguro pro Windows
+{
+  const { nomeSeguroWindows } = await import('./notaFiscal');
+  assert.strictEqual(nomeSeguroWindows('Grupo Cella - 21 VL UNIT 39,97 - TOTAL R$ 839,37   '), 'Grupo Cella - 21 VL UNIT 39,97 - TOTAL R$ 839,37');
+  assert.strictEqual(nomeSeguroWindows('A/B: c? "d" <e>|f.'), 'A-B- c- -d- -e--f');
+  assert.strictEqual(nomeSeguroWindows('   '), 'notas-fiscais');
+  console.log('PASS: nomeSeguroWindows');
+}

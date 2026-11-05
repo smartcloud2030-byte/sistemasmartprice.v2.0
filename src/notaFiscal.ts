@@ -549,9 +549,28 @@ async function montarZipDasNotas(notas: any[]): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-function nomeDoZip(): string {
-  const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Fortaleza' });
-  return `notas-fiscais-${hoje}.zip`;
+// Nome que abre sem erro no Windows: sem : * ? " < > | / \ e sem espaço ou
+// ponto no fim. Segue o padrão que o José usa nas pastas:
+// "Grupo Cella - 21 VL UNIT 39,97 - TOTAL R$ 839,37 - 11-2026.zip"
+export function nomeSeguroWindows(nome: string): string {
+  return nome.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/\s+/g, ' ').replace(/[\s.]+$/, '').trim().slice(0, 150) || 'notas-fiscais';
+}
+
+function nomeDoZip(notas: any[], nome?: string): string {
+  const mes = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza', month: '2-digit', year: 'numeric' }).replace('/', '-');
+  const grupo = (nome || notas[0]?.lote_nome || 'Notas fiscais').trim();
+  const valores = notas.map((n) => Number(n.valor) || 0);
+  const total = valores.reduce((a, b) => a + b, 0);
+  const num = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const mesmoValor = valores.length > 0 && valores.every((v) => v === valores[0]);
+  const meio = mesmoValor ? `${notas.length} VL UNIT ${num(valores[0])}` : `${notas.length} notas`;
+  return `${nomeSeguroWindows(`${grupo} - ${meio} - TOTAL R$ ${num(total)} - ${mes}`)}.zip`;
+}
+
+// filename= só ASCII (navegador antigo) + filename* com acento (RFC 5987).
+function contentDispositionZip(nome: string): string {
+  const ascii = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 }
 
 const moedaBr = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -577,7 +596,7 @@ function transporteGmail() {
 }
 
 // ZIP (DANFSe + XML de cada nota) num e-mail só pro cliente.
-async function enviarZipPorEmail(notas: any[], destinatario: string) {
+async function enviarZipPorEmail(notas: any[], destinatario: string, nome?: string) {
   const zip = await montarZipDasNotas(notas);
   await transporteGmail().sendMail({
     from: `SMART HELP <${process.env.GMAIL_USER}>`,
@@ -588,7 +607,7 @@ async function enviarZipPorEmail(notas: any[], destinatario: string) {
       ${tabelaDasNotas(notas)}
       <p>As notas podem ser consultadas em <a href="${danfseLinkDoGoverno()}">${danfseLinkDoGoverno()}</a> pela chave de acesso.</p>
     `,
-    attachments: [{ filename: nomeDoZip(), content: zip, contentType: 'application/zip' }],
+    attachments: [{ filename: nomeDoZip(notas, nome), content: zip, contentType: 'application/zip' }],
   });
   await pool.query(`UPDATE notas_fiscais SET ultimo_email_enviado_em = NOW() WHERE id = ANY($1::int[])`, [notas.map((n) => n.id)]);
 }
@@ -599,7 +618,8 @@ router.get('/lote/zip', apiAuth, async (req: Request, res: Response) => {
     if (notas.length === 0) return res.status(404).json({ error: 'Nenhuma nota autorizada nesse lote.' });
     const zip = await montarZipDasNotas(notas);
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${nomeDoZip()}"`);
+    const nome = typeof req.query.nome === 'string' ? req.query.nome.slice(0, 120) : undefined;
+    res.setHeader('Content-Disposition', contentDispositionZip(nomeDoZip(notas, nome)));
     res.send(zip);
   } catch (err: any) {
     console.error('[notaFiscal] GET /lote/zip:', err);
@@ -775,7 +795,7 @@ async function executarAgendamento(ag: any, competencia: string) {
         ${listaFalhas}
         <p>Confira o ZIP em anexo. Se estiver tudo certo, abra o SmartPrice → Financeiro → Notas Fiscais → <b>Lotes para conferir</b> e clique em <b>Enviar pro cliente</b> (${escapeHtml(ag.email_cliente)}).</p>
       `,
-      attachments: notas.length ? [{ filename: nomeDoZip(), content: await montarZipDasNotas(notas), contentType: 'application/zip' }] : [],
+      attachments: notas.length ? [{ filename: nomeDoZip(notas, ag.nome), content: await montarZipDasNotas(notas), contentType: 'application/zip' }] : [],
     });
   } catch (err) {
     console.error('[notaFiscal] falha ao mandar resumo do agendamento pro admin:', err);

@@ -325,7 +325,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
 
   const baixarZip = (ids: number[]) => {
     if (ids.length === 0) return;
-    window.open(`/api/notafiscal/lote/zip?ids=${ids.join(',')}`, '_blank');
+    window.open(`/api/notafiscal/lote/zip?ids=${ids.join(',')}&nome=${encodeURIComponent(alvo?.nome || 'Lote avulso')}`, '_blank');
   };
 
   const handleAgendar = async () => {
