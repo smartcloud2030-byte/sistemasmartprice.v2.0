@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, Mail, Loader2, FileText, Download, Ban } from 'lucide-react';
+import { ExternalLink, Mail, Loader2, FileText, Download, Ban, Files } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import NotaFiscalCancelarModal from './NotaFiscalCancelarModal';
@@ -20,7 +20,37 @@ interface NotaHistorico {
   cnae: string | null;
   codigo_servico: string | null;
   cancelamento_motivo: string | null;
+  email_automatico?: boolean;
+  lote_ref?: string | null;
+  lote_nome?: string | null;
   created_at: string;
+}
+
+interface LoteEmitido {
+  chave: string;
+  nome: string;
+  data: string;
+  ids: number[];
+  total: number;
+}
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// Agrupa as notas autorizadas que saíram em lote. Notas antigas (antes do
+// lote_ref) ficam agrupadas pelo dia em que foram emitidas.
+function agruparLotes(notas: NotaHistorico[]): LoteEmitido[] {
+  const grupos = new Map<string, LoteEmitido>();
+  for (const n of notas) {
+    if (n.status !== 'autorizada') continue;
+    const dia = new Date(n.created_at).toLocaleDateString('pt-BR');
+    const chave = n.lote_ref || (n.email_automatico === false ? `dia:${dia}` : null);
+    if (!chave) continue;
+    const g = grupos.get(chave) || { chave, nome: n.lote_nome || 'Lote', data: dia, ids: [], total: 0 };
+    g.ids.push(n.id);
+    g.total += Number(n.valor) || 0;
+    grupos.set(chave, g);
+  }
+  return [...grupos.values()];
 }
 
 const STATUS_LABEL: Record<NotaHistorico['status'], { label: string; className: string }> = {
@@ -44,6 +74,14 @@ export default function NotaFiscalHistorico() {
       .finally(() => setLoading(false));
 
   useEffect(() => { carregar(); }, []);
+
+  const lotes = agruparLotes(notas);
+  const baixarLote = (lote: LoteEmitido) => {
+    // A rota do ZIP aceita até 50 notas por vez.
+    for (let i = 0; i < lote.ids.length; i += 50) {
+      window.open(`/api/notafiscal/lote/zip?ids=${lote.ids.slice(i, i + 50).join(',')}`, '_blank');
+    }
+  };
 
   const reenviarEmail = async (nota: NotaHistorico) => {
     if (!nota.email_tomador) {
@@ -73,6 +111,35 @@ export default function NotaFiscalHistorico() {
         <FileText className="w-5 h-5" />
         <span className="text-[10px] font-black uppercase tracking-widest">Notas Fiscais Emitidas</span>
       </div>
+
+      {!loading && lotes.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-zinc-400">
+            <Files className="w-4 h-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Lotes emitidos</span>
+          </div>
+          {lotes.slice(0, 12).map((lote) => (
+            <div key={lote.chave} className="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-black dark:text-white truncate">{lote.nome}</p>
+                <p className="text-[11px] text-zinc-400 truncate">
+                  {lote.data} · {lote.ids.length} nota{lote.ids.length === 1 ? '' : 's'} · {brl(lote.total)}
+                </p>
+              </div>
+              <button
+                onClick={() => baixarLote(lote)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-bold text-black dark:text-white hover:border-emerald-500/50 transition-colors flex-shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" /> Baixar ZIP
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-2 pt-2 text-zinc-400">
+            <FileText className="w-4 h-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Todas as notas</span>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-xs text-zinc-400">Carregando histórico...</p>

@@ -102,6 +102,8 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   const [descricao, setDescricao] = useState('');
   const [email, setEmail] = useState('');
   const [semEmail, setSemEmail] = useState(false);
+  // Mesmo id pra todas as notas deste lote (inclusive nas tentativas de novo) — o histórico agrupa por ele.
+  const loteRef = useRef(`tela:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`);
   const [adminPassword, setAdminPassword] = useState('');
   const [modelos, setModelos] = useState<Record<string, ModeloLote>>({});
 
@@ -236,6 +238,8 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
             valor: Number(item.valor),
             adminPassword,
             enviarEmail: false,
+            loteRef: loteRef.current,
+            loteNome: alvo?.nome || 'Lote avulso',
           }),
         });
         let nota = await res.json();

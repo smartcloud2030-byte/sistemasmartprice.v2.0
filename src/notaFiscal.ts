@@ -43,6 +43,9 @@ export interface EmissaoInput {
   cnae: string;
   descricao: string;
   valor: number;
+  // Notas emitidas juntas (lote na tela ou agendamento) — pra baixar o ZIP de novo depois.
+  loteRef?: string;
+  loteNome?: string;
 }
 
 export function validateEmissaoInput(input: EmissaoInput): string | null {
@@ -152,6 +155,8 @@ export async function ensureNotaFiscalSchema() {
     ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cancelada_em TIMESTAMPTZ;
     ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cancelamento_motivo TEXT;
     ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS cancelamento_protocolo TEXT;
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS lote_ref TEXT;
+    ALTER TABLE notas_fiscais ADD COLUMN IF NOT EXISTS lote_nome TEXT;
     CREATE TABLE IF NOT EXISTS nfse_agendamentos (
       id SERIAL PRIMARY KEY,
       chave TEXT NOT NULL UNIQUE,
@@ -368,8 +373,8 @@ async function emitirNota(input: EmissaoInput, emailAutomatico: boolean): Promis
         console.error('[notaFiscal] 200 sem numero/chave — prefeitura pode ter mudado o contrato:', JSON.stringify(data));
       }
       const inserted = await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status, cnae, email_automatico)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, numero_nota, chave_acesso, status, cnae, email_automatico, lote_ref, lote_nome)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
         [
           data.id,
           input.tomadorCnpj,
@@ -383,6 +388,8 @@ async function emitirNota(input: EmissaoInput, emailAutomatico: boolean): Promis
           semNumeroOuChave ? 'transmitindo' : 'autorizada',
           input.cnae,
           emailAutomatico,
+          input.loteRef || null,
+          input.loteNome || null,
         ]
       );
       return { httpStatus: 200, body: await enviarEmailAutomatico(inserted.rows[0]) };
@@ -393,9 +400,9 @@ async function emitirNota(input: EmissaoInput, emailAutomatico: boolean): Promis
         console.error('[notaFiscal] 202 sem id — nota vai ficar presa em transmitindo:', JSON.stringify(data));
       }
       const inserted = await pool.query(
-        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, cnae, email_automatico)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo', $8, $9) RETURNING *`,
-        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, input.cnae, emailAutomatico]
+        `INSERT INTO notas_fiscais (nfse_id, cnpj_tomador, nome_tomador, email_tomador, codigo_servico, descricao_servico, valor, status, cnae, email_automatico, lote_ref, lote_nome)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'transmitindo', $8, $9, $10, $11) RETURNING *`,
+        [data.id, input.tomadorCnpj, input.tomadorNome, input.tomadorEmail, input.servicoCodigo, input.descricao, input.valor, input.cnae, emailAutomatico, input.loteRef || null, input.loteNome || null]
       );
       return { httpStatus: 202, body: inserted.rows[0] };
     }
@@ -504,6 +511,8 @@ router.post('/emitir', apiAuth, async (req: Request, res: Response) => {
     cnae: String(req.body?.cnae || CNAE_PADRAO).replace(/\D/g, ''),
     descricao: req.body?.descricao || '',
     valor: Number(req.body?.valor),
+    loteRef: req.body?.loteRef ? String(req.body.loteRef).slice(0, 100) : undefined,
+    loteNome: req.body?.loteNome ? String(req.body.loteNome).slice(0, 200) : undefined,
   };
   const emailAutomatico = req.body?.enviarEmail !== false;
 
@@ -730,6 +739,8 @@ async function executarAgendamento(ag: any, competencia: string) {
       cnae: ag.cnae,
       descricao: ag.descricao,
       valor: Number(item.valor),
+      loteRef: `agendamento:${ag.id}:${competencia}`,
+      loteNome: ag.nome,
     }, false);
 
     let nota = body;
