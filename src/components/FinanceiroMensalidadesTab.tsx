@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Store, Loader2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Store, Loader2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useStore } from '../store';
 
@@ -41,7 +42,8 @@ export default function FinanceiroMensalidadesTab() {
   const [configs, setConfigs] = useState<Record<string, ConfigGrupo>>({});
   const [carregado, setCarregado] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Edição do grupo aberto — só vai pro servidor no "Salvar".
+  const [rascunho, setRascunho] = useState<ConfigGrupo | null>(null);
 
   useEffect(() => {
     fetch(`/api/settings/${SETTING_ID}`, { headers: JSON_HEADERS })
@@ -52,23 +54,54 @@ export default function FinanceiroMensalidadesTab() {
   }, []);
 
   const alvo = [...alvos.grupos, ...alvos.bandeiras].find((a) => a.chave === chave) || null;
-  const config: ConfigGrupo = (chave && configs[chave]) || { valor: '', fora: [] };
+  const salvo: ConfigGrupo = (chave && configs[chave]) || { valor: '', fora: [] };
+  const config: ConfigGrupo = rascunho || salvo;
+  const alterado = !!rascunho && JSON.stringify(rascunho) !== JSON.stringify(salvo);
 
-  // Salva sozinho, meio segundo depois da última mudança.
-  const atualizar = (mudanca: Partial<ConfigGrupo>) => {
-    if (!chave) return;
-    const novos = { ...configs, [chave]: { ...config, ...mudanca } };
-    setConfigs(novos);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      setSalvando(true);
-      fetch(`/api/settings/${SETTING_ID}`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ value: novos }) })
-        .catch(() => { /* tenta de novo na próxima mudança */ })
-        .finally(() => setSalvando(false));
-    }, 500);
+  const escolher = (nova: string) => {
+    if (alterado && !window.confirm('Tem alteração não salva nesse grupo. Trocar mesmo assim?')) return;
+    setRascunho(null);
+    setChave(nova);
   };
 
-  const valor = Number(String(config.valor).replace(',', '.')) || 0;
+  const atualizar = (mudanca: Partial<ConfigGrupo>) => {
+    if (!chave) return;
+    setRascunho({ ...config, ...mudanca });
+  };
+
+  const salvar = async () => {
+    if (!chave || !rascunho) return;
+    const novos = { ...configs, [chave]: rascunho };
+    setSalvando(true);
+    try {
+      const res = await fetch(`/api/settings/${SETTING_ID}`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ value: novos }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Erro ao salvar.');
+      setConfigs(novos);
+      setRascunho(null);
+      toast.success(`Mensalidade de ${alvo?.nome || 'grupo'} salva.`);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  // "39,97", "1.039,97" ou "39.97"
+  const valorDe = (c: ConfigGrupo) => {
+    const t = String(c.valor || '');
+    return Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t) || 0;
+  };
+  const valor = valorDe(config);
+
+  // Grupos que já têm mensalidade salva, com o total de cada um.
+  const salvos = [...alvos.grupos, ...alvos.bandeiras]
+    .filter((a) => configs[a.chave] && valorDe(configs[a.chave]) > 0)
+    .map((a) => {
+      const c = configs[a.chave];
+      const qtd = a.lojas.filter((l) => !c.fora.includes(l.cnpj)).length;
+      return { chave: a.chave, nome: a.nome, valor: valorDe(c), qtd, total: qtd * valorDe(c) };
+    });
+  const totalGeral = salvos.reduce((s, g) => s + g.total, 0);
   const lojas = alvo?.lojas || [];
   const dentro = lojas.filter((l) => !config.fora.includes(l.cnpj));
   const total = dentro.length * valor;
@@ -79,10 +112,35 @@ export default function FinanceiroMensalidadesTab() {
 
   return (
     <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+      {salvos.length > 0 && (
+        <div className="space-y-2">
+          <p className={labelCls}>Mensalidades salvas</p>
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {salvos.map((g) => (
+              <button
+                key={g.chave}
+                onClick={() => escolher(g.chave)}
+                className={cn('w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50', g.chave === chave && 'bg-zinc-50 dark:bg-zinc-800/50')}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-black dark:text-white truncate">{g.nome}</p>
+                  <p className="text-[11px] text-zinc-400">{g.qtd} loja{g.qtd === 1 ? '' : 's'} × {moeda(g.valor)}</p>
+                </div>
+                <span className="text-sm font-bold text-black dark:text-white">{moeda(g.total)}</span>
+              </button>
+            ))}
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className={labelCls}>Total de todos</span>
+              <span className="text-sm font-bold text-emerald-600">{moeda(totalGeral)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelCls}>Grupo ou bandeira</label>
-          <select value={chave} onChange={(e) => setChave(e.target.value)} className={inputCls} disabled={!carregado}>
+          <select value={chave} onChange={(e) => escolher(e.target.value)} className={inputCls} disabled={!carregado}>
             <option value="">Selecione...</option>
             {alvos.grupos.length > 0 && (
               <optgroup label="Grupos">
@@ -138,10 +196,7 @@ export default function FinanceiroMensalidadesTab() {
               />
               <span className="text-xs font-bold text-black dark:text-white">{todasDentro ? 'Desmarcar todas' : 'Marcar todas'}</span>
             </label>
-            <span className="text-[11px] text-zinc-400 flex items-center gap-1">
-              {salvando && <Loader2 className="w-3 h-3 animate-spin" />}
-              {dentro.length} de {lojas.length} na conta
-            </span>
+            <span className="text-[11px] text-zinc-400">{dentro.length} de {lojas.length} na conta</span>
           </div>
 
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -162,6 +217,15 @@ export default function FinanceiroMensalidadesTab() {
               );
             })}
           </div>
+
+          <button
+            onClick={salvar}
+            disabled={!alterado || salvando}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          >
+            {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {alterado ? 'Salvar' : 'Salvo'}
+          </button>
         </>
       )}
 
