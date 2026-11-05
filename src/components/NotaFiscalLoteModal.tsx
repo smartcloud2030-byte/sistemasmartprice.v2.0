@@ -101,6 +101,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   const [cnaes, setCnaes] = useState<CnaeOpcao[]>([]);
   const [descricao, setDescricao] = useState('');
   const [email, setEmail] = useState('');
+  const [semEmail, setSemEmail] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [modelos, setModelos] = useState<Record<string, ModeloLote>>({});
 
@@ -153,6 +154,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
       setServicoCodigo(modelo.servicoCodigo || '');
       if (modelo.cnae) setCnae(modelo.cnae);
       setEmail(modelo.email || '');
+      setSemEmail(!modelo.email);
     }
   };
 
@@ -175,12 +177,13 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
   const selecionados = itens.filter((i) => i.marcado);
   const totalLote = selecionados.reduce((soma, i) => soma + (Number(i.valor) || 0), 0);
 
-  const validar = (): string | null => {
+  const validar = (paraAgendar = false): string | null => {
     if (selecionados.length === 0) return 'Marque pelo menos um CNPJ.';
     if (selecionados.some((i) => !(Number(i.valor) > 0))) return 'Todos os CNPJs marcados precisam de um valor maior que zero.';
     if (!/^\d{6}$/.test(servicoCodigo)) return 'Código de serviço precisa ter 6 dígitos.';
     if (!descricao.trim()) return 'Descrição do serviço é obrigatória.';
-    if (!emailValido(email)) {
+    if (semEmail && paraAgendar) return 'Pra agendar todo mês precisa do e-mail do cliente — desmarque "Cliente não tem e-mail".';
+    if (!semEmail && !emailValido(email)) {
       emailRef.current?.focus();
       emailRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return 'Informe o e-mail do cliente que vai receber o ZIP (campo no topo).';
@@ -223,7 +226,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
           body: JSON.stringify({
             tomadorCnpj: item.cnpj,
             tomadorNome: dados.nome,
-            tomadorEmail: email.trim(),
+            tomadorEmail: semEmail ? '' : email.trim(),
             tomadorTelefone: dados.telefone,
             tomadorEndereco: dados.endereco,
             servicoCodigo,
@@ -287,7 +290,7 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
     if (!alvo) return;
     const modelo: ModeloLote = {
       itens: selecionados.map((i) => ({ cnpj: i.cnpj, valor: Number(i.valor) })),
-      descricao, servicoCodigo, cnae, email: email.trim(),
+      descricao, servicoCodigo, cnae, email: semEmail ? '' : email.trim(),
     };
     setModelos((m) => ({ ...m, [alvo.chave]: modelo }));
     fetch('/api/notafiscal/lote/modelos', {
@@ -307,11 +310,17 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
     const ids = await emitirLote();
     onEmitted();
     setFase('fim');
-    await enviarZip(ids);
+    if (semEmail) baixarZip(ids);
+    else await enviarZip(ids);
+  };
+
+  const baixarZip = (ids: number[]) => {
+    if (ids.length === 0) return;
+    window.open(`/api/notafiscal/lote/zip?ids=${ids.join(',')}`, '_blank');
   };
 
   const handleAgendar = async () => {
-    const erro = validar();
+    const erro = validar(true);
     if (erro) return setErroGeral(erro);
     if (!alvo) return;
     setErroGeral(null);
@@ -388,7 +397,11 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
             <>
               <div>
                 <label className={labelCls}>E-mail do cliente (recebe o ZIP)</label>
-                <input ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@exemplo.com.br" className={inputCls} />
+                <input ref={emailRef} type="email" value={semEmail ? '' : email} onChange={(e) => setEmail(e.target.value)} disabled={semEmail} placeholder={semEmail ? 'Sem e-mail — o ZIP é baixado no fim' : 'cliente@exemplo.com.br'} className={`${inputCls} disabled:opacity-50`} />
+                <label className="mt-2 flex items-center gap-2 text-xs text-black dark:text-white cursor-pointer select-none">
+                  <input type="checkbox" checked={semEmail} onChange={(e) => setSemEmail(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+                  Cliente não tem e-mail (só baixar o ZIP)
+                </label>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -528,22 +541,23 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
               <p className="text-sm text-black dark:text-white">
                 {idsAutorizados.length} de {selecionados.length} nota{selecionados.length === 1 ? '' : 's'} autorizada{idsAutorizados.length === 1 ? '' : 's'}.
                 {emailEnviado && ` ZIP enviado para ${email.trim()}.`}
+                {semEmail && idsAutorizados.length > 0 && ' O ZIP foi baixado — se não apareceu, clique em Baixar ZIP.'}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => window.open(`/api/notafiscal/lote/zip?ids=${idsAutorizados.join(',')}`, '_blank')}
+                  onClick={() => baixarZip(idsAutorizados)}
                   disabled={idsAutorizados.length === 0}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-bold text-black dark:text-white hover:border-emerald-500/50 transition-colors disabled:opacity-50"
                 >
                   <Download className="w-4 h-4" /> Baixar ZIP
                 </button>
-                <button
+                {!semEmail && <button
                   onClick={() => enviarZip(idsAutorizados)}
                   disabled={enviandoEmail || idsAutorizados.length === 0}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-bold text-black dark:text-white hover:border-emerald-500/50 transition-colors disabled:opacity-50"
                 >
                   {enviandoEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} {emailEnviado ? 'Reenviar ZIP' : 'Enviar ZIP por e-mail'}
-                </button>
+                </button>}
               </div>
               {comFalha > 0 && (
                 <button
