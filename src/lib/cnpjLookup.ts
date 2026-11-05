@@ -78,13 +78,67 @@ export function parseCnpjResponseEstruturado(raw: any): CnpjDataEstruturado {
   };
 }
 
+// Fallback: publica.cnpj.ws (formato diferente — converte pro mesmo shape).
+function parseCnpjWs(raw: any): CnpjDataEstruturado {
+  const e = raw?.estabelecimento || {};
+  const nome = (e.nome_fantasia || '').trim() || (raw?.razao_social || '').trim();
+  return {
+    nome,
+    email: (e.email || '').trim(),
+    telefone: formatTelefone(e.ddd1 && e.telefone1 ? `${e.ddd1}${e.telefone1}` : ''),
+    endereco: {
+      xLgr: [e.tipo_logradouro, e.logradouro].filter(Boolean).join(' ').trim(),
+      nro: (e.numero || '').toString().trim(),
+      xCpl: (e.complemento || '').trim(),
+      xBairro: (e.bairro || '').trim(),
+      cMun: e.cidade?.ibge_id ? String(e.cidade.ibge_id) : '',
+      cep: (e.cep || '').toString().replace(/\D/g, ''),
+      uf: (e.estado?.sigla || '').trim(),
+    },
+  };
+}
+
+const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// BrasilAPI falha de vez em quando (429 em sequência, 5xx, rede) — tenta de
+// novo e, se não der, cai pra cnpj.ws. Lança erro com o motivo se tudo falhar.
 export async function fetchCnpjDataEstruturado(cnpj: string): Promise<CnpjDataEstruturado | null> {
   const digits = cnpj.replace(/\D/g, '');
   if (digits.length !== 14) return null;
 
-  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
-  if (!res.ok) return null;
+  const motivos: string[] = [];
+  let naoExiste = false;
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    if (tentativa) await pausa(2000 * tentativa);
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+      if (res.ok) {
+        const dados = parseCnpjResponseEstruturado(await res.json());
+        if (dados.nome) return dados;
+      }
+      motivos.push(`BrasilAPI ${res.status}`);
+      if (res.status === 404 || res.status === 400) { naoExiste = true; break; }
+    } catch (err: any) {
+      motivos.push(`BrasilAPI ${err?.message || 'falhou'}`);
+    }
+  }
 
-  const raw = await res.json();
-  return parseCnpjResponseEstruturado(raw);
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    if (tentativa) await pausa(3000);
+    try {
+      const res = await fetch(`https://publica.cnpj.ws/cnpj/${digits}`);
+      if (res.ok) {
+        const dados = parseCnpjWs(await res.json());
+        if (dados.nome) return dados;
+      }
+      motivos.push(`cnpj.ws ${res.status}`);
+      if (res.status === 404 || res.status === 400) { naoExiste = true; break; }
+    } catch (err: any) {
+      motivos.push(`cnpj.ws ${err?.message || 'falhou'}`);
+    }
+  }
+
+  throw new Error(naoExiste
+    ? 'CNPJ não encontrado na Receita — confira se os 14 dígitos estão certos.'
+    : `Consulta do CNPJ fora do ar agora (${motivos.join(', ')}). Tente de novo em alguns minutos.`);
 }

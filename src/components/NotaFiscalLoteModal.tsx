@@ -212,9 +212,10 @@ export default function NotaFiscalLoteModal({ onClose, onEmitted }: Props) {
 
     for (const item of fila) {
       atualizarItem(item.cnpj, { status: 'buscando', erro: undefined });
-      const dados = await fetchCnpjDataEstruturado(item.cnpj).catch(() => null);
+      let motivo = 'Não achei os dados desse CNPJ na Receita.';
+      const dados = await fetchCnpjDataEstruturado(item.cnpj).catch((err) => { motivo = err?.message || motivo; return null; });
       if (!dados) {
-        atualizarItem(item.cnpj, { status: 'erro', erro: 'Não achei os dados desse CNPJ na Receita.' });
+        atualizarItem(item.cnpj, { status: 'erro', erro: motivo });
         continue;
       }
       atualizarItem(item.cnpj, { status: 'emitindo', nome: dados.nome });

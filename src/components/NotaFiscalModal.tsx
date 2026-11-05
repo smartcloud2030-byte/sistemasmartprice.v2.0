@@ -115,6 +115,8 @@ export default function NotaFiscalModal({ onClose, onEmitted }: Props) {
       } else {
         toast.error('Não foi possível buscar os dados desse CNPJ automaticamente.');
       }
+    } catch (err: any) {
+      toast.error(err?.message || 'Não foi possível buscar os dados desse CNPJ automaticamente.');
     } finally {
       setBuscandoCnpj(false);
     }
