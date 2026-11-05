@@ -8,10 +8,11 @@ import FinanceiroSaldoTab from './FinanceiroSaldoTab';
 import DespesasViagemModal from './DespesasViagemModal';
 import FinanceiroNotasTab from './FinanceiroNotasTab';
 import FinanceiroDominiosTab from './FinanceiroDominiosTab';
+import FinanceiroMensalidadesTab from './FinanceiroMensalidadesTab';
 
 interface Props {
   onClose: () => void;
-  initialTab?: 'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios';
+  initialTab?: 'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios' | 'mensalidades';
   /** mês/ano que abre na aba Despesas (padrão: o atual) — o aviso de vencimento
    * abre direto no mês da despesa cobrada. */
   initialMesAno?: { ano: number; mes: number } | null;
@@ -21,7 +22,7 @@ const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', c
 
 export default function FinanceiroPanel({ onClose, initialTab = 'despesas', initialMesAno }: Props) {
   const { despesas, saldoEmConta } = useStore();
-  const [activeTab, setActiveTab] = useState<'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'despesas' | 'saldo' | 'viagens' | 'notas' | 'dominios' | 'mensalidades'>(initialTab);
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(initialMesAno?.ano ?? now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(initialMesAno?.mes ?? now.getMonth() + 1);
@@ -60,7 +61,7 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
           </button>
         </div>
 
-        <div className={cn('p-6 grid grid-cols-2 md:grid-cols-3 gap-4 border-b border-zinc-200 dark:border-zinc-800', (activeTab === 'viagens' || activeTab === 'notas' || activeTab === 'dominios') && 'hidden')}>
+        <div className={cn('p-6 grid grid-cols-2 md:grid-cols-3 gap-4 border-b border-zinc-200 dark:border-zinc-800', (activeTab === 'viagens' || activeTab === 'notas' || activeTab === 'dominios' || activeTab === 'mensalidades') && 'hidden')}>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4">
             <p className="text-2xl font-black text-red-600 tracking-tighter">{currency(despesasDoMesTotal)}</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Despesas · {formatMesAno(selectedYear, selectedMonth)}</p>
@@ -142,6 +143,15 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
           >
             Domínios
           </button>
+          <button
+            onClick={() => setActiveTab('mensalidades')}
+            className={cn(
+              'px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors',
+              activeTab === 'mensalidades' ? 'bg-amber-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+            )}
+          >
+            Mensalidades
+          </button>
         </div>
 
         {activeTab === 'viagens' ? (
@@ -152,6 +162,8 @@ export default function FinanceiroPanel({ onClose, initialTab = 'despesas', init
           <FinanceiroNotasTab />
         ) : activeTab === 'dominios' ? (
           <FinanceiroDominiosTab />
+        ) : activeTab === 'mensalidades' ? (
+          <FinanceiroMensalidadesTab />
         ) : activeTab === 'saldo' ? (
           <FinanceiroSaldoTab />
         ) : (
