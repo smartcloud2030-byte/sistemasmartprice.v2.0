@@ -2,6 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import AvisoLegalEncarte from './AvisoLegalEncarte';
 import {
   Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus, Tag,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
@@ -20,7 +21,7 @@ import {
   FormaEncarte, FormaTipo, FORMAS_DISPONIVEIS,
   GuiaEncarte, GuiaOrientacao, criarGuia,
   TextoEncarte, TextoAlinhamento, criarTexto,
-  AREA_TOPO_PADRAO, CamadaTipo, MembroGrupo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, protegerMedidaNoTexto, redimensionarFoto,
+  AREA_TOPO_PADRAO, CamadaTipo, MembroGrupo, PosicaoGrupo, Canto, AjusteFotoProduto, AjusteNomeDescricao, AjusteAvisoLegal, protegerMedidaNoTexto, redimensionarFoto,
 } from './encarteProduto';
 
 const MIN_ELEMENTO = 4; // % do canvas — tamanho mínimo de um elemento e "alça" mínima que fica dentro do encarte (pra não sumir)
@@ -423,6 +424,8 @@ interface EncarteCanvasProps {
   rodape: { ativo: boolean; texto: string };
   /** Letra miúda que a lei obriga (remédio sem receita, leite) — fixa no pé, sempre no download. */
   avisosLegais?: { texto: string; destaque: string } | null;
+  ajusteAvisoLegal?: AjusteAvisoLegal | null;
+  onAjustarAvisoLegal?: (ajuste: AjusteAvisoLegal | null, opcoes?: { coalesce?: string }) => void;
   ladoAtivo: 'frente' | 'verso';
   temVerso: boolean;
   produtoDetalhadoId: string | number | null;
@@ -571,6 +574,8 @@ export default function EncarteCanvas({
   textos,
   rodape,
   avisosLegais = null,
+  ajusteAvisoLegal = null,
+  onAjustarAvisoLegal = () => {},
   ladoAtivo,
   temVerso,
   produtoDetalhadoId,
@@ -3030,16 +3035,14 @@ export default function EncarteCanvas({
           )}
 
           {/* Rodapé + frases obrigatórias por lei */}
-          {(rodape.ativo || avisosLegais) && (
+          {/* Texto obrigatório por lei arrastado pra fora do rodapé */}
+          {avisosLegais && ajusteAvisoLegal?.xPct != null && (
+            <AvisoLegalEncarte texto={avisosLegais.texto} destaque={avisosLegais.destaque} ajuste={ajusteAvisoLegal} onAjustar={onAjustarAvisoLegal} />
+          )}
+          {(rodape.ativo || (avisosLegais && ajusteAvisoLegal?.xPct == null)) && (
             <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
-              {avisosLegais && (
-                <div
-                  className="px-[5%] py-[3px] text-[5px] leading-[1.25] text-justify"
-                  style={{ color: '#111', background: 'rgba(255,255,255,0.92)' }}
-                >
-                  {avisosLegais.texto && <p>{avisosLegais.texto}</p>}
-                  {avisosLegais.destaque && <p className="font-bold">{avisosLegais.destaque}</p>}
-                </div>
+              {avisosLegais && ajusteAvisoLegal?.xPct == null && (
+                <AvisoLegalEncarte texto={avisosLegais.texto} destaque={avisosLegais.destaque} ajuste={ajusteAvisoLegal} onAjustar={onAjustarAvisoLegal} />
               )}
               {rodape.ativo && (
                 <div

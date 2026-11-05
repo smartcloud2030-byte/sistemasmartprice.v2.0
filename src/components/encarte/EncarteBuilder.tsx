@@ -1009,6 +1009,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           guias={lado.guias ?? []}
           rodape={lado.rodape}
           avisosLegais={avisosLegais}
+          ajusteAvisoLegal={lado.avisoLegal}
+          onAjustarAvisoLegal={(ajuste, opcoes) => atualizarLado({ avisoLegal: ajuste }, opcoes)}
           ladoAtivo={ladoAtivo}
           temVerso={ladoVerso != null}
           produtoDetalhadoId={produtoDetalhadoId}

@@ -750,6 +750,16 @@ export interface LadoEncarte {
   textos: TextoEncarte[];
   guias: GuiaEncarte[];
   rodape: { ativo: boolean; texto: string };
+  /** Texto obrigatório por lei (remédio/leite): tamanho da letra e, se arrastado, posição. Sem = rodapé, letra padrão. */
+  avisoLegal?: AjusteAvisoLegal | null;
+}
+
+/** Ajuste do texto obrigatório por lei. Sem xPct = fica no rodapé, largura toda. */
+export interface AjusteAvisoLegal {
+  escala?: number;
+  xPct?: number;
+  yPct?: number;
+  wPct?: number;
 }
 
 export function criarLado(): LadoEncarte {
