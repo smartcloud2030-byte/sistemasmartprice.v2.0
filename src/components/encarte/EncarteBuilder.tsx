@@ -13,7 +13,9 @@ import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
 import GerarPlaquinhasModal from './GerarPlaquinhasModal';
 import { useHistoricoEdicao, OpcoesSet } from './useHistoricoEdicao';
-import { avaliarProduto, frasesObrigatorias, Tarja } from '../../lib/regrasDivulgacao';
+import { avaliarProduto, montarAvisosLegais, Tarja } from '../../lib/regrasDivulgacao';
+
+type InfoCmed = { tarja: Exclude<Tarja, null>; registro: string } | null;
 import { Formato, FORMATO_PADRAO, FormatoId, getFormato } from './formatos';
 import {
   EncarteProduto,
@@ -318,7 +320,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   // ── Regras de divulgação (lei) ───────────────────────────────────────
   // Tarja de cada código de barras pela lista CMED (servidor). undefined =
   // ainda não consultado; null = não é remédio da CMED.
-  const [tarjas, setTarjas] = useState<Record<string, Tarja>>({});
+  const [tarjas, setTarjas] = useState<Record<string, InfoCmed>>({});
   const tarjasRef = useRef(tarjas);
   tarjasRef.current = tarjas;
   const codigosDe = (p: Product) =>
@@ -334,17 +336,18 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const novas: Record<string, Tarja> = await res.json();
+    const novas: Record<string, InfoCmed> = await res.json();
     const juntas = { ...tarjasRef.current, ...novas };
     tarjasRef.current = juntas;
     setTarjas(juntas);
     return juntas;
   };
 
-  const tarjaDe = (p: Product, mapa = tarjas): Tarja => {
-    for (const c of codigosDe(p)) if (mapa[c] != null) return mapa[c];
+  const infoDe = (p: Product, mapa = tarjas): InfoCmed => {
+    for (const c of codigosDe(p)) if (mapa[c]) return mapa[c];
     return null;
   };
+  const tarjaDe = (p: Product, mapa = tarjas): Tarja => infoDe(p, mapa)?.tarja ?? null;
   const restricaoDe = (ep: { product: Product; nome?: string; descricao?: string }, mapa = tarjas) =>
     avaliarProduto({ nome: `${ep.product.name || ''} ${ep.nome || ''}`, descricao: ep.descricao ?? ep.product.description ?? '' }, tarjaDe(ep.product, mapa));
 
@@ -371,8 +374,16 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tarjas, ladoFrente.produtos, ladoVerso?.produtos]);
 
-  // Frases obrigatórias do lado aberto (leite → Ministério da Saúde; remédio sem receita → advertência).
-  const avisosLegais = frasesObrigatorias(lado.produtos.filter((ep) => !ep.oculto).map((ep) => restricaoDe(ep)));
+  // Letra miúda obrigatória do lado aberto (remédio sem receita, leite, composto lácteo).
+  const avisosLegais = montarAvisosLegais(
+    lado.produtos
+      .filter((ep) => !ep.oculto)
+      .map((ep) => ({
+        nome: [ep.nome || ep.product.name, ep.descricao].filter(Boolean).join(' '),
+        restricao: restricaoDe(ep),
+        registro: infoDe(ep.product)?.registro,
+      })),
+  );
 
   // Adicionar NÃO reorganiza a grade: os que já estão ficam exatamente onde
   // e do tamanho que o usuário deixou. O novo vai pra primeira célula vazia
@@ -400,8 +411,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         duration: 10000,
       });
     }
-    if (restricao?.nivel === 'frase' && !avisosLegais.length) {
-      toast.info('Coloquei no rodapé do encarte a frase obrigatória por lei.', { description: restricao.lei });
+    if (restricao?.nivel === 'frase' && !avisosLegais) {
+      toast.info('Coloquei no pé do encarte o texto obrigatório por lei.', { description: restricao.lei });
     }
     atualizarLado((l) => {
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { avaliarProduto, frasesObrigatorias } from './regrasDivulgacao';
+import { avaliarProduto, montarAvisosLegais } from './regrasDivulgacao';
 
 const nivel = (nome: string, tarja: any = null) => {
   const r = avaliarProduto({ nome }, tarja);
@@ -35,10 +35,21 @@ assert.equal(nivel('Doce de Leite Itambé'), null);
 assert.equal(nivel('Dipirona 500mg'), null); // fora da CMED → sem regra
 assert.equal(nivel('Shampoo Seda 325ml'), null);
 
-// Frases em ordem fixa, sem repetir
-const f = frasesObrigatorias([avaliarProduto({ nome: 'Novalgina' }, 'L'), avaliarProduto({ nome: 'Leite Ninho' }, null), avaliarProduto({ nome: 'Leite Itambé' }, null), null]);
-assert.equal(f.length, 2);
-assert.ok(f[0].startsWith('O Ministério da Saúde informa'));
-assert.ok(f[1].startsWith('Medicamentos'));
+// Composto lácteo
+assert.equal(avaliarProduto({ nome: 'Leite Ninho Fases 1+ Prebio 800g' }, null)?.['composto' as never], true);
+assert.equal(avaliarProduto({ nome: 'Leite UHT Integral 1L' }, null)?.['composto' as never], false);
+
+// Texto miúdo no padrão do encarte
+const a = montarAvisosLegais([
+  { nome: 'Sonrisal 2 CP', restricao: avaliarProduto({}, 'L'), registro: '1010701410011' },
+  { nome: 'Vick Inalador', restricao: avaliarProduto({}, 'L'), registro: '1214200110045' },
+  { nome: 'Leite Ninho Fases 1+', restricao: avaliarProduto({ nome: 'Leite Ninho Fases 1+' }, null) },
+  { nome: 'Leite Itambé', restricao: avaliarProduto({ nome: 'Leite Itambé' }, null) },
+  { nome: 'Shampoo', restricao: null },
+])!;
+assert.equal(a.texto, 'Sonrisal 2 CP. Reg. M.S 1010701410011. | Vick Inalador. Reg. M.S 1214200110045. Leite Ninho Fases 1+. ESTE COMPOSTO NÃO DEVE SER USADO PARA ALIMENTAR CRIANÇAS MENORES DE UM ANO. O MINISTÉRIO DA SAÚDE ADVERTE: O ALEITAMENTO MATERNO EVITA INFECÇÕES E ALERGIAS E É RECOMENDADO ATÉ OS DOIS ANOS DE IDADE OU MAIS.');
+assert.ok(a.destaque.startsWith('ESTES SÃO MEDICAMENTOS'));
+assert.equal(montarAvisosLegais([{ nome: 'Shampoo', restricao: null }]), null);
+assert.equal(montarAvisosLegais([{ nome: 'Leite', restricao: avaliarProduto({ nome: 'Leite' }, null) }])!.destaque, '');
 
 console.log('regrasDivulgacao: ok');

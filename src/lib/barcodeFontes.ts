@@ -58,13 +58,13 @@ export function buscarCmed(gtin: string): ProdutoEncontrado | null {
   return null;
 }
 
-/** Tarja do remédio pela CMED: 'V' vermelha, 'P' preta, 'L' sem tarja, '' sem informação; null = código não é remédio da CMED. */
-export function tarjaCmed(gtin: string): 'V' | 'P' | 'L' | '' | null {
+/** Dados de divulgação pela CMED. tarja: 'V' vermelha, 'P' preta, 'L' sem tarja, '' sem informação. null = código não é remédio da CMED. */
+export function divulgacaoCmed(gtin: string): { tarja: 'V' | 'P' | 'L' | ''; registro: string } | null {
   const base = carregarCmed();
   if (!base) return null;
   for (const g of variantes(gtin)) {
     const item = base.itens[g];
-    if (item) return (item[4] as any) ?? '';
+    if (item) return { tarja: (item[4] as any) ?? '', registro: item[5] ?? '' };
   }
   return null;
 }

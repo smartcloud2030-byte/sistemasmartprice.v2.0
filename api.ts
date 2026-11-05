@@ -18,7 +18,7 @@ import {
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
-import { buscarFontesGratuitas, fotoCosmosCdn, tarjaCmed } from './src/lib/barcodeFontes';
+import { buscarFontesGratuitas, fotoCosmosCdn, divulgacaoCmed } from './src/lib/barcodeFontes';
 import { chaveListaPV, podeAcessarListaPV } from './src/lib/acessoListaPV';
 
 const router = Router();
@@ -516,10 +516,10 @@ router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasPr
 // remédio com receita e pôr a advertência de remédio sem receita.
 router.post('/divulgacao/tarjas', exigirSessaoValida(), (req: Request, res: Response) => {
   const codigos: string[] = Array.isArray(req.body?.codigos) ? req.body.codigos.slice(0, 500) : [];
-  const resposta: Record<string, string | null> = {};
+  const resposta: Record<string, ReturnType<typeof divulgacaoCmed>> = {};
   for (const c of codigos) {
     const gtin = String(c ?? '').replace(/\D/g, '');
-    if (gtin) resposta[gtin] = tarjaCmed(gtin);
+    if (gtin) resposta[gtin] = divulgacaoCmed(gtin);
   }
   res.json(resposta);
 });
