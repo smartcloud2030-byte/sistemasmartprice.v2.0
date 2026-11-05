@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Mail, Loader2, FileText, Download, Ban, Files } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { useStore } from '../store';
 import NotaFiscalCancelarModal from './NotaFiscalCancelarModal';
 
 const AUTH_HEADERS = { 'Content-Type': 'application/json' };
@@ -37,15 +38,20 @@ interface LoteEmitido {
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 // Agrupa as notas autorizadas que saíram em lote. Notas antigas (antes do
-// lote_ref) ficam agrupadas pelo dia em que foram emitidas.
-function agruparLotes(notas: NotaHistorico[]): LoteEmitido[] {
+// lote_ref) ficam agrupadas pelo dia + grupo/bandeira da loja daquele CNPJ.
+function agruparLotes(notas: NotaHistorico[], grupoDoCnpj: (cnpj: string) => string): LoteEmitido[] {
   const grupos = new Map<string, LoteEmitido>();
   for (const n of notas) {
     if (n.status !== 'autorizada') continue;
     const dia = new Date(n.created_at).toLocaleDateString('pt-BR');
-    const chave = n.lote_ref || (n.email_automatico === false ? `dia:${dia}` : null);
+    let chave = n.lote_ref || null;
+    let nome = n.lote_nome || 'Lote';
+    if (!chave && n.email_automatico === false) {
+      nome = grupoDoCnpj(n.cnpj_tomador);
+      chave = `dia:${dia}:${nome}`;
+    }
     if (!chave) continue;
-    const g = grupos.get(chave) || { chave, nome: n.lote_nome || 'Lote', data: dia, ids: [], total: 0 };
+    const g = grupos.get(chave) || { chave, nome, data: dia, ids: [], total: 0 };
     g.ids.push(n.id);
     g.total += Number(n.valor) || 0;
     grupos.set(chave, g);
@@ -75,7 +81,20 @@ export default function NotaFiscalHistorico() {
 
   useEffect(() => { carregar(); }, []);
 
-  const lotes = agruparLotes(notas);
+  const allowedStores = useStore((s) => s.allowedStores);
+  const userGroups = useStore((s) => s.userGroups);
+  const grupoDoCnpj = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const loja of allowedStores) {
+      const cnpj = (loja.cnpj || '').replace(/\D/g, '');
+      const grupo = userGroups.find((g) => g.id === loja.groupId)?.name;
+      const nome = grupo || (loja.bandeira || '').trim();
+      if (cnpj && nome && !mapa.has(cnpj)) mapa.set(cnpj, nome);
+    }
+    return (cnpj: string) => mapa.get(cnpj) || 'Outros';
+  }, [allowedStores, userGroups]);
+
+  const lotes = agruparLotes(notas, grupoDoCnpj);
   const baixarLote = (lote: LoteEmitido) => {
     // A rota do ZIP aceita até 50 notas por vez.
     for (let i = 0; i < lote.ids.length; i += 50) {
