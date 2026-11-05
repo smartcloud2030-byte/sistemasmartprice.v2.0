@@ -394,6 +394,12 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       });
       return;
     }
+    if (tarjaDe(product, mapa) === '') {
+      toast.warning(`Confira se ${product.name} precisa de receita`, {
+        description: 'A lista da Anvisa não informa a tarja dele. Se for de receita, tire do encarte (RDC 96/2008).',
+        duration: 10000,
+      });
+    }
     if (restricao?.nivel === 'frase' && !avisosLegais.length) {
       toast.info('Coloquei no rodapé do encarte a frase obrigatória por lei.', { description: restricao.lei });
     }
