@@ -174,7 +174,7 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
         ? `?username=${encodeURIComponent(currentUser.username)}&cnpj=${encodeURIComponent(currentUser.cnpj)}&bandeira=${encodeURIComponent(currentUser.bandeira)}`
         : '';
       const res = await fetch(`/api/barcode-lookup/${code}${userQuery}`);
-      if (res.status === 404) { toast.error('Produto não encontrado na base de dados.'); return; }
+      if (res.status === 404) { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Produto não encontrado na base de dados.'); return; }
       if (!res.ok) { const err = await res.json().catch(() => ({})); toast.error(err.error || 'Falha ao buscar produto.'); return; }
       const data = await res.json();
 
@@ -204,7 +204,7 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
         description: f.description?.trim() ? f.description : (data.brand ? `${data.brand} — ${data.description}` : (data.description || f.description)),
         image: f.image || imagePreview || f.image,
       }));
-      toast.success(`Produto encontrado: ${data.description}`);
+      toast.success(`Produto encontrado: ${data.description}`, data.fonte ? { description: `Fonte: ${data.fonte}` } : undefined);
     } catch {
       toast.error('Falha ao consultar o código de barras.');
     } finally {

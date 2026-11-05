@@ -18,6 +18,7 @@ import {
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
+import { buscarFontesGratuitas } from './src/lib/barcodeFontes';
 import { chaveListaPV, podeAcessarListaPV } from './src/lib/acessoListaPV';
 
 const router = Router();
@@ -420,17 +421,29 @@ function gravarCacheCosmos(gtin: string, encontrado: boolean, resposta: any) {
 }
 
 router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasProductManagementAccess'), async (req: Request, res: Response) => {
-  const token = process.env.COSMOS_API_TOKEN;
-  if (!token) return res.status(501).json({ error: 'COSMOS_API_TOKEN não configurado no servidor' });
-
   const gtin = req.params.gtin.replace(/\D/g, '');
   if (!gtin) return res.status(400).json({ error: 'Código de barras inválido' });
 
   const cache = await lerCacheCosmos(gtin);
-  if (cache) {
-    if (!cache.encontrado) return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
-    return res.json(cache.resposta);
+  if (cache?.encontrado) return res.json(cache.resposta);
+
+  // 1º as bases gratuitas (Anvisa/CMED + Open Facts) — a Cosmos só entra se
+  // nenhuma delas tiver o produto, pra não gastar a cota.
+  const gratis = await buscarFontesGratuitas(gtin).catch((err) => {
+    console.error('[barcode] fontes gratuitas falharam:', err);
+    return null;
+  });
+  if (gratis) {
+    gravarCacheCosmos(gtin, true, gratis);
+    return res.json(gratis);
   }
+
+  const naoAchou = 'Produto não encontrado na Anvisa, no Open Food Facts nem na Cosmos. Preencha manualmente.';
+  // "Não encontrado" em cache = a Cosmos já disse que não tem; não gasta cota de novo.
+  if (cache && !cache.encontrado) return res.status(404).json({ error: naoAchou });
+
+  const token = process.env.COSMOS_API_TOKEN;
+  if (!token) return res.status(404).json({ error: 'Produto não encontrado na Anvisa nem no Open Food Facts. Preencha manualmente.' });
 
   try {
     const controller = new AbortController();
@@ -445,11 +458,12 @@ router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasPr
     // uma consulta de verdade) e explica pro usuário o que fazer.
     if (r.status === 429) {
       return res.status(429).json({
-        error: 'Limite diário de consultas da Cosmos atingido. Volta a funcionar à meia-noite — por enquanto, preencha o produto manualmente.',
+        error: 'Não achei na Anvisa nem no Open Food Facts, e o limite diário da Cosmos acabou. Preencha o produto manualmente.',
       });
     }
     if (r.status === 401 || r.status === 403) {
-      return res.status(502).json({ error: 'A Cosmos recusou o token do SmartPrice (token inválido ou vencido). Avise o administrador.' });
+      console.error(`[barcode] Cosmos recusou o token (HTTP ${r.status})`);
+      return res.status(404).json({ error: 'Produto não encontrado na Anvisa nem no Open Food Facts (Cosmos indisponível). Preencha manualmente.' });
     }
 
     // Conta a partir daqui — a Cosmos respondeu (sucesso, 404 ou erro dela),
@@ -464,7 +478,7 @@ router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasPr
 
     if (r.status === 404) {
       gravarCacheCosmos(gtin, false, null);
-      return res.status(404).json({ error: 'Produto não encontrado na base Cosmos' });
+      return res.status(404).json({ error: naoAchou });
     }
     if (!r.ok) return res.status(r.status).json({ error: `Cosmos retornou HTTP ${r.status}` });
 
@@ -478,6 +492,7 @@ router.get('/barcode-lookup/:gtin', exigirSessaoValida(), exigirPermissao('hasPr
       // servimos via nosso proprio proxy em vez de expor a URL externa.
       thumbnail: json.thumbnail ? `/api/barcode-image/${gtin}` : null,
       ncm: json.ncm?.description || null,
+      fonte: 'Cosmos',
     };
     gravarCacheCosmos(gtin, true, resposta);
     res.json(resposta);
