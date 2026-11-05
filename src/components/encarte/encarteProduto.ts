@@ -760,6 +760,11 @@ export interface AjusteAvisoLegal {
   xPct?: number;
   yPct?: number;
   wPct?: number;
+  /** altura mínima da caixa em % (o texto nunca é cortado) */
+  hPct?: number;
+  /** cor do fundo (ex.: 'transparent', '#ffffff') — sem = branco quase opaco */
+  fundo?: string;
+  corTexto?: string;
 }
 
 export function criarLado(): LadoEncarte {

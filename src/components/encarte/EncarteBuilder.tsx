@@ -397,13 +397,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       /* sem resposta do servidor: segue só com a regra pelo nome (leite/fórmula) */
     }
     const restricao = restricaoDe({ product, nome: product.name, descricao: product.description ?? '' }, mapa);
+    // Proibido por lei: entra mesmo assim (decisão do José), mas avisa.
     if (restricao?.nivel === 'bloqueado') {
       avisadosRef.current.add(product.id);
-      toast.error(`${product.name}: não pode ser divulgado no encarte`, {
-        description: `${restricao.motivo} (${restricao.lei}). Na plaquinha de gôndola pode.`,
+      toast.error(`Atenção: ${product.name} não pode ser divulgado em encarte`, {
+        description: `${restricao.motivo} (${restricao.lei}). Coloquei, mas o ideal é tirar. Na plaquinha de gôndola pode.`,
         duration: 12000,
       });
-      return;
     }
     if (tarjaDe(product, mapa) === '') {
       toast.warning(`Confira se ${product.name} precisa de receita`, {
