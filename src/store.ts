@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { indiceModeloDaTela } from './lib/modeloDaTela';
 import { persist } from 'zustand/middleware';
 import { armazenamentoPersist } from './lib/armazenamentoLocal';
 import { toast } from 'sonner';
@@ -457,7 +458,7 @@ interface AppState {
   // que usam o mesmo navegador/dispositivo).
   lastUserIdentity: { cnpj: string; username: string } | null;
   // Rascunhos (fila/produto/preco) por loja, indexados por "cnpj::usuario".
-  userDrafts: Record<string, { printQueue: AppState['printQueue']; background: AppState['background']; productImage1: AppState['productImage1']; productImage2: AppState['productImage2']; productImage3: AppState['productImage3']; textElements1: AppState['textElements1']; textElements2: AppState['textElements2']; textElements3: AppState['textElements3']; optionalText1: AppState['optionalText1']; optionalText2: AppState['optionalText2']; optionalText3: AppState['optionalText3']; customTexts: AppState['customTexts']; isSingleProduct: AppState['isSingleProduct']; }>;
+  userDrafts: Record<string, { printQueue: AppState['printQueue']; background: AppState['background']; productImage1: AppState['productImage1']; productImage2: AppState['productImage2']; productImage3: AppState['productImage3']; textElements1: AppState['textElements1']; textElements2: AppState['textElements2']; textElements3: AppState['textElements3']; optionalText1: AppState['optionalText1']; optionalText2: AppState['optionalText2']; optionalText3: AppState['optionalText3']; customTexts: AppState['customTexts']; isSingleProduct: AppState['isSingleProduct']; activeLayoutId?: string | null; activeLayoutIndex?: number; }>;
   isSupportChatOpen: boolean;
   isChatEnabled: boolean;
   setSupportChatOpen: (open: boolean) => void;
@@ -665,14 +666,31 @@ const extractUserDraft = (state: AppState): UserDraft => ({
   optionalText3: state.optionalText3,
   customTexts: state.customTexts,
   isSingleProduct: state.isSingleProduct,
+  // qual modelo é esse desenho — sem isso, restaurar o rascunho deixava a
+  // tela com o fundo de um modelo e o id de outro
+  activeLayoutId: state.activeLayoutId,
+  activeLayoutIndex: state.activeLayoutIndex,
 });
 
 // Reabre uma plaquinha da fila/pasta: acha o modelo pelo id (a posição salva
 // pode ter mudado desde então); itens antigos, sem id, ficam com a posição.
 const editorStateParaAbrir = (state: AppState, es: QueuedPlaquinhaState): Partial<AppState> => {
-  const idx = es.activeLayoutId ? state.layouts.findIndex((l) => l.id === es.activeLayoutId) : -1;
+  // Confere pelo fundo também: item antigo pode ter id/posição de outro modelo.
+  const daTela = indiceModeloDaTela(state.layouts, es.activeLayoutId, es.activeLayoutIndex, es.background?.url);
+  const idx = daTela >= 0 ? daTela : es.activeLayoutId ? state.layouts.findIndex((l) => l.id === es.activeLayoutId) : -1;
   const activeLayoutIndex = idx >= 0 ? idx : es.activeLayoutIndex;
   return { ...es, activeLayoutIndex, activeLayoutId: state.layouts[activeLayoutIndex]?.id ?? null };
+};
+
+// Loja: se o id do modelo ativo não bate com o fundo que está na tela, acerta
+// o id/posição pelo fundo (ver lib/modeloDaTela). Admin troca fundo na tela
+// antes de salvar, então pra ele o id continua mandando.
+const ressincronizarModeloDaTela = (get: () => AppState, set: (p: Partial<AppState>) => void) => {
+  const st = get();
+  if (st.userRole === 'admin') return;
+  const i = indiceModeloDaTela(st.layouts, st.activeLayoutId, st.activeLayoutIndex, st.background?.url);
+  const id = i >= 0 ? st.layouts[i]?.id ?? null : null;
+  if (i >= 0 && (i !== st.activeLayoutIndex || id !== st.activeLayoutId)) set({ activeLayoutIndex: i, activeLayoutId: id });
 };
 
 // Monta o estado de trabalho (o que a tela A4 realmente renderiza) a partir de
@@ -773,9 +791,14 @@ export const useStore = create<AppState>()(
         // quando a lista muda (modelo novo entra no topo, reordenar, recarregar
         // do servidor): o desenho de um modelo era gravado na posição de outro,
         // e depois "escolhia o modelo 1 e aparecia o layout do 2".
-        const atual = state.activeLayoutId
-          ? state.layouts.findIndex((l) => l.id === state.activeLayoutId)
-          : state.activeLayoutIndex;
+        // Loja: só devolve se o fundo da tela for mesmo desse modelo — id velho
+        // (rascunho de outra loja, plaquinha antiga) gravava um desenho em
+        // cima de outro modelo e "clicava num e abria outro" até dar F5.
+        const atual = state.userRole !== 'admin'
+          ? indiceModeloDaTela(state.layouts, state.activeLayoutId, state.activeLayoutIndex, state.background?.url)
+          : state.activeLayoutId
+            ? state.layouts.findIndex((l) => l.id === state.activeLayoutId)
+            : state.activeLayoutIndex;
         if (atual < 0 || !state.layouts[atual]) {
           // Modelo da tela não existe mais na lista: só troca, sem gravar nada.
           set({ activeLayoutIndex: index, ...buildWorkingStateFromLayout(state.layouts[index], index) });
@@ -1397,6 +1420,7 @@ export const useStore = create<AppState>()(
             showOptionalTextControl: activeLayout?.showOptionalTextControl !== undefined ? activeLayout.showOptionalTextControl : (layout.showOptionalTextControl !== undefined ? layout.showOptionalTextControl : currentState.showOptionalTextControl),
             lastUpdateTimestamp: layout.updated_at || null
           } as any);
+          ressincronizarModeloDaTela(get, set as any);
         } catch (error) {
           console.error('Error loading layout:', error);
         }
@@ -1900,6 +1924,7 @@ export const useStore = create<AppState>()(
           editingSavedPlaquinhaId: null,
           ...switchUpdate,
         } as any);
+        ressincronizarModeloDaTela(get, set as any);
         if (role === 'user' && user.cnpj) {
           const nc = user.cnpj.replace(/[^\d]/g, '');
           set((state) => ({ allowedStores: state.allowedStores.map(s => s.cnpj.replace(/[^\d]/g, '') === nc ? { ...s, isOnline: true, lastAccess: new Date().toISOString(), lastUsername: user.username } : s) }));
