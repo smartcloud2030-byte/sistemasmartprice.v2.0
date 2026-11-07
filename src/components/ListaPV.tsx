@@ -118,7 +118,7 @@ function CampoLinha(p: PropsCampo) {
       onDoubleClick={() => { if (!editando) { setTexto(formatar()); setEditando(true); } }}
       title={editando ? undefined : `Dois cliques para editar ${p.rotulo.toLowerCase()}`}
       className={cn(
-        'inline-flex items-center gap-1 border rounded-lg px-2 py-1 select-none',
+        'inline-flex items-center gap-1 border rounded-lg px-2 py-1 select-none touch-manipulation',
         editando
           ? 'border-blue-500 bg-white dark:bg-zinc-900'
           : p.sempreComBorda
@@ -141,7 +141,7 @@ function CampoLinha(p: PropsCampo) {
           inputMode={p.tipo === 'numero' ? 'decimal' : 'text'}
           aria-label={p.rotulo}
           className={cn(
-            'bg-transparent text-sm text-zinc-900 dark:text-zinc-100 outline-none select-text',
+            'bg-transparent text-base sm:text-sm text-zinc-900 dark:text-zinc-100 outline-none select-text',
             p.largura || 'w-16',
             p.alinhar === 'left' ? 'text-left' : 'text-right',
           )}
@@ -349,6 +349,8 @@ export default function ListaPV() {
   const [maisProximoPrimeiro, setMaisProximoPrimeiro] = useState(true);
   const [pendente, setPendente] = useState<{ itens: ItemPV[]; ignoradas: number; nome: string } | null>(null);
   const [confirmarLimpar, setConfirmarLimpar] = useState(false);
+  // Celular/tablet: o X do cartão pergunta antes de apagar.
+  const [confirmarRemover, setConfirmarRemover] = useState<ItemPV | null>(null);
   const [menuColunas, setMenuColunas] = useState(false);
   const [editandoDescontos, setEditandoDescontos] = useState<Record<StatusPV, string> | null>(null);
   const [editandoPeriodos, setEditandoPeriodos] = useState<FaixasPV | null>(null);
@@ -493,7 +495,7 @@ export default function ListaPV() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-6">
       <div className="w-full space-y-4 md:space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3 md:gap-4">
             <button
               onClick={() => setView(ehAdmin ? 'dashboard' : 'editor')}
@@ -510,7 +512,7 @@ export default function ListaPV() {
               <p className="text-zinc-500 text-xs md:text-sm font-medium">Produtos próximos do vencimento</p>
             </div>
           </div>
-          <div className={cn('grid gap-2 md:flex md:items-center', ehAdmin ? 'grid-cols-2' : 'grid-cols-3')}>
+          <div className={cn('grid gap-2 sm:flex sm:flex-wrap sm:items-center lg:flex-nowrap lg:justify-end [&>button]:sm:flex-1 [&>button]:lg:flex-none [&>button]:whitespace-nowrap', ehAdmin ? 'grid-cols-2' : 'grid-cols-3')}>
             {ehAdmin && (
               <button
                 onClick={() => setJanelaAcessos(true)}
@@ -550,7 +552,7 @@ export default function ListaPV() {
             <button
               onClick={() => inputRef.current?.click()}
               disabled={importando}
-              className="flex items-center justify-center gap-2 px-3 md:px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter text-sm md:text-base shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70"
+              className={cn('flex items-center justify-center gap-2 px-3 md:px-5 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-tighter text-sm md:text-base shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70', ehAdmin && 'col-span-2')}
             >
               {importando ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
               Importar<span className="hidden md:inline"> lista</span>
@@ -559,7 +561,7 @@ export default function ListaPV() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 md:gap-3">
           {CARTOES.map((c) => (
             <button
               key={c.chave}
@@ -570,26 +572,26 @@ export default function ListaPV() {
               )}
             >
               <div className={cn('text-xl md:text-2xl font-black', c.cor)}>{c.valor}</div>
-              <div className="text-[11px] md:text-xs font-bold text-zinc-500 mt-0.5 md:mt-1 leading-tight">{c.rotulo}</div>
+              <div className="text-[11px] md:text-xs font-bold text-zinc-500 mt-0.5 md:mt-1 leading-tight break-words">{c.rotulo}</div>
             </button>
           ))}
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
-          <div className="relative flex-1 md:min-w-[220px]">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+          <div className="relative flex-1 lg:min-w-[220px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por produto, código, lote ou loja"
-              className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-blue-500"
             />
           </div>
           {ehAdmin && (
             <select
               value={cnpjAberto}
               onChange={(e) => setCnpjAberto(e.target.value)}
-              className="py-3 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none focus:border-blue-500 md:max-w-xs"
+              className="py-3 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base sm:text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none focus:border-blue-500 w-full lg:w-auto lg:max-w-xs min-w-0"
               title="Qual lista abrir"
             >
               <option value="">Lista geral (admin)</option>
@@ -600,11 +602,11 @@ export default function ListaPV() {
               ))}
             </select>
           )}
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 [&>*]:sm:flex-1 [&>*]:lg:flex-none">
           <div className="relative">
             <button
               onClick={() => setMenuColunas((v) => !v)}
-              className="h-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
+              className="w-full h-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
               title="Mostrar ou esconder colunas"
             >
               <Columns3 className="w-4 h-4" />
@@ -640,16 +642,16 @@ export default function ListaPV() {
           </button>
           <button
             onClick={() => setMaisProximoPrimeiro((v) => !v)}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
+            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold hover:border-blue-500/50 transition-all text-sm"
             title="Inverter a ordem"
           >
             <ArrowUpDown className="w-4 h-4" />
-            {maisProximoPrimeiro ? <>Mais próximo<span className="hidden md:inline"> do vencimento</span> primeiro</> : 'Mais distante primeiro'}
+            {maisProximoPrimeiro ? <>Mais próximo<span className="hidden xl:inline"> do vencimento</span> primeiro</> : 'Mais distante primeiro'}
           </button>
           {dados.itens.length > 0 && (
             <button
               onClick={() => setConfirmarLimpar(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 border border-zinc-200 dark:border-zinc-800 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm"
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 border border-zinc-200 dark:border-zinc-800 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm"
             >
               <Trash2 className="w-4 h-4" />
               Limpar<span className="hidden md:inline"> lista</span>
@@ -669,12 +671,12 @@ export default function ListaPV() {
             </div>
           ) : (
             <>
-            {/* Celular: um cartão por produto */}
-            <ul className="md:hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+            {/* Celular e tablet: um cartão por produto (1, 2 ou 3 por linha) */}
+            <ul className="xl:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 -mr-px -mb-px">
               {visiveis.map((i) => (
-                <li key={i.id} className={cn('border-l-4 px-4 py-3 flex gap-3', BORDA_STATUS[i.status])}>
+                <li key={i.id} className={cn('border-l-4 border-b border-r border-b-zinc-100 border-r-zinc-100 dark:border-b-zinc-800 dark:border-r-zinc-800 px-4 py-3 flex gap-3 min-w-0', BORDA_STATUS[i.status])}>
                   <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{i.produto || '—'}</div>
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100 leading-snug break-words">{i.produto || '—'}</div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn('px-2 py-0.5 rounded-lg text-[11px] font-bold whitespace-nowrap', COR_STATUS[i.status])}>
                         {rotuloSituacao(i.status, periodos)}
@@ -682,7 +684,7 @@ export default function ListaPV() {
                       <span className="text-sm text-zinc-700 dark:text-zinc-300">Vence {dataBR(i.vencimento)}</span>
                     </div>
                     <div className="text-xs text-zinc-500 flex flex-wrap gap-x-3 gap-y-0.5">
-                      {i.codigo && <span className="font-mono">{i.codigo}</span>}
+                      {i.codigo && <span className="font-mono break-all">{i.codigo}</span>}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-zinc-500 -ml-2">
                       {colunas.quantidade && (
@@ -733,13 +735,18 @@ export default function ListaPV() {
                             )}
                           </label>
                         )}
+                        {colunas.desconto && i.descontoManual != null && (
+                          <button onClick={() => editarItem(i.id, { descontoManual: null })} className="text-[11px] text-blue-600 hover:underline">
+                            manual · usar o do período
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col items-end justify-between shrink-0">
                     <button
-                      onClick={() => remover(i.id)}
-                      className="p-1.5 -mr-1.5 -mt-1 text-zinc-400 hover:text-red-600 rounded-lg"
+                      onClick={() => setConfirmarRemover(i)}
+                      className="p-2.5 -mr-2.5 -mt-2 text-zinc-400 hover:text-red-600 active:text-red-600 rounded-lg"
                       title="Remover da lista"
                       aria-label={`Remover ${i.produto || i.codigo} da lista`}
                     >
@@ -753,7 +760,7 @@ export default function ListaPV() {
                 </li>
               ))}
             </ul>
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden xl:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-xs uppercase tracking-wider">
                   <tr>
@@ -991,6 +998,40 @@ export default function ListaPV() {
               </button>
               <button onClick={salvarDescontos} className="px-4 py-2.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700">
                 Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmarRemover && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={() => setConfirmarRemover(null)}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="pv-remover-titulo"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full space-y-4 border border-zinc-200 dark:border-zinc-800"
+          >
+            <div className="space-y-1">
+              <h2 id="pv-remover-titulo" className="text-lg font-black text-zinc-900 dark:text-white">Apagar este produto?</h2>
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 font-semibold break-words">{confirmarRemover.produto || confirmarRemover.codigo}</p>
+              <p className="text-sm text-zinc-500">
+                Vence {dataBR(confirmarRemover.vencimento)}{confirmarRemover.lote ? ` · Lote ${confirmarRemover.lote}` : ''}. Ele sai da Lista PV e não dá pra desfazer.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfirmarRemover(null)}
+                className="py-3 rounded-xl font-bold border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                Não
+              </button>
+              <button
+                onClick={() => { const id = confirmarRemover.id; setConfirmarRemover(null); remover(id); }}
+                className="py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700"
+              >
+                Sim, apagar
               </button>
             </div>
           </div>
