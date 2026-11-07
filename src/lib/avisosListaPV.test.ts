@@ -33,3 +33,8 @@ assert.equal(avisosPendentes([item('a', '2026-11-09')], 30, vistos, hoje).length
 assert.deepEqual([...limparVistos(new Set([chaveAviso(itens[0], 'umDia'), 'zz|2026-01-01|umDia']), itens)], [chaveAviso(itens[0], 'umDia')]);
 
 console.log('avisosListaPV ok');
+
+import { avisosDeTeste } from './avisosListaPV';
+assert.equal(avisosDeTeste(itens, 30, hoje).length, 3); // reais, ignorando vistos
+assert.deepEqual(avisosDeTeste([], 30, hoje).map((a) => a.marco), ['umDia', 'semana', 'vermelho']);
+console.log('avisosDeTeste ok');

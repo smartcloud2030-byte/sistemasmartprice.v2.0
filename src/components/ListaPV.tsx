@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check, Percent, KeyRound, Plus,
+  ArrowLeft, Upload, Download, FileSpreadsheet, Search, Trash2, CalendarClock, Loader2, X, ArrowUpDown, Columns3, Check, Percent, KeyRound, Plus, BellRing,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
@@ -12,6 +12,8 @@ import {
   type ColunaOpcionalPV, type ColunasPV, type DescontosPorFaixa, type ItemPV, type StatusPV, type FaixasPV, type FaixaEditavel, type UnidadeFaixa,
 } from '../lib/listaPV';
 import { chaveListaPV, normalizarUsuarioPV, type ModoAcessoListaPV } from '../lib/acessoListaPV';
+import { avisosDeTeste, type AvisoPV } from '../lib/avisosListaPV';
+import { CartaoAvisosPV, notificarSistema } from './ListaPVNotificacao';
 
 // Lista PV — produtos próximos (ou não) do vencimento.
 // Admin: lista geral em settings.lista_pv + pode abrir a de qualquer CNPJ.
@@ -331,6 +333,8 @@ export default function ListaPV() {
   const [cnpjAberto, setCnpjAberto] = useState('');
   const chave = ehAdmin ? chaveListaPV(cnpjAberto) : chaveListaPV(currentUser?.cnpj);
   const [janelaAcessos, setJanelaAcessos] = useState(false);
+  // Admin: prévia do aviso que o usuário liberado recebe (não grava nada).
+  const [avisosTeste, setAvisosTeste] = useState<AvisoPV[] | null>(null);
   const [buscaAcessos, setBuscaAcessos] = useState('');
   const lojasOrdenadas = useMemo(
     () => [...allowedStores].sort((a, b) => (a.bandeira || '').localeCompare(b.bandeira || '') || a.cnpj.localeCompare(b.cnpj)),
@@ -401,6 +405,17 @@ export default function ListaPV() {
       setDados(anterior);
       toast.error(e.message || 'Falha ao salvar a lista.');
     }
+  };
+
+  // Usa os produtos da lista aberta (ou exemplos, se nenhum estiver perto do
+  // vencimento) e dispara também a notificação do computador, se permitida.
+  const testarAviso = async () => {
+    const avisos = avisosDeTeste(dados.itens, periodos.limites[0]);
+    setAvisosTeste(avisos);
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    notificarSistema(avisos);
   };
 
   const comStatus = useMemo(
@@ -504,6 +519,16 @@ export default function ListaPV() {
               >
                 <KeyRound className="w-5 h-5" />
                 Acessos
+              </button>
+            )}
+            {ehAdmin && (
+              <button
+                onClick={testarAviso}
+                className="flex items-center justify-center gap-2 px-3 md:px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-bold text-sm md:text-base hover:border-blue-500/50 transition-all"
+                title="Mostrar o aviso de vencimento como o usuário liberado recebe"
+              >
+                <BellRing className="w-5 h-5" />
+                Testar aviso
               </button>
             )}
             <button
@@ -861,6 +886,10 @@ export default function ListaPV() {
             </div>
           </div>
         </div>
+      )}
+
+      {avisosTeste && (
+        <CartaoAvisosPV teste avisos={avisosTeste} onFechar={() => setAvisosTeste(null)} />
       )}
 
       {janelaAcessos && ehAdmin && (

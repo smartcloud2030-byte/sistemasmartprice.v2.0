@@ -58,3 +58,26 @@ export function limparVistos(vistos: Set<string>, itens: ItemPV[]): Set<string> 
 }
 
 export const textoDias = (dias: number) => (dias === 0 ? 'vence hoje' : dias === 1 ? 'vence amanhã' : `vence em ${dias} dias`);
+
+/**
+ * Pro botão "Testar aviso" do admin: o marco atual de cada produto da lista
+ * aberta, sem olhar o "já avisado". Lista sem nenhum produto perto do
+ * vencimento → três exemplos (um por marco) só pra ver como fica.
+ */
+export function avisosDeTeste(itens: ItemPV[], limiteVermelho: number, hoje = new Date()): AvisoPV[] {
+  const reais = avisosPendentes(itens, limiteVermelho, new Set(), hoje);
+  if (reais.length) return reais;
+  const em = (dias: number) => {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + dias);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const exemplo = (id: string, produto: string, dias: number, marco: MarcoPV): AvisoPV => ({
+    chave: `teste-${id}`, dias, marco,
+    item: { id: `teste-${id}`, produto, codigo: '', vencimento: em(dias), quantidade: null, lote: '', loja: 'Exemplo' },
+  });
+  return [
+    exemplo('1', 'PRODUTO DE EXEMPLO (falta 1 dia)', 1, 'umDia'),
+    exemplo('2', 'PRODUTO DE EXEMPLO (falta 1 semana)', 7, 'semana'),
+    exemplo('3', 'PRODUTO DE EXEMPLO (período mais próximo)', Math.max(8, limiteVermelho), 'vermelho'),
+  ];
+}
