@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStore } from '../store';
 import {
   ArrowRight, Store, Users, Flag, LayoutGrid, Database,
-  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet, CalendarClock
+  Megaphone, ListPlus, AlertTriangle, Clock, LogOut, MessageCircle, Image as ImageIcon, Wallet, CalendarClock, LifeBuoy
 } from 'lucide-react';
 import { cn, isStoreOnline } from '../lib/utils';
 import { QuickListModal, QuickListItem } from './ui/QuickListModal';
@@ -152,6 +152,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'SmartGaleria', description: 'Ver, subir e organizar as imagens', icon: ImageIcon, onClick: () => window.open('/gallery', '_blank') },
     { label: 'Financeiro', description: 'Despesas, saldo e notas fiscais', icon: Wallet, onClick: () => { setFinanceiroTab('despesas'); setShowFinanceiro(true); } },
     { label: 'Lista PV', description: 'Produtos próximos do vencimento', icon: CalendarClock, onClick: () => setView('lista-pv') },
+    { label: 'Suporte TI', description: 'Painel de suporte das lojas (máquinas / MeshCentral)', icon: LifeBuoy, onClick: () => window.open('https://sistemasmartprice.com.br/suporte/', '_blank', 'noopener') },
   ];
 
   return (

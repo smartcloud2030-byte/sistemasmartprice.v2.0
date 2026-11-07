@@ -33,7 +33,7 @@ import {
   Search, Database, X, ListPlus, LayoutGrid,
   ArrowLeft, LogOut, Users, MessageCircle, AlertTriangle,
   RefreshCw, Layout, Megaphone, Flag, MapPin, Moon, Sun, Image as ImageIcon,
-  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus, FolderOpen, CalendarClock, LifeBuoy
+  ChevronDown, ChevronLeft, Info, LayoutDashboard, Star, KeyRound, FileSpreadsheet, Save, FolderPlus, FolderOpen, CalendarClock
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Toaster } from 'sonner';
@@ -972,19 +972,6 @@ export default function App() {
                     }}
                   />
                 </HeaderDropdown>
-              )}
-
-              {/* Suporte TI — só admin: abre o painel das lojas (máquinas / MeshCentral) */}
-              {userRole === 'admin' && (
-                <button
-                  type="button"
-                  onClick={() => window.open('https://sistemasmartprice.com.br/suporte/', '_blank', 'noopener')}
-                  className="h-10 flex items-center gap-1.5 px-3.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all text-sm font-semibold"
-                  title="Painel de suporte das lojas (máquinas / MeshCentral)"
-                >
-                  <LifeBuoy className="w-4 h-4" />
-                  Suporte TI
-                </button>
               )}
 
               {/* Support (usuário comum usa apenas o botão flutuante) */}
