@@ -8,7 +8,7 @@ import { cn } from '../lib/utils';
 import {
   COLUNAS_OPCIONAIS_PV, COLUNAS_PV_PADRAO, ORDEM_FAIXAS, baixarModeloPV, normalizarFaixas, rotuloFaixa, editarFaixa, intervaloFaixa,
   diasDoInicio, diasDoFim, exibirInicio, exibirFim, dataBR, diasParaVencer,
-  exportarPV, importarArquivoPV, lerNumero, moedaBR, percentualBR, percentualDescontoPV, statusPV, valorDescontoPV,
+  exportarPV, importarArquivoPV, lerNumero, moedaBR, percentualBR, percentualDescontoPV, statusPV, precoComDescontoPV,
   type ColunaOpcionalPV, type ColunasPV, type DescontosPorFaixa, type ItemPV, type StatusPV, type FaixasPV, type FaixaEditavel, type UnidadeFaixa,
 } from '../lib/listaPV';
 import { chaveListaPV, normalizarUsuarioPV, type ModoAcessoListaPV } from '../lib/acessoListaPV';
@@ -425,7 +425,7 @@ export default function ListaPV() {
           const dias = diasParaVencer(i.vencimento);
           const status = statusPV(dias, periodos.limites);
           const pctDesconto = percentualDescontoPV(i, status, dados.descontos);
-          return { ...i, dias, status, pctDesconto, valorDesconto: valorDescontoPV(i.precoOferta, pctDesconto) };
+          return { ...i, dias, status, pctDesconto, valorDesconto: precoComDescontoPV(i.precoOferta, pctDesconto) };
         })
         .sort((a, b) => (maisProximoPrimeiro ? a.dias - b.dias : b.dias - a.dias) || a.produto.localeCompare(b.produto)),
     [dados, periodos, maisProximoPrimeiro],
@@ -727,7 +727,7 @@ export default function ListaPV() {
                               aoSalvar={(v) => editarItem(i.id, { descontoManual: v })}
                             />
                             {i.valorDesconto != null && (
-                              <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black text-sm">
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black text-sm" title="Preço com desconto">
                                 {moedaBR(i.valorDesconto)}
                               </span>
                             )}
@@ -771,7 +771,7 @@ export default function ListaPV() {
                     {colunas.loja && <th className="text-left px-4 py-3">Loja</th>}
                     {colunas.custo && <th className="text-right px-4 py-3">Custo</th>}
                     {colunas.precoOferta && <th className="text-right px-4 py-3 whitespace-nowrap">Preço de oferta</th>}
-                    {colunas.desconto && <th className="text-right px-4 py-3">Desconto</th>}
+                    {colunas.desconto && <th className="text-right px-4 py-3" title="Preço de oferta com o desconto aplicado">Preço c/ desconto</th>}
                     <th className="px-2 py-3" />
                   </tr>
                 </thead>
@@ -818,7 +818,7 @@ export default function ListaPV() {
                         <td className="px-2 py-2 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
                             {i.valorDesconto != null && (
-                              <span className="inline-block px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black">
+                              <span className="inline-block px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-black" title="Preço com desconto">
                                 {moedaBR(i.valorDesconto)}
                               </span>
                             )}

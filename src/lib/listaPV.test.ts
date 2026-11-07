@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
-  diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, percentualDescontoPV, statusPV, valorDescontoPV,
+  diasParaVencer, importarArquivoPV, lerData, lerDesconto, lerNumero, percentualDescontoPV, statusPV, precoComDescontoPV,
   FAIXAS_PV_PADRAO, editarFaixa, rotuloFaixa, diasDoInicio, diasDoFim,
 } from './listaPV';
 import { chaveListaPV, podeAcessarListaPV } from './acessoListaPV';
@@ -89,10 +89,15 @@ async function main() {
   assert.equal(percentualDescontoPV(item, 'amareloClaro', { vermelho: 80 }), 10);
   assert.equal(percentualDescontoPV({ ...item, desconto: null }, 'verde', {}), null);
   assert.equal(percentualDescontoPV({ ...item, descontoManual: 50 }, 'vermelho', { vermelho: 80 }), 50);
-  assert.equal(valorDescontoPV(89.99, 80), 71.99);
-  assert.equal(valorDescontoPV(89.99, 40), 36);
-  assert.equal(valorDescontoPV(null, 40), null);
-  assert.equal(valorDescontoPV(10, null), null);
+  assert.equal(precoComDescontoPV(9.99, 80), 1.99); // 1,998 → corta, não arredonda
+  assert.equal(precoComDescontoPV(89.99, 80), 17.99); // 17,998
+  assert.equal(precoComDescontoPV(89.99, 40), 53.99); // 53,994
+  assert.equal(precoComDescontoPV(5.99, 100), 0);
+  assert.equal(precoComDescontoPV(10, 30), 7);
+  assert.equal(precoComDescontoPV(0.7, 0), 0.7);
+  assert.equal(precoComDescontoPV(19.9, 15), 16.91); // 16,915
+  assert.equal(precoComDescontoPV(null, 40), null);
+  assert.equal(precoComDescontoPV(10, null), null);
 }
 
 // Acesso à Lista PV por CNPJ / usuário

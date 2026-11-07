@@ -15,7 +15,7 @@ export interface ItemPV {
   custo?: number | null;
   /** Desconto em % (10 = 10%). */
   desconto?: number | null;
-  /** Preço de oferta em R$ — base do cálculo do desconto em reais. */
+  /** Preço de oferta em R$ — base do preço com desconto. */
   precoOferta?: number | null;
   /** % digitado na mão na linha — vale mais que o do período e o da planilha. */
   descontoManual?: number | null;
@@ -295,10 +295,16 @@ export function percentualDescontoPV(item: ItemPV, status: StatusPV, faixas?: De
   return item.desconto ?? null;
 }
 
-/** Desconto em R$ sobre o preço de oferta (arredondado em centavos); null se faltar preço ou %. */
-export function valorDescontoPV(precoOferta: number | null | undefined, percentual: number | null): number | null {
+/**
+ * Preço que fica depois do desconto: oferta − %. Centavos cortados, nunca
+ * arredondados (9,99 com 80% = 1,998 → 1,99). null se faltar preço ou %.
+ */
+export function precoComDescontoPV(precoOferta: number | null | undefined, percentual: number | null): number | null {
   if (precoOferta == null || percentual == null) return null;
-  return Math.round(precoOferta * percentual) / 100;
+  const centavos = Math.round(precoOferta * 100);
+  const pct = Math.min(100, Math.max(0, percentual));
+  // conta em centavos; o 1e-6 evita 69,99999… virar 69 por erro de ponto flutuante
+  return Math.floor((centavos * (100 - pct)) / 100 + 1e-6) / 100;
 }
 
 export const dataBR = (iso: string) => {
@@ -331,12 +337,12 @@ export function exportarPV(
     if (colunas.precoOferta) linha['Preço de oferta'] = i.precoOferta ?? '';
     if (colunas.desconto) {
       linha['Desconto (%)'] = pct ?? '';
-      linha['Desconto (R$)'] = valorDescontoPV(i.precoOferta, pct) ?? '';
+      linha['Preço com desconto (R$)'] = precoComDescontoPV(i.precoOferta, pct) ?? '';
     }
     return linha;
   });
   const ws = XLSX.utils.json_to_sheet(linhas);
-  const larguras: Record<string, number> = { Quantidade: 11, Lote: 12, Loja: 18, Custo: 12, 'Preço de oferta': 15, 'Desconto (%)': 13, 'Desconto (R$)': 14 };
+  const larguras: Record<string, number> = { Quantidade: 11, Lote: 12, Loja: 18, Custo: 12, 'Preço de oferta': 15, 'Desconto (%)': 13, 'Preço com desconto (R$)': 22 };
   ws['!cols'] = [40, 16, 12, 16, 22, ...Object.keys(linhas[0] || {}).slice(5).map((k) => larguras[k] || 12)].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Lista PV');
