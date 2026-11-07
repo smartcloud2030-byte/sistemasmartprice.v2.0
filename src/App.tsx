@@ -18,6 +18,7 @@ import LayoutSelectorModal from './components/LayoutSelectorModal';
 import EncarteBuilder from './components/encarte/EncarteBuilder';
 import EncarteDigital from './components/encarte-digital/EncarteDigital';
 import ListaPV from './components/ListaPV';
+import ListaPVNotificacao from './components/ListaPVNotificacao';
 import { podeAcessarListaPV } from './lib/acessoListaPV';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
@@ -1293,6 +1294,11 @@ export default function App() {
   return (
     <>
       {renderContent()}
+
+      {/* Aviso de vencimento da Lista PV pro usuário liberado (fora da própria lista) */}
+      {isAuthenticated && userRole !== 'admin' && canUseListaPV && currentView !== 'lista-pv' && !isPrinting && (
+        <ListaPVNotificacao />
+      )}
 
       {/* Product Management Modal */}
       {isProductModalOpen && (
