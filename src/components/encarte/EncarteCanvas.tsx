@@ -852,6 +852,37 @@ export default function EncarteCanvas({
     });
   };
 
+  /** Prepara o documento clonado antes da medição:
+   * 1. trava o encarte no tamanho exato (480 × 480/proporção) — nada no
+   *    clone pode espremer a caixa;
+   * 2. carrega no clone as MESMAS fontes que a tela já usa. O clone é um
+   *    documento novo: na 1ª exportação as fontes ainda não estavam
+   *    carregadas nele, os textos saíam com fonte reserva (mais larga) e
+   *    empurravam/espremiam os cards — PNG fino, fundo escuro, tudo
+   *    comprimido; na 2ª já vinham do cache e dava certo. */
+  const prepararClone = async (doc: Document, alvo: HTMLElement) => {
+    semZoomNoClone(doc);
+    alvo.style.width = `${CANVAS_W}px`;
+    alvo.style.minWidth = `${CANVAS_W}px`;
+    alvo.style.height = `${CANVAS_W / formato.ratio}px`;
+    alvo.style.flexShrink = '0';
+    alvo.style.aspectRatio = 'auto';
+    try {
+      const usadas = new Set<string>();
+      document.fonts?.forEach((f) => { if (f.status === 'loaded') usadas.add(`${f.family}|${f.weight}|${f.style}`); });
+      const pendentes: Promise<unknown>[] = [];
+      doc.fonts?.forEach((f) => {
+        if (f.status !== 'loaded' && usadas.has(`${f.family}|${f.weight}|${f.style}`)) pendentes.push(f.load().catch(() => null));
+      });
+      void doc.body?.offsetHeight; // força o layout, que dispara as fontes que faltarem
+      await Promise.race([
+        Promise.all([...pendentes, doc.fonts?.ready]),
+        new Promise((r) => setTimeout(r, 8000)),
+      ]);
+    } catch { /* sem FontFace API: segue como antes */ }
+    await new Promise<void>((r) => (doc.defaultView || window).requestAnimationFrame(() => r()));
+  };
+
   const capturarCanvas = async (qualidade = 1) => {
     // Garante que as fontes (as ~140 do encarte carregam sob demanda) e as
     // imagens já estejam prontas antes de capturar — senão o export sai com
@@ -865,7 +896,7 @@ export default function EncarteCanvas({
       scale: (formato.width / CANVAS_W) * qualidade,
       imageTimeout: 20000,
       logging: false,
-      onclone: semZoomNoClone,
+      onclone: prepararClone,
     });
   };
 
@@ -873,11 +904,19 @@ export default function EncarteCanvas({
    * um canvas 0×0 (o `toDataURL` disso vira `"data:,"` — um arquivo de 0
    * bytes que não abre). Detecta esse caso e tenta de novo antes de desistir. */
   const renderParaCanvas = async (qualidade = 1) => {
-    let canvas = await capturarCanvas(qualidade);
-    if (canvas.width === 0 || canvas.height === 0) {
+    // Saiu vazio ou fora da proporção do formato (ex.: estreito/espremido)?
+    // Captura de novo — é o que o usuário fazia na mão exportando 2 vezes.
+    const proporcaoErrada = (c: HTMLCanvasElement) =>
+      Math.abs(c.width / c.height - formato.ratio) / formato.ratio > 0.02;
+    let canvas: HTMLCanvasElement | null = null;
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      if (canvas) { liberarCanvas(canvas); await esperarFrame(); }
       canvas = await capturarCanvas(qualidade);
+      if (canvas.width > 0 && canvas.height > 0 && !proporcaoErrada(canvas)) return canvas;
+      // eslint-disable-next-line no-console
+      console.warn(`Export do encarte saiu ${canvas.width}×${canvas.height} (esperado proporção ${formato.ratio.toFixed(3)}), tentando de novo.`);
     }
-    if (canvas.width === 0 || canvas.height === 0) {
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
       throw new Error('Canvas de exportação saiu vazio (0×0) mesmo após nova tentativa.');
     }
     return canvas;
@@ -948,7 +987,7 @@ export default function EncarteCanvas({
         useCORS: true,
         backgroundColor: '#000000',
         scale: 480 / CANVAS_W,
-        onclone: semZoomNoClone,
+        onclone: prepararClone,
       });
       const thumb = gerarThumbnail(canvas);
       liberarCanvas(canvas);
