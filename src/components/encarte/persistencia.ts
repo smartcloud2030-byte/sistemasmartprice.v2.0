@@ -135,14 +135,25 @@ function enfileirarHistorico<T>(tarefa: () => Promise<T>): Promise<T> {
   return proxima;
 }
 
+/**
+ * Grava o encarte na aba Encartes. Com `idExistente` (o encarte que está
+ * aberto no editor já foi salvo antes), ATUALIZA esse item e sobe ele pro
+ * topo, em vez de criar outro — antes cada download de PNG/PDF criava uma
+ * cópia nova e a aba enchia de repetidos. Se o item não existir mais (foi
+ * apagado), cria um novo. O item gravado é sempre o primeiro da lista.
+ */
 export function salvarNoHistorico(
   cnpj: string,
   entrada: Omit<EncarteSalvo, 'id' | 'createdAt'>,
+  idExistente?: string | null,
 ): Promise<EncarteSalvo[]> {
   return enfileirarHistorico(async () => {
     const atual = await lerHistoricoParaGravar(cnpj);
-    const novo: EncarteSalvo = { ...entrada, id: novoId(), createdAt: new Date().toISOString() };
-    const lista = [novo, ...atual];
+    const anterior = idExistente ? atual.find((e) => e.id === idExistente) : undefined;
+    const novo: EncarteSalvo = anterior
+      ? { ...anterior, ...entrada, id: anterior.id, createdAt: new Date().toISOString() }
+      : { ...entrada, id: novoId(), createdAt: new Date().toISOString() };
+    const lista = [novo, ...atual.filter((e) => e.id !== novo.id)];
     await apiPost(chaveHistorico(cnpj), { value: lista });
     return lista;
   });
@@ -201,6 +212,9 @@ export function apagarDoHistorico(cnpj: string, id: string): Promise<EncarteSalv
 export interface RascunhoEncarte {
   /** nome digitado no topo do editor — usado no "Salvar" (vazio = nome com a data). */
   nome?: string;
+  /** id do item da aba Encartes que este rascunho representa (já salvo antes) —
+   * salvar/baixar de novo atualiza esse item em vez de criar um repetido. */
+  salvoId?: string | null;
   formato: string;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;

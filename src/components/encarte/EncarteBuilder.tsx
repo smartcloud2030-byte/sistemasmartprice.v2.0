@@ -143,6 +143,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [historico, setHistorico] = useState<EncarteSalvo[]>([]);
   // Nome do encarte (campo no topo) — fora do desfazer/refazer, mas vai no rascunho.
   const [nomeEncarte, setNomeEncarte] = useState('');
+  // Item da aba Encartes que corresponde ao encarte aberto (já salvo). Salvar
+  // ou baixar de novo atualiza esse item — sem criar repetido a cada PNG.
+  const [salvoId, setSalvoId] = useState<string | null>(null);
+  // Cópia em ref + fila: dois downloads seguidos (antes do 1º terminar de
+  // gravar) não podem criar dois itens — o 2º espera o 1º e já usa o id dele.
+  const salvoIdRef = useRef<string | null>(null);
+  salvoIdRef.current = salvoId;
+  const filaGravacao = useRef<Promise<unknown>>(Promise.resolve());
   // O auto-save só liga depois que o rascunho salvo foi restaurado (ou que
   // sabemos, pelo servidor, que não há nenhum). Enquanto isso a "casca" inicial
   // do editor não pode gravar por cima do trabalho que está no servidor.
@@ -153,8 +161,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [tentativaCarregar, setTentativaCarregar] = useState(0); // re-tenta se o servidor falhar
 
   // Foto sempre atualizada do estado, pra salvar na hora de fechar/recarregar a aba.
-  const snapshotRef = useRef<RascunhoSemData>({ nome: nomeEncarte, formato: doc.formatoId, ladoFrente, ladoVerso });
-  snapshotRef.current = { nome: nomeEncarte, formato: doc.formatoId, ladoFrente, ladoVerso };
+  const snapshotRef = useRef<RascunhoSemData>({ nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ladoVerso });
+  snapshotRef.current = { nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ladoVerso };
 
   // Largura do painel lateral — ajustável pelo usuário arrastando a divisória.
   const PAINEL_MIN = 240;
@@ -215,6 +223,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         if (rascunho) {
           restaurouRascunho.current = true;
           setNomeEncarte(rascunho.nome ?? '');
+          setSalvoId(rascunho.salvoId ?? null);
           resetarDoc({
             formatoId: rascunho.formato as FormatoId,
             ladoFrente: normalizarLado(rascunho.ladoFrente),
@@ -252,13 +261,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     // esteja terminando de carregar. Assim que o usuário mexe em algo (ou
     // restauramos um rascunho), volta a salvar normalmente.
     if (!restaurouRascunho.current && ladoVazio(ladoFrente) && !ladoVerso) return;
-    const snap: RascunhoSemData = { nome: nomeEncarte, formato: doc.formatoId, ladoFrente, ladoVerso };
+    const snap: RascunhoSemData = { nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ladoVerso };
     const tLocal = setTimeout(() => gravarRascunhoLocal(cnpj, username, snap), 300);
     const tServidor = setTimeout(() => {
       salvarRascunho(cnpj, snap).catch((err) => console.error('Erro ao salvar rascunho do encarte:', err));
     }, 1000);
     return () => { clearTimeout(tLocal); clearTimeout(tServidor); };
-  }, [cnpj, username, doc, ladoFrente, ladoVerso, nomeEncarte]);
+  }, [cnpj, username, doc, ladoFrente, ladoVerso, nomeEncarte, salvoId]);
 
   // Flush ao sair: fechar a aba, recarregar (F5) ou trocar de tela do app.
   // Grava o localStorage na hora (síncrono) e tenta o servidor com keepalive.
@@ -752,22 +761,38 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   /**
    * Grava o encarte inteiro (formato + frente + verso, com fundo/tema,
    * produtos, formas, textos, tags, marca e guias) na aba Encartes.
-   * Usado pelo botão "Salvar" e também depois de um download.
+   * Usado pelo botão "Salvar" e também depois de um download. Se o encarte
+   * aberto já está na aba, atualiza o mesmo item (não duplica).
    */
   const gravarEncarte = (imagemPreview: string): Promise<void> => {
     if (!cnpj) return Promise.reject(new Error('Sessão sem usuário identificado — não dá pra salvar o encarte.'));
-    return salvarNoHistorico(chaveHist, {
-      nome: nomeEncarte.trim() || `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
-      imagemPreview,
-      formato: doc.formatoId,
-      ladoFrente,
-      ladoVerso,
-    }).then(setHistorico);
+    const gravar = filaGravacao.current.catch(() => null).then(() => {
+      const id = salvoIdRef.current;
+      const nomeAnterior = id ? historico.find((e) => e.id === id)?.nome : undefined;
+      return salvarNoHistorico(chaveHist, {
+        nome:
+          nomeEncarte.trim() ||
+          nomeAnterior ||
+          `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso ? ' (frente + verso)' : ''}`,
+        imagemPreview,
+        formato: doc.formatoId,
+        ladoFrente,
+        ladoVerso,
+      }, id).then((lista) => {
+        setHistorico(lista);
+        salvoIdRef.current = lista[0]?.id ?? null;
+        setSalvoId(salvoIdRef.current);
+      });
+    });
+    filaGravacao.current = gravar;
+    return gravar;
   };
+
 
   const abrirDoHistorico = (entry: EncarteSalvo) => {
     restaurouRascunho.current = true;
     setNomeEncarte(entry.nome);
+    setSalvoId(entry.id);
     resetarDoc({
       formatoId: entry.formato as FormatoId,
       ladoFrente: normalizarLado(entry.ladoFrente),
@@ -792,6 +817,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     // auto-save pula o lado vazio e um F5 traria o encarte antigo de volta.
     restaurouRascunho.current = true;
     setNomeEncarte('');
+    setSalvoId(null); // encarte novo vira um item novo na aba ao salvar/baixar
     setLadoAtivo('frente');
     setProdutoDetalhadoId(null);
     setNovoAberto(false);
@@ -800,7 +826,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const renomearHistoricoItem = (id: string, nome: string) => {
     if (!chaveHist) return;
     renomearNoHistorico(chaveHist, id, nome)
-      .then(setHistorico)
+      .then((lista) => {
+        setHistorico(lista);
+        if (id === salvoIdRef.current) setNomeEncarte(nome);
+      })
       .catch((err) => {
         console.error('Erro ao renomear encarte:', err);
         toast.error(`Não deu pra renomear: ${err?.message || 'erro desconhecido'}`);
@@ -810,7 +839,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const apagarHistoricoItem = (id: string) => {
     if (!cnpj) return;
     apagarDoHistorico(chaveHist, id)
-      .then(setHistorico)
+      .then((lista) => {
+        setHistorico(lista);
+        if (id === salvoIdRef.current) setSalvoId(null);
+      })
       .catch((err) => {
         console.error('Erro ao apagar encarte do histórico:', err);
         toast.error(`Não deu pra apagar: ${err?.message || 'erro desconhecido'}`);
