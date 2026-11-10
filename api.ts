@@ -204,6 +204,7 @@ function settingParaLoja(id: string, valor: any, cnpj: string, loja: LojaCadastr
     };
   }
   if (id === 'encarte_galeria_visibilidade') return { ok: true, valor };
+  if (id === 'encarte_temas_subcategorias') return { ok: true, valor };
   if (id === `encarte_historico_${cnpj}` || id === `encarte_rascunho_${cnpj}`) return { ok: true, valor };
   if (id === 'cosmos_usage_daily' && loja?.hasProductManagementAccess) return { ok: true, valor };
   return { ok: false };

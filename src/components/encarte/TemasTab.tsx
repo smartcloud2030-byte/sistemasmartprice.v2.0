@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2, Search, X, FolderInput, FolderPlus, Pencil, Folder } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   uploadBackgroundImage,
@@ -14,6 +14,18 @@ import { carregarVisibilidade, podeVerClassificacao } from '../../lib/galeriaVis
 import { useStore } from '../../store';
 import { getProxyUrl, cn, normalizarBusca } from '../../lib/utils';
 import ClassificacaoBar from './ClassificacaoBar';
+import {
+  MapaSubcategorias,
+  Subcategoria,
+  carregarSubcategorias,
+  salvarSubcategorias,
+  subsOrdenadas,
+  subDoArquivo,
+  criarSub,
+  renomearSub,
+  excluirSub,
+  definirSub,
+} from '../../lib/temasSubcategorias';
 
 const CATEGORIA = 'encarte-temas';
 const PREVIA = 12; // até quantos temas a tira horizontal carrega
@@ -65,6 +77,7 @@ function TemaThumb({
   onSelect,
   onReplace,
   onDelete,
+  onMove,
 }: {
   img: GalleryImage;
   ativa: boolean;
@@ -75,6 +88,8 @@ function TemaThumb({
   onSelect: () => void;
   onReplace: (file: File) => void;
   onDelete: () => void;
+  /** admin: mover o tema pra uma subcategoria */
+  onMove?: () => void;
 }) {
   return (
     <div
@@ -115,6 +130,15 @@ function TemaThumb({
               }}
             />
           </label>
+          {onMove && (
+            <button
+              title="Mover pra subcategoria"
+              onClick={(e) => { e.stopPropagation(); onMove(); }}
+              className="flex items-center justify-center w-6 h-6 rounded bg-zinc-900/80 text-zinc-200 hover:text-emerald-400"
+            >
+              <FolderInput className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             title="Apagar"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -165,6 +189,56 @@ function ModalApagarTema({
   );
 }
 
+function ModalMoverTema({
+  subs,
+  atual,
+  ocupado,
+  onEscolher,
+  onCancelar,
+}: {
+  subs: Subcategoria[];
+  atual: string | null;
+  ocupado: boolean;
+  onEscolher: (id: string | null) => void;
+  onCancelar: () => void;
+}) {
+  const opcoes: { id: string | null; nome: string }[] = [{ id: null, nome: 'Sem subcategoria' }, ...subs];
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4" onClick={onCancelar}>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-xs space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <FolderInput className="w-5 h-5 text-emerald-500" />
+          <h3 className="text-sm font-bold text-zinc-100 flex-1">Mover tema para</h3>
+          {ocupado && <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
+        </div>
+        {subs.length === 0 && (
+          <p className="text-[11px] text-zinc-500">Crie uma subcategoria primeiro (botão “Subcategoria” no topo).</p>
+        )}
+        <div className="border border-zinc-800 rounded-lg divide-y divide-zinc-800 max-h-72 overflow-y-auto">
+          {opcoes.map((o) => (
+            <button
+              key={o.id ?? '_solto'}
+              disabled={ocupado}
+              onClick={() => onEscolher(o.id)}
+              className={cn(
+                'w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:opacity-50',
+                o.id === atual ? 'text-emerald-300 bg-emerald-500/10' : 'text-zinc-200 hover:bg-zinc-800',
+              )}
+            >
+              <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
+              <span className="flex-1 truncate">{o.nome}</span>
+              {o.id === atual && <Check className="w-3.5 h-3.5" />}
+            </button>
+          ))}
+        </div>
+        <button onClick={onCancelar} className="w-full px-3 py-1.5 border border-zinc-700 rounded-lg text-xs font-bold text-zinc-300 hover:bg-zinc-800">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Uma linha da lista: nome + "Ver mais" + tira horizontal com seta que desliza. */
 function LinhaClassificacao({
   cat,
@@ -177,6 +251,8 @@ function LinhaClassificacao({
   onSubstituir,
   onApagar,
   onVerMais,
+  subs,
+  onAbrirSub,
 }: {
   cat: string;
   imgs: GalleryImage[];
@@ -188,6 +264,8 @@ function LinhaClassificacao({
   onSubstituir: (img: GalleryImage, file: File, classif: string) => void;
   onApagar: (img: GalleryImage, classif: string) => void;
   onVerMais: (cat: string) => void;
+  subs: Subcategoria[];
+  onAbrirSub: (cat: string, id: string) => void;
 }) {
   const tiraRef = useRef<HTMLDivElement>(null);
 
@@ -213,6 +291,21 @@ function LinhaClassificacao({
           Ver mais
         </button>
       </div>
+
+      {subs.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {subs.map((sub) => (
+            <button
+              key={sub.id}
+              onClick={() => onAbrirSub(cat, sub.id)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors"
+            >
+              <Folder className="w-3 h-3 opacity-70" />
+              {sub.nome}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-stretch gap-2">
         <div
@@ -274,10 +367,34 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const [pendingDelete, setPendingDelete] = useState<{ img: GalleryImage; classif: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // subcategorias (etiquetas dentro de cada classificação)
+  const [subsMapa, setSubsMapa] = useState<MapaSubcategorias>({});
+  const [subAtiva, setSubAtiva] = useState<string | null>(null); // null = "Todos" no "Ver mais"
+  const [subEdicao, setSubEdicao] = useState<null | { modo: 'criar' | 'renomear'; nome: string }>(null);
+  const [confirmarExcluirSub, setConfirmarExcluirSub] = useState(false);
+  const [moverTema, setMoverTema] = useState<{ img: GalleryImage; classif: string } | null>(null);
+  const [salvandoSub, setSalvandoSub] = useState(false);
+
+  const gravarSubs = async (novo: MapaSubcategorias) => {
+    const antes = subsMapa;
+    setSubsMapa(novo);
+    try {
+      await salvarSubcategorias(novo);
+      return true;
+    } catch {
+      setSubsMapa(antes);
+      toast.error('Não foi possível salvar as subcategorias.');
+      return false;
+    }
+  };
+
+  const nomeArquivo = (url: string) => decodeURIComponent(url.split('?')[0].split('/').pop() || '');
+
   const carregarTudo = async () => {
     setCarregando(true);
     try {
-      const [todas, mapa] = await Promise.all([listGalleryCategories(), carregarVisibilidade()]);
+      const [todas, mapa, subs] = await Promise.all([listGalleryCategories(), carregarVisibilidade(), carregarSubcategorias()]);
+      setSubsMapa(subs);
       const visiveis = classificacoesDaBase(todas, CATEGORIA).filter(
         (c) => c === CATEGORIA || podeVerClassificacao(c, mapa, ctx),
       );
@@ -297,10 +414,16 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
 
   useEffect(() => { carregarTudo(); /* eslint-disable-next-line */ }, [ctx]);
 
-  const handleUpload = async (file: File, classif: string) => {
+  const handleUpload = async (file: File, classif: string, subId: string | null = null) => {
     setUploadAlvo(classif);
     try {
       const { url } = await uploadBackgroundImage(file, classif);
+      if (subId) {
+        const atual = await carregarSubcategorias();
+        await salvarSubcategorias(definirSub(atual, classif, nomeArquivo(url), subId)).catch(() =>
+          toast.error('Tema enviado, mas não entrou na subcategoria.'),
+        );
+      }
       await carregarTudo();
       onSelecionar(url);
       toast.success('Tema enviado!');
@@ -316,6 +439,11 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     try {
       const { url } = await uploadBackgroundImage(file, classif);
       await deleteGalleryImage(img.url);
+      const sub = subDoArquivo(subsMapa, classif, img.filename);
+      if (sub) {
+        const semAntigo = definirSub(subsMapa, classif, img.filename, null);
+        await salvarSubcategorias(definirSub(semAntigo, classif, nomeArquivo(url), sub)).catch(() => {});
+      }
       await carregarTudo();
       if (selecionada === img.url) onSelecionar(url);
       toast.success('Tema substituído!');
@@ -331,6 +459,9 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     setIsDeleting(true);
     try {
       await deleteGalleryImage(pendingDelete.img.url);
+      if (subDoArquivo(subsMapa, pendingDelete.classif, pendingDelete.img.filename)) {
+        await salvarSubcategorias(definirSub(subsMapa, pendingDelete.classif, pendingDelete.img.filename, null)).catch(() => {});
+      }
       if (selecionada === pendingDelete.img.url) onSelecionar('');
       await carregarTudo();
       toast.success('Tema apagado!');
@@ -348,51 +479,248 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     const achados: { img: GalleryImage; cat: string }[] = [];
     classifs.forEach((cat) => {
       const nomeCat = normalizarBusca(nomeClassificacao(cat, CATEGORIA));
+      const subs = subsOrdenadas(subsMapa, cat);
       (imgsPor[cat] ?? []).forEach((img) => {
         const alvo = normalizarBusca(img.displayName || '');
-        if (alvo.includes(buscaNorm) || nomeCat.includes(buscaNorm)) achados.push({ img, cat });
+        const subId = subDoArquivo(subsMapa, cat, img.filename);
+        const nomeSub = subId ? normalizarBusca(subs.find((x) => x.id === subId)?.nome || '') : '';
+        if (alvo.includes(buscaNorm) || nomeCat.includes(buscaNorm) || (nomeSub && nomeSub.includes(buscaNorm))) achados.push({ img, cat });
       });
     });
     return achados;
-  }, [buscaNorm, classifs, imgsPor]);
+  }, [buscaNorm, classifs, imgsPor, subsMapa]);
+
+  const abrirVerMais = (cat: string | null, sub: string | null = null) => {
+    setVerMais(cat);
+    setSubAtiva(sub);
+    setSubEdicao(null);
+    setConfirmarExcluirSub(false);
+  };
+
+  const salvarSubEdicao = async () => {
+    if (!verMais || !subEdicao || salvandoSub) return;
+    const nome = subEdicao.nome.trim().slice(0, 40);
+    if (!nome) return;
+    const existentes = subsOrdenadas(subsMapa, verMais);
+    const repetido = existentes.some(
+      (x) => normalizarBusca(x.nome) === normalizarBusca(nome) && !(subEdicao.modo === 'renomear' && x.id === subAtiva),
+    );
+    if (repetido) { toast.error('Já existe uma subcategoria com esse nome.'); return; }
+    setSalvandoSub(true);
+    if (subEdicao.modo === 'criar') {
+      const { mapa, id } = criarSub(subsMapa, verMais, nome);
+      if (await gravarSubs(mapa)) { setSubAtiva(id); setSubEdicao(null); toast.success('Subcategoria criada!'); }
+    } else if (subAtiva) {
+      if (await gravarSubs(renomearSub(subsMapa, verMais, subAtiva, nome))) { setSubEdicao(null); toast.success('Subcategoria renomeada!'); }
+    }
+    setSalvandoSub(false);
+  };
+
+  const excluirSubAtiva = async () => {
+    if (!verMais || !subAtiva || salvandoSub) return;
+    setSalvandoSub(true);
+    if (await gravarSubs(excluirSub(subsMapa, verMais, subAtiva))) {
+      setSubAtiva(null);
+      setConfirmarExcluirSub(false);
+      toast.success('Subcategoria excluída. Os temas dela continuam em “Todos”.');
+    }
+    setSalvandoSub(false);
+  };
+
+  const confirmarMover = async (id: string | null) => {
+    if (!moverTema || salvandoSub) return;
+    setSalvandoSub(true);
+    if (await gravarSubs(definirSub(subsMapa, moverTema.classif, moverTema.img.filename, id))) {
+      setMoverTema(null);
+      toast.success(id ? 'Tema movido!' : 'Tema tirado da subcategoria.');
+    }
+    setSalvandoSub(false);
+  };
 
   // ── "Ver mais": a classificação abre aqui na aba, com as imagens inteiras ──
   if (verMais) {
     const imgs = imgsPor[verMais] ?? [];
+    const subs = subsOrdenadas(subsMapa, verMais);
+    const subDe = (img: GalleryImage) => subDoArquivo(subsMapa, verMais, img.filename);
+    const contagem = (id: string | null) => imgs.filter((i) => subDe(i) === id).length;
+    const subAtual = subs.find((x) => x.id === subAtiva) ?? null;
+
+    const grade = (lista: GalleryImage[]) => (
+      <div className="grid grid-cols-2 gap-2">
+        {lista.map((img) => (
+          <TemaThumb
+            key={img.fullPath}
+            img={img}
+            ativa={selecionada === img.url}
+            podeEditar={isAdmin}
+            substituindo={substituindo === img.fullPath}
+            ajuste="contain"
+            onSelect={() => onSelecionar(img.url)}
+            onReplace={(file) => handleSubstituir(img, file, verMais)}
+            onDelete={() => setPendingDelete({ img, classif: verMais })}
+            onMove={isAdmin ? () => setMoverTema({ img, classif: verMais }) : undefined}
+          />
+        ))}
+      </div>
+    );
+
+    const chip = (id: string | null, nome: string, n: number) => (
+      <button
+        key={id ?? '_todos'}
+        onClick={() => { setSubAtiva(id); setSubEdicao(null); setConfirmarExcluirSub(false); }}
+        className={cn(
+          'flex items-center gap-1 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors',
+          subAtiva === id
+            ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+            : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600',
+        )}
+      >
+        {id && <Folder className="w-3 h-3 opacity-70" />}
+        {nome}
+        <span className="text-zinc-500 font-normal">{n}</span>
+      </button>
+    );
+
+    let corpo: ReactNode;
+    if (subAtual) {
+      const lista = imgs.filter((i) => subDe(i) === subAtual.id);
+      corpo = lista.length === 0
+        ? <p className="text-xs text-zinc-500 text-center py-12">Nenhum tema em “{subAtual.nome}”. Envie um pelo botão de upload{isAdmin ? ' ou mova um tema pra cá' : ''}.</p>
+        : grade(lista);
+    } else if (imgs.length === 0) {
+      corpo = <p className="text-xs text-zinc-500 text-center py-12">Nenhum tema nesta classificação ainda.</p>;
+    } else if (subs.length === 0) {
+      corpo = grade(imgs);
+    } else {
+      const soltos = imgs.filter((i) => !subDe(i));
+      corpo = (
+        <div className="space-y-5">
+          {subs.map((sub) => {
+            const lista = imgs.filter((i) => subDe(i) === sub.id);
+            if (!lista.length) return null;
+            return (
+              <div key={sub.id} className="space-y-2">
+                <button
+                  onClick={() => setSubAtiva(sub.id)}
+                  className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-200 hover:text-emerald-300 transition-colors"
+                >
+                  <Folder className="w-3.5 h-3.5 text-zinc-500" />
+                  {sub.nome}
+                  <span className="text-zinc-500 font-normal">({lista.length})</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+                </button>
+                {grade(lista)}
+              </div>
+            );
+          })}
+          {soltos.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[12px] font-bold text-zinc-400">Sem subcategoria <span className="font-normal text-zinc-500">({soltos.length})</span></p>
+              {grade(soltos)}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-2">
-          <button onClick={() => setVerMais(null)} className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors">
+          <button
+            onClick={() => (subAtiva ? setSubAtiva(null) : abrirVerMais(null))}
+            title={subAtiva ? 'Voltar pra todos' : 'Voltar'}
+            className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <h2 className="text-sm font-black uppercase tracking-widest flex-grow truncate">
             {nomeClassificacao(verMais, CATEGORIA)}
+            {subAtual && <span className="text-zinc-500"> / {subAtual.nome}</span>}
           </h2>
-          <UploadTema classif={verMais} ocupado={uploadAlvo === verMais} onArquivo={handleUpload} />
+          <UploadTema
+            classif={verMais}
+            ocupado={uploadAlvo === verMais}
+            onArquivo={(file, classif) => handleUpload(file, classif, subAtual?.id ?? null)}
+          />
         </div>
 
-        {imgs.length === 0 ? (
-          <p className="text-xs text-zinc-500 text-center py-12">Nenhum tema nesta classificação ainda.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {imgs.map((img) => (
-              <TemaThumb
-                key={img.fullPath}
-                img={img}
-                ativa={selecionada === img.url}
-                podeEditar={isAdmin}
-                substituindo={substituindo === img.fullPath}
-                ajuste="contain"
-                onSelect={() => onSelecionar(img.url)}
-                onReplace={(file) => handleSubstituir(img, file, verMais)}
-                onDelete={() => setPendingDelete({ img, classif: verMais })}
-              />
-            ))}
+        {(subs.length > 0 || isAdmin) && (
+          <div className="flex flex-wrap gap-1.5">
+            {chip(null, 'Todos', imgs.length)}
+            {subs.map((sub) => chip(sub.id, sub.nome, contagem(sub.id)))}
+            {isAdmin && !subEdicao && (
+              <button
+                onClick={() => { setConfirmarExcluirSub(false); setSubEdicao({ modo: 'criar', nome: '' }); }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-zinc-600 text-[11px] font-semibold text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/50 transition-colors"
+              >
+                <FolderPlus className="w-3 h-3" /> Subcategoria
+              </button>
+            )}
           </div>
         )}
 
+        {isAdmin && subEdicao && (
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={subEdicao.nome}
+              onChange={(e) => setSubEdicao({ ...subEdicao, nome: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') salvarSubEdicao(); if (e.key === 'Escape') setSubEdicao(null); }}
+              placeholder={subEdicao.modo === 'criar' ? 'Nome da subcategoria (ex.: Black Friday)' : 'Novo nome'}
+              maxLength={40}
+              className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 outline-none focus:border-emerald-500/60"
+            />
+            <button onClick={salvarSubEdicao} disabled={salvandoSub || !subEdicao.nome.trim()} title="Salvar" className="p-1.5 rounded-lg bg-emerald-600 text-white disabled:opacity-40">
+              {salvandoSub ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            </button>
+            <button onClick={() => setSubEdicao(null)} title="Cancelar" className="p-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {isAdmin && subAtual && !subEdicao && (
+          confirmarExcluirSub ? (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-2">
+              <p className="text-[11px] text-red-200 flex-1">
+                Excluir a subcategoria <b>“{subAtual.nome}”</b>? Os temas não são apagados, só voltam pra “Todos”.
+              </p>
+              <button onClick={excluirSubAtiva} disabled={salvandoSub} className="px-2 py-1 rounded-md bg-red-600 text-white text-[11px] font-bold disabled:opacity-40">
+                {salvandoSub ? 'Excluindo...' : 'Excluir'}
+              </button>
+              <button onClick={() => setConfirmarExcluirSub(false)} className="px-2 py-1 rounded-md border border-zinc-700 text-zinc-300 text-[11px] font-bold">Não</button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setSubEdicao({ modo: 'renomear', nome: subAtual.nome })}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-[11px] font-semibold text-zinc-400 hover:text-zinc-100"
+              >
+                <Pencil className="w-3 h-3" /> Renomear
+              </button>
+              <button
+                onClick={() => setConfirmarExcluirSub(true)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-[11px] font-semibold text-zinc-400 hover:text-red-300 hover:border-red-500/40"
+              >
+                <Trash2 className="w-3 h-3" /> Excluir subcategoria
+              </button>
+            </div>
+          )
+        )}
+
+        {corpo}
+
         {pendingDelete && (
           <ModalApagarTema ocupado={isDeleting} onCancelar={() => setPendingDelete(null)} onConfirmar={handleConfirmDelete} />
+        )}
+        {moverTema && (
+          <ModalMoverTema
+            subs={subs}
+            atual={subDoArquivo(subsMapa, moverTema.classif, moverTema.img.filename)}
+            ocupado={salvandoSub}
+            onEscolher={confirmarMover}
+            onCancelar={() => setMoverTema(null)}
+          />
         )}
       </div>
     );
@@ -478,7 +806,9 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
               onSelecionar={onSelecionar}
               onSubstituir={handleSubstituir}
               onApagar={(img, classif) => setPendingDelete({ img, classif })}
-              onVerMais={setVerMais}
+              onVerMais={(c) => abrirVerMais(c)}
+              subs={subsOrdenadas(subsMapa, cat)}
+              onAbrirSub={(c, id) => abrirVerMais(c, id)}
             />
           ))}
         </div>

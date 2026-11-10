@@ -22,6 +22,7 @@ import {
   podeVerClassificacao,
 } from '../../lib/galeriaVisibilidade';
 import VisibilidadeEditor from './VisibilidadeEditor';
+import { carregarSubcategorias, salvarSubcategorias, renomearClassif, excluirClassif } from '../../lib/temasSubcategorias';
 
 interface ClassificacaoBarProps {
   /** categoria-base no MinIO (ex.: 'encarte-temas') */
@@ -148,6 +149,9 @@ export default function ClassificacaoBar({ base, ativa, onMudar, onEstruturaMudo
         );
         await salvarVisibilidade(normalizarMapa({ ...semAntiga, [alvo]: mapa[ativa] }));
       }
+      // subcategorias dos temas acompanham a classificação
+      const subs = await carregarSubcategorias();
+      if (subs[ativa]) await salvarSubcategorias(renomearClassif(subs, ativa, alvo));
       await carregar();
       fecharTudo();
       onMudar(alvo);
@@ -186,6 +190,8 @@ export default function ClassificacaoBar({ base, ativa, onMudar, onEstruturaMudo
         );
         await salvarVisibilidade(normalizarMapa(resto));
       }
+      const subs = await carregarSubcategorias();
+      if (subs[ativa]) await salvarSubcategorias(excluirClassif(subs, ativa));
       await carregar();
       fecharTudo();
       onMudar(base);
