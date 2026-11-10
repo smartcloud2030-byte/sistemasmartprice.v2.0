@@ -13,6 +13,8 @@ import {
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import FontePicker from './FontePicker';
+import EnderecoPicker from './EnderecoPicker';
+import { textoComIcones } from './iconesTexto';
 import { carregarFontesEncarte } from './fontes';
 import { Formato } from './formatos';
 import {
@@ -2067,7 +2069,7 @@ export default function EncarteCanvas({
             onPointerCancel={handleTextoPointerUp}
             onDoubleClick={() => { setTextoSelecionadoId(t.id); setTextoEditandoId(t.id); }}
           >
-            {t.texto || ' '}
+            {t.texto ? textoComIcones(t.texto, t.cor, t.id) : ' '}
           </div>
         )}
 
@@ -2665,6 +2667,34 @@ export default function EncarteCanvas({
             <Type className="w-3.5 h-3.5" />
             {!tbCompacta && 'Texto'}
           </button>
+
+          {/* Endereço da loja (escolhe o CNPJ → endereço vira caixa de texto) */}
+          <EnderecoPicker
+            compacto={tbCompacta}
+            onEndereco={(endereco) => {
+              // Sempre no rodapé: calcula a altura do bloco e encosta embaixo.
+              const tamanho = 12;
+              const linhas = endereco.split('\n').length;
+              const alturaPx = linhas * tamanho * 1.15 + 10;
+              const t: TextoEncarte = {
+                ...criarTexto('Montserrat'),
+                texto: endereco,
+                xPct: 4,
+                yPct: Math.max(0, 100 - (alturaPx / (CANVAS_W / formato.ratio)) * 100),
+                wPct: 92,
+                tamanho,
+                cor: '#ffffff',
+                negrito: true,
+                alinhamento: 'center',
+              };
+              onAdicionarTexto(t);
+              setTextoSelecionadoId(t.id);
+              setFormaSelecionadaId(null);
+              setImagemSelecionadaId(null);
+              setProdutoSelecionadoId(null);
+              setFotoSelecionadaId(null);
+            }}
+          />
 
           {/* Fontes */}
           <div className="relative">
