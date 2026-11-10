@@ -838,7 +838,11 @@ export default function EncarteCanvas({
    * gente medir/capturar o elemento. Sem isso o html2canvas às vezes mede o
    * card com o layout ainda "em trânsito" e gera um canvas 0×0. */
   const esperarFrame = () =>
-    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    new Promise<void>((resolve) => {
+      // Aba em segundo plano não dispara frame: no máximo 200ms de espera.
+      const t = setTimeout(resolve, 200);
+      requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(t); resolve(); }));
+    });
 
   /** O html2canvas não entende `transform` em elemento PAI do capturado: ele
    * pega a posição de cada palavra já ampliada pelo zoom da visualização, mas
@@ -877,11 +881,23 @@ export default function EncarteCanvas({
       void doc.body?.offsetHeight; // força o layout, que dispara as fontes que faltarem
       await Promise.race([
         Promise.all([...pendentes, doc.fonts?.ready]),
-        new Promise((r) => setTimeout(r, 8000)),
+        new Promise((r) => setTimeout(r, 3000)),
       ]);
     } catch { /* sem FontFace API: segue como antes */ }
-    await new Promise<void>((r) => (doc.defaultView || window).requestAnimationFrame(() => r()));
+    // Só um respiro pro layout assentar. NÃO usar requestAnimationFrame do
+    // clone: ele fica num iframe escondido e fora da tela, e alguns
+    // navegadores nunca disparam o frame dele — a exportação travava.
+    void doc.body?.offsetHeight;
+    await new Promise((r) => setTimeout(r, 30));
   };
+
+  /** Nenhuma captura pode ficar presa pra sempre (botão girando e nada
+   * baixa): passou do limite, vira erro e cai na próxima tentativa. */
+  const comLimite = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`Captura do encarte passou de ${ms / 1000}s.`)), ms);
+      p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+    });
 
   const capturarCanvas = async (qualidade = 1) => {
     // Garante que as fontes (as ~140 do encarte carregam sob demanda) e as
@@ -889,7 +905,7 @@ export default function EncarteCanvas({
     // fonte de fallback ou foto faltando.
     try { await (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* ignora */ }
     await esperarFrame();
-    return html2canvas(canvasRef.current as HTMLElement, {
+    return comLimite(html2canvas(canvasRef.current as HTMLElement, {
       useCORS: true,
       allowTaint: false,
       backgroundColor: '#000000',
@@ -897,7 +913,7 @@ export default function EncarteCanvas({
       imageTimeout: 20000,
       logging: false,
       onclone: prepararClone,
-    });
+    }), 60000);
   };
 
   /** `capturarCanvas` às vezes mede o elemento no meio de um reflow e devolve
@@ -909,7 +925,7 @@ export default function EncarteCanvas({
     const proporcaoErrada = (c: HTMLCanvasElement) =>
       Math.abs(c.width / c.height - formato.ratio) / formato.ratio > 0.02;
     let canvas: HTMLCanvasElement | null = null;
-    for (let tentativa = 0; tentativa < 3; tentativa++) {
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
       if (canvas) { liberarCanvas(canvas); await esperarFrame(); }
       canvas = await capturarCanvas(qualidade);
       if (canvas.width > 0 && canvas.height > 0 && !proporcaoErrada(canvas)) return canvas;
