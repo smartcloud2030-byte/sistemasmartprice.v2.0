@@ -1283,7 +1283,7 @@ export default function EncarteCanvas({
   const canvasHpx = CANVAS_W / formato.ratio;
   const cardWbasePct = ((CARD_W * estilo.escalaCard) / CANVAS_W) * 100;
   const cardHpct = ((CARD_H * estilo.escalaCard) / canvasHpx) * 100;
-  const larguraProdutoPct = (p: EncarteProduto) => (p.emDestaque ? cardWbasePct * 2.2 : cardWbasePct);
+  const larguraProdutoPct = (p: EncarteProduto) => (p.emDestaque ? cardWbasePct * 2.2 : cardWbasePct) * (p.escalaCardProprio ?? 1);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (moverGrupoNoPointerMove(e)) return;
@@ -1488,7 +1488,7 @@ export default function EncarteCanvas({
     const igual = (id: string | number | undefined) => String(id) === String(m.id);
     if (m.tipo === 'produto') {
       const p = produtos.find((x) => igual(x.product.id));
-      return p ? { ...m, xPct: p.xPct, yPct: p.yPct, wPct: larguraProdutoPct(p), hPct: cardHpct, nomeDescricaoAjuste: p.nomeDescricaoAjuste ?? null } : null;
+      return p ? { ...m, xPct: p.xPct, yPct: p.yPct, wPct: larguraProdutoPct(p), hPct: cardHpct * (p.escalaCardProprio ?? 1), nomeDescricaoAjuste: p.nomeDescricaoAjuste ?? null } : null;
     }
     const lista: { id: string; xPct: number; yPct: number; wPct: number; hPct?: number }[] =
       m.tipo === 'forma' ? formas : m.tipo === 'texto' ? textos : imagens;

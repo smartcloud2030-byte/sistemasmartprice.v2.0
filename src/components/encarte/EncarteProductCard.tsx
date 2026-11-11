@@ -365,6 +365,10 @@ export default function EncarteProductCard({
     <img
       src={fotoSombraUrl ?? fotoSrc}
       className="w-full h-full object-contain select-none"
+      // "Foto (só deste)" em Detalhes: cresce/encolhe a partir da base
+      style={!produto.fotoAjuste && produto.escalaFoto && produto.escalaFoto !== 1
+        ? { transform: `scale(${produto.escalaFoto})`, transformOrigin: 'center bottom' }
+        : undefined}
       referrerPolicy="no-referrer"
       crossOrigin="anonymous"
       // Sem isso o Chrome arrasta a <img> como arquivo (imagem fantasma +
@@ -493,7 +497,7 @@ export default function EncarteProductCard({
       // `pointer-events-none` (ver nota em `renderProduto`) — só o card
       // visível, já com o scale aplicado, recebe o clique.
       className="relative select-none pointer-events-auto"
-      style={{ width: largura, transform: `scale(${estilo.escalaCard})`, transformOrigin: 'top left' }}
+      style={{ width: largura, transform: `scale(${estilo.escalaCard * (produto.escalaCardProprio ?? 1)})`, transformOrigin: 'top left' }}
     >
       {produto.emDestaque ? (
         <CardProdutoDestaque

@@ -231,6 +231,10 @@ export interface EncarteProduto {
   escalaPreco?: number;
   /** escala da fonte da descrição/medida (qualquer modelo de card, e a descrição solta). Padrão 1. */
   escalaDescricaoDestaque?: number;
+  /** tamanho do card SÓ deste produto (multiplica o "Produto" do encarte). Padrão 1. */
+  escalaCardProprio?: number;
+  /** tamanho da foto dentro do card, só deste produto (foto no lugar padrão). Padrão 1. */
+  escalaFoto?: number;
   /** risca só os NÚMEROS do "texto prod" (ex.: "DE R$ 0,00" → só o "0,00" fica riscado). */
   riscarNumerosTextoProduto?: boolean;
   /** cor da faixa atrás do "texto prod" (ex.: amarela com "LEVE 2 POR"); sem valor = sem faixa. */
@@ -244,6 +248,7 @@ export interface EncarteProduto {
 export const CAMPOS_FORMATACAO_PRODUTO = [
   'deslocPreco', 'fotoAjuste', 'nomeDescricaoAjuste',
   'escalaNomeDestaque', 'escalaPreco', 'escalaDescricaoDestaque', 'escalaTextoProduto',
+  'escalaCardProprio', 'escalaFoto',
 ] as const;
 export type FormatacaoProduto = Partial<Pick<EncarteProduto, (typeof CAMPOS_FORMATACAO_PRODUTO)[number]>>;
 

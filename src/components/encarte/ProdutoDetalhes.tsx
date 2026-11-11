@@ -336,6 +336,15 @@ export default function ProdutoDetalhes({
           <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Tamanhos</h3>
           <Crown className="w-3.5 h-3.5 text-amber-400" />
         </div>
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5 space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Só este produto</p>
+          <SliderEscala label="Tamanho do card" value={produto.escalaCardProprio ?? 1} onChange={(escalaCardProprio) => onAtualizar({ escalaCardProprio })} />
+          <SliderEscala label="Tamanho da foto" value={produto.escalaFoto ?? 1} onChange={(escalaFoto) => onAtualizar({ escalaFoto })} />
+          {produto.fotoAjuste && (
+            <p className="text-[10px] text-zinc-500">A foto está solta (2 cliques nela): ajuste o tamanho pelos cantos dela no encarte.</p>
+          )}
+        </div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 pt-1">Todos os produtos</p>
         <SliderEscala label="Produto" value={estilo.escalaCard} onChange={(escalaCard) => onAtualizarEstilo({ escalaCard })} />
         <SliderEscala label="Etiqueta" value={estilo.escalaEtiqueta} onChange={(escalaEtiqueta) => onAtualizarEstilo({ escalaEtiqueta })} />
         {/* vale pra todos os produtos do encarte — multiplica o Nome/Descrição de cada um */}
