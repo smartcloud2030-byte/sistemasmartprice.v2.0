@@ -24,7 +24,7 @@ import {
   subDoArquivo,
   definirSub,
 } from '../../lib/temasSubcategorias';
-import { SubcategoriasBarra, SubcategoriasAtalhos, GruposPorSubcategoria, ModalMoverSub } from './SubcategoriasControles';
+import { SubcategoriasBarra, GruposPorSubcategoria, ModalMoverSub } from './SubcategoriasControles';
 
 const PREVIA = 15; // até quantas imagens a tira horizontal carrega
 
@@ -248,8 +248,6 @@ function LinhaClassificacaoImg({
           Ver mais
         </button>
       </div>
-
-      <SubcategoriasAtalhos subs={subs} onAbrir={(id) => onAbrirSub(cat, id)} />
 
       <div className="flex items-stretch gap-2">
         <div
@@ -502,8 +500,7 @@ export default function GaleriaImagensTab({
           itens={imgs}
           subDe={subDe}
           card={card}
-          nome={(img) => img.displayName}
-          rotulo={['imagem', 'imagens']}
+          chave={(img) => img.fullPath}
           larguraCard="w-[30%]"
           onAbrir={setSubAtiva}
         />

@@ -160,42 +160,21 @@ export function SubcategoriasBarra({
   );
 }
 
-/** Atalhos das subcategorias embaixo do nome da classificação, na lista. */
-export function SubcategoriasAtalhos({ subs, onAbrir }: { subs: Subcategoria[]; onAbrir: (id: string) => void }) {
-  if (!subs.length) return null;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {subs.map((sub) => (
-        <button
-          key={sub.id}
-          onClick={() => onAbrir(sub.id)}
-          className="flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors"
-        >
-          <Folder className="w-3 h-3 opacity-70" />
-          {sub.nome}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Uma linha: título + "N temas · Ver tudo" + tira horizontal que desliza. */
+/** Uma linha igual às da lista de classificações: nome + "Ver mais" + tira com seta que desliza. */
 function LinhaSub<T>({
   titulo,
   itens,
-  rotulo,
   larguraCard,
   card,
-  nome,
-  onVerTudo,
+  chave,
+  onVerMais,
 }: {
   titulo: string;
   itens: T[];
-  rotulo: [string, string];
   larguraCard: string;
   card: (item: T) => React.ReactNode;
-  nome: (item: T) => string;
-  onVerTudo?: () => void;
+  chave: (item: T) => string;
+  onVerMais?: () => void;
 }) {
   const tiraRef = useRef<HTMLDivElement>(null);
   const deslizar = () => {
@@ -209,54 +188,45 @@ function LinhaSub<T>({
     <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-[13px] font-bold text-zinc-100 truncate">{titulo}</h3>
-        <div className="flex items-baseline gap-1 flex-shrink-0 text-[12px]">
-          <span className="text-zinc-400">
-            <b className="text-zinc-100">{itens.length}</b> {itens.length === 1 ? rotulo[0] : rotulo[1]}
-          </span>
-          {onVerTudo && (
-            <>
-              <span className="text-zinc-600">·</span>
-              <button onClick={onVerTudo} className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
-                Ver tudo
-              </button>
-            </>
-          )}
-        </div>
+        {onVerMais && (
+          <button
+            onClick={onVerMais}
+            className="text-[12px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex-shrink-0"
+          >
+            Ver mais
+          </button>
+        )}
       </div>
-      <div className="relative">
+      <div className="flex items-stretch gap-2">
         <div
           ref={tiraRef}
-          className="flex gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex-1 min-w-0 flex gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {itens.map((item, k) => (
-            <div key={k} className={cn('flex-shrink-0 space-y-1', larguraCard)}>
+          {itens.map((item) => (
+            <div key={chave(item)} className={cn('flex-shrink-0', larguraCard)}>
               {card(item)}
-              <p className="text-[11px] text-zinc-400 text-center truncate px-1" title={nome(item)}>{nome(item)}</p>
             </div>
           ))}
         </div>
-        {itens.length > 2 && (
-          <button
-            onClick={deslizar}
-            title="Deslizar pra ver mais"
-            className="absolute right-1 top-[35%] -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-900/90 border border-zinc-700 text-zinc-200 hover:text-emerald-300 hover:border-emerald-500/50 flex items-center justify-center transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
+        <button
+          onClick={deslizar}
+          title="Deslizar pra ver mais"
+          className="flex-shrink-0 self-center w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 flex items-center justify-center transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
 }
 
-/** "Todos" com subcategorias: uma linha deslizante por subcategoria e, no fim, as soltas. */
+/** "Todos" dentro da classificação: uma linha por subcategoria e, no fim, as que não têm subcategoria. */
 export function GruposPorSubcategoria<T>({
   subs,
   itens,
   subDe,
   card,
-  nome,
-  rotulo,
+  chave,
   larguraCard,
   onAbrir,
 }: {
@@ -264,9 +234,7 @@ export function GruposPorSubcategoria<T>({
   itens: T[];
   subDe: (item: T) => string | null;
   card: (item: T) => React.ReactNode;
-  nome: (item: T) => string;
-  /** singular e plural, ex.: ['tema', 'temas'] */
-  rotulo: [string, string];
+  chave: (item: T) => string;
   /** largura de cada card na tira (classe tailwind) */
   larguraCard: string;
   onAbrir: (id: string) => void;
@@ -282,16 +250,15 @@ export function GruposPorSubcategoria<T>({
             key={sub.id}
             titulo={sub.nome}
             itens={lista}
-            rotulo={rotulo}
             larguraCard={larguraCard}
             card={card}
-            nome={nome}
-            onVerTudo={() => onAbrir(sub.id)}
+            chave={chave}
+            onVerMais={() => onAbrir(sub.id)}
           />
         );
       })}
       {soltos.length > 0 && (
-        <LinhaSub titulo="Sem subcategoria" itens={soltos} rotulo={rotulo} larguraCard={larguraCard} card={card} nome={nome} />
+        <LinhaSub titulo="Outros" itens={soltos} larguraCard={larguraCard} card={card} chave={chave} />
       )}
     </div>
   );

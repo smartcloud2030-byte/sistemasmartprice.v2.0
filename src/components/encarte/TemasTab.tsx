@@ -14,7 +14,7 @@ import { carregarVisibilidade, podeVerClassificacao } from '../../lib/galeriaVis
 import { useStore } from '../../store';
 import { getProxyUrl, cn, normalizarBusca } from '../../lib/utils';
 import ClassificacaoBar from './ClassificacaoBar';
-import { SubcategoriasBarra, SubcategoriasAtalhos, GruposPorSubcategoria, ModalMoverSub } from './SubcategoriasControles';
+import { SubcategoriasBarra, GruposPorSubcategoria, ModalMoverSub } from './SubcategoriasControles';
 import {
   MapaSubcategorias,
   Subcategoria,
@@ -240,8 +240,6 @@ function LinhaClassificacao({
         </button>
       </div>
 
-      <SubcategoriasAtalhos subs={subs} onAbrir={(id) => onAbrirSub(cat, id)} />
-
       <div className="flex items-stretch gap-2">
         <div
           ref={tiraRef}
@@ -445,14 +443,14 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     const subDe = (img: GalleryImage) => subDoArquivo(subsMapa, verMais, img.filename);
     const subAtual = subs.find((x) => x.id === subAtiva) ?? null;
 
-    const card = (img: GalleryImage) => (
+    const card = (img: GalleryImage, ajuste: 'cover' | 'contain' = 'contain') => (
       <TemaThumb
         key={img.fullPath}
         img={img}
         ativa={selecionada === img.url}
         podeEditar={isAdmin}
         substituindo={substituindo === img.fullPath}
-        ajuste="contain"
+        ajuste={ajuste}
         onSelect={() => onSelecionar(img.url)}
         onReplace={(file) => handleSubstituir(img, file, verMais)}
         onDelete={() => setPendingDelete({ img, classif: verMais })}
@@ -461,7 +459,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     );
 
     const grade = (lista: GalleryImage[]) => (
-      <div className="grid grid-cols-2 gap-2">{lista.map(card)}</div>
+      <div className="grid grid-cols-2 gap-2">{lista.map((img) => card(img))}</div>
     );
 
     let corpo: ReactNode;
@@ -480,9 +478,8 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
           subs={subs}
           itens={imgs}
           subDe={subDe}
-          card={card}
-          nome={(img) => img.displayName}
-          rotulo={['tema', 'temas']}
+          card={(img) => card(img, 'cover')}
+          chave={(img) => img.fullPath}
           larguraCard="w-[44%]"
           onAbrir={setSubAtiva}
         />
