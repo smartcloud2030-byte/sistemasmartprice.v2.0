@@ -472,6 +472,10 @@ interface EncarteCanvasProps {
   /** Trazer pra frente / mandar pra trás um passo — vale pra produto, imagem, forma e texto. */
   onReordenarCamada: (alvo: { tipo: CamadaTipo; id: string | number }, direcao: 'frente' | 'tras') => void;
   onAdicionarTexto: (texto: TextoEncarte) => void;
+  /** avisa qual texto está selecionado (o painel lateral de edição abre/fecha com isso) */
+  onTextoSelecionado?: (id: string | null) => void;
+  /** muda de valor quando o painel lateral pede pra soltar a seleção do texto */
+  soltarTextoToken?: number;
   /** troca os produtos de lugar entre si pelo preço (layout fica igual) */
   onOrdenarPorPreco: (ordem: 'asc' | 'desc') => void;
   onMoverTexto: (id: string, xPct: number, yPct: number) => void;
@@ -625,6 +629,8 @@ export default function EncarteCanvas({
   onEditarTexto,
   onEstilizarTexto,
   onRemoverTexto,
+  onTextoSelecionado,
+  soltarTextoToken,
   onEnviarElementoParaOutroLado,
   guias,
   onAdicionarGuia,
@@ -675,7 +681,6 @@ export default function EncarteCanvas({
   const [tbCompacta, setTbCompacta] = useState(false);
   const [textoSelecionadoId, setTextoSelecionadoId] = useState<string | null>(null);
   const [textoEditandoId, setTextoEditandoId] = useState<string | null>(null);
-  const [fonteInlineAberta, setFonteInlineAberta] = useState(false); // popover de fonte na barrinha do texto
 
   // Carrega as fontes extras do encarte (as básicas já vêm no index.css).
   useEffect(() => { carregarFontesEncarte(); }, []);
@@ -684,8 +689,13 @@ export default function EncarteCanvas({
   useEffect(() => () => {
     if (abrirDetalhesPendenteRef.current) clearTimeout(abrirDetalhesPendenteRef.current);
   }, []);
-  // Fecha o popover de fonte ao trocar/soltar a seleção de texto.
-  useEffect(() => { setFonteInlineAberta(false); }, [textoSelecionadoId]);
+  // O painel lateral (TextoDetalhes, no Builder) segue a seleção do texto.
+  useEffect(() => { onTextoSelecionado?.(textoSelecionadoId); }, [textoSelecionadoId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (soltarTextoToken) { setTextoSelecionadoId(null); setTextoEditandoId(null); } }, [soltarTextoToken]);
+  // Texto apagado (painel, desfazer, troca de página): solta a seleção.
+  useEffect(() => {
+    if (textoSelecionadoId && !textos.some((t) => t.id === textoSelecionadoId)) setTextoSelecionadoId(null);
+  }, [textos, textoSelecionadoId]);
 
   // Seleção múltipla (Shift+clique) — ver `tratarGrupoNoPointerDown`.
 
@@ -2132,59 +2142,6 @@ export default function EncarteCanvas({
 
         {selecionada && !editando && (
           <>
-            {/* Barra de formatação — não entra no PNG/PDF */}
-            <div
-              data-html2canvas-ignore="true"
-              onPointerDown={(e) => e.stopPropagation()}
-              className="absolute -top-9 left-0 flex items-center gap-0.5 bg-zinc-900 border border-zinc-700 rounded-lg px-1 py-1 shadow-lg whitespace-nowrap"
-            >
-              <button onClick={() => ajustarTamanhoTexto(t, -2)} title="Diminuir" className="p-1 text-zinc-400 hover:text-zinc-100"><Minus className="w-3.5 h-3.5" /></button>
-              <span className="text-[9px] font-bold text-zinc-400 w-5 text-center">{Math.round(t.tamanho)}</span>
-              <button onClick={() => ajustarTamanhoTexto(t, 2)} title="Aumentar" className="p-1 text-zinc-400 hover:text-zinc-100"><Plus className="w-3.5 h-3.5" /></button>
-              <span className="w-px h-4 bg-zinc-700 mx-0.5" />
-              <button onClick={() => onEstilizarTexto(t.id, { negrito: !t.negrito })} title="Negrito" className={cn('p-1 hover:text-zinc-100', t.negrito ? 'text-emerald-400' : 'text-zinc-400')}><Bold className="w-3.5 h-3.5" /></button>
-              <button onClick={() => onEstilizarTexto(t.id, { italico: !t.italico })} title="Itálico" className={cn('p-1 hover:text-zinc-100', t.italico ? 'text-emerald-400' : 'text-zinc-400')}><Italic className="w-3.5 h-3.5" /></button>
-              <button
-                onClick={() => onEstilizarTexto(t.id, { alinhamento: PROXIMO_ALINHAMENTO[t.alinhamento] })}
-                title="Alinhamento"
-                className="p-1 text-zinc-400 hover:text-zinc-100"
-              >
-                {(() => { const Ali = ICONE_ALINHAMENTO[t.alinhamento]; return <Ali className="w-3.5 h-3.5" />; })()}
-              </button>
-              <button
-                onClick={() => setFonteInlineAberta((v) => !v)}
-                title="Trocar fonte"
-                className={cn('p-1 hover:text-zinc-100', fonteInlineAberta ? 'text-emerald-400' : 'text-zinc-400')}
-              >
-                <Type className="w-3.5 h-3.5" />
-              </button>
-              <label className="p-1 cursor-pointer flex" title="Cor do texto">
-                <input
-                  type="color"
-                  value={t.cor}
-                  onChange={(e) => onEstilizarTexto(t.id, { cor: e.target.value })}
-                  className="w-4 h-4 rounded cursor-pointer bg-transparent border-0 p-0"
-                />
-              </label>
-              <span className="w-px h-4 bg-zinc-700 mx-0.5" />
-              <button onClick={() => setTextoEditandoId(t.id)} title="Editar texto" className="p-1 text-zinc-400 hover:text-emerald-400"><Pencil className="w-3.5 h-3.5" /></button>
-              {temVerso && (
-                <button onDoubleClick={(e) => e.stopPropagation()} onClick={(e) => cliqueOutroLado('texto', t.id, () => setTextoSelecionadoId(null), e)} title={tituloOutroLado} className="p-1 text-zinc-400 hover:text-emerald-400"><ArrowLeftRight className="w-3.5 h-3.5" /></button>
-              )}
-              <button onClick={() => { onRemoverTexto(t.id); setTextoSelecionadoId(null); }} title="Remover" className="p-1 text-zinc-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-            </div>
-
-            {fonteInlineAberta && (
-              <div data-html2canvas-ignore="true" className="absolute left-0 top-full mt-1 z-[60]">
-                <FontePicker
-                  valor={t.fontFamily}
-                  titulo="Fonte do texto"
-                  onEscolher={(f) => onEstilizarTexto(t.id, { fontFamily: f })}
-                  onFechar={() => setFonteInlineAberta(false)}
-                />
-              </div>
-            )}
-
             {/* Contorno + alça de largura na borda direita */}
             <div data-html2canvas-ignore="true" className="absolute inset-0 outline outline-1 outline-emerald-400/70 pointer-events-none" />
             <div
@@ -2195,9 +2152,7 @@ export default function EncarteCanvas({
               onPointerCancel={handleTextoPointerUp}
               className="absolute top-1/2 right-0 w-3 h-3 -translate-y-1/2 translate-x-1/2 rounded-sm bg-emerald-500 border-2 border-white shadow cursor-ew-resize"
             />
-            {!fonteInlineAberta && (
-              <AlcaGirar rotacao={t.rotacao ?? 0} onGirar={(rotacao) => onEstilizarTexto(t.id, { rotacao })} />
-            )}
+            <AlcaGirar rotacao={t.rotacao ?? 0} onGirar={(rotacao) => onEstilizarTexto(t.id, { rotacao })} />
           </>
         )}
       </div>
@@ -2752,6 +2707,7 @@ export default function EncarteCanvas({
               const t: TextoEncarte = {
                 ...criarTexto('Montserrat'),
                 texto: endereco,
+                auto: 'endereco',
                 xPct: 4,
                 yPct: Math.max(0, 100 - (alturaPx / (CANVAS_W / formato.ratio)) * 100),
                 wPct: 92,
@@ -2822,6 +2778,7 @@ export default function EncarteCanvas({
               const t: TextoEncarte = {
                 ...criarTexto('Montserrat'),
                 texto: frase,
+                auto: 'validade',
                 xPct: 4,
                 yPct: Math.max(0, 100 - ((reservaEndereco + alturaPx) / hPx) * 100),
                 wPct: 92,

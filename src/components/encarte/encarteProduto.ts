@@ -714,6 +714,8 @@ export interface TextoEncarte {
   negrito: boolean;
   italico: boolean;
   alinhamento: TextoAlinhamento;
+  /** texto automático (validade/endereço): vai pra todas as páginas e o novo substitui o anterior */
+  auto?: 'validade' | 'endereco';
   /** camada (ordem de empilhamento) — maior = mais pra frente. Compartilhada com produtos, imagens e formas. */
   z?: number;
 }

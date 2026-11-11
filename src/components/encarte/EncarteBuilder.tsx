@@ -12,6 +12,7 @@ import ElementosTab from './ElementosTab';
 import { Lado, NOME_LADO, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProdutos } from './ladosEncarte';
 import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
+import TextoDetalhes from './TextoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
 import GerarPlaquinhasModal from './GerarPlaquinhasModal';
 import { useHistoricoEdicao, OpcoesSet } from './useHistoricoEdicao';
@@ -165,6 +166,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   const [ladoAtivo, setLadoAtivo] = useState<Lado>('frente');
   const [produtoDetalhadoId, setProdutoDetalhadoId] = useState<string | number | null>(null);
+  // Texto selecionado no canvas → painel de edição na lateral (some ao soltar).
+  const [textoPainelId, setTextoPainelId] = useState<string | null>(null);
+  const [soltarTextoToken, setSoltarTextoToken] = useState(0);
+  const soltarTexto = () => { setTextoPainelId(null); setSoltarTextoToken((n) => n + 1); };
   // Página aberta deixou de existir (desfazer, remover verso): volta pra frente.
   useEffect(() => {
     if (!paginas.includes(ladoAtivo)) setLadoAtivo('frente');
@@ -791,8 +796,26 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const ordenarProdutosPorPreco = (ordem: 'asc' | 'desc') =>
     atualizarLado((l) => ({ produtos: ordenarPorPreco(l.produtos, ordem) }));
 
-  const adicionarTexto = (texto: TextoEncarte) =>
-    atualizarLado((l) => ({ textos: [...(l.textos ?? []), { ...texto, z: maiorZ(l) + 1 }] }));
+  const adicionarTexto = (texto: TextoEncarte) => {
+    if (!texto.auto) {
+      atualizarLado((l) => ({ textos: [...(l.textos ?? []), { ...texto, z: maiorZ(l) + 1 }] }));
+      return;
+    }
+    // Validade/endereço: entra em TODAS as páginas (frente e versos) e o novo
+    // substitui o anterior do mesmo tipo. Na página aberta fica com o id do
+    // texto (que o canvas já seleciona); nas outras, ganha id próprio.
+    setDoc((d) => {
+      let novo = d;
+      for (const pg of paginasDoDoc(d)) {
+        const l = ladoDoDoc(novo, pg);
+        if (!l) continue;
+        const id = pg === ladoAtivo ? texto.id : `${texto.id}_${pg}`;
+        const textos = [...(l.textos ?? []).filter((t) => t.auto !== texto.auto), { ...texto, id, z: maiorZ(l) + 1 }];
+        novo = comLado(novo, pg, { ...l, textos });
+      }
+      return novo;
+    });
+  };
 
   // ── Camadas: trazer pra frente / mandar pra trás um passo por clique ──
   // O `z` é compartilhado por produtos, imagens, formas e textos, então
@@ -976,6 +999,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   const produtoDetalhado = lado.produtos.find((ep) => ep.product.id === produtoDetalhadoId) ?? null;
+  const textoPainel = textoPainelId ? (lado.textos ?? []).find((t) => t.id === textoPainelId) ?? null : null;
   // Frente + verso juntos, na ordem — "Add placa de preço" transforma cada
   // produto do encarte inteiro (os dois lados) numa plaquinha pra fila.
   const produtosParaPlaquinha = todosProdutos.filter((ep) => !ep.oculto);
@@ -1046,7 +1070,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           {MENU_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => { setActiveMenu(id); setProdutoDetalhadoId(null); }}
+              onClick={() => { setActiveMenu(id); setProdutoDetalhadoId(null); if (textoPainelId) soltarTexto(); }}
               className={cn(
                 'w-16 flex flex-col items-center gap-1 py-2.5 rounded-xl transition-colors',
                 activeMenu === id
@@ -1074,6 +1098,21 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onAtualizarEstilo={atualizarEstilo}
               onEnviarParaOutroLado={(destino) => enviarProdutoParaOutroLado(produtoDetalhado.product.id, destino)}
               onVoltar={() => setProdutoDetalhadoId(null)}
+            />
+          ) : textoPainel ? (
+            <TextoDetalhes
+              key={textoPainel.id}
+              texto={textoPainel}
+              ladoAtivo={ladoAtivo}
+              paginas={paginas}
+              onEditar={(c) => editarTexto(textoPainel.id, c)}
+              onEstilizar={(patch) => estilizarTexto(textoPainel.id, patch)}
+              onRemover={() => { removerTexto(textoPainel.id); soltarTexto(); }}
+              onEnviarParaOutroLado={(destino, modo) => {
+                enviarElementoParaOutroLado('texto', textoPainel.id, modo, destino);
+                if (modo === 'mover') soltarTexto();
+              }}
+              onFechar={soltarTexto}
             />
           ) : activeMenu === 'temas' ? (
             <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url, fundoPos: null })} />
@@ -1110,7 +1149,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               selecionados={lado.produtos}
               onSelecionar={adicionarProduto}
               onRemover={removerProduto}
-              onAbrirDetalhes={setProdutoDetalhadoId}
+              onAbrirDetalhes={(id) => { setProdutoDetalhadoId(id); if (id != null && textoPainelId) soltarTexto(); }}
               marcados={grupo.filter((m) => m.tipo === 'produto').map((m) => String(m.id))}
               onMarcar={(id) =>
                 setGrupo((g) =>
@@ -1221,6 +1260,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onEditarTexto={editarTexto}
           onEstilizarTexto={estilizarTexto}
           onRemoverTexto={removerTexto}
+          onTextoSelecionado={(id) => { setTextoPainelId(id); if (id) setProdutoDetalhadoId(null); }}
+          soltarTextoToken={soltarTextoToken}
           onAdicionarGuia={adicionarGuia}
           onMoverGuia={moverGuia}
           onRemoverGuia={removerGuia}
