@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import type { AjusteAvisoLegal } from './encarteProduto';
 
 // Letra miúda obrigatória por lei (remédio sem receita, leite). Nasce no pé
@@ -37,21 +38,31 @@ interface Props {
   destaque: string;
   ajuste: AjusteAvisoLegal | null | undefined;
   onAjustar: (ajuste: AjusteAvisoLegal | null, opcoes?: { coalesce?: string }) => void;
+  /** avisa quando seleciona/solta (o painel lateral de edição segue isso) */
+  onSelecionado?: (sel: boolean) => void;
+  /** muda de valor quando o painel lateral pede pra soltar a seleção */
+  soltarToken?: number;
 }
 
 type Caixa = { xPct: number; yPct: number; wPct: number; hPct: number };
 
 const limitar = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-export default function AvisoLegalEncarte({ texto, destaque, ajuste, onAjustar }: Props) {
+export default function AvisoLegalEncarte({ texto, destaque, ajuste, onAjustar, onSelecionado, soltarToken }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [selecionado, setSelecionado] = useState(false);
   const arraste = useRef<{ bordas: Borda[] | 'mover'; x0: number; y0: number; pagina: DOMRect; inicio: Caixa } | null>(null);
 
-  // Clique fora tira a seleção.
+  useEffect(() => { onSelecionado?.(selecionado); }, [selecionado]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (soltarToken) setSelecionado(false); }, [soltarToken]);
+  useEffect(() => () => onSelecionado?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clique fora tira a seleção (menos no painel lateral, onde ficam as opções).
   useEffect(() => {
     if (!selecionado) return;
     const fora = (e: PointerEvent) => {
+      const alvo = e.target as HTMLElement | null;
+      if (alvo?.closest?.('[data-painel-lateral]')) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setSelecionado(false);
     };
     document.addEventListener('pointerdown', fora);
@@ -112,18 +123,11 @@ export default function AvisoLegalEncarte({ texto, destaque, ajuste, onAjustar }
 
   const soltar = () => { arraste.current = null; };
 
-  const mudar = (patch: Partial<AjusteAvisoLegal>, chave: string) => onAjustar({ ...(ajuste ?? {}), ...patch }, { coalesce: chave });
-
-  const voltarProRodape = () => {
-    const { xPct, yPct, wPct, hPct, ...resto } = ajuste ?? {};
-    onAjustar(Object.keys(resto).length ? resto : null);
-  };
 
   const estiloPosicao: React.CSSProperties = solto
     ? { position: 'absolute', left: `${ajuste!.xPct}%`, top: `${ajuste!.yPct}%`, width: `${ajuste!.wPct}%`, minHeight: ajuste!.hPct != null ? `${ajuste!.hPct}%` : undefined, zIndex: 30 }
     : { position: 'relative' };
 
-  const botaoCor = (ativo: boolean) => `w-4 h-4 rounded-sm border ${ativo ? 'border-emerald-400 ring-1 ring-emerald-400' : 'border-zinc-500'}`;
 
   return (
     <div
@@ -154,40 +158,89 @@ export default function AvisoLegalEncarte({ texto, destaque, ajuste, onAjustar }
             />
           ))}
 
-          {/* Barrinha: letra, cores e voltar pro rodapé */}
-          <div
-            data-html2canvas-ignore="true"
-            className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 flex items-center gap-1.5 rounded-md bg-zinc-900 text-white text-[11px] font-bold px-2 py-1 shadow whitespace-nowrap cursor-default"
-            style={{ lineHeight: 1.2, fontSize: 11 }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <button className="px-1 hover:text-emerald-400" onClick={() => mudar({ escala: limitar(Math.round((escala - 0.2) * 10) / 10, ESCALA_MIN, ESCALA_MAX) }, 'aviso-legal-escala')} title="Letra menor">A−</button>
-            <span className="text-zinc-400 font-normal">{Math.round(escala * 100)}%</span>
-            <button className="px-1 hover:text-emerald-400" onClick={() => mudar({ escala: limitar(Math.round((escala + 0.2) * 10) / 10, ESCALA_MIN, ESCALA_MAX) }, 'aviso-legal-escala')} title="Letra maior">A+</button>
-
-            <span className="ml-1 pl-1.5 border-l border-zinc-700 font-normal text-zinc-400">Fundo</span>
-            {FUNDOS.map((f) => (
-              <button key={f.nome} title={f.nome} className={botaoCor(fundo === f.valor)} style={{ background: f.amostra }} onClick={() => mudar({ fundo: f.valor }, 'aviso-legal-cor')} />
-            ))}
-            <label title="Outra cor de fundo" className={`${botaoCor(false)} relative overflow-hidden cursor-pointer`} style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}>
-              <input type="color" className="absolute inset-0 opacity-0 cursor-pointer" value={/^#[0-9a-f]{6}$/i.test(fundo) ? fundo : '#ffffff'} onChange={(e) => mudar({ fundo: e.target.value }, 'aviso-legal-cor')} />
-            </label>
-
-            <span className="ml-1 pl-1.5 border-l border-zinc-700 font-normal text-zinc-400">Letra</span>
-            {CORES_TEXTO.map((c) => (
-              <button key={c} title={c} className={botaoCor(corTexto.toLowerCase() === c)} style={{ background: c }} onClick={() => mudar({ corTexto: c }, 'aviso-legal-cor')} />
-            ))}
-            <label title="Outra cor de letra" className={`${botaoCor(false)} relative overflow-hidden cursor-pointer`} style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}>
-              <input type="color" className="absolute inset-0 opacity-0 cursor-pointer" value={/^#[0-9a-f]{6}$/i.test(corTexto) ? corTexto : '#111111'} onChange={(e) => mudar({ corTexto: e.target.value }, 'aviso-legal-cor')} />
-            </label>
-
-            {solto && (
-              <button className="ml-1 pl-1.5 border-l border-zinc-700 hover:text-emerald-400" onClick={voltarProRodape} title="Volta pro pé do encarte, largura toda">
-                Voltar pro rodapé
-              </button>
-            )}
-          </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/** Painel lateral do texto obrigatório (letra, fundo, cor da letra, voltar pro rodapé). */
+export function AvisoLegalPainel({ ajuste, onAjustar, onFechar }: {
+  ajuste: AjusteAvisoLegal | null | undefined;
+  onAjustar: (ajuste: AjusteAvisoLegal | null, opcoes?: { coalesce?: string }) => void;
+  onFechar: () => void;
+}) {
+  const escala = ajuste?.escala ?? 1;
+  const fundo = ajuste?.fundo ?? FUNDO_PADRAO;
+  const corTexto = ajuste?.corTexto ?? TEXTO_PADRAO;
+  const solto = ajuste?.xPct != null;
+  const mudar = (patch: Partial<AjusteAvisoLegal>, chave: string) => onAjustar({ ...(ajuste ?? {}), ...patch }, { coalesce: chave });
+  const voltarProRodape = () => {
+    const { xPct, yPct, wPct, hPct, ...resto } = ajuste ?? {};
+    onAjustar(Object.keys(resto).length ? resto : null);
+  };
+  const quadrado = (ativo: boolean) => `w-7 h-7 rounded border ${ativo ? 'border-emerald-400 ring-2 ring-emerald-500/50' : 'border-zinc-600'}`;
+  const arcoIris = 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)';
+
+  return (
+    <div className="p-4 space-y-5">
+      <div className="flex items-center gap-2">
+        <button onClick={onFechar} title="Fechar" className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-widest">Texto do rodapé</h2>
+          <p className="text-[11px] text-zinc-400 mt-0.5">Aviso obrigatório por lei — arraste no encarte pra mudar de lugar</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Tamanho da letra</h3>
+          <span className="text-[10px] tabular-nums text-zinc-500">{Math.round(escala * 100)}%</span>
+        </div>
+        <input
+          type="range"
+          min={ESCALA_MIN}
+          max={ESCALA_MAX}
+          step={0.1}
+          value={escala}
+          onChange={(e) => mudar({ escala: limitar(Number(e.target.value), ESCALA_MIN, ESCALA_MAX) }, 'aviso-legal-escala')}
+          className="w-full accent-emerald-500"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Fundo</h3>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {FUNDOS.map((f) => (
+            <button key={f.nome} title={f.nome} className={quadrado(fundo === f.valor)} style={{ background: f.amostra }} onClick={() => mudar({ fundo: f.valor }, 'aviso-legal-cor')} />
+          ))}
+          <label title="Outra cor de fundo" className={`${quadrado(false)} relative overflow-hidden cursor-pointer`} style={{ background: arcoIris }}>
+            <input type="color" className="absolute inset-0 opacity-0 cursor-pointer" value={/^#[0-9a-f]{6}$/i.test(fundo) ? fundo : '#ffffff'} onChange={(e) => mudar({ fundo: e.target.value }, 'aviso-legal-cor')} />
+          </label>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-300">Cor da letra</h3>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {CORES_TEXTO.map((c) => (
+            <button key={c} title={c} className={quadrado(corTexto.toLowerCase() === c)} style={{ background: c }} onClick={() => mudar({ corTexto: c }, 'aviso-legal-cor')} />
+          ))}
+          <label title="Outra cor de letra" className={`${quadrado(false)} relative overflow-hidden cursor-pointer`} style={{ background: arcoIris }}>
+            <input type="color" className="absolute inset-0 opacity-0 cursor-pointer" value={/^#[0-9a-f]{6}$/i.test(corTexto) ? corTexto : '#111111'} onChange={(e) => mudar({ corTexto: e.target.value }, 'aviso-legal-cor')} />
+          </label>
+        </div>
+      </div>
+
+      {solto && (
+        <button
+          onClick={voltarProRodape}
+          className="w-full px-3 py-2 rounded-lg border border-zinc-700 text-sm font-semibold text-zinc-200 hover:bg-zinc-800"
+        >
+          Voltar pro rodapé (largura toda)
+        </button>
       )}
     </div>
   );

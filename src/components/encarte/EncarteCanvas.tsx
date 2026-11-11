@@ -434,6 +434,9 @@ interface EncarteCanvasProps {
   avisosLegais?: { texto: string; destaque: string } | null;
   ajusteAvisoLegal?: AjusteAvisoLegal | null;
   onAjustarAvisoLegal?: (ajuste: AjusteAvisoLegal | null, opcoes?: { coalesce?: string }) => void;
+  /** aviso legal (texto do rodapé) selecionado/solto — abre/fecha o painel lateral */
+  onAvisoSelecionado?: (sel: boolean) => void;
+  soltarAvisoToken?: number;
   ladoAtivo: Lado;
   temVerso: boolean;
   /** páginas que existem, na ordem (frente, verso, verso 2) */
@@ -593,6 +596,8 @@ export default function EncarteCanvas({
   avisosLegais = null,
   ajusteAvisoLegal = null,
   onAjustarAvisoLegal = () => {},
+  onAvisoSelecionado,
+  soltarAvisoToken,
   ladoAtivo,
   temVerso,
   paginas,
@@ -3207,12 +3212,12 @@ export default function EncarteCanvas({
           {/* Rodapé + frases obrigatórias por lei */}
           {/* Texto obrigatório por lei arrastado pra fora do rodapé */}
           {avisosLegais && ajusteAvisoLegal?.xPct != null && (
-            <AvisoLegalEncarte texto={avisosLegais.texto} destaque={avisosLegais.destaque} ajuste={ajusteAvisoLegal} onAjustar={onAjustarAvisoLegal} />
+            <AvisoLegalEncarte texto={avisosLegais.texto} destaque={avisosLegais.destaque} ajuste={ajusteAvisoLegal} onAjustar={onAjustarAvisoLegal} onSelecionado={onAvisoSelecionado} soltarToken={soltarAvisoToken} />
           )}
           {(rodape.ativo || (avisosLegais && ajusteAvisoLegal?.xPct == null)) && (
             <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
               {avisosLegais && ajusteAvisoLegal?.xPct == null && (
-                <AvisoLegalEncarte texto={avisosLegais.texto} destaque={avisosLegais.destaque} ajuste={ajusteAvisoLegal} onAjustar={onAjustarAvisoLegal} />
+                <AvisoLegalEncarte texto={avisosLegais.texto} destaque={avisosLegais.destaque} ajuste={ajusteAvisoLegal} onAjustar={onAjustarAvisoLegal} onSelecionado={onAvisoSelecionado} soltarToken={soltarAvisoToken} />
               )}
               {rodape.ativo && (
                 <div

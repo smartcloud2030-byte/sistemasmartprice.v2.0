@@ -13,6 +13,7 @@ import { Lado, NOME_LADO, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProduto
 import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import TextoDetalhes from './TextoDetalhes';
+import { AvisoLegalPainel } from './AvisoLegalEncarte';
 import EncarteCanvas from './EncarteCanvas';
 import GerarPlaquinhasModal from './GerarPlaquinhasModal';
 import { useHistoricoEdicao, OpcoesSet } from './useHistoricoEdicao';
@@ -170,6 +171,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [textoPainelId, setTextoPainelId] = useState<string | null>(null);
   const [soltarTextoToken, setSoltarTextoToken] = useState(0);
   const soltarTexto = () => { setTextoPainelId(null); setSoltarTextoToken((n) => n + 1); };
+  // Texto do rodapé (aviso obrigatório por lei) selecionado → painel lateral.
+  const [avisoPainel, setAvisoPainel] = useState(false);
+  const [soltarAvisoToken, setSoltarAvisoToken] = useState(0);
+  const soltarAviso = () => { setAvisoPainel(false); setSoltarAvisoToken((n) => n + 1); };
   // Página aberta deixou de existir (desfazer, remover verso): volta pra frente.
   useEffect(() => {
     if (!paginas.includes(ladoAtivo)) setLadoAtivo('frente');
@@ -1085,6 +1090,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         </nav>
 
         <aside
+          data-painel-lateral
           style={{ width: larguraPainel }}
           className="flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto"
         >
@@ -1098,6 +1104,12 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onAtualizarEstilo={atualizarEstilo}
               onEnviarParaOutroLado={(destino) => enviarProdutoParaOutroLado(produtoDetalhado.product.id, destino)}
               onVoltar={() => setProdutoDetalhadoId(null)}
+            />
+          ) : avisoPainel && avisosLegais ? (
+            <AvisoLegalPainel
+              ajuste={lado.avisoLegal}
+              onAjustar={(ajuste, opcoes) => atualizarLado({ avisoLegal: ajuste }, opcoes)}
+              onFechar={soltarAviso}
             />
           ) : textoPainel ? (
             <TextoDetalhes
@@ -1260,6 +1272,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onEditarTexto={editarTexto}
           onEstilizarTexto={estilizarTexto}
           onRemoverTexto={removerTexto}
+          onAvisoSelecionado={(sel) => { setAvisoPainel(sel); if (sel) { setProdutoDetalhadoId(null); if (textoPainelId) soltarTexto(); } }}
+          soltarAvisoToken={soltarAvisoToken}
           onTextoSelecionado={(id) => { setTextoPainelId(id); if (id) setProdutoDetalhadoId(null); }}
           soltarTextoToken={soltarTextoToken}
           onAdicionarGuia={adicionarGuia}
