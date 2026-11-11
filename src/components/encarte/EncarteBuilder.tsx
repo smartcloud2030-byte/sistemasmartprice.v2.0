@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
 import GaleriaImagensTab from './GaleriaImagensTab';
 import ProdutosTab from './ProdutosTab';
+import AjusteFundo from './AjusteFundo';
 import FormatosTab from './FormatosTab';
 import ElementosTab from './ElementosTab';
 import { Lado, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProdutos } from './ladosEncarte';
@@ -991,7 +992,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onVoltar={() => setProdutoDetalhadoId(null)}
             />
           ) : activeMenu === 'temas' ? (
-            <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url })} />
+            <div>
+              <div className="p-3 pb-0">
+                <AjusteFundo url={lado.tema} propCanvas={formato.ratio} posicao={lado.fundoPos} onMudar={(p) => atualizarLado({ fundoPos: p })} />
+              </div>
+              <div>
+                <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url, fundoPos: null })} />
+              </div>
+            </div>
           ) : activeMenu === 'tags' ? (
             <GaleriaImagensTab
               titulo="Tags"
@@ -1038,7 +1046,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               }}
             />
           ) : activeMenu === 'formatos' ? (
-            <FormatosTab selecionado={formato.id} onSelecionar={trocarFormato} />
+            <div>
+              <div className="p-3 pb-0">
+                <AjusteFundo url={lado.tema} propCanvas={formato.ratio} posicao={lado.fundoPos} onMudar={(p) => atualizarLado({ fundoPos: p })} />
+              </div>
+              <div>
+                <FormatosTab selecionado={formato.id} onSelecionar={trocarFormato} />
+              </div>
+            </div>
           ) : activeMenu === 'elementos' ? (
             <ElementosTab
               divisores={lado.divisores}
@@ -1071,6 +1086,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
         <EncarteCanvas
           backgroundUrl={lado.tema}
+          fundoPos={lado.fundoPos}
           produtos={lado.produtos}
           estilo={lado.estilo}
           formato={formato}

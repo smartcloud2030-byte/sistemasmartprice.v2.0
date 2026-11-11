@@ -752,6 +752,8 @@ export interface LadoEncarte {
   rodape: { ativo: boolean; texto: string };
   /** Texto obrigatório por lei (remédio/leite): tamanho da letra e, se arrastado, posição. Sem = rodapé, letra padrão. */
   avisoLegal?: AjusteAvisoLegal | null;
+  /** Qual parte do tema aparece quando o formato corta a imagem (0–100 em x/y; sem = centro). */
+  fundoPos?: { x: number; y: number } | null;
 }
 
 /** Ajuste do texto obrigatório por lei. Sem xPct = fica no rodapé, largura toda. */
@@ -806,6 +808,7 @@ export function clonarLado(l: LadoEncarte): LadoEncarte {
     produtos: l.produtos.map((p) => ({ ...p })),
     estilo: { ...l.estilo },
     tema: l.tema,
+    fundoPos: l.fundoPos ? { ...l.fundoPos } : l.fundoPos,
     grade: l.grade,
     divisores: l.divisores.map((d) => ({ ...d })),
     imagens: l.imagens.map((im) => ({ ...im })),

@@ -16,6 +16,7 @@ import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import FontePicker from './FontePicker';
 import EnderecoPicker from './EnderecoPicker';
+import { useProporcaoImagem, caixaDoFundo, POSICAO_FUNDO_PADRAO } from './AjusteFundo';
 import ValidadePicker from './ValidadePicker';
 import { textoComIcones } from './iconesTexto';
 import { carregarFontesEncarte } from './fontes';
@@ -417,6 +418,8 @@ function MiniGrade({ cols, rows, ativa, auto }: { cols: number; rows: number; at
 
 interface EncarteCanvasProps {
   backgroundUrl: string | null;
+  /** qual parte do tema aparece quando o formato corta a imagem */
+  fundoPos?: { x: number; y: number } | null;
   produtos: EncarteProduto[];
   estilo: EstiloEncarte;
   formato: Formato;
@@ -573,6 +576,7 @@ interface NomeDescDragState {
 
 export default function EncarteCanvas({
   backgroundUrl,
+  fundoPos,
   produtos,
   estilo,
   formato,
@@ -640,6 +644,7 @@ export default function EncarteCanvas({
   const [salvando, setSalvando] = useState(false);
   const [gradeAberta, setGradeAberta] = useState(false);
   const [formasAberta, setFormasAberta] = useState(false);
+  const propFundo = useProporcaoImagem(backgroundUrl);
   const [ordenarAberto, setOrdenarAberto] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
   const [imagemSelecionadaId, setImagemSelecionadaId] = useState<string | null>(null);
@@ -3129,7 +3134,11 @@ export default function EncarteCanvas({
             ) : backgroundUrl ? (
               <img
                 src={getProxyUrl(backgroundUrl)}
-                className="w-full h-full object-cover"
+                className={propFundo ? 'absolute max-w-none' : 'w-full h-full object-cover'}
+                style={propFundo ? (() => {
+                  const c = caixaDoFundo(propFundo, formato.ratio, fundoPos ?? POSICAO_FUNDO_PADRAO);
+                  return { left: `${c.left}%`, top: `${c.top}%`, width: `${c.width}%`, height: `${c.height}%` };
+                })() : undefined}
                 referrerPolicy="no-referrer"
                 crossOrigin="anonymous"
                 draggable={false}
