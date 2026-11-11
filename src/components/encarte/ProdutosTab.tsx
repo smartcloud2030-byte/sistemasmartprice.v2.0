@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, ShoppingCart, ChevronRight, Search, History, Heart, Star, Plus, Check, Eye, EyeOff, Square, CheckSquare, ArrowRightLeft, ArrowDownToLine, ChevronDown } from 'lucide-react';
+import { X, ShoppingCart, ChevronRight, Search, History, Heart, Star, Plus, Check, Eye, EyeOff, Square, CheckSquare, ArrowRightLeft, ArrowDownToLine, ChevronDown, GripVertical } from 'lucide-react';
 import ProductSelector from '../ProductSelector';
 import ProductManager, { CadastroRapido } from '../ProductManager';
 import { Product, useStore } from '../../store';
@@ -24,6 +24,26 @@ interface ProdutosTabProps {
   /** muda o produto de página sem apagar e adicionar de novo */
   onMoverPagina: (id: string | number | undefined, de: Lado, para: Lado) => void;
   onIrPagina: (lado: Lado) => void;
+  /** arrastou um produto da lista e soltou em cima de outro: os dois trocam de lugar (mesmo em páginas diferentes) */
+  onTrocar: (a: { id: string | number | undefined; lado: Lado }, b: { id: string | number | undefined; lado: Lado }) => void;
+}
+
+/** Props de arrastar-e-soltar de uma linha da lista (montadas no ProdutosTab). */
+type PropsArraste = (ep: EncarteProduto, lado: Lado) => {
+  draggable: true;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  'data-alvo': boolean;
+  'data-arrastando': boolean;
+};
+
+const CLASSE_ARRASTE = 'data-[alvo=true]:ring-2 data-[alvo=true]:ring-emerald-400 data-[alvo=true]:bg-emerald-500/10 data-[arrastando=true]:opacity-40 cursor-grab active:cursor-grabbing';
+
+function Alca() {
+  return <GripVertical className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0" aria-hidden />;
 }
 
 type Aba = 'buscar' | 'historico' | 'favoritos';
@@ -78,7 +98,11 @@ function OutraPagina({
   produtos,
   onTrazer,
   onIr,
+  lado,
+  arraste,
 }: {
+  lado: Lado;
+  arraste: PropsArraste;
   nome: string;
   nomeAtiva: string;
   produtos: EncarteProduto[];
@@ -104,7 +128,8 @@ function OutraPagina({
         <div className="space-y-1.5 mt-2">
           {produtos.length === 0 && <p className="text-[11px] text-zinc-600 px-1">Nenhum produto nesta página.</p>}
           {produtos.map((ep) => (
-            <div key={ep.product.id} className="flex items-center gap-2 rounded-lg pl-2 pr-1 py-1.5 bg-zinc-800/50">
+            <div key={ep.product.id} {...arraste(ep, lado)} title="Arraste em cima de outro produto pra trocar os dois de lugar" className={cn('flex items-center gap-2 rounded-lg pl-1 pr-1 py-1.5 bg-zinc-800/50', CLASSE_ARRASTE)}>
+              <Alca />
               <div className="w-7 h-7 rounded bg-zinc-700 flex-shrink-0 overflow-hidden">
                 {ep.product.image && <img src={getProxyUrl(ep.product.image, { thumbnail: true })} className="w-full h-full object-cover" />}
               </div>
@@ -125,7 +150,39 @@ function OutraPagina({
   );
 }
 
-export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, paginas, ladoAtivo, onMoverPagina, onIrPagina }: ProdutosTabProps) {
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, paginas, ladoAtivo, onMoverPagina, onIrPagina, onTrocar }: ProdutosTabProps) {
+  // Arrastar um produto da lista e soltar em cima de outro troca os dois de lugar.
+  const [arrastando, setArrastando] = useState<{ id: string | number | undefined; lado: Lado } | null>(null);
+  const [alvo, setAlvo] = useState<string | null>(null);
+  const chave = (id: string | number | undefined, lado: Lado) => `${lado}:${String(id)}`;
+  const arraste: PropsArraste = (ep, lado) => {
+    const k = chave(ep.product.id, lado);
+    return {
+      draggable: true,
+      onDragStart: (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', k);
+        setArrastando({ id: ep.product.id, lado });
+      },
+      onDragEnd: () => { setArrastando(null); setAlvo(null); },
+      onDragOver: (e) => {
+        if (!arrastando || chave(arrastando.id, arrastando.lado) === k) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (alvo !== k) setAlvo(k);
+      },
+      onDragLeave: () => setAlvo((a) => (a === k ? null : a)),
+      onDrop: (e) => {
+        e.preventDefault();
+        const de = arrastando;
+        setArrastando(null);
+        setAlvo(null);
+        if (de && chave(de.id, de.lado) !== k) onTrocar(de, { id: ep.product.id, lado });
+      },
+      'data-alvo': alvo === k,
+      'data-arrastando': !!arrastando && chave(arrastando.id, arrastando.lado) === k,
+    };
+  };
   const outrasPaginas = paginas.filter((pg) => pg.lado !== ladoAtivo);
   const nomeAtiva = paginas.find((pg) => pg.lado === ladoAtivo)?.nome ?? 'Frente';
   // menu "Mandar pra" aberto (id do produto)
@@ -222,6 +279,9 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                   {marcadosSet.size > 0 && marcadosSet.size === selecionados.length ? 'Desmarcar todos' : 'Marcar todos'}
                 </button>
               </div>
+              {(selecionados.length + outrasPaginas.reduce((n, pg) => n + pg.produtos.length, 0)) >= 2 && (
+                <p className="text-[11px] text-zinc-500">Pra trocar dois produtos de lugar, arraste um em cima do outro{outrasPaginas.length ? ', mesmo de outra página' : ''}.</p>
+              )}
               {marcadosSet.size >= 2 && (
                 <p className="text-[11px] text-sky-300">
                   {marcadosSet.size} marcados — arraste qualquer um deles no encarte que todos andam juntos.
@@ -233,11 +293,14 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                   return (
                   <div
                     key={ep.product.id}
+                    {...arraste(ep, ladoAtivo)}
                     className={cn(
                       'flex items-center gap-1.5 rounded-lg pl-1 pr-1 py-1.5 border',
                       marcado ? 'bg-sky-500/10 border-sky-500/50' : 'bg-zinc-800 border-transparent',
+                      CLASSE_ARRASTE,
                     )}
                   >
+                    <span title="Arraste em cima de outro produto pra trocar os dois de lugar"><Alca /></span>
                     <button
                       onClick={() => ep.product.id != null && onMarcar(ep.product.id)}
                       title={marcado ? 'Desmarcar' : 'Marcar (pra mover junto com outros)'}
@@ -323,6 +386,8 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                   produtos={pg.produtos}
                   onTrazer={(id) => onMoverPagina(id, pg.lado, ladoAtivo)}
                   onIr={() => onIrPagina(pg.lado)}
+                  lado={pg.lado}
+                  arraste={arraste}
                 />
               ))}
             </div>

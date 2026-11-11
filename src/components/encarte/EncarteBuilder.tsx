@@ -506,6 +506,57 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
 
+  /** Troca dois produtos de lugar (na mesma página ou entre páginas): cada um
+   * vai pra posição exata do outro, levando a própria formatação. Na mesma
+   * página também troca a ordem na lista (a grade Automática segue a tela). */
+  const trocarProdutos = (
+    a: { id: string | number | undefined; lado: Lado },
+    b: { id: string | number | undefined; lado: Lado },
+  ) => {
+    const pa = ladoDoDoc(doc, a.lado)?.produtos.find((ep) => ep.product.id === a.id);
+    const pb = ladoDoDoc(doc, b.lado)?.produtos.find((ep) => ep.product.id === b.id);
+    if (!pa || !pb) return;
+    if (a.lado !== b.lado) {
+      const ld = ladoDoDoc(doc, b.lado);
+      const la = ladoDoDoc(doc, a.lado);
+      if (ld?.produtos.some((ep) => ep.product.id === a.id) || la?.produtos.some((ep) => ep.product.id === b.id)) {
+        toast.error('Esse produto já está na outra página.');
+        return;
+      }
+    }
+    const naPosicaoDe = (p: EncarteProduto, outro: EncarteProduto): EncarteProduto => {
+      const nd = p.nomeDescricaoAjuste;
+      return {
+        ...p,
+        xPct: outro.xPct,
+        yPct: outro.yPct,
+        z: outro.z,
+        nomeDescricaoAjuste: nd ? { ...nd, xPct: nd.xPct + (outro.xPct - p.xPct), yPct: nd.yPct + (outro.yPct - p.yPct) } : nd,
+      };
+    };
+    const novoA = naPosicaoDe(pa, pb); // A vai pro lugar de B
+    const novoB = naPosicaoDe(pb, pa);
+    setDoc((d) => {
+      const substituir = (l: LadoEncarte, sai: EncarteProduto, entra: EncarteProduto): LadoEncarte => ({
+        ...l,
+        produtos: l.produtos.map((ep) => (ep.product.id === sai.product.id ? entra : ep)),
+      });
+      if (a.lado === b.lado) {
+        const l = ladoDoDoc(d, a.lado);
+        if (!l) return d;
+        return comLado(d, a.lado, {
+          ...l,
+          produtos: l.produtos.map((ep) => (ep.product.id === pa.product.id ? novoB : ep.product.id === pb.product.id ? novoA : ep)),
+        });
+      }
+      const la = ladoDoDoc(d, a.lado);
+      const lb = ladoDoDoc(d, b.lado);
+      if (!la || !lb) return d;
+      return comLado(comLado(d, a.lado, substituir(la, pa, novoB)), b.lado, substituir(lb, pb, novoA));
+    });
+    toast.success(`Troquei "${pa.nome}" com "${pb.nome}".`, { description: 'Ctrl+Z desfaz.' });
+  };
+
   /** Manda imagem, forma ou texto pro outro lado na MESMA posição e tamanho
    * (os lados têm o mesmo formato e tudo é em % do canvas). Só faz sentido com
    * verso ativo — o botão nem aparece sem ele. Vai pra frente da pilha do destino.
@@ -1042,6 +1093,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
                 toast.success(`Produto mandado pra ${NOME_LADO[para]}.`, { description: 'Ctrl+Z desfaz.' });
               }}
               onIrPagina={trocarLado}
+              onTrocar={trocarProdutos}
               selecionados={lado.produtos}
               onSelecionar={adicionarProduto}
               onRemover={removerProduto}
