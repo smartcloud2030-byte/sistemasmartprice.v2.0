@@ -9,7 +9,7 @@ import ProdutosTab from './ProdutosTab';
 import AjusteFundo from './AjusteFundo';
 import FormatosTab from './FormatosTab';
 import ElementosTab from './ElementosTab';
-import { Lado, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProdutos } from './ladosEncarte';
+import { Lado, NOME_LADO, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProdutos } from './ladosEncarte';
 import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import EncarteCanvas from './EncarteCanvas';
@@ -474,10 +474,10 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   /** Move um produto da página ativa pra outra (cria o verso vazio se ainda não existir). */
-  const enviarProdutoParaOutroLado = (id: string | number | undefined, destinoLado: Lado) => {
+  const enviarProdutoParaOutroLado = (id: string | number | undefined, destinoLado: Lado, origemLado: Lado = ladoAtivo) => {
     setDoc((d) => {
-      if (destinoLado === ladoAtivo) return d;
-      const origem = ladoDoDoc(d, ladoAtivo) ?? d.ladoFrente;
+      if (destinoLado === origemLado) return d;
+      const origem = ladoDoDoc(d, origemLado) ?? d.ladoFrente;
       const produto = origem.produtos.find((ep) => ep.product.id === id);
       if (!produto) return d;
 
@@ -501,7 +501,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
       const destino = ladoDoDoc(d, destinoLado) ?? (destinoLado === 'verso' ? criarLado() : null);
       if (!destino) return d;
-      return comLado(comLado(d, ladoAtivo, tirar(origem)), destinoLado, inserir(destino));
+      return comLado(comLado(d, origemLado, tirar(origem)), destinoLado, inserir(destino));
     });
     setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
   };
@@ -1035,6 +1035,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
             />
           ) : activeMenu === 'produtos' ? (
             <ProdutosTab
+              paginas={paginas.map((l) => ({ lado: l, nome: NOME_LADO[l], produtos: ladoDoDoc(doc, l)?.produtos ?? [] }))}
+              ladoAtivo={ladoAtivo}
+              onMoverPagina={(id, de, para) => {
+                enviarProdutoParaOutroLado(id, para, de);
+                toast.success(`Produto mandado pra ${NOME_LADO[para]}.`, { description: 'Ctrl+Z desfaz.' });
+              }}
+              onIrPagina={trocarLado}
               selecionados={lado.produtos}
               onSelecionar={adicionarProduto}
               onRemover={removerProduto}

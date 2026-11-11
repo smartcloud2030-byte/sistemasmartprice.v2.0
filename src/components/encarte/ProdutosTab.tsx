@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, ShoppingCart, ChevronRight, Search, History, Heart, Star, Plus, Check, Eye, EyeOff, Square, CheckSquare } from 'lucide-react';
+import { X, ShoppingCart, ChevronRight, Search, History, Heart, Star, Plus, Check, Eye, EyeOff, Square, CheckSquare, ArrowRightLeft, ArrowDownToLine, ChevronDown } from 'lucide-react';
 import ProductSelector from '../ProductSelector';
 import ProductManager, { CadastroRapido } from '../ProductManager';
 import { Product, useStore } from '../../store';
 import { getProxyUrl, cn } from '../../lib/utils';
 import { EncarteProduto } from './encarteProduto';
+import { Lado } from './ladosEncarte';
 import { lerHistorico, registrarHistorico, lerFavoritos, alternarFavorito } from './produtosRecentes';
 
 interface ProdutosTabProps {
@@ -17,6 +18,12 @@ interface ProdutosTabProps {
   onMarcar: (id: string | number) => void;
   onMarcarTodos: (marcar: boolean) => void;
   onAlternarOculto: (id?: string | number) => void;
+  /** todas as páginas do encarte (frente/verso/verso 2) com os produtos de cada uma */
+  paginas: { lado: Lado; nome: string; produtos: EncarteProduto[] }[];
+  ladoAtivo: Lado;
+  /** muda o produto de página sem apagar e adicionar de novo */
+  onMoverPagina: (id: string | number | undefined, de: Lado, para: Lado) => void;
+  onIrPagina: (lado: Lado) => void;
 }
 
 type Aba = 'buscar' | 'historico' | 'favoritos';
@@ -64,7 +71,65 @@ function LinhaProduto({
   );
 }
 
-export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto }: ProdutosTabProps) {
+/** Produtos de outra página (verso/frente) — dá pra trazer pra página aberta. */
+function OutraPagina({
+  nome,
+  nomeAtiva,
+  produtos,
+  onTrazer,
+  onIr,
+}: {
+  nome: string;
+  nomeAtiva: string;
+  produtos: EncarteProduto[];
+  onTrazer: (id?: string | number) => void;
+  onIr: () => void;
+}) {
+  const [aberta, setAberta] = useState(true);
+  return (
+    <div className="pt-2 mt-1 border-t border-zinc-800/70">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => setAberta((v) => !v)}
+          className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
+        >
+          <ChevronDown className={cn('w-3 h-3 transition-transform', !aberta && '-rotate-90')} />
+          Na página: {nome} ({produtos.length})
+        </button>
+        <button onClick={onIr} className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:text-emerald-300">
+          Abrir página
+        </button>
+      </div>
+      {aberta && (
+        <div className="space-y-1.5 mt-2">
+          {produtos.length === 0 && <p className="text-[11px] text-zinc-600 px-1">Nenhum produto nesta página.</p>}
+          {produtos.map((ep) => (
+            <div key={ep.product.id} className="flex items-center gap-2 rounded-lg pl-2 pr-1 py-1.5 bg-zinc-800/50">
+              <div className="w-7 h-7 rounded bg-zinc-700 flex-shrink-0 overflow-hidden">
+                {ep.product.image && <img src={getProxyUrl(ep.product.image, { thumbnail: true })} className="w-full h-full object-cover" />}
+              </div>
+              <span className={cn('text-xs text-zinc-300 truncate flex-grow', ep.oculto && 'opacity-40')}>{ep.nome}</span>
+              <button
+                onClick={() => onTrazer(ep.product.id)}
+                title={`Trazer pra ${nomeAtiva}`}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/10 flex-shrink-0"
+              >
+                <ArrowDownToLine className="w-3.5 h-3.5" />
+                Trazer
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, paginas, ladoAtivo, onMoverPagina, onIrPagina }: ProdutosTabProps) {
+  const outrasPaginas = paginas.filter((pg) => pg.lado !== ladoAtivo);
+  const nomeAtiva = paginas.find((pg) => pg.lado === ladoAtivo)?.nome ?? 'Frente';
+  // menu "Mandar pra" aberto (id do produto)
+  const [moverAberto, setMoverAberto] = useState<string | null>(null);
   const { products, fetchProducts, currentUser, userRole } = useStore();
   const user = currentUser?.username ?? '';
   const isAdmin = userRole === 'admin';
@@ -144,11 +209,11 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
           />
           {rapido && <ProductManager key={`${rapido.excluir?.id ?? ''}|${rapido.editar?.id ?? ''}|${rapido.termo ?? ''}`} rapido={{ ...rapido, onFechar: () => setRapido(null) }} />}
 
-          {selecionados.length > 0 && (
+          {(selecionados.length > 0 || outrasPaginas.some((pg) => pg.produtos.length > 0)) && (
             <div className="space-y-2 pt-3 border-t border-zinc-800">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                  Selecionados ({selecionados.length})
+                  {outrasPaginas.length ? `Nesta página: ${nomeAtiva}` : 'Selecionados'} ({selecionados.length})
                 </h3>
                 <button
                   onClick={() => onMarcarTodos(marcadosSet.size < selecionados.length)}
@@ -211,6 +276,34 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                     >
                       {ep.oculto ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
+                    {outrasPaginas.length > 0 && (
+                      <div className="relative flex-shrink-0">
+                        <button
+                          onClick={() => setMoverAberto((v) => (v === String(ep.product.id) ? null : String(ep.product.id)))}
+                          title="Mandar pra outra página"
+                          className={cn('p-1 transition-colors', moverAberto === String(ep.product.id) ? 'text-emerald-400' : 'text-zinc-500 hover:text-emerald-300')}
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </button>
+                        {moverAberto === String(ep.product.id) && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setMoverAberto(null)} />
+                            <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1">
+                              <p className="px-3 pt-1 pb-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">Mandar pra</p>
+                              {outrasPaginas.map((pg) => (
+                                <button
+                                  key={pg.lado}
+                                  onClick={() => { setMoverAberto(null); onMoverPagina(ep.product.id, ladoAtivo, pg.lado); }}
+                                  className="w-full text-left px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
+                                >
+                                  {pg.nome}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <button
                       onClick={() => onRemover(ep.product.id)}
                       className="text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
@@ -222,6 +315,16 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                   );
                 })}
               </div>
+              {outrasPaginas.map((pg) => (
+                <OutraPagina
+                  key={pg.lado}
+                  nome={pg.nome}
+                  nomeAtiva={nomeAtiva}
+                  produtos={pg.produtos}
+                  onTrazer={(id) => onMoverPagina(id, pg.lado, ladoAtivo)}
+                  onIr={() => onIrPagina(pg.lado)}
+                />
+              ))}
             </div>
           )}
         </>
