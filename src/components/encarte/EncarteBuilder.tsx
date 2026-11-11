@@ -45,6 +45,9 @@ import {
   organizarAutomatico,
   areaDoLado,
   posicaoLivreNaGrade,
+  ordenarPorLeitura,
+  CARD_H,
+  CANVAS_W,
   trocarDestaque,
   ordenarPorPreco,
 } from './encarteProduto';
@@ -78,9 +81,15 @@ const MENU_ITEMS: { id: MenuItem; label: string; icon: React.ElementType }[] = [
 
 /** Grade Automática: realinha todos os produtos do lado (entrou/saiu produto,
  * mudou destaque, formato ou a área). Outras grades devolvem o lado igual. */
-function realinharSeAuto(lado: LadoEncarte, formato: Formato): LadoEncarte {
+function realinharSeAuto(lado: LadoEncarte, formato: Formato, novoId?: string | number): LadoEncarte {
   if (lado.grade !== 'auto') return lado;
-  const { produtos, escalaCard } = organizarAutomatico(lado.produtos, formato, lado.areaTopo, lado.areaBase);
+  // Segue a ordem que está NA TELA (quem foi arrastado fica onde o usuário
+  // pôs); o produto que acabou de entrar vai pro fim.
+  const alturaPct = ((CARD_H * (lado.estilo.escalaCard || 1)) / (CANVAS_W / formato.ratio)) * 100;
+  const novo = novoId === undefined ? undefined : lado.produtos.find((ep) => ep.product.id === novoId);
+  const resto = novo ? lado.produtos.filter((ep) => ep !== novo) : lado.produtos;
+  const naOrdem = [...ordenarPorLeitura(resto, alturaPct), ...(novo ? [novo] : [])];
+  const { produtos, escalaCard } = organizarAutomatico(naOrdem, formato, lado.areaTopo, lado.areaBase);
   return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
 }
 
@@ -438,7 +447,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado((l) => {
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
       const novo = { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 };
-      if (l.grade === 'auto') return realinharSeAuto({ ...l, produtos: [...l.produtos, novo] }, formato);
+      if (l.grade === 'auto') return realinharSeAuto({ ...l, produtos: [...l.produtos, novo] }, formato, novo.product.id);
       const livre = l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard, areaDoLado(l));
       return { produtos: [...l.produtos, livre ? { ...novo, ...livre } : novo] };
     });
@@ -474,7 +483,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               nomeDescricaoAjuste: nd ? { ...nd, xPct: nd.xPct + (livre.xPct - produto.xPct), yPct: nd.yPct + (livre.yPct - produto.yPct) } : nd,
             }
           : produto;
-        return realinharSeAuto({ ...destino, produtos: [...destino.produtos, { ...posicionado, z: maiorZ(destino) + 1 }] }, formato);
+        return realinharSeAuto({ ...destino, produtos: [...destino.produtos, { ...posicionado, z: maiorZ(destino) + 1 }] }, formato, id);
       };
       // Como no `removerProduto`: os que ficam no lado de origem não se mexem (a não ser na grade Automática).
       const tirar = (l: LadoEncarte): LadoEncarte => realinharSeAuto({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) }, formato);

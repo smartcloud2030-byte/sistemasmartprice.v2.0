@@ -941,3 +941,24 @@ export function ordenarPorPreco(produtos: EncarteProduto[], ordem: 'asc' | 'desc
   }
   return resultado;
 }
+
+// ── Ordem de leitura ──────────────────────────────────────────────────
+
+/**
+ * Põe os produtos na ordem em que aparecem NA TELA (linha de cima pra baixo,
+ * esquerda pra direita). A grade Automática realinha seguindo essa ordem,
+ * então quem o usuário arrastou fica no lugar que ele escolheu em vez de
+ * voltar pra ordem em que foi adicionado. `alturaLinhaPct` = altura do card
+ * em % (cards com o topo a menos de meia altura de distância = mesma linha).
+ */
+export function ordenarPorLeitura<T extends { xPct: number; yPct: number }>(produtos: T[], alturaLinhaPct: number): T[] {
+  const tol = Math.max(1, alturaLinhaPct / 2);
+  const porY = [...produtos].sort((a, b) => a.yPct - b.yPct);
+  const linhas: T[][] = [];
+  for (const p of porY) {
+    const linha = linhas[linhas.length - 1];
+    if (linha && p.yPct - linha[0].yPct < tol) linha.push(p);
+    else linhas.push([p]);
+  }
+  return linhas.flatMap((l) => l.sort((a, b) => a.xPct - b.xPct));
+}
