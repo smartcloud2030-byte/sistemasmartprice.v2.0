@@ -466,23 +466,23 @@ export default function GaleriaImagensTab({
     const subDe = (img: GalleryImage) => subDoArquivo(subsMapa, verMais, img.filename);
     const subAtual = subs.find((x) => x.id === subAtiva) ?? null;
 
+    const card = (img: GalleryImage) => (
+      <ImgThumb
+        key={img.fullPath}
+        img={img}
+        ativa={urlsAtivas.has(img.url)}
+        podeEditar={isAdmin}
+        substituindo={substituindo === img.fullPath}
+        onAdicionar={() => { onAdicionarImagem(img.url, true); toast.success('Imagem adicionada ao encarte!'); }}
+        onRetirar={() => onRemoverDoEncarte(img.url)}
+        onReplace={(file) => handleSubstituir(img, file, verMais)}
+        onDelete={() => setPendingDelete({ img, classif: verMais })}
+        onMove={isAdmin ? () => setMoverImg({ img, classif: verMais }) : undefined}
+      />
+    );
+
     const grade = (lista: GalleryImage[]) => (
-      <div className="grid grid-cols-3 gap-2">
-        {lista.map((img) => (
-          <ImgThumb
-            key={img.fullPath}
-            img={img}
-            ativa={urlsAtivas.has(img.url)}
-            podeEditar={isAdmin}
-            substituindo={substituindo === img.fullPath}
-            onAdicionar={() => { onAdicionarImagem(img.url, true); toast.success('Imagem adicionada ao encarte!'); }}
-            onRetirar={() => onRemoverDoEncarte(img.url)}
-            onReplace={(file) => handleSubstituir(img, file, verMais)}
-            onDelete={() => setPendingDelete({ img, classif: verMais })}
-            onMove={isAdmin ? () => setMoverImg({ img, classif: verMais }) : undefined}
-          />
-        ))}
-      </div>
+      <div className="grid grid-cols-3 gap-2">{lista.map(card)}</div>
     );
 
     let corpo: React.ReactNode;
@@ -496,7 +496,18 @@ export default function GaleriaImagensTab({
     } else if (subs.length === 0) {
       corpo = grade(imgs);
     } else {
-      corpo = <GruposPorSubcategoria subs={subs} itens={imgs} subDe={subDe} grade={grade} onAbrir={setSubAtiva} />;
+      corpo = (
+        <GruposPorSubcategoria
+          subs={subs}
+          itens={imgs}
+          subDe={subDe}
+          card={card}
+          nome={(img) => img.displayName}
+          rotulo={['imagem', 'imagens']}
+          larguraCard="w-[30%]"
+          onAbrir={setSubAtiva}
+        />
+      );
     }
 
     return (

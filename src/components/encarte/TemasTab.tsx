@@ -445,23 +445,23 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     const subDe = (img: GalleryImage) => subDoArquivo(subsMapa, verMais, img.filename);
     const subAtual = subs.find((x) => x.id === subAtiva) ?? null;
 
+    const card = (img: GalleryImage) => (
+      <TemaThumb
+        key={img.fullPath}
+        img={img}
+        ativa={selecionada === img.url}
+        podeEditar={isAdmin}
+        substituindo={substituindo === img.fullPath}
+        ajuste="contain"
+        onSelect={() => onSelecionar(img.url)}
+        onReplace={(file) => handleSubstituir(img, file, verMais)}
+        onDelete={() => setPendingDelete({ img, classif: verMais })}
+        onMove={isAdmin ? () => setMoverTema({ img, classif: verMais }) : undefined}
+      />
+    );
+
     const grade = (lista: GalleryImage[]) => (
-      <div className="grid grid-cols-2 gap-2">
-        {lista.map((img) => (
-          <TemaThumb
-            key={img.fullPath}
-            img={img}
-            ativa={selecionada === img.url}
-            podeEditar={isAdmin}
-            substituindo={substituindo === img.fullPath}
-            ajuste="contain"
-            onSelect={() => onSelecionar(img.url)}
-            onReplace={(file) => handleSubstituir(img, file, verMais)}
-            onDelete={() => setPendingDelete({ img, classif: verMais })}
-            onMove={isAdmin ? () => setMoverTema({ img, classif: verMais }) : undefined}
-          />
-        ))}
-      </div>
+      <div className="grid grid-cols-2 gap-2">{lista.map(card)}</div>
     );
 
     let corpo: ReactNode;
@@ -475,7 +475,18 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     } else if (subs.length === 0) {
       corpo = grade(imgs);
     } else {
-      corpo = <GruposPorSubcategoria subs={subs} itens={imgs} subDe={subDe} grade={grade} onAbrir={setSubAtiva} />;
+      corpo = (
+        <GruposPorSubcategoria
+          subs={subs}
+          itens={imgs}
+          subDe={subDe}
+          card={card}
+          nome={(img) => img.displayName}
+          rotulo={['tema', 'temas']}
+          larguraCard="w-[44%]"
+          onAbrir={setSubAtiva}
+        />
+      );
     }
 
     return (

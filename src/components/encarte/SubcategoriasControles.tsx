@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Check, X, Loader2, Folder, FolderInput, FolderPlus, Pencil, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Check, X, Loader2, ChevronRight, Folder, FolderInput, FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, normalizarBusca } from '../../lib/utils';
 import {
@@ -179,47 +179,119 @@ export function SubcategoriasAtalhos({ subs, onAbrir }: { subs: Subcategoria[]; 
   );
 }
 
-/** "Todos" com subcategorias: um bloco por subcategoria e, no fim, as soltas. */
+/** Uma linha: título + "N temas · Ver tudo" + tira horizontal que desliza. */
+function LinhaSub<T>({
+  titulo,
+  itens,
+  rotulo,
+  larguraCard,
+  card,
+  nome,
+  onVerTudo,
+}: {
+  titulo: string;
+  itens: T[];
+  rotulo: [string, string];
+  larguraCard: string;
+  card: (item: T) => React.ReactNode;
+  nome: (item: T) => string;
+  onVerTudo?: () => void;
+}) {
+  const tiraRef = useRef<HTMLDivElement>(null);
+  const deslizar = () => {
+    const el = tiraRef.current;
+    if (!el) return;
+    const fim = el.scrollWidth - el.clientWidth - 4;
+    if (el.scrollLeft >= fim) el.scrollTo({ left: 0, behavior: 'smooth' });
+    else el.scrollBy({ left: Math.max(el.clientWidth * 0.8, 120), behavior: 'smooth' });
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-[13px] font-bold text-zinc-100 truncate">{titulo}</h3>
+        <div className="flex items-baseline gap-1 flex-shrink-0 text-[12px]">
+          <span className="text-zinc-400">
+            <b className="text-zinc-100">{itens.length}</b> {itens.length === 1 ? rotulo[0] : rotulo[1]}
+          </span>
+          {onVerTudo && (
+            <>
+              <span className="text-zinc-600">·</span>
+              <button onClick={onVerTudo} className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+                Ver tudo
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="relative">
+        <div
+          ref={tiraRef}
+          className="flex gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {itens.map((item, k) => (
+            <div key={k} className={cn('flex-shrink-0 space-y-1', larguraCard)}>
+              {card(item)}
+              <p className="text-[11px] text-zinc-400 text-center truncate px-1" title={nome(item)}>{nome(item)}</p>
+            </div>
+          ))}
+        </div>
+        {itens.length > 2 && (
+          <button
+            onClick={deslizar}
+            title="Deslizar pra ver mais"
+            className="absolute right-1 top-[35%] -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-900/90 border border-zinc-700 text-zinc-200 hover:text-emerald-300 hover:border-emerald-500/50 flex items-center justify-center transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** "Todos" com subcategorias: uma linha deslizante por subcategoria e, no fim, as soltas. */
 export function GruposPorSubcategoria<T>({
   subs,
   itens,
   subDe,
-  grade,
+  card,
+  nome,
+  rotulo,
+  larguraCard,
   onAbrir,
 }: {
   subs: Subcategoria[];
   itens: T[];
   subDe: (item: T) => string | null;
-  grade: (lista: T[]) => React.ReactNode;
+  card: (item: T) => React.ReactNode;
+  nome: (item: T) => string;
+  /** singular e plural, ex.: ['tema', 'temas'] */
+  rotulo: [string, string];
+  /** largura de cada card na tira (classe tailwind) */
+  larguraCard: string;
   onAbrir: (id: string) => void;
 }) {
   const soltos = itens.filter((i) => !subDe(i));
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {subs.map((sub) => {
         const lista = itens.filter((i) => subDe(i) === sub.id);
         if (!lista.length) return null;
         return (
-          <div key={sub.id} className="space-y-2">
-            <button
-              onClick={() => onAbrir(sub.id)}
-              className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-200 hover:text-emerald-300 transition-colors"
-            >
-              <Folder className="w-3.5 h-3.5 text-zinc-500" />
-              {sub.nome}
-              <span className="text-zinc-500 font-normal">({lista.length})</span>
-            </button>
-            {grade(lista)}
-          </div>
+          <LinhaSub
+            key={sub.id}
+            titulo={sub.nome}
+            itens={lista}
+            rotulo={rotulo}
+            larguraCard={larguraCard}
+            card={card}
+            nome={nome}
+            onVerTudo={() => onAbrir(sub.id)}
+          />
         );
       })}
       {soltos.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[12px] font-bold text-zinc-400">
-            Sem subcategoria <span className="font-normal text-zinc-500">({soltos.length})</span>
-          </p>
-          {grade(soltos)}
-        </div>
+        <LinhaSub titulo="Sem subcategoria" itens={soltos} rotulo={rotulo} larguraCard={larguraCard} card={card} nome={nome} />
       )}
     </div>
   );
