@@ -2489,18 +2489,20 @@ export default function EncarteCanvas({
           <button
             onClick={onDesfazer}
             disabled={!podeDesfazer}
-            className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="whitespace-nowrap flex items-center gap-1.5 px-2 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title="Desfazer (Ctrl+Z)"
           >
             <Undo2 className="w-4 h-4" />
+            Desfazer
           </button>
           <button
             onClick={onRefazer}
             disabled={!podeRefazer}
-            className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="whitespace-nowrap flex items-center gap-1.5 px-2 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title="Refazer (Ctrl+Shift+Z)"
           >
             <Redo2 className="w-4 h-4" />
+            Refazer
           </button>
           {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-2" />}
 
@@ -2509,13 +2511,13 @@ export default function EncarteCanvas({
             <button
               onClick={() => setGradeAberta((v) => !v)}
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
               )}
               title="Produtos por página"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              {getGrade(grade).nome}
+              Grade: {getGrade(grade).nome}
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {gradeAberta && (
@@ -2605,12 +2607,12 @@ export default function EncarteCanvas({
               onClick={onAdicionarVerso}
               title="Adicionar verso"
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1',
                 tbCompacta ? 'px-2' : 'px-3',
               )}
             >
               <Copy className="w-3.5 h-3.5" />
-              {!tbCompacta && 'Verso'}
+              Adicionar verso
             </button>
           )}
 
@@ -2622,12 +2624,12 @@ export default function EncarteCanvas({
               onClick={() => setFormasAberta((v) => !v)}
               title="Adicionar forma"
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
               )}
             >
               <Shapes className="w-3.5 h-3.5" />
-              {!tbCompacta && 'Formas'}
+              Formas
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {formasAberta && (
@@ -2666,12 +2668,12 @@ export default function EncarteCanvas({
             }}
             title="Adicionar caixa de texto"
             className={cn(
-              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
             <Type className="w-3.5 h-3.5" />
-            {!tbCompacta && 'Texto'}
+            Texto
           </button>
 
           {/* Endereço da loja (escolhe o CNPJ → endereço vira caixa de texto) */}
@@ -2708,13 +2710,13 @@ export default function EncarteCanvas({
               onClick={() => setOrdenarAberto((v) => !v)}
               title="Ordenar produtos pelo preço"
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
                 ordenarAberto ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               )}
             >
               <ArrowUpDown className="w-3.5 h-3.5" />
-              {!tbCompacta && 'Ordenar'}
+              Ordenar preço
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {ordenarAberto && (
@@ -2778,13 +2780,13 @@ export default function EncarteCanvas({
               onClick={() => setFontesAberta((v) => !v)}
               title="Fontes do texto"
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
                 fontesAberta ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               )}
             >
               <Type className="w-3.5 h-3.5" />
-              {!tbCompacta && 'Fontes'}
+              Fontes
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
             {fontesAberta && (
@@ -2807,12 +2809,12 @@ export default function EncarteCanvas({
             onClick={selecionarTudo}
             title="Selecionar tudo da página (Ctrl+A) — arraste qualquer item pra mover tudo junto; Esc desfaz"
             className={cn(
-              'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
             <BoxSelect className="w-3.5 h-3.5" />
-            {!tbCompacta && 'Selecionar tudo'}
+            Selecionar tudo
           </button>
 
           {/* Réguas / guias */}
@@ -2820,7 +2822,7 @@ export default function EncarteCanvas({
             onClick={() => setReguasVisiveis((v) => !v)}
             title="Réguas e guias de alinhamento — arraste da régua pra criar uma linha"
             className={cn(
-              'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
               tbCompacta ? 'px-2' : 'px-3',
               reguasVisiveis
                 ? 'bg-cyan-500/15 text-cyan-300'
@@ -2828,7 +2830,7 @@ export default function EncarteCanvas({
             )}
           >
             <Ruler className="w-3.5 h-3.5" />
-            {!tbCompacta && 'Réguas'}
+            Réguas
           </button>
 
           {/* Camada: trazer pra frente / mandar pra trás o elemento selecionado */}
@@ -2837,24 +2839,24 @@ export default function EncarteCanvas({
             disabled={!temAlvoCamada}
             title={temAlvoCamada ? 'Trazer pra frente (um passo)' : 'Selecione um elemento pra mudar a camada'}
             className={cn(
-              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
             <ArrowUp className="w-3.5 h-3.5" />
-            {!tbCompacta && 'Frente'}
+            Trazer pra frente
           </button>
           <button
             onClick={() => alvoCamada && onReordenarCamada(alvoCamada, 'tras')}
             disabled={!temAlvoCamada}
             title={temAlvoCamada ? 'Mandar pra trás (um passo)' : 'Selecione um elemento pra mudar a camada'}
             className={cn(
-              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
             <ArrowDown className="w-3.5 h-3.5" />
-            {!tbCompacta && 'Trás'}
+            Mandar pra trás
           </button>
 
           {/* Salvar — manda o encarte pra aba Encartes */}
@@ -2863,12 +2865,12 @@ export default function EncarteCanvas({
             disabled={salvando || exportando}
             title="Salvar na aba Encartes pra editar depois"
             className={cn(
-              'flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed',
+              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
             {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            {!tbCompacta && (salvando ? 'Salvando...' : 'Salvar')}
+            {salvando ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
 
@@ -2879,12 +2881,12 @@ export default function EncarteCanvas({
               disabled={exportando}
               title="Download"
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
                 tbCompacta ? 'px-2.5' : 'px-3.5',
               )}
             >
               {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {exportando ? 'Gerando...' : (!tbCompacta && 'Download')}
+              {exportando ? 'Gerando...' : 'Baixar'}
               {!exportando && <ChevronDown className="w-3 h-3 opacity-80" />}
             </button>
             {downloadAberto && (
@@ -2912,12 +2914,12 @@ export default function EncarteCanvas({
               disabled={exportando}
               title="Compartilhar"
               className={cn(
-                'flex items-center gap-1.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
                 tbCompacta ? 'px-2.5' : 'px-3.5',
               )}
             >
               <Share2 className="w-3.5 h-3.5" />
-              {!tbCompacta && 'Compartilhar'}
+              Compartilhar
               <ChevronDown className="w-3 h-3 opacity-80" />
             </button>
             {compartilharAberto && (
@@ -2989,7 +2991,7 @@ export default function EncarteCanvas({
           <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5">
             <button
               onClick={onAdicionarProdutos}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+              className="whitespace-nowrap flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5" />
               Produtos
@@ -2997,7 +2999,7 @@ export default function EncarteCanvas({
             <button
               onClick={onAdicionarPlacaPreco}
               title="Gerar uma plaquinha de impressão pra cada produto do encarte"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+              className="whitespace-nowrap flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
             >
               <Tag className="w-3.5 h-3.5" />
               Placa de preço

@@ -73,13 +73,13 @@ export default function ValidadePicker({
         onClick={() => setAberto((v) => !v)}
         title="Adicionar a validade da promoção"
         className={
-          'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold ' +
+          'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold ' +
           (compacto ? 'px-2 ' : 'px-3 ') +
           (aberto ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200')
         }
       >
         <CalendarDays className="w-3.5 h-3.5" />
-        {!compacto && 'Validade'}
+        Validade da oferta
       </button>
       {aberto && (
         <div className="absolute top-full left-0 mt-1 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50 p-3 space-y-2.5">

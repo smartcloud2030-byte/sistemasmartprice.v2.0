@@ -176,13 +176,13 @@ export default function EnderecoPicker({
         onClick={() => { setAberto((v) => !v); setEditando(null); }}
         title="Adicionar endereço da loja (pelo CNPJ)"
         className={
-          'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold ' +
+          'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold ' +
           (compacto ? 'px-2 ' : 'px-3 ') +
           (aberto ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200')
         }
       >
         <MapPin className="w-3.5 h-3.5" />
-        {!compacto && 'Endereço'}
+        Endereço da loja
       </button>
       {aberto && (
         <div className="absolute top-full left-0 mt-1 w-80 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
