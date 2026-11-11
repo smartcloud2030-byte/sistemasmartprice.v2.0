@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid, FilePlus, ChevronDown, Eraser, FileX } from 'lucide-react';
 import { useStore, Product } from '../../store';
@@ -130,7 +130,7 @@ interface EncarteDoc {
 }
 
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
-  const { setView, currentUser, userRole } = useStore();
+  const { setView, currentUser, userRole, products: catalogoProdutos } = useStore();
   const username = currentUser?.username ?? '';
   // Chave de armazenamento do rascunho/histórico. A tela de Encarte é só de
   // admin e admin não tem CNPJ ('Administrativo' → '') — sem isto, toda a
@@ -365,8 +365,21 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [tarjas, setTarjas] = useState<Record<string, InfoCmed>>({});
   const tarjasRef = useRef(tarjas);
   tarjasRef.current = tarjas;
-  const codigosDe = (p: Product) =>
-    [p.barcode, p.barcode2].map((c) => String(c ?? '').replace(/\D/g, '')).filter((c) => c.length >= 8);
+  // O card guarda uma CÓPIA do produto de quando entrou no encarte. Se o
+  // código de barras foi cadastrado/corrigido depois (lápis na busca), usa
+  // também o do cadastro atual — senão o remédio não é reconhecido e o texto
+  // obrigatório do rodapé não aparece.
+  const catalogoPorId = useMemo(() => {
+    const m = new Map<string, Product>();
+    for (const p of catalogoProdutos) if (p.id != null) m.set(String(p.id), p);
+    return m;
+  }, [catalogoProdutos]);
+  const codigosDe = (p: Product) => {
+    const atual = p.id != null ? catalogoPorId.get(String(p.id)) : undefined;
+    return [...new Set(
+      [p.barcode, p.barcode2, atual?.barcode, atual?.barcode2].map((c) => String(c ?? '').replace(/\D/g, '')).filter((c) => c.length >= 8),
+    )];
+  };
 
   const consultarTarjas = async (codigos: string[]) => {
     const faltam = [...new Set(codigos)].filter((c) => !(c in tarjasRef.current));
