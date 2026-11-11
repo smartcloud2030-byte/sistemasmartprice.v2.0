@@ -43,11 +43,19 @@ export default function ClassificacaoBar({ base, ativa, onMudar, onEstruturaMudo
   const { userRole, currentUser, flags, userGroups, allowedStores } = useStore();
   const isAdmin = userRole === 'admin';
 
-  const ctx = useMemo(() => {
-    const nc = (currentUser?.cnpj || '').replace(/\D/g, '');
-    const loja = allowedStores.find((s) => (s.cnpj || '').replace(/\D/g, '') === nc);
-    return { isAdmin, cnpj: currentUser?.cnpj, bandeira: currentUser?.bandeira, grupoId: loja?.groupId };
-  }, [isAdmin, currentUser, allowedStores]);
+  // Depende só de valores simples: a lista de lojas é regravada a cada
+  // "loja online" (heartbeat/socket), e com objeto na dependência a aba
+  // recarregava tudo sozinha de tempos em tempos.
+  const cnpjUsuario = currentUser?.cnpj;
+  const bandeiraUsuario = currentUser?.bandeira;
+  const grupoUsuario = useMemo(() => {
+    const nc = (cnpjUsuario || '').replace(/\D/g, '');
+    return allowedStores.find((s) => (s.cnpj || '').replace(/\D/g, '') === nc)?.groupId;
+  }, [cnpjUsuario, allowedStores]);
+  const ctx = useMemo(
+    () => ({ isAdmin, cnpj: cnpjUsuario, bandeira: bandeiraUsuario, grupoId: grupoUsuario }),
+    [isAdmin, cnpjUsuario, bandeiraUsuario, grupoUsuario],
+  );
 
   const lojasOpts = useMemo(
     () => allowedStores.map((s) => ({ cnpj: s.cnpj, bandeira: s.bandeira })),

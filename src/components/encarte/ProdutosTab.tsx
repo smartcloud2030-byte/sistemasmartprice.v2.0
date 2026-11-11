@@ -198,7 +198,9 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
   const [favoritos, setFavoritos] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchProducts();
+    // A busca (ProductSelector) já baixa o catálogo ao abrir; aqui só se ainda
+    // não tiver nada — antes baixava tudo duas vezes a cada abertura da aba.
+    if (!useStore.getState().products.length) fetchProducts();
     setHistorico(lerHistorico(user));
     setFavoritos(lerFavoritos(user));
     // eslint-disable-next-line react-hooks/exhaustive-deps
