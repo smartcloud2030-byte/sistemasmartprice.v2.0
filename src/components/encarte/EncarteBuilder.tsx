@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid, FilePlus, Eraser, FileX } from 'lucide-react';
+import { ArrowLeft, Image, ShoppingCart, Shapes, Tag, Rows3, Building2, LayoutGrid, FilePlus, ChevronDown, Eraser, FileX } from 'lucide-react';
 import { useStore, Product } from '../../store';
 import { cn } from '../../lib/utils';
 import TemasTab from './TemasTab';
@@ -898,31 +898,31 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
-      <header className="h-16 flex-shrink-0 border-b border-zinc-800 bg-zinc-900 flex items-center gap-4 px-6 z-40">
-        <button onClick={() => setView('editor')} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
+      <header className="h-12 flex-shrink-0 border-b border-zinc-800 bg-zinc-900 flex items-center gap-3 px-3 z-40">
+        <button onClick={() => setView('editor')} title="Voltar" className="p-1.5 hover:bg-zinc-800 rounded-full transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-lg font-black tracking-tighter uppercase">Encarte Online</h1>
         <input
           value={nomeEncarte}
           onChange={(e) => setNomeEncarte(e.target.value)}
           placeholder="Nome do encarte…"
           title="Nome do encarte — é com esse nome que ele aparece na aba Encartes ao salvar"
           maxLength={80}
-          className="w-72 max-w-[40vw] bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/60"
+          className="w-80 max-w-[40vw] bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/60"
         />
         <div className="relative ml-auto">
           <button
             onClick={() => setNovoAberto((v) => !v)}
             className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
               novoAberto
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40'
-                : 'text-zinc-200 border-zinc-700 hover:bg-zinc-800',
+                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/60'
+                : 'text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10',
             )}
           >
-            <FilePlus className="w-4 h-4" />
+            <FilePlus className="w-3.5 h-3.5" />
             Novo encarte
+            <ChevronDown className="w-3 h-3 opacity-70" />
           </button>
           {novoAberto && (
             <>
@@ -992,14 +992,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onVoltar={() => setProdutoDetalhadoId(null)}
             />
           ) : activeMenu === 'temas' ? (
-            <div>
-              <div className="p-3 pb-0">
-                <AjusteFundo url={lado.tema} propCanvas={formato.ratio} posicao={lado.fundoPos} onMudar={(p) => atualizarLado({ fundoPos: p })} />
-              </div>
-              <div>
-                <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url, fundoPos: null })} />
-              </div>
-            </div>
+            <TemasTab selecionada={lado.tema} onSelecionar={(url) => atualizarLado({ tema: url, fundoPos: null })} />
           ) : activeMenu === 'tags' ? (
             <GaleriaImagensTab
               titulo="Tags"

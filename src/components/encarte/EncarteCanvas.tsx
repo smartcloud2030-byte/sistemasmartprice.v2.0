@@ -1,11 +1,11 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import AvisoLegalEncarte from './AvisoLegalEncarte';
 import { Lado, NOME_LADO } from './ladosEncarte';
 import {
-  Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus, Tag,
+  Undo2, Redo2, Type, Shapes, Save, Download, Package, Plus, Tag,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
@@ -838,11 +838,33 @@ export default function EncarteCanvas({
   const nomeDescDragRef = useRef<NomeDescDragState | null>(null);
 
   const [downloadAberto, setDownloadAberto] = useState(false);
-  const [compartilharAberto, setCompartilharAberto] = useState(false);
   const [zoom, setZoom] = useState(1);
+  // Zoom "caber na tela": o encarte ocupa a área livre até a pessoa mexer no zoom.
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [zoomManual, setZoomManual] = useState(false);
+  const zoomQueCabe = useCallback(() => {
+    const el = previewRef.current;
+    if (!el) return 1;
+    const w = el.clientWidth - 140; // folga lateral + miniaturas das páginas
+    const h = el.clientHeight - 40;
+    const z = Math.min(w / 480, h / (480 / formato.ratio));
+    return clamp(Math.floor(z * 100) / 100, ZOOM_MIN, 1.6);
+  }, [formato.ratio]);
+  useEffect(() => {
+    if (zoomManual) return;
+    const el = previewRef.current;
+    if (!el) return;
+    const aplicar = () => setZoom(zoomQueCabe());
+    aplicar();
+    const ro = new ResizeObserver(aplicar);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [zoomManual, zoomQueCabe]);
 
-  const ajustarZoom = (delta: number) =>
+  const ajustarZoom = (delta: number) => {
+    setZoomManual(true);
     setZoom((z) => clamp(Math.round((z + delta) * 100) / 100, ZOOM_MIN, ZOOM_MAX));
+  };
 
   // Observa a largura real da barra e alterna pro modo compacto (só ícones)
   // com histerese, pra não ficar piscando exatamente no limite.
@@ -1116,7 +1138,6 @@ export default function EncarteCanvas({
 
   const compartilhar = async (destino: DestinoCompartilhar) => {
     if (!canvasRef.current || exportando) return;
-    setCompartilharAberto(false);
     // A aba precisa abrir no próprio gesto do clique — se abrisse depois do
     // `await` do html2canvas, o bloqueador de pop-up mataria ela.
     const aba = window.open('about:blank', '_blank');
@@ -2513,13 +2534,13 @@ export default function EncarteCanvas({
       {/* Barra de ferramentas — encolhe pra só ícones e quebra linha se faltar espaço */}
       <div
         ref={toolbarRef}
-        className="min-h-14 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between gap-2 px-3 py-1.5"
+        className="flex-shrink-0 border-b border-zinc-800 flex items-center justify-between gap-2 px-3 py-1"
       >
         <div className="flex flex-1 min-w-0 flex-wrap items-center gap-1">
           <button
             onClick={onDesfazer}
             disabled={!podeDesfazer}
-            className="whitespace-nowrap flex items-center gap-1.5 px-2 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="whitespace-nowrap flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title="Desfazer (Ctrl+Z)"
           >
             <Undo2 className="w-4 h-4" />
@@ -2528,20 +2549,20 @@ export default function EncarteCanvas({
           <button
             onClick={onRefazer}
             disabled={!podeRefazer}
-            className="whitespace-nowrap flex items-center gap-1.5 px-2 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="whitespace-nowrap flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title="Refazer (Ctrl+Shift+Z)"
           >
             <Redo2 className="w-4 h-4" />
             Refazer
           </button>
-          {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-2" />}
+          {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-1" />}
 
           {/* Grade */}
           <div className="relative">
             <button
               onClick={() => setGradeAberta((v) => !v)}
               className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
               )}
               title="Produtos por página"
@@ -2651,7 +2672,7 @@ export default function EncarteCanvas({
               onClick={onAdicionarVerso}
               title="Adicionar verso — leva os elementos da frente, sem os produtos"
               className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1',
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1',
                 tbCompacta ? 'px-2' : 'px-3',
               )}
             >
@@ -2660,7 +2681,7 @@ export default function EncarteCanvas({
             </button>
           )}
 
-          {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-2" />}
+          {!tbCompacta && <div className="w-px h-5 bg-zinc-800 mx-1" />}
 
           {/* Formas */}
           <div className="relative">
@@ -2668,7 +2689,7 @@ export default function EncarteCanvas({
               onClick={() => setFormasAberta((v) => !v)}
               title="Adicionar forma"
               className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
               )}
             >
@@ -2712,7 +2733,7 @@ export default function EncarteCanvas({
             }}
             title="Adicionar caixa de texto"
             className={cn(
-              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
@@ -2754,7 +2775,7 @@ export default function EncarteCanvas({
               onClick={() => setOrdenarAberto((v) => !v)}
               title="Ordenar produtos pelo preço"
               className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
                 ordenarAberto ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               )}
@@ -2824,7 +2845,7 @@ export default function EncarteCanvas({
               onClick={() => setFontesAberta((v) => !v)}
               title="Fontes do texto"
               className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg transition-colors text-xs font-semibold',
                 tbCompacta ? 'px-2' : 'px-3',
                 fontesAberta ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               )}
@@ -2853,7 +2874,7 @@ export default function EncarteCanvas({
             onClick={selecionarTudo}
             title="Selecionar tudo da página (Ctrl+A) — arraste qualquer item pra mover tudo junto; Esc desfaz"
             className={cn(
-              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg transition-colors text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
@@ -2866,7 +2887,7 @@ export default function EncarteCanvas({
             onClick={() => setReguasVisiveis((v) => !v)}
             title="Réguas e guias de alinhamento — arraste da régua pra criar uma linha"
             className={cn(
-              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg transition-colors text-xs font-semibold',
               tbCompacta ? 'px-2' : 'px-3',
               reguasVisiveis
                 ? 'bg-cyan-500/15 text-cyan-300'
@@ -2883,7 +2904,7 @@ export default function EncarteCanvas({
             disabled={!temAlvoCamada}
             title={temAlvoCamada ? 'Trazer pra frente (um passo)' : 'Selecione um elemento pra mudar a camada'}
             className={cn(
-              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
@@ -2895,7 +2916,7 @@ export default function EncarteCanvas({
             disabled={!temAlvoCamada}
             title={temAlvoCamada ? 'Mandar pra trás (um passo)' : 'Selecione um elemento pra mudar a camada'}
             className={cn(
-              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
@@ -2909,7 +2930,7 @@ export default function EncarteCanvas({
             disabled={salvando || exportando}
             title="Salvar na aba Encartes pra editar depois"
             className={cn(
-              'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed',
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed',
               tbCompacta ? 'px-2' : 'px-3',
             )}
           >
@@ -2923,9 +2944,9 @@ export default function EncarteCanvas({
             <button
               onClick={() => setDownloadAberto((v) => !v)}
               disabled={exportando}
-              title="Download"
+              title="Baixar ou compartilhar"
               className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
                 tbCompacta ? 'px-2.5' : 'px-3.5',
               )}
             >
@@ -2934,7 +2955,7 @@ export default function EncarteCanvas({
               {!exportando && <ChevronDown className="w-3 h-3 opacity-80" />}
             </button>
             {downloadAberto && (
-              <div className="absolute top-full right-0 mt-1 w-52 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+              <div className="absolute top-full right-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
                 <button
                   onClick={() => baixar('png')}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
@@ -2949,44 +2970,25 @@ export default function EncarteCanvas({
                   <FileText className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                   PDF
                 </button>
-              </div>
-            )}
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setCompartilharAberto((v) => !v)}
-              disabled={exportando}
-              title="Compartilhar"
-              className={cn(
-                'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-black uppercase hover:bg-zinc-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
-                tbCompacta ? 'px-2.5' : 'px-3.5',
-              )}
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              Compartilhar
-              <ChevronDown className="w-3 h-3 opacity-80" />
-            </button>
-            {compartilharAberto && (
-              <div className="absolute top-full right-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
-                <p className="px-3.5 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
-                  Mandar PNG pra
+                <p className="px-3.5 pt-2.5 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 border-t border-zinc-800">
+                  Compartilhar
                 </p>
                 <button
-                  onClick={() => compartilhar('whatsapp')}
+                  onClick={() => { setDownloadAberto(false); compartilhar('whatsapp'); }}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
                 >
                   <MessageCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                   WhatsApp
                 </button>
                 <button
-                  onClick={() => compartilhar('email')}
+                  onClick={() => { setDownloadAberto(false); compartilhar('email'); }}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200 border-t border-zinc-800"
                 >
                   <Mail className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                   E-mail
                 </button>
                 <button
-                  onClick={() => compartilhar('instagram')}
+                  onClick={() => { setDownloadAberto(false); compartilhar('instagram'); }}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200 border-t border-zinc-800"
                 >
                   <Instagram className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
@@ -3000,7 +3002,8 @@ export default function EncarteCanvas({
 
       {/* Área de preview */}
       <div
-        className="flex-grow overflow-auto p-8 relative"
+        ref={previewRef}
+        className="flex-grow overflow-auto p-4 relative"
         // Fase de CAPTURA (roda antes de qualquer `stopPropagation` dos
         // filhos, ao contrário do onClick abaixo) — garante que clicar fora
         // de QUALQUER foto solta feche a seleção dela, mesmo clicando em
@@ -3020,7 +3023,6 @@ export default function EncarteCanvas({
           if (formasAberta) setFormasAberta(false);
           if (fontesAberta) setFontesAberta(false);
           if (downloadAberto) setDownloadAberto(false);
-          if (compartilharAberto) setCompartilharAberto(false);
           if (formaSelecionadaId) setFormaSelecionadaId(null);
           if (textoSelecionadoId) setTextoSelecionadoId(null);
           if (imagemSelecionadaId) setImagemSelecionadaId(null);
@@ -3035,7 +3037,7 @@ export default function EncarteCanvas({
           <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5">
             <button
               onClick={onAdicionarProdutos}
-              className="whitespace-nowrap flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+              className="whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5" />
               Produtos
@@ -3043,7 +3045,7 @@ export default function EncarteCanvas({
             <button
               onClick={onAdicionarPlacaPreco}
               title="Gerar uma plaquinha de impressão pra cada produto do encarte"
-              className="whitespace-nowrap flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
+              className="whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-300 transition-colors text-xs font-semibold"
             >
               <Tag className="w-3.5 h-3.5" />
               Placa de preço
@@ -3378,8 +3380,8 @@ export default function EncarteCanvas({
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
         <button
-          onClick={() => setZoom(1)}
-          title="Restaurar zoom (100%)"
+          onClick={() => { setZoomManual(false); setZoom(zoomQueCabe()); }}
+          title="Caber na tela"
           className="text-[10px] font-bold text-zinc-400 hover:text-zinc-200 transition-colors w-9 text-center"
         >
           {Math.round(zoom * 100)}%
