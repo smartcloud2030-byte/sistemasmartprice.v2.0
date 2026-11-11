@@ -1,4 +1,5 @@
-// Subcategorias dos temas do Encarte Online (ex.: "Black Friday" dentro de "Geral").
+// Subcategorias das galerias do Encarte Online — Temas, Elementos e Marca
+// (ex.: "Black Friday" dentro de "Geral").
 //
 // Não são pastas no MinIO: a imagem continua na pasta da classificação e só
 // ganha uma etiqueta aqui. Assim a URL do tema nunca muda e nenhum encarte

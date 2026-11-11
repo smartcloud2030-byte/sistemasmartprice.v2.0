@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2, Search, X, FolderInput, FolderPlus, Pencil, Folder } from 'lucide-react';
+import { Upload, Check, Image, Ban, Repeat, Trash2, Loader2, ChevronRight, ArrowLeft, Settings2, Search, X, FolderInput } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   uploadBackgroundImage,
@@ -14,6 +14,7 @@ import { carregarVisibilidade, podeVerClassificacao } from '../../lib/galeriaVis
 import { useStore } from '../../store';
 import { getProxyUrl, cn, normalizarBusca } from '../../lib/utils';
 import ClassificacaoBar from './ClassificacaoBar';
+import { SubcategoriasBarra, SubcategoriasAtalhos, GruposPorSubcategoria, ModalMoverSub } from './SubcategoriasControles';
 import {
   MapaSubcategorias,
   Subcategoria,
@@ -21,9 +22,6 @@ import {
   salvarSubcategorias,
   subsOrdenadas,
   subDoArquivo,
-  criarSub,
-  renomearSub,
-  excluirSub,
   definirSub,
 } from '../../lib/temasSubcategorias';
 
@@ -189,56 +187,6 @@ function ModalApagarTema({
   );
 }
 
-function ModalMoverTema({
-  subs,
-  atual,
-  ocupado,
-  onEscolher,
-  onCancelar,
-}: {
-  subs: Subcategoria[];
-  atual: string | null;
-  ocupado: boolean;
-  onEscolher: (id: string | null) => void;
-  onCancelar: () => void;
-}) {
-  const opcoes: { id: string | null; nome: string }[] = [{ id: null, nome: 'Sem subcategoria' }, ...subs];
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4" onClick={onCancelar}>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-xs space-y-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2">
-          <FolderInput className="w-5 h-5 text-emerald-500" />
-          <h3 className="text-sm font-bold text-zinc-100 flex-1">Mover tema para</h3>
-          {ocupado && <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
-        </div>
-        {subs.length === 0 && (
-          <p className="text-[11px] text-zinc-500">Crie uma subcategoria primeiro (botão “Subcategoria” no topo).</p>
-        )}
-        <div className="border border-zinc-800 rounded-lg divide-y divide-zinc-800 max-h-72 overflow-y-auto">
-          {opcoes.map((o) => (
-            <button
-              key={o.id ?? '_solto'}
-              disabled={ocupado}
-              onClick={() => onEscolher(o.id)}
-              className={cn(
-                'w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:opacity-50',
-                o.id === atual ? 'text-emerald-300 bg-emerald-500/10' : 'text-zinc-200 hover:bg-zinc-800',
-              )}
-            >
-              <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
-              <span className="flex-1 truncate">{o.nome}</span>
-              {o.id === atual && <Check className="w-3.5 h-3.5" />}
-            </button>
-          ))}
-        </div>
-        <button onClick={onCancelar} className="w-full px-3 py-1.5 border border-zinc-700 rounded-lg text-xs font-bold text-zinc-300 hover:bg-zinc-800">
-          Cancelar
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /** Uma linha da lista: nome + "Ver mais" + tira horizontal com seta que desliza. */
 function LinhaClassificacao({
   cat,
@@ -292,20 +240,7 @@ function LinhaClassificacao({
         </button>
       </div>
 
-      {subs.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {subs.map((sub) => (
-            <button
-              key={sub.id}
-              onClick={() => onAbrirSub(cat, sub.id)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors"
-            >
-              <Folder className="w-3 h-3 opacity-70" />
-              {sub.nome}
-            </button>
-          ))}
-        </div>
-      )}
+      <SubcategoriasAtalhos subs={subs} onAbrir={(id) => onAbrirSub(cat, id)} />
 
       <div className="flex items-stretch gap-2">
         <div
@@ -370,8 +305,6 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   // subcategorias (etiquetas dentro de cada classificação)
   const [subsMapa, setSubsMapa] = useState<MapaSubcategorias>({});
   const [subAtiva, setSubAtiva] = useState<string | null>(null); // null = "Todos" no "Ver mais"
-  const [subEdicao, setSubEdicao] = useState<null | { modo: 'criar' | 'renomear'; nome: string }>(null);
-  const [confirmarExcluirSub, setConfirmarExcluirSub] = useState(false);
   const [moverTema, setMoverTema] = useState<{ img: GalleryImage; classif: string } | null>(null);
   const [salvandoSub, setSalvandoSub] = useState(false);
 
@@ -493,38 +426,6 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
   const abrirVerMais = (cat: string | null, sub: string | null = null) => {
     setVerMais(cat);
     setSubAtiva(sub);
-    setSubEdicao(null);
-    setConfirmarExcluirSub(false);
-  };
-
-  const salvarSubEdicao = async () => {
-    if (!verMais || !subEdicao || salvandoSub) return;
-    const nome = subEdicao.nome.trim().slice(0, 40);
-    if (!nome) return;
-    const existentes = subsOrdenadas(subsMapa, verMais);
-    const repetido = existentes.some(
-      (x) => normalizarBusca(x.nome) === normalizarBusca(nome) && !(subEdicao.modo === 'renomear' && x.id === subAtiva),
-    );
-    if (repetido) { toast.error('Já existe uma subcategoria com esse nome.'); return; }
-    setSalvandoSub(true);
-    if (subEdicao.modo === 'criar') {
-      const { mapa, id } = criarSub(subsMapa, verMais, nome);
-      if (await gravarSubs(mapa)) { setSubAtiva(id); setSubEdicao(null); toast.success('Subcategoria criada!'); }
-    } else if (subAtiva) {
-      if (await gravarSubs(renomearSub(subsMapa, verMais, subAtiva, nome))) { setSubEdicao(null); toast.success('Subcategoria renomeada!'); }
-    }
-    setSalvandoSub(false);
-  };
-
-  const excluirSubAtiva = async () => {
-    if (!verMais || !subAtiva || salvandoSub) return;
-    setSalvandoSub(true);
-    if (await gravarSubs(excluirSub(subsMapa, verMais, subAtiva))) {
-      setSubAtiva(null);
-      setConfirmarExcluirSub(false);
-      toast.success('Subcategoria excluída. Os temas dela continuam em “Todos”.');
-    }
-    setSalvandoSub(false);
   };
 
   const confirmarMover = async (id: string | null) => {
@@ -542,7 +443,6 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     const imgs = imgsPor[verMais] ?? [];
     const subs = subsOrdenadas(subsMapa, verMais);
     const subDe = (img: GalleryImage) => subDoArquivo(subsMapa, verMais, img.filename);
-    const contagem = (id: string | null) => imgs.filter((i) => subDe(i) === id).length;
     const subAtual = subs.find((x) => x.id === subAtiva) ?? null;
 
     const grade = (lista: GalleryImage[]) => (
@@ -564,23 +464,6 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
       </div>
     );
 
-    const chip = (id: string | null, nome: string, n: number) => (
-      <button
-        key={id ?? '_todos'}
-        onClick={() => { setSubAtiva(id); setSubEdicao(null); setConfirmarExcluirSub(false); }}
-        className={cn(
-          'flex items-center gap-1 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors',
-          subAtiva === id
-            ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
-            : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600',
-        )}
-      >
-        {id && <Folder className="w-3 h-3 opacity-70" />}
-        {nome}
-        <span className="text-zinc-500 font-normal">{n}</span>
-      </button>
-    );
-
     let corpo: ReactNode;
     if (subAtual) {
       const lista = imgs.filter((i) => subDe(i) === subAtual.id);
@@ -592,35 +475,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
     } else if (subs.length === 0) {
       corpo = grade(imgs);
     } else {
-      const soltos = imgs.filter((i) => !subDe(i));
-      corpo = (
-        <div className="space-y-5">
-          {subs.map((sub) => {
-            const lista = imgs.filter((i) => subDe(i) === sub.id);
-            if (!lista.length) return null;
-            return (
-              <div key={sub.id} className="space-y-2">
-                <button
-                  onClick={() => setSubAtiva(sub.id)}
-                  className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-200 hover:text-emerald-300 transition-colors"
-                >
-                  <Folder className="w-3.5 h-3.5 text-zinc-500" />
-                  {sub.nome}
-                  <span className="text-zinc-500 font-normal">({lista.length})</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
-                </button>
-                {grade(lista)}
-              </div>
-            );
-          })}
-          {soltos.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[12px] font-bold text-zinc-400">Sem subcategoria <span className="font-normal text-zinc-500">({soltos.length})</span></p>
-              {grade(soltos)}
-            </div>
-          )}
-        </div>
-      );
+      corpo = <GruposPorSubcategoria subs={subs} itens={imgs} subDe={subDe} grade={grade} onAbrir={setSubAtiva} />;
     }
 
     return (
@@ -644,69 +499,17 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
           />
         </div>
 
-        {(subs.length > 0 || isAdmin) && (
-          <div className="flex flex-wrap gap-1.5">
-            {chip(null, 'Todos', imgs.length)}
-            {subs.map((sub) => chip(sub.id, sub.nome, contagem(sub.id)))}
-            {isAdmin && !subEdicao && (
-              <button
-                onClick={() => { setConfirmarExcluirSub(false); setSubEdicao({ modo: 'criar', nome: '' }); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-zinc-600 text-[11px] font-semibold text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/50 transition-colors"
-              >
-                <FolderPlus className="w-3 h-3" /> Subcategoria
-              </button>
-            )}
-          </div>
-        )}
-
-        {isAdmin && subEdicao && (
-          <div className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={subEdicao.nome}
-              onChange={(e) => setSubEdicao({ ...subEdicao, nome: e.target.value })}
-              onKeyDown={(e) => { if (e.key === 'Enter') salvarSubEdicao(); if (e.key === 'Escape') setSubEdicao(null); }}
-              placeholder={subEdicao.modo === 'criar' ? 'Nome da subcategoria (ex.: Black Friday)' : 'Novo nome'}
-              maxLength={40}
-              className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 outline-none focus:border-emerald-500/60"
-            />
-            <button onClick={salvarSubEdicao} disabled={salvandoSub || !subEdicao.nome.trim()} title="Salvar" className="p-1.5 rounded-lg bg-emerald-600 text-white disabled:opacity-40">
-              {salvandoSub ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-            </button>
-            <button onClick={() => setSubEdicao(null)} title="Cancelar" className="p-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {isAdmin && subAtual && !subEdicao && (
-          confirmarExcluirSub ? (
-            <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-2">
-              <p className="text-[11px] text-red-200 flex-1">
-                Excluir a subcategoria <b>“{subAtual.nome}”</b>? Os temas não são apagados, só voltam pra “Todos”.
-              </p>
-              <button onClick={excluirSubAtiva} disabled={salvandoSub} className="px-2 py-1 rounded-md bg-red-600 text-white text-[11px] font-bold disabled:opacity-40">
-                {salvandoSub ? 'Excluindo...' : 'Excluir'}
-              </button>
-              <button onClick={() => setConfirmarExcluirSub(false)} className="px-2 py-1 rounded-md border border-zinc-700 text-zinc-300 text-[11px] font-bold">Não</button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                onClick={() => setSubEdicao({ modo: 'renomear', nome: subAtual.nome })}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-[11px] font-semibold text-zinc-400 hover:text-zinc-100"
-              >
-                <Pencil className="w-3 h-3" /> Renomear
-              </button>
-              <button
-                onClick={() => setConfirmarExcluirSub(true)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-[11px] font-semibold text-zinc-400 hover:text-red-300 hover:border-red-500/40"
-              >
-                <Trash2 className="w-3 h-3" /> Excluir subcategoria
-              </button>
-            </div>
-          )
-        )}
+        <SubcategoriasBarra
+          key={verMais}
+          classif={verMais}
+          mapa={subsMapa}
+          ativa={subAtiva}
+          onMudar={setSubAtiva}
+          contagem={(id) => imgs.filter((i) => subDe(i) === id).length}
+          total={imgs.length}
+          isAdmin={isAdmin}
+          gravar={gravarSubs}
+        />
 
         {corpo}
 
@@ -714,7 +517,7 @@ export default function TemasTab({ selecionada, onSelecionar }: TemasTabProps) {
           <ModalApagarTema ocupado={isDeleting} onCancelar={() => setPendingDelete(null)} onConfirmar={handleConfirmDelete} />
         )}
         {moverTema && (
-          <ModalMoverTema
+          <ModalMoverSub
             subs={subs}
             atual={subDoArquivo(subsMapa, moverTema.classif, moverTema.img.filename)}
             ocupado={salvandoSub}

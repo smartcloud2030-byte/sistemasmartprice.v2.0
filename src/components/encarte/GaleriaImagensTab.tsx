@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Upload, Loader2, Repeat, Trash2, Check, ImageOff, ChevronRight, ArrowLeft, Settings2, Search, X } from 'lucide-react';
+import { Upload, Loader2, Repeat, Trash2, Check, ImageOff, ChevronRight, ArrowLeft, Settings2, Search, X, FolderInput } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   uploadBackgroundImage,
@@ -15,6 +15,16 @@ import { useStore } from '../../store';
 import { getProxyUrl, cn, normalizarBusca } from '../../lib/utils';
 import { ElementoImagem } from './encarteProduto';
 import ClassificacaoBar from './ClassificacaoBar';
+import {
+  MapaSubcategorias,
+  Subcategoria,
+  carregarSubcategorias,
+  salvarSubcategorias,
+  subsOrdenadas,
+  subDoArquivo,
+  definirSub,
+} from '../../lib/temasSubcategorias';
+import { SubcategoriasBarra, SubcategoriasAtalhos, GruposPorSubcategoria, ModalMoverSub } from './SubcategoriasControles';
 
 const PREVIA = 15; // até quantas imagens a tira horizontal carrega
 
@@ -67,11 +77,14 @@ function ImgThumb({
   onRetirar,
   onReplace,
   onDelete,
+  onMove,
 }: {
   img: GalleryImage;
   ativa: boolean;
   podeEditar: boolean;
   substituindo: boolean;
+  /** admin: mover pra uma subcategoria */
+  onMove?: () => void;
   onAdicionar: () => void;
   onRetirar: () => void;
   onReplace: (file: File) => void;
@@ -124,6 +137,15 @@ function ImgThumb({
                 }}
               />
             </label>
+            {onMove && (
+              <button
+                title="Mover pra subcategoria"
+                onClick={(e) => { e.stopPropagation(); onMove(); }}
+                className="flex items-center justify-center w-6 h-6 rounded bg-zinc-900/80 text-zinc-200 hover:text-emerald-400"
+              >
+                <FolderInput className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               title="Apagar"
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -188,6 +210,8 @@ function LinhaClassificacaoImg({
   onSubstituir,
   onApagar,
   onVerMais,
+  subs,
+  onAbrirSub,
 }: {
   cat: string;
   base: string;
@@ -200,6 +224,8 @@ function LinhaClassificacaoImg({
   onSubstituir: (img: GalleryImage, file: File, classif: string) => void;
   onApagar: (img: GalleryImage, classif: string) => void;
   onVerMais: (cat: string) => void;
+  subs: Subcategoria[];
+  onAbrirSub: (cat: string, id: string) => void;
 }) {
   const tiraRef = useRef<HTMLDivElement>(null);
 
@@ -222,6 +248,8 @@ function LinhaClassificacaoImg({
           Ver mais
         </button>
       </div>
+
+      <SubcategoriasAtalhos subs={subs} onAbrir={(id) => onAbrirSub(cat, id)} />
 
       <div className="flex items-stretch gap-2">
         <div
@@ -300,10 +328,44 @@ export default function GaleriaImagensTab({
   const [isDeleting, setIsDeleting] = useState(false);
   const [busca, setBusca] = useState('');
 
+  // subcategorias (etiquetas dentro de cada classificação; a imagem não muda de pasta)
+  const [subsMapa, setSubsMapa] = useState<MapaSubcategorias>({});
+  const [subAtiva, setSubAtiva] = useState<string | null>(null);
+  const [moverImg, setMoverImg] = useState<{ img: GalleryImage; classif: string } | null>(null);
+  const [movendo, setMovendo] = useState(false);
+
+  const gravarSubs = async (novo: MapaSubcategorias) => {
+    const antes = subsMapa;
+    setSubsMapa(novo);
+    try {
+      await salvarSubcategorias(novo);
+      return true;
+    } catch {
+      setSubsMapa(antes);
+      toast.error('Não foi possível salvar as subcategorias.');
+      return false;
+    }
+  };
+
+  const nomeArquivo = (url: string) => decodeURIComponent(url.split('?')[0].split('/').pop() || '');
+
+  const abrirVerMais = (cat: string | null, sub: string | null = null) => { setVerMais(cat); setSubAtiva(sub); };
+
+  const confirmarMover = async (id: string | null) => {
+    if (!moverImg || movendo) return;
+    setMovendo(true);
+    if (await gravarSubs(definirSub(subsMapa, moverImg.classif, moverImg.img.filename, id))) {
+      setMoverImg(null);
+      toast.success(id ? 'Imagem movida!' : 'Imagem tirada da subcategoria.');
+    }
+    setMovendo(false);
+  };
+
   const carregarTudo = async () => {
     setCarregando(true);
     try {
-      const [todas, mapa] = await Promise.all([listGalleryCategories(), carregarVisibilidade()]);
+      const [todas, mapa, subs] = await Promise.all([listGalleryCategories(), carregarVisibilidade(), carregarSubcategorias()]);
+      setSubsMapa(subs);
       const visiveis = classificacoesDaBase(todas, categoria).filter(
         (c) => c === categoria || podeVerClassificacao(c, mapa, ctx),
       );
@@ -321,13 +383,19 @@ export default function GaleriaImagensTab({
     }
   };
 
-  useEffect(() => { setVerMais(null); setClassifAdmin(categoria); setBusca(''); }, [categoria]);
+  useEffect(() => { setVerMais(null); setSubAtiva(null); setClassifAdmin(categoria); setBusca(''); }, [categoria]);
   useEffect(() => { carregarTudo(); /* eslint-disable-next-line */ }, [categoria, ctx]);
 
-  const handleUpload = async (file: File, classif: string) => {
+  const handleUpload = async (file: File, classif: string, subId: string | null = null) => {
     setUploadAlvo(classif);
     try {
-      await uploadBackgroundImage(file, classif);
+      const { url } = await uploadBackgroundImage(file, classif);
+      if (subId) {
+        const atual = await carregarSubcategorias();
+        await salvarSubcategorias(definirSub(atual, classif, nomeArquivo(url), subId)).catch(() =>
+          toast.error('Imagem enviada, mas não entrou na subcategoria.'),
+        );
+      }
       await carregarTudo();
       toast.success('Imagem enviada!');
     } catch {
@@ -340,8 +408,13 @@ export default function GaleriaImagensTab({
   const handleSubstituir = async (img: GalleryImage, file: File, classif: string) => {
     setSubstituindo(img.fullPath);
     try {
-      await uploadBackgroundImage(file, classif);
+      const { url } = await uploadBackgroundImage(file, classif);
       await deleteGalleryImage(img.url);
+      const sub = subDoArquivo(subsMapa, classif, img.filename);
+      if (sub) {
+        const semAntigo = definirSub(subsMapa, classif, img.filename, null);
+        await salvarSubcategorias(definirSub(semAntigo, classif, nomeArquivo(url), sub)).catch(() => {});
+      }
       await carregarTudo();
       toast.success('Imagem substituída!');
     } catch {
@@ -356,6 +429,9 @@ export default function GaleriaImagensTab({
     setIsDeleting(true);
     try {
       await deleteGalleryImage(pendingDelete.img.url);
+      if (subDoArquivo(subsMapa, pendingDelete.classif, pendingDelete.img.filename)) {
+        await salvarSubcategorias(definirSub(subsMapa, pendingDelete.classif, pendingDelete.img.filename, null)).catch(() => {});
+      }
       await carregarTudo();
       toast.success('Imagem apagada!');
       setPendingDelete(null);
@@ -372,51 +448,103 @@ export default function GaleriaImagensTab({
     const achados: { img: GalleryImage; cat: string }[] = [];
     classifs.forEach((cat) => {
       const nomeCat = normalizarBusca(nomeClassificacao(cat, categoria));
+      const subs = subsOrdenadas(subsMapa, cat);
       (imgsPor[cat] ?? []).forEach((img) => {
         const alvo = normalizarBusca(img.displayName || '');
-        if (alvo.includes(buscaNorm) || nomeCat.includes(buscaNorm)) achados.push({ img, cat });
+        const subId = subDoArquivo(subsMapa, cat, img.filename);
+        const nomeSub = subId ? normalizarBusca(subs.find((x) => x.id === subId)?.nome || '') : '';
+        if (alvo.includes(buscaNorm) || nomeCat.includes(buscaNorm) || (nomeSub && nomeSub.includes(buscaNorm))) achados.push({ img, cat });
       });
     });
     return achados;
-  }, [buscaNorm, classifs, imgsPor, categoria]);
+  }, [buscaNorm, classifs, imgsPor, categoria, subsMapa]);
 
   // ── "Ver mais": a classificação abre aqui, com as imagens inteiras ──
   if (verMais) {
     const imgs = imgsPor[verMais] ?? [];
+    const subs = subsOrdenadas(subsMapa, verMais);
+    const subDe = (img: GalleryImage) => subDoArquivo(subsMapa, verMais, img.filename);
+    const subAtual = subs.find((x) => x.id === subAtiva) ?? null;
+
+    const grade = (lista: GalleryImage[]) => (
+      <div className="grid grid-cols-3 gap-2">
+        {lista.map((img) => (
+          <ImgThumb
+            key={img.fullPath}
+            img={img}
+            ativa={urlsAtivas.has(img.url)}
+            podeEditar={isAdmin}
+            substituindo={substituindo === img.fullPath}
+            onAdicionar={() => { onAdicionarImagem(img.url, true); toast.success('Imagem adicionada ao encarte!'); }}
+            onRetirar={() => onRemoverDoEncarte(img.url)}
+            onReplace={(file) => handleSubstituir(img, file, verMais)}
+            onDelete={() => setPendingDelete({ img, classif: verMais })}
+            onMove={isAdmin ? () => setMoverImg({ img, classif: verMais }) : undefined}
+          />
+        ))}
+      </div>
+    );
+
+    let corpo: React.ReactNode;
+    if (subAtual) {
+      const lista = imgs.filter((i) => subDe(i) === subAtual.id);
+      corpo = lista.length === 0
+        ? <p className="text-xs text-zinc-500 text-center py-12">Nenhuma imagem em “{subAtual.nome}”. Envie uma pelo botão de upload{isAdmin ? ' ou mova uma imagem pra cá' : ''}.</p>
+        : grade(lista);
+    } else if (imgs.length === 0) {
+      corpo = <p className="text-xs text-zinc-500 text-center py-12">Nenhuma imagem nesta classificação ainda.</p>;
+    } else if (subs.length === 0) {
+      corpo = grade(imgs);
+    } else {
+      corpo = <GruposPorSubcategoria subs={subs} itens={imgs} subDe={subDe} grade={grade} onAbrir={setSubAtiva} />;
+    }
+
     return (
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-2">
-          <button onClick={() => setVerMais(null)} className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors">
+          <button
+            onClick={() => (subAtiva ? setSubAtiva(null) : abrirVerMais(null))}
+            title={subAtiva ? 'Voltar pra todos' : 'Voltar'}
+            className="p-1.5 -ml-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <h2 className="text-sm font-black uppercase tracking-widest flex-grow truncate">
             {nomeClassificacao(verMais, categoria)}
+            {subAtual && <span className="text-zinc-500"> / {subAtual.nome}</span>}
           </h2>
-          <UploadImg classif={verMais} ocupado={uploadAlvo === verMais} onArquivo={handleUpload} />
+          <UploadImg
+            classif={verMais}
+            ocupado={uploadAlvo === verMais}
+            onArquivo={(file, classif) => handleUpload(file, classif, subAtual?.id ?? null)}
+          />
         </div>
 
-        {imgs.length === 0 ? (
-          <p className="text-xs text-zinc-500 text-center py-12">Nenhuma imagem nesta classificação ainda.</p>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {imgs.map((img) => (
-              <ImgThumb
-                key={img.fullPath}
-                img={img}
-                ativa={urlsAtivas.has(img.url)}
-                podeEditar={isAdmin}
-                substituindo={substituindo === img.fullPath}
-                onAdicionar={() => { onAdicionarImagem(img.url, true); toast.success('Imagem adicionada ao encarte!'); }}
-                onRetirar={() => onRemoverDoEncarte(img.url)}
-                onReplace={(file) => handleSubstituir(img, file, verMais)}
-                onDelete={() => setPendingDelete({ img, classif: verMais })}
-              />
-            ))}
-          </div>
-        )}
+        <SubcategoriasBarra
+          key={verMais}
+          classif={verMais}
+          mapa={subsMapa}
+          ativa={subAtiva}
+          onMudar={setSubAtiva}
+          contagem={(id) => imgs.filter((i) => subDe(i) === id).length}
+          total={imgs.length}
+          isAdmin={isAdmin}
+          gravar={gravarSubs}
+        />
+
+        {corpo}
 
         {pendingDelete && (
           <ModalApagarImg ocupado={isDeleting} onCancelar={() => setPendingDelete(null)} onConfirmar={handleConfirmDelete} />
+        )}
+        {moverImg && (
+          <ModalMoverSub
+            subs={subs}
+            atual={subDoArquivo(subsMapa, moverImg.classif, moverImg.img.filename)}
+            ocupado={movendo}
+            onEscolher={confirmarMover}
+            onCancelar={() => setMoverImg(null)}
+          />
         )}
       </div>
     );
@@ -491,7 +619,9 @@ export default function GaleriaImagensTab({
               onRetirar={onRemoverDoEncarte}
               onSubstituir={handleSubstituir}
               onApagar={(img, classif) => setPendingDelete({ img, classif })}
-              onVerMais={setVerMais}
+              onVerMais={(c) => abrirVerMais(c)}
+              subs={subsOrdenadas(subsMapa, cat)}
+              onAbrirSub={(c, id) => abrirVerMais(c, id)}
             />
           ))}
         </div>
