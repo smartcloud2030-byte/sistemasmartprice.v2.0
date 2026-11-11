@@ -962,3 +962,68 @@ export function ordenarPorLeitura<T extends { xPct: number; yPct: number }>(prod
   }
   return linhas.flatMap((l) => l.sort((a, b) => a.xPct - b.xPct));
 }
+
+// ── Próximo lugar na sequência ────────────────────────────────────────
+
+/**
+ * Lugar pro produto NOVO logo depois do último da sequência (ordem de
+ * leitura), copiando o espaçamento que o usuário montou à mão: mesma linha
+ * do último se ainda cabe, senão começa uma linha nova embaixo, na coluna
+ * da esquerda. Antes ele procurava a 1ª célula vazia da grade padrão — com
+ * os cards arrastados/espaçados, caía por cima dos outros lá em cima.
+ * Não cabe na folha → `null` (quem chama usa o jeito antigo).
+ */
+export function proximaPosicaoNaSequencia(
+  produtos: EncarteProduto[],
+  formato: Formato,
+  escalaCard: number,
+  colsGrade: number,
+  basePct: number = AREA_BASE_PADRAO,
+): { xPct: number; yPct: number } | null {
+  const canvasH = CANVAS_W / formato.ratio;
+  const cwPct = ((CARD_W * escalaCard) / CANVAS_W) * 100;
+  const chPct = ((CARD_H * escalaCard) / canvasH) * 100;
+  const gapX = GAP_X * 100;
+  const gapY = GAP_Y * 100;
+  const visiveis = produtos.filter((p) => !p.oculto);
+  if (!visiveis.length) return null;
+
+  // linhas na ordem da tela
+  const tol = Math.max(1, chPct / 2);
+  const linhas: EncarteProduto[][] = [];
+  for (const p of [...visiveis].sort((a, b) => a.yPct - b.yPct)) {
+    const l = linhas[linhas.length - 1];
+    if (l && p.yPct - l[0].yPct < tol) l.push(p);
+    else linhas.push([p]);
+  }
+  linhas.forEach((l) => l.sort((a, b) => a.xPct - b.xPct));
+  const ultima = linhas[linhas.length - 1];
+  const largura = (p: EncarteProduto) => cwPct * (p.emDestaque ? 2.2 : 1);
+
+  // colunas = a linha mais cheia de cards comuns (o "molde" que o usuário montou)
+  const molde = linhas
+    .map((l) => l.filter((p) => !p.emDestaque))
+    .reduce((m, l) => (l.length > m.length ? l : m), [] as EncarteProduto[]);
+  const colunasX = molde.map((p) => p.xPct);
+  const passoX = colunasX.length > 1 ? (colunasX[colunasX.length - 1] - colunasX[0]) / (colunasX.length - 1) : cwPct + gapX;
+  const maxCols = Math.max(colsGrade, colunasX.length);
+  const cabeNaLargura = (x: number) => x >= -0.5 && x + cwPct <= 100.5;
+
+  // 1) ainda tem espaço na última linha
+  const ultimo = ultima[ultima.length - 1];
+  if (!ultima.some((p) => p.emDestaque) && ultima.length < maxCols) {
+    const x = colunasX[ultima.length] ?? ultimo.xPct + largura(ultimo) + (passoX - cwPct);
+    const livre = x >= ultimo.xPct + largura(ultimo) - 0.5;
+    if (livre && cabeNaLargura(x)) return { xPct: x, yPct: ultimo.yPct };
+  }
+
+  // 2) linha nova embaixo, com o mesmo passo entre linhas
+  const passoY =
+    linhas.length > 1
+      ? ultima[0].yPct - linhas[linhas.length - 2][0].yPct
+      : chPct + gapY;
+  const y = ultima[0].yPct + Math.max(passoY, chPct * 0.5);
+  if (y + chPct > 100 - Math.min(basePct, 2) + 0.5) return null;
+  const x = colunasX[0] ?? ultima[0].xPct;
+  return cabeNaLargura(x) ? { xPct: x, yPct: y } : null;
+}

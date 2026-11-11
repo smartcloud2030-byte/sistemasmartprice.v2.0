@@ -45,6 +45,8 @@ import {
   organizarAutomatico,
   areaDoLado,
   posicaoLivreNaGrade,
+  proximaPosicaoNaSequencia,
+  getGrade,
   ordenarPorLeitura,
   CARD_H,
   CANVAS_W,
@@ -99,6 +101,16 @@ function regridLado(lado: LadoEncarte, formato: Formato): LadoEncarte {
   if (lado.grade === 'livre') return lado;
   const { produtos, escalaCard } = organizarEmGrade(lado.produtos, lado.grade, formato, areaDoLado(lado));
   return { ...lado, produtos, estilo: { ...lado.estilo, escalaCard } };
+}
+
+/** Onde entra um produto novo (grades fixas e livre): logo depois do último
+ * da sequência, no espaçamento que o usuário montou; se não couber, a 1ª
+ * célula vazia da grade (jeito antigo). */
+function lugarDoNovo(l: LadoEncarte, formato: Formato): { xPct: number; yPct: number } | null {
+  const g = getGrade(l.grade);
+  const seq = proximaPosicaoNaSequencia(l.produtos, formato, l.estilo.escalaCard || 1, g.cols, areaDoLado(l).base);
+  if (seq) return seq;
+  return l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard, areaDoLado(l));
 }
 
 interface EncarteBuilderProps {
@@ -448,7 +460,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       if (l.produtos.some((ep) => ep.product.id === product.id)) return {};
       const novo = { ...criarEncarteProduto(product, l.produtos.length), z: maiorZ(l) + 1 };
       if (l.grade === 'auto') return realinharSeAuto({ ...l, produtos: [...l.produtos, novo] }, formato, novo.product.id);
-      const livre = l.grade === 'livre' ? null : posicaoLivreNaGrade(l.produtos, l.grade, formato, l.estilo.escalaCard, areaDoLado(l));
+      const livre = lugarDoNovo(l, formato);
       return { produtos: [...l.produtos, livre ? { ...novo, ...livre } : novo] };
     });
   };
@@ -472,8 +484,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       const inserir = (destino: LadoEncarte): LadoEncarte => {
         if (destino.produtos.some((ep) => ep.product.id === id)) return destino;
         // Como no `adicionarProduto`: quem já está no destino não se mexe.
-        const livre =
-          destino.grade === 'livre' ? null : posicaoLivreNaGrade(destino.produtos, destino.grade, formato, destino.estilo.escalaCard, areaDoLado(destino));
+        const livre = lugarDoNovo(destino, formato);
         const nd = produto.nomeDescricaoAjuste;
         const posicionado = livre
           ? {
