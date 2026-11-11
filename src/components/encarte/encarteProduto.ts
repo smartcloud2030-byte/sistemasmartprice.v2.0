@@ -890,3 +890,51 @@ export const normalizarLado = (l: LadoEncarte): LadoEncarte =>
     guias: l.guias ?? [],
     estilo: { ...ESTILO_PADRAO, ...l.estilo },
   });
+
+// ── Ordenar por preço ─────────────────────────────────────────────────
+
+/** "R$ 1.234,56" / "12,99" / "12.99" → número; vazio/inválido → null. */
+export function precoNumero(v: string): number | null {
+  let s = (v || '').replace(/[^\d.,]/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Ordena os produtos por preço SEM mexer no layout: as posições (lugares)
+ * que já existem continuam as mesmas, só os produtos trocam de lugar entre
+ * si, na ordem de leitura (linha de cima pra baixo, esquerda pra direita).
+ * Card em destaque só troca com destaque (tamanho diferente). Produto oculto
+ * e produto sem preço não se mexem / vão pro fim.
+ */
+export function ordenarPorPreco(produtos: EncarteProduto[], ordem: 'asc' | 'desc'): EncarteProduto[] {
+  const TOL = 2; // % — cards com yPct até 2% de diferença estão na mesma linha
+  const leitura = (a: { xPct: number; yPct: number }, b: { xPct: number; yPct: number }) =>
+    Math.abs(a.yPct - b.yPct) < TOL ? a.xPct - b.xPct : a.yPct - b.yPct;
+  const comparaPreco = (a: EncarteProduto, b: EncarteProduto) => {
+    const pa = precoNumero(a.precoOferta);
+    const pb = precoNumero(b.precoOferta);
+    if (pa == null && pb == null) return 0;
+    if (pa == null) return 1;
+    if (pb == null) return -1;
+    return ordem === 'asc' ? pa - pb : pb - pa;
+  };
+
+  const resultado = [...produtos];
+  for (const destaque of [false, true]) {
+    const idx = resultado
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => !p.oculto && !!p.emDestaque === destaque);
+    if (idx.length < 2) continue;
+    const lugares = idx.map(({ p }) => ({ xPct: p.xPct, yPct: p.yPct })).sort(leitura);
+    const ordenados = idx.map(({ p }) => p).sort(comparaPreco);
+    // reescreve nas mesmas posições do array (mantém a lista "Selecionados")
+    const slotsArray = idx.map(({ i }) => i);
+    const porLugar = ordenados.map((p, k) => ({ ...p, xPct: lugares[k].xPct, yPct: lugares[k].yPct }));
+    // a ordem do array segue a ordem de leitura nova
+    slotsArray.sort((a, b) => a - b).forEach((pos, k) => { resultado[pos] = porLugar[k]; });
+  }
+  return resultado;
+}

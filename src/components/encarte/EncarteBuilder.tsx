@@ -45,6 +45,7 @@ import {
   areaDoLado,
   posicaoLivreNaGrade,
   trocarDestaque,
+  ordenarPorPreco,
 } from './encarteProduto';
 import {
   EncarteSalvo,
@@ -672,6 +673,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const colarImagem = (imagem: ElementoImagem) =>
     atualizarLado((l) => ({ imagens: [...l.imagens, { ...imagem, z: maiorZ(l) + 1 }] }));
 
+  const ordenarProdutosPorPreco = (ordem: 'asc' | 'desc') =>
+    atualizarLado((l) => ({ produtos: ordenarPorPreco(l.produtos, ordem) }));
+
   const adicionarTexto = (texto: TextoEncarte) =>
     atualizarLado((l) => ({ textos: [...(l.textos ?? []), { ...texto, z: maiorZ(l) + 1 }] }));
 
@@ -1071,6 +1075,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onRemoverForma={removerForma}
           onReordenarCamada={reordenarCamada}
           onAdicionarTexto={adicionarTexto}
+          onOrdenarPorPreco={ordenarProdutosPorPreco}
           onMoverTexto={moverTexto}
           onRedimensionarTexto={redimensionarTexto}
           onEditarTexto={editarTexto}

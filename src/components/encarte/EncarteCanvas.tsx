@@ -9,6 +9,7 @@ import {
   MessageCircle, Mail, Instagram, Square, Circle, RectangleHorizontal, Trash2, ArrowUp, ArrowDown, Ruler,
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
   BringToFront, SendToBack, RotateCw, BoxSelect, Wand2, ArrowLeftRight,
+  ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -465,6 +466,8 @@ interface EncarteCanvasProps {
   /** Trazer pra frente / mandar pra trás um passo — vale pra produto, imagem, forma e texto. */
   onReordenarCamada: (alvo: { tipo: CamadaTipo; id: string | number }, direcao: 'frente' | 'tras') => void;
   onAdicionarTexto: (texto: TextoEncarte) => void;
+  /** troca os produtos de lugar entre si pelo preço (layout fica igual) */
+  onOrdenarPorPreco: (ordem: 'asc' | 'desc') => void;
   onMoverTexto: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarTexto: (id: string, wPct: number) => void;
   onEditarTexto: (id: string, conteudo: string) => void;
@@ -608,6 +611,7 @@ export default function EncarteCanvas({
   onRemoverForma,
   onReordenarCamada,
   onAdicionarTexto,
+  onOrdenarPorPreco,
   onMoverTexto,
   onRedimensionarTexto,
   onEditarTexto,
@@ -632,6 +636,7 @@ export default function EncarteCanvas({
   const [salvando, setSalvando] = useState(false);
   const [gradeAberta, setGradeAberta] = useState(false);
   const [formasAberta, setFormasAberta] = useState(false);
+  const [ordenarAberto, setOrdenarAberto] = useState(false);
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
   const [imagemSelecionadaId, setImagemSelecionadaId] = useState<string | null>(null);
   // Seleção leve do produto no canvas (contorno + setas de camada), independente
@@ -2696,6 +2701,47 @@ export default function EncarteCanvas({
               setFotoSelecionadaId(null);
             }}
           />
+
+          {/* Ordenar produtos pelo preço (trocam de lugar entre si; layout igual) */}
+          <div className="relative">
+            <button
+              onClick={() => setOrdenarAberto((v) => !v)}
+              title="Ordenar produtos pelo preço"
+              className={cn(
+                'flex items-center gap-1.5 py-2 rounded-lg transition-colors text-xs font-semibold',
+                tbCompacta ? 'px-2' : 'px-3',
+                ordenarAberto ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              )}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              {!tbCompacta && 'Ordenar'}
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {ordenarAberto && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+                <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                  Ordenar pelo preço
+                </p>
+                {([['asc', 'Menor preço primeiro', ArrowUpNarrowWide], ['desc', 'Maior preço primeiro', ArrowDownWideNarrow]] as const).map(([ordem, nome, Icone]) => (
+                  <button
+                    key={ordem}
+                    onClick={() => {
+                      onOrdenarPorPreco(ordem);
+                      setOrdenarAberto(false);
+                      toast.success(ordem === 'asc' ? 'Produtos do menor pro maior preço.' : 'Produtos do maior pro menor preço.', { description: 'Ctrl+Z desfaz.' });
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
+                  >
+                    <Icone className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                    {nome}
+                  </button>
+                ))}
+                <p className="px-3.5 pb-2.5 pt-1 text-[10px] text-zinc-500">
+                  Os produtos trocam de lugar entre si, da esquerda pra direita e de cima pra baixo. O layout continua igual.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Validade da promoção (datas → frase no rodapé, acima do endereço) */}
           <ValidadePicker
