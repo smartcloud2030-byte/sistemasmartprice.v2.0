@@ -58,9 +58,10 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 30 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp/;
+    // Formatos que o sharp lê (o upload de produto ainda converte tudo pra PNG no navegador antes).
+    const allowed = /jpeg|jpg|jfif|png|gif|webp|avif|bmp|tiff?/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
+    const mime = allowed.test(file.mimetype) || file.mimetype === 'application/octet-stream';
     if (ext && mime) cb(null, true);
     else cb(new Error('Apenas imagens são permitidas'));
   },

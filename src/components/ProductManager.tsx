@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { normalizarImagem, ACCEPT_IMAGENS } from '../lib/normalizarImagem';
 import { useStore, Product } from '../store';
 import { findDuplicateProduct } from '../lib/duplicateProductMatch';
 import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateString } from '../lib/cosmosUsage';
@@ -54,7 +55,7 @@ type BulkDuplicate = { rowName: string; match: Product };
 async function uploadToMinio(file: File, category: string, productName: string, duplicate: boolean, removeBg: boolean): Promise<{ url: string; thumbUrl: string; duplicated: boolean }> {
   const folder = getFolder(category);
   const formData = new FormData();
-  formData.append('image', file);
+  formData.append('image', await normalizarImagem(file));
   formData.append('name', productName || '');
   formData.append('duplicate', duplicate ? 'true' : 'false');
   formData.append('removeBg', removeBg ? 'true' : 'false');
@@ -221,10 +222,15 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
     return cleaned.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   };
 
-  const handleBulkMultiFileSelect = (files: FileList | null) => {
+  const handleBulkMultiFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (!bulkDefaultCategory) { toast.error('Selecione a categoria padrão primeiro!'); return; }
-    const fileArr = Array.from(files);
+    const fileArr: File[] = [];
+    for (const f of Array.from(files)) {
+      try { fileArr.push(await normalizarImagem(f)); }
+      catch (e: any) { toast.error(e.message); }
+    }
+    if (!fileArr.length) return;
     let current = [...multiFormData];
     const pending = { ...bulkPendingFiles };
     let rowIndex = current.findIndex(r => !r.name.trim());
@@ -283,8 +289,11 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
     init();
   }, []);
 
-  const selectFile = (file: File) => {
+  const selectFile = async (original: File) => {
     if (!formData.category) { toast.error('Selecione uma categoria antes de escolher a imagem!'); return; }
+    let file: File;
+    try { file = await normalizarImagem(original); }
+    catch (e: any) { toast.error(e.message); return; }
     setPendingFile(file);
     setDuplicateOption(false);
     setRemoveBgOption(true);
@@ -701,7 +710,7 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
                         <span className="text-xs text-blue-600 font-medium truncate">
                           {pendingFile ? `✓ ${pendingFile.name}` : 'Selecionar imagem'}
                         </span>
-                        <input type="file" accept="image/*" className="hidden" onChange={e => {
+                        <input type="file" accept={ACCEPT_IMAGENS} className="hidden" onChange={e => {
                           const f = e.target.files?.[0];
                           // Limpa o campo: sem isso, escolher o MESMO arquivo de novo (ex.: depois do
                           // erro "selecione uma categoria") não dispara onChange e a imagem não entra.
@@ -805,7 +814,7 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
               >
                 <Upload className="w-4 h-4" />
                 Arraste várias imagens aqui ou clique para selecionar (remove fundo com IA)
-                <input type="file" accept="image/*" multiple disabled={!bulkDefaultCategory || isBulkUploading} className="hidden"
+                <input type="file" accept={ACCEPT_IMAGENS} multiple disabled={!bulkDefaultCategory || isBulkUploading} className="hidden"
                   onChange={e => handleBulkMultiFileSelect(e.target.files)} />
               </label>
 
