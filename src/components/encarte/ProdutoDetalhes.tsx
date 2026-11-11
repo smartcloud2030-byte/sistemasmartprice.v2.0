@@ -11,14 +11,17 @@ import {
   SVG_ETIQUETA,
   corPrecoAtual,
 } from './encarteProduto';
+import { Lado, NOME_LADO } from './ladosEncarte';
 
 interface ProdutoDetalhesProps {
   produto: EncarteProduto;
   estilo: EstiloEncarte;
-  ladoAtivo: 'frente' | 'verso';
+  ladoAtivo: Lado;
+  /** páginas que existem (frente, verso, verso 2) */
+  paginas: Lado[];
   onAtualizar: (patch: Partial<EncarteProduto>) => void;
   onAtualizarEstilo: (patch: Partial<EstiloEncarte>) => void;
-  onEnviarParaOutroLado: () => void;
+  onEnviarParaOutroLado: (destino: Lado) => void;
   onVoltar: () => void;
 }
 
@@ -26,6 +29,7 @@ export default function ProdutoDetalhes({
   produto,
   estilo,
   ladoAtivo,
+  paginas,
   onAtualizar,
   onAtualizarEstilo,
   onEnviarParaOutroLado,
@@ -88,11 +92,15 @@ export default function ProdutoDetalhes({
             value={corPrecoAtual(estilo)}
             onChange={(corPreco) => onAtualizarEstilo({ corPreco })}
           />
-          <BotaoAcao
-            icon={ArrowRightLeft}
-            label={ladoAtivo === 'frente' ? 'Enviar pro verso' : 'Enviar pra frente'}
-            onClick={onEnviarParaOutroLado}
-          />
+          {/* sem verso: "Enviar pro verso" cria o verso; com verso 2: um botão por página */}
+          {(paginas.length > 1 ? paginas.filter((l) => l !== ladoAtivo) : (['verso'] as Lado[])).map((l) => (
+            <BotaoAcao
+              key={l}
+              icon={ArrowRightLeft}
+              label={l === 'frente' ? 'Enviar pra frente' : `Enviar pro ${NOME_LADO[l].toLowerCase()}`}
+              onClick={() => onEnviarParaOutroLado(l)}
+            />
+          ))}
         </div>
       </div>
 

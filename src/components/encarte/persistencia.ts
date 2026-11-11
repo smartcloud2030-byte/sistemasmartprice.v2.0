@@ -84,6 +84,8 @@ export interface EncarteSalvo {
   formato: string;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;
+  /** 3ª página (opcional; encartes antigos não têm) */
+  ladoVerso2?: LadoEncarte | null;
   createdAt: string;
 }
 
@@ -218,6 +220,8 @@ export interface RascunhoEncarte {
   formato: string;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;
+  /** 3ª página (opcional; encartes antigos não têm) */
+  ladoVerso2?: LadoEncarte | null;
   updatedAt: string;
 }
 

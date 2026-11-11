@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import AvisoLegalEncarte from './AvisoLegalEncarte';
+import { Lado, NOME_LADO } from './ladosEncarte';
 import {
   Undo2, Redo2, Type, Shapes, Save, Download, Share2, Package, Plus, Tag,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
@@ -430,8 +431,10 @@ interface EncarteCanvasProps {
   avisosLegais?: { texto: string; destaque: string } | null;
   ajusteAvisoLegal?: AjusteAvisoLegal | null;
   onAjustarAvisoLegal?: (ajuste: AjusteAvisoLegal | null, opcoes?: { coalesce?: string }) => void;
-  ladoAtivo: 'frente' | 'verso';
+  ladoAtivo: Lado;
   temVerso: boolean;
+  /** páginas que existem, na ordem (frente, verso, verso 2) */
+  paginas: Lado[];
   produtoDetalhadoId: string | number | null;
   podeDesfazer: boolean;
   podeRefazer: boolean;
@@ -482,10 +485,10 @@ interface EncarteCanvasProps {
   areaTopo?: number;
   onAreaTopoChange: (v: number) => void;
   onAdicionarVerso: () => void;
-  onRemoverVerso: () => void;
-  /** Imagem/forma/texto pro outro lado, mesma posição e tamanho (só com verso ativo). */
-  onEnviarElementoParaOutroLado: (tipo: 'imagem' | 'forma' | 'texto', id: string, modo: 'copiar' | 'mover') => void;
-  onLadoChange: (lado: 'frente' | 'verso') => void;
+  onRemoverVerso: (lado: Lado) => void;
+  /** Imagem/forma/texto pra outra página, mesma posição e tamanho (só com verso ativo). */
+  onEnviarElementoParaOutroLado: (tipo: 'imagem' | 'forma' | 'texto', id: string, modo: 'copiar' | 'mover', destino: Lado | 'todos') => void;
+  onLadoChange: (lado: Lado) => void;
   /** "Salvar": manda o encarte (frente + verso) pra aba Encartes pra editar depois. */
   onSalvarEncarte: (imagemPreview: string) => Promise<void>;
   onExportado?: (imagemPreview: string) => void;
@@ -584,6 +587,7 @@ export default function EncarteCanvas({
   onAjustarAvisoLegal = () => {},
   ladoAtivo,
   temVerso,
+  paginas,
   produtoDetalhadoId,
   podeDesfazer,
   podeRefazer,
@@ -767,20 +771,41 @@ export default function EncarteCanvas({
     marcas: [],
   });
   const canvasRef = useRef<HTMLDivElement>(null);
-  const tituloOutroLado = ladoAtivo === 'frente'
-    ? 'Clique: copiar pro verso · Dois cliques: mover pro verso (mesma posição e tamanho)'
-    : 'Clique: copiar pra frente · Dois cliques: mover pra frente (mesma posição e tamanho)';
-  const nomeOutroLado = ladoAtivo === 'frente' ? 'verso' : 'frente';
+  const outrasPaginas = paginas.filter((l) => l !== ladoAtivo);
+  const tresPaginas = paginas.length > 2;
+  const nomeOutroLado = (outrasPaginas[0] ? NOME_LADO[outrasPaginas[0]] : 'verso').toLowerCase();
+  const tituloOutroLado = tresPaginas
+    ? 'Copiar ou mover pra outra página (mesma posição e tamanho)'
+    : `Clique: copiar pro ${nomeOutroLado} · Dois cliques: mover pro ${nomeOutroLado} (mesma posição e tamanho)`;
+  /** Com 3 páginas o botão abre um menu pra escolher a página de destino. */
+  const [menuOutroLado, setMenuOutroLado] = useState<
+    { tipo: 'imagem' | 'forma' | 'texto'; id: string; desmarcar: () => void; x: number; y: number } | null
+  >(null);
+  const escolherOutroLado = (modo: 'copiar' | 'mover', destino: Lado | 'todos') => {
+    const m = menuOutroLado;
+    if (!m) return;
+    setMenuOutroLado(null);
+    onEnviarElementoParaOutroLado(m.tipo, m.id, modo, destino);
+    const alvo = destino === 'todos' ? 'as outras páginas' : `o ${NOME_LADO[destino].toLowerCase()}`;
+    if (modo === 'mover') m.desmarcar();
+    toast.success(`${modo === 'copiar' ? 'Copiado' : 'Movido'} pra ${alvo}.`);
+  };
   /** Botão de outro lado: clique simples copia, duplo clique move. O clique
    * simples espera 250ms pra ver se vem o segundo (senão copiaria e moveria). */
   const cliqueOutroLadoRef = useRef<{ chave: string; timer: number } | null>(null);
-  const cliqueOutroLado = (tipo: 'imagem' | 'forma' | 'texto', id: string, desmarcar: () => void) => {
+  const cliqueOutroLado = (tipo: 'imagem' | 'forma' | 'texto', id: string, desmarcar: () => void, e?: React.MouseEvent) => {
+    if (tresPaginas) {
+      const r = (e?.currentTarget as HTMLElement | undefined)?.getBoundingClientRect();
+      setMenuOutroLado({ tipo, id, desmarcar, x: r ? r.left : 100, y: r ? r.bottom + 4 : 100 });
+      return;
+    }
+    const destino = outrasPaginas[0] ?? 'verso';
     const chave = `${tipo}:${id}`;
     const pendente = cliqueOutroLadoRef.current;
     if (pendente && pendente.chave === chave) {
       window.clearTimeout(pendente.timer);
       cliqueOutroLadoRef.current = null;
-      onEnviarElementoParaOutroLado(tipo, id, 'mover');
+      onEnviarElementoParaOutroLado(tipo, id, 'mover', destino);
       desmarcar();
       toast.success(`Movido pro ${nomeOutroLado}.`);
       return;
@@ -788,7 +813,7 @@ export default function EncarteCanvas({
     if (pendente) window.clearTimeout(pendente.timer);
     const timer = window.setTimeout(() => {
       cliqueOutroLadoRef.current = null;
-      onEnviarElementoParaOutroLado(tipo, id, 'copiar');
+      onEnviarElementoParaOutroLado(tipo, id, 'copiar', destino);
       toast.success(`Copiado pro ${nomeOutroLado}.`);
     }, 250);
     cliqueOutroLadoRef.current = { chave, timer };
@@ -1925,7 +1950,7 @@ export default function EncarteCanvas({
               )}
               {temVerso && (
                 <button
-                  onDoubleClick={(e) => e.stopPropagation()} onClick={() => cliqueOutroLado('forma', fm.id, () => setFormaSelecionadaId(null))}
+                  onDoubleClick={(e) => e.stopPropagation()} onClick={(e) => cliqueOutroLado('forma', fm.id, () => setFormaSelecionadaId(null), e)}
                   title={tituloOutroLado}
                   className="p-1 text-zinc-400 hover:text-emerald-400 transition-colors"
                 >
@@ -2118,7 +2143,7 @@ export default function EncarteCanvas({
               <span className="w-px h-4 bg-zinc-700 mx-0.5" />
               <button onClick={() => setTextoEditandoId(t.id)} title="Editar texto" className="p-1 text-zinc-400 hover:text-emerald-400"><Pencil className="w-3.5 h-3.5" /></button>
               {temVerso && (
-                <button onDoubleClick={(e) => e.stopPropagation()} onClick={() => cliqueOutroLado('texto', t.id, () => setTextoSelecionadoId(null))} title={tituloOutroLado} className="p-1 text-zinc-400 hover:text-emerald-400"><ArrowLeftRight className="w-3.5 h-3.5" /></button>
+                <button onDoubleClick={(e) => e.stopPropagation()} onClick={(e) => cliqueOutroLado('texto', t.id, () => setTextoSelecionadoId(null), e)} title={tituloOutroLado} className="p-1 text-zinc-400 hover:text-emerald-400"><ArrowLeftRight className="w-3.5 h-3.5" /></button>
               )}
               <button onClick={() => { onRemoverTexto(t.id); setTextoSelecionadoId(null); }} title="Remover" className="p-1 text-zinc-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
@@ -2398,7 +2423,7 @@ export default function EncarteCanvas({
 
         {temVerso && (
           <button
-            onDoubleClick={(e) => e.stopPropagation()} onClick={() => cliqueOutroLado('imagem', im.id, () => setImagemSelecionadaId(null))}
+            onDoubleClick={(e) => e.stopPropagation()} onClick={(e) => cliqueOutroLado('imagem', im.id, () => setImagemSelecionadaId(null), e)}
             onPointerDown={(e) => e.stopPropagation()}
             data-html2canvas-ignore="true"
             title={tituloOutroLado}
@@ -2582,30 +2607,44 @@ export default function EncarteCanvas({
           {/* Frente / Verso */}
           {temVerso ? (
             <div className="flex items-center rounded-lg border border-zinc-700 overflow-hidden ml-1">
-              {(['frente', 'verso'] as const).map((l) => (
+              {paginas.map((l) => (
                 <button
                   key={l}
                   onClick={() => onLadoChange(l)}
                   className={cn(
-                    'px-3 py-1.5 text-xs font-semibold capitalize transition-colors',
+                    'whitespace-nowrap px-3 py-1.5 text-xs font-semibold transition-colors',
                     ladoAtivo === l ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:bg-zinc-800',
                   )}
                 >
-                  {l}
+                  {NOME_LADO[l]}
                 </button>
               ))}
-              <button
-                onClick={onRemoverVerso}
-                title="Remover verso"
-                className="px-2 py-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {!tresPaginas && (
+                <button
+                  onClick={onAdicionarVerso}
+                  title="Adicionar 2º verso (3 páginas) — leva os elementos da frente, sem os produtos"
+                  className="px-2 py-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {(() => {
+                const alvo: Lado = ladoAtivo !== 'frente' ? ladoAtivo : paginas[paginas.length - 1];
+                return (
+                  <button
+                    onClick={() => onRemoverVerso(alvo)}
+                    title={`Remover ${NOME_LADO[alvo].toLowerCase()}`}
+                    className="px-2 py-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                );
+              })()}
             </div>
           ) : (
             <button
               onClick={onAdicionarVerso}
-              title="Adicionar verso"
+              title="Adicionar verso — leva os elementos da frente, sem os produtos"
               className={cn(
                 'whitespace-nowrap flex items-center gap-1.5 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors text-xs font-semibold ml-1',
                 tbCompacta ? 'px-2' : 'px-3',
@@ -3270,11 +3309,39 @@ export default function EncarteCanvas({
         </div>
       </div>
 
+      {/* Menu do botão de outra página (com 3 páginas) */}
+      {menuOutroLado && (
+        <div data-html2canvas-ignore="true" className="fixed inset-0 z-[80]" onClick={() => setMenuOutroLado(null)}>
+          <div
+            className="absolute bg-zinc-900 border border-zinc-700 rounded-lg py-1 w-52 text-xs"
+            style={{ left: Math.min(menuOutroLado.x, window.innerWidth - 216), top: Math.min(menuOutroLado.y, window.innerHeight - 220) }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="px-3 pt-1 pb-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">Copiar pra</p>
+            {outrasPaginas.map((l) => (
+              <button key={`c-${l}`} onClick={() => escolherOutroLado('copiar', l)} className="w-full text-left px-3 py-1.5 text-zinc-200 hover:bg-zinc-800">
+                {NOME_LADO[l]}
+              </button>
+            ))}
+            <button onClick={() => escolherOutroLado('copiar', 'todos')} className="w-full text-left px-3 py-1.5 text-zinc-200 hover:bg-zinc-800">
+              Todas as outras páginas
+            </button>
+            <div className="my-1 border-t border-zinc-800" />
+            <p className="px-3 pt-1 pb-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">Mover pra</p>
+            {outrasPaginas.map((l) => (
+              <button key={`m-${l}`} onClick={() => escolherOutroLado('mover', l)} className="w-full text-left px-3 py-1.5 text-zinc-200 hover:bg-zinc-800">
+                {NOME_LADO[l]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Páginas / lados */}
       <div className="absolute top-[4.5rem] right-4 bg-zinc-900 border border-zinc-800 rounded-xl p-2 w-16">
         <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center mb-1.5">Páginas</p>
         <div className="space-y-1.5">
-          {(temVerso ? (['frente', 'verso'] as const) : (['frente'] as const)).map((l, i) => (
+          {paginas.map((l, i) => (
             <button
               key={l}
               onClick={() => onLadoChange(l)}
@@ -3283,6 +3350,7 @@ export default function EncarteCanvas({
                 ladoAtivo === l ? 'border-emerald-500' : 'border-zinc-700 hover:border-zinc-500',
               )}
               style={{ aspectRatio: `${formato.ratio}` }}
+              title={NOME_LADO[l]}
             >
               <span className="text-[10px] font-bold text-zinc-400">{i + 1}</span>
             </button>
