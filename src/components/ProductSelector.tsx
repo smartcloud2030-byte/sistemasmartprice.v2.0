@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore, Product, isThreeProduct } from '../store';
-import { Search, Package, Check, X, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { Search, Package, Check, X, RefreshCw, Plus, Trash2, Pencil } from 'lucide-react';
 import { getProxyUrl } from '../lib/utils';
 
 const ProductSelector: React.FC<{
@@ -10,11 +10,14 @@ const ProductSelector: React.FC<{
   onCadastrar?: (termo: string) => void;
   /** só admin: excluir o produto do cadastro */
   onExcluir?: (product: Product) => void;
+  /** só admin: editar o produto do cadastro (nome, preço, código de barras…) */
+  onEditar?: (product: Product) => void;
 }> = ({
   onSelect,
   mostrarTodosSemBusca = false,
   onCadastrar,
   onExcluir,
+  onEditar,
 }) => {
   const {
     products, fetchProducts, selectProduct,
@@ -86,7 +89,7 @@ const ProductSelector: React.FC<{
             <div key={product.id} className="relative group/linha">
             <button
               onClick={() => onSelect(product)}
-              className={`w-full text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-zinc-900 transition-colors flex items-center gap-3 group ${onExcluir ? 'pr-11' : ''}`}
+              className={`w-full text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-zinc-900 transition-colors flex items-center gap-3 group ${onExcluir && onEditar ? 'pr-20' : onExcluir || onEditar ? 'pr-11' : ''}`}
             >
               <div className="w-11 h-11 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
                 {product.image ? (
@@ -114,14 +117,27 @@ const ProductSelector: React.FC<{
                 </div>
               </div>
             </button>
-            {onExcluir && (
-              <button
-                onClick={() => onExcluir(product)}
-                title="Excluir produto do cadastro"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            {(onEditar || onExcluir) && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                {onEditar && (
+                  <button
+                    onClick={() => onEditar(product)}
+                    title="Editar produto (nome, preço, código de barras…)"
+                    className="p-2 rounded-lg text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                {onExcluir && (
+                  <button
+                    onClick={() => onExcluir(product)}
+                    title="Excluir produto do cadastro"
+                    className="p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             )}
             </div>
           ))}

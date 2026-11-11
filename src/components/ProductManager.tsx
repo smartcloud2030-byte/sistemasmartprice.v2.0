@@ -86,6 +86,8 @@ async function apagarImagemGaleria(imageUrl: string | null | undefined) {
 export interface CadastroRapido {
   termo?: string;
   excluir?: Product;
+  /** abre o formulário de edição deste produto (ex.: pôr o código de barras) */
+  editar?: Product;
   onCadastrado?: (p: Product) => void;
   onExcluido?: (id: string | number) => void;
   onFechar: () => void;
@@ -480,6 +482,8 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
     if (!rapido) return;
     if (rapido.excluir?.id != null) {
       setConfirmDelete({ id: rapido.excluir.id });
+    } else if (rapido.editar) {
+      openModal(rapido.editar);
     } else {
       openModal();
       const termo = (rapido.termo || '').trim();

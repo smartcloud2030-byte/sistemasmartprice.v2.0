@@ -140,8 +140,9 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
             onSelect={adicionar}
             onCadastrar={isAdmin ? (termo) => setRapido({ termo, onCadastrado: adicionar }) : undefined}
             onExcluir={isAdmin ? (p) => setRapido({ excluir: p, onExcluido: (id) => { if (idsNoEncarte.has(String(id))) onRemover(id); } }) : undefined}
+            onEditar={isAdmin ? (p) => setRapido({ editar: p }) : undefined}
           />
-          {rapido && <ProductManager key={rapido.excluir?.id ?? rapido.termo} rapido={{ ...rapido, onFechar: () => setRapido(null) }} />}
+          {rapido && <ProductManager key={`${rapido.excluir?.id ?? ''}|${rapido.editar?.id ?? ''}|${rapido.termo ?? ''}`} rapido={{ ...rapido, onFechar: () => setRapido(null) }} />}
 
           {selecionados.length > 0 && (
             <div className="space-y-2 pt-3 border-t border-zinc-800">
