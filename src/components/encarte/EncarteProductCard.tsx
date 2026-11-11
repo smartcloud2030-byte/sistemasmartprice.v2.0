@@ -1267,8 +1267,10 @@ function CardProdutoDestaque({
         style={{ gridTemplateColumns: '134px minmax(0,1fr) auto' }}
       >
         {/* Foto: maior, encostada na base e saindo pra cima do card */}
+        {/* Com a foto solta, este slot fica vazio e NÃO pode ficar por cima dela:
+            com z-10 ele cobria a foto solta (z-5) e o clique ia pro card inteiro. */}
         <div
-          className="relative z-10 self-end flex items-end justify-center"
+          className={cn('relative self-end flex items-end justify-center', fotoAjustavelNode ? 'pointer-events-none' : 'z-10')}
           style={{ height: 160, marginTop: -58, marginBottom: -6 }}
           onPointerDown={onFotoSlotPointerDown}
           onDoubleClick={onFotoSlotDoubleClick}
