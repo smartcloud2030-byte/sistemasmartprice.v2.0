@@ -14,6 +14,7 @@ import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
 import FontePicker from './FontePicker';
 import EnderecoPicker from './EnderecoPicker';
+import ValidadePicker from './ValidadePicker';
 import { textoComIcones } from './iconesTexto';
 import { carregarFontesEncarte } from './fontes';
 import { Formato } from './formatos';
@@ -2681,6 +2682,35 @@ export default function EncarteCanvas({
                 texto: endereco,
                 xPct: 4,
                 yPct: Math.max(0, 100 - (alturaPx / (CANVAS_W / formato.ratio)) * 100),
+                wPct: 92,
+                tamanho,
+                cor: '#ffffff',
+                negrito: true,
+                alinhamento: 'center',
+              };
+              onAdicionarTexto(t);
+              setTextoSelecionadoId(t.id);
+              setFormaSelecionadaId(null);
+              setImagemSelecionadaId(null);
+              setProdutoSelecionadoId(null);
+              setFotoSelecionadaId(null);
+            }}
+          />
+
+          {/* Validade da promoção (datas → frase no rodapé, acima do endereço) */}
+          <ValidadePicker
+            compacto={tbCompacta}
+            onValidade={(frase) => {
+              const tamanho = 11;
+              const hPx = CANVAS_W / formato.ratio;
+              // Fica logo acima do bloco de endereço (2 linhas de 12px no rodapé).
+              const reservaEndereco = 2 * 12 * 1.15 + 10;
+              const alturaPx = tamanho * 1.15 + 4;
+              const t: TextoEncarte = {
+                ...criarTexto('Montserrat'),
+                texto: frase,
+                xPct: 4,
+                yPct: Math.max(0, 100 - ((reservaEndereco + alturaPx) / hPx) * 100),
                 wPct: 92,
                 tamanho,
                 cor: '#ffffff',
