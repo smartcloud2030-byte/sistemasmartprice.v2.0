@@ -14,11 +14,15 @@ function br(iso: string, comAno: boolean): string {
   return comAno ? `${d}/${m}/${a}` : `${d}/${m}`;
 }
 
-/** Frase da validade: "Ofertas válidas de 10/11 a 15/11/2026 ou enquanto durarem os estoques". */
+/**
+ * Frase da validade: "Ofertas válidas para o dia 10/11/2026" (um dia) ou
+ * "Ofertas válidas de 10/11 a 15/11/2026" (período), + "ou enquanto durarem
+ * os estoques" opcional.
+ */
 export function fraseValidade(inicio: string, fim: string, estoque: boolean): string {
   const resto = estoque ? ' ou enquanto durarem os estoques' : '';
   if (!fim) return '';
-  if (!inicio || inicio === fim) return `Oferta válida somente em ${br(fim, true)}${resto}`;
+  if (!inicio || inicio === fim) return `Ofertas válidas para o dia ${br(fim, true)}${resto}`;
   const mesmoAno = inicio.slice(0, 4) === fim.slice(0, 4);
   return `Ofertas válidas de ${br(inicio, !mesmoAno)} a ${br(fim, true)}${resto}`;
 }
@@ -39,6 +43,7 @@ export default function ValidadePicker({
   const [inicio, setInicio] = useState(isoLocal(hoje));
   const [fim, setFim] = useState(isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 6)));
   const [estoque, setEstoque] = useState(true);
+  const [periodo, setPeriodo] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,11 +55,11 @@ export default function ValidadePicker({
     return () => document.removeEventListener('mousedown', fora);
   }, [aberto]);
 
-  const frase = fraseValidade(inicio, fim, estoque);
+  const frase = periodo ? fraseValidade(inicio, fim, estoque) : fraseValidade('', inicio, estoque);
 
   function colocar() {
-    if (!fim) { toast.error('Escolha a data final da promoção.'); return; }
-    if (inicio && inicio > fim) { toast.error('A data inicial está depois da final.'); return; }
+    if (!inicio || (periodo && !fim)) { toast.error('Escolha a data da promoção.'); return; }
+    if (periodo && inicio > fim) { toast.error('A data inicial está depois da final.'); return; }
     onValidade(frase);
     setAberto(false);
   }
@@ -79,19 +84,37 @@ export default function ValidadePicker({
       {aberto && (
         <div className="absolute top-full left-0 mt-1 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50 p-3 space-y-2.5">
           <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Validade da promoção</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 border border-zinc-700 rounded-lg overflow-hidden text-[11px] font-semibold">
+            {[['Um dia', false], ['Período', true]].map(([nome, v]) => (
+              <button
+                key={String(v)}
+                onClick={() => setPeriodo(v as boolean)}
+                className={periodo === v ? 'py-1.5 bg-zinc-700 text-zinc-100' : 'py-1.5 text-zinc-400 hover:bg-zinc-800'}
+              >
+                {nome as string}
+              </button>
+            ))}
+          </div>
+          {periodo ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={rotulo}>De</label>
+                <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className={campo} />
+              </div>
+              <div>
+                <label className={rotulo}>Até</label>
+                <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className={campo} />
+              </div>
+            </div>
+          ) : (
             <div>
-              <label className={rotulo}>De</label>
+              <label className={rotulo}>Dia da oferta</label>
               <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className={campo} />
             </div>
-            <div>
-              <label className={rotulo}>Até</label>
-              <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className={campo} />
-            </div>
-          </div>
+          )}
           <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer">
             <input type="checkbox" checked={estoque} onChange={(e) => setEstoque(e.target.checked)} className="w-3.5 h-3.5 accent-emerald-500" />
-            "ou enquanto durarem os estoques"
+            Incluir "ou enquanto durarem os estoques"
           </label>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-2 text-[11px] text-zinc-300">
             {frase || 'Escolha as datas'}
