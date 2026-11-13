@@ -15,6 +15,7 @@ import os from 'os';
 import { Pool } from 'pg';
 import { isAlreadyCutOut } from './backgroundDetect';
 import { composeDuplicate } from './duplicateComposite';
+import { recortarSobra } from './lib/recortarSobra';
 import { tokenDeServidorValido } from './lib/sessao';
 import { exigirSessaoValida } from './lib/acessoLojas';
 const execAsync = promisify(exec);
@@ -1083,6 +1084,10 @@ router.post('/upload-nobg2/:category', authGallery, upload.single('image'), asyn
         console.warn('[gallery] falha ao duplicar imagem, usando imagem sem duplicar:', duplicateErr.message);
       }
     }
+
+    // Corta a sobra transparente em volta do produto: sem isso, foto com muito
+    // espaço vazio aparecia pequena no card e foto justa aparecia grande.
+    if (shouldRemoveBg) finalBuffer = await recortarSobra(finalBuffer);
 
     const rawName = (req.body && req.body.name && req.body.name.trim()) ? req.body.name.trim() : req.file.originalname.replace(/\.[^.]+$/, '');
     const cleanName = rawName.normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '-').toLowerCase().substring(0, 80) || 'produto';
