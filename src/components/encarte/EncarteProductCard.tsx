@@ -877,33 +877,56 @@ function PrecoEtiqueta({
  */
 function SeloLevePague({ leve, valor, tamanho, cor }: { leve: number; valor: string; tamanho: number; cor: string }) {
   const { inteiro, centavos } = partesPreco(valor);
+  // Grade 2×2 sem sobreposição (antes o "LEVE" ficava por cima e cortava o preço):
+  //   [ LEVE N ][ Pague ]   ← linha de cima: faixa amarela + aba da caixa
+  //   [   R$ 10,00      ]   ← linha de baixo: caixa inteira, preço livre
   return (
-    <span className="relative inline-flex flex-col items-start font-black uppercase leading-none" style={{ fontSize: tamanho }}>
-      <span className="relative z-10 flex items-end" style={{ marginBottom: '-0.12em' }}>
-        <span
-          className="leading-none whitespace-nowrap"
-          style={{
-            fontSize: '0.62em',
-            background: '#ffe100',
-            color: '#e3000f',
-            padding: '0.16em 0.32em 0.1em',
-            clipPath: 'polygon(0 0, 100% 0, 100% 100%, 14% 100%, 0 128%)',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          LEVE {leve}
-        </span>
+    <span
+      className="inline-grid font-black uppercase leading-none"
+      style={{ fontSize: tamanho, gridTemplateColumns: 'auto 1fr' }}
+    >
+      <span
+        className="relative z-10 leading-none whitespace-nowrap self-end"
+        style={{
+          gridRow: 1,
+          gridColumn: 1,
+          fontSize: '0.56em',
+          background: '#ffe100',
+          color: '#e3000f',
+          padding: '0.14em 0.3em 0.08em',
+          letterSpacing: '-0.01em',
+        }}
+      >
+        LEVE {leve}
       </span>
       <span
-        className="flex flex-col items-end"
-        style={{ background: cor, color: '#ffffff', padding: '0.06em 0.22em 0.14em 0.3em', borderRadius: '0 0.22em 0.22em 0.22em', marginLeft: '0.5em', marginTop: '-0.62em' }}
+        className="normal-case leading-none flex items-end justify-end"
+        style={{
+          gridRow: 1,
+          gridColumn: 2,
+          background: cor,
+          color: '#ffffff',
+          fontSize: '0.4em',
+          padding: '0.35em 0.5em 0.1em 0.6em',
+          borderTopRightRadius: '0.5em',
+        }}
       >
-        <span className="normal-case leading-none" style={{ fontSize: '0.42em', paddingTop: '0.1em', paddingLeft: '2.6em' }}>Pague</span>
-        <span className="flex items-start leading-none whitespace-nowrap">
-          <span style={{ fontSize: '0.4em', marginTop: '0.55em', marginRight: '0.12em' }}>R$</span>
-          <span>{inteiro}</span>
-          {centavos && <span style={{ fontSize: '1em' }}>,{centavos}</span>}
-        </span>
+        Pague
+      </span>
+      <span
+        className="flex items-start justify-end leading-none whitespace-nowrap"
+        style={{
+          gridRow: 2,
+          gridColumn: '1 / 3',
+          background: cor,
+          color: '#ffffff',
+          padding: '0.06em 0.2em 0.1em 0.3em',
+          borderRadius: '0 0 0.22em 0.22em',
+        }}
+      >
+        <span style={{ fontSize: '0.38em', marginTop: '0.3em', marginRight: '0.22em' }}>R$</span>
+        <span>{inteiro}</span>
+        {centavos && <span>,{centavos}</span>}
       </span>
     </span>
   );
