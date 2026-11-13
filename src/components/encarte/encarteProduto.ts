@@ -239,6 +239,11 @@ export interface EncarteProduto {
   riscarNumerosTextoProduto?: boolean;
   /** cor da faixa atrás do "texto prod" (ex.: amarela com "LEVE 2 POR"); sem valor = sem faixa. */
   faixaTextoProduto?: string;
+  /** Modelo "Leve N, Pague R$ X" (encarte Ultra 10 / Big 10): com valor ≥ 2 a
+   * etiqueta vira o selo "LEVE N" + "Pague R$ <precoOferta>" (preço do pacote). */
+  leve?: number;
+  /** preço unitário que estava antes de ligar o Leve e Pague — volta ao desligar. */
+  precoAntesLeve?: string;
   /** Ajustes de tamanho/posição que o produto tinha como card normal, guardados
    * ao virar destaque (que entra zerado) e devolvidos ao deixar de ser. */
   formatacaoNormal?: FormatacaoProduto | null;
@@ -900,6 +905,39 @@ export const normalizarLado = (l: LadoEncarte): LadoEncarte =>
     guias: l.guias ?? [],
     estilo: { ...ESTILO_PADRAO, ...l.estilo },
   });
+
+// ── Leve e Pague (encarte Ultra 10 / Big 10) ────────────────────────────
+
+export const formatarPreco = (n: number) =>
+  n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Liga o "Leve N, Pague R$ valor" em todos os produtos: N = valor ÷ preço
+ * unitário (arredondado). Produto cujo preço já passa do valor (N < 2), sem
+ * preço ou oculto fica como está. O preço unitário é guardado pra voltar.
+ */
+export function aplicarLevePague(produtos: EncarteProduto[], valor: number): { produtos: EncarteProduto[]; aplicados: number } {
+  let aplicados = 0;
+  const lista = produtos.map((p) => {
+    if (p.oculto) return p;
+    const unit = precoNumero(p.precoAntesLeve ?? p.precoOferta);
+    if (!unit) return p;
+    const n = Math.round(valor / unit);
+    if (n < 2) return p;
+    aplicados++;
+    return { ...p, leve: n, precoAntesLeve: p.precoAntesLeve ?? p.precoOferta, precoOferta: formatarPreco(valor) };
+  });
+  return { produtos: lista, aplicados };
+}
+
+/** Desliga o Leve e Pague e devolve o preço unitário de antes. */
+export function removerLevePague(produtos: EncarteProduto[]): EncarteProduto[] {
+  return produtos.map((p) => {
+    if (!p.leve && !p.precoAntesLeve) return p;
+    const { leve: _l, precoAntesLeve, ...resto } = p;
+    return { ...resto, precoOferta: precoAntesLeve ?? p.precoOferta };
+  });
+}
 
 // ── Ordenar por preço ─────────────────────────────────────────────────
 

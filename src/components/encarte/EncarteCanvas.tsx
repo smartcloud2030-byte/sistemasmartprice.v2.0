@@ -481,6 +481,8 @@ interface EncarteCanvasProps {
   soltarTextoToken?: number;
   /** troca os produtos de lugar entre si pelo preço (layout fica igual) */
   onOrdenarPorPreco: (ordem: 'asc' | 'desc') => void;
+  /** Leve e Pague (Ultra 10 / Big 10) em todo o encarte; `null` desliga. Devolve quantos produtos ligou. */
+  onLevePague: (valor: number | null) => number;
   onMoverTexto: (id: string, xPct: number, yPct: number) => void;
   onRedimensionarTexto: (id: string, wPct: number) => void;
   onEditarTexto: (id: string, conteudo: string) => void;
@@ -629,6 +631,7 @@ export default function EncarteCanvas({
   onReordenarCamada,
   onAdicionarTexto,
   onOrdenarPorPreco,
+  onLevePague,
   onMoverTexto,
   onRedimensionarTexto,
   onEditarTexto,
@@ -657,6 +660,8 @@ export default function EncarteCanvas({
   const [formasAberta, setFormasAberta] = useState(false);
   const propFundo = useProporcaoImagem(backgroundUrl);
   const [ordenarAberto, setOrdenarAberto] = useState(false);
+  const [leveAberto, setLeveAberto] = useState(false);
+  const [leveValor, setLeveValor] = useState('');
   const [formaSelecionadaId, setFormaSelecionadaId] = useState<string | null>(null);
   const [imagemSelecionadaId, setImagemSelecionadaId] = useState<string | null>(null);
   // Seleção leve do produto no canvas (contorno + setas de camada), independente
@@ -2767,6 +2772,84 @@ export default function EncarteCanvas({
                 <p className="px-3.5 pb-2.5 pt-1 text-[10px] text-zinc-500">
                   Os produtos trocam de lugar entre si, da esquerda pra direita e de cima pra baixo. O layout continua igual.
                 </p>
+              </div>
+            )}
+          </div>
+
+          {/* Leve e Pague — encarte Ultra 10 / Big 10 ("LEVE 5 · Pague R$ 10,00") */}
+          <div className="relative">
+            <button
+              onClick={() => setLeveAberto((v) => !v)}
+              title="Modelo Leve e Pague (Ultra 10, Big 10...)"
+              className={cn(
+                'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg transition-colors text-xs font-semibold',
+                tbCompacta ? 'px-2' : 'px-3',
+                leveAberto ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              )}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Leve e Pague
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+            {leveAberto && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
+                <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                  Leve e Pague (Ultra / Big)
+                </p>
+                {(() => {
+                  const ligar = (valor: number) => {
+                    const n = onLevePague(valor);
+                    setLeveAberto(false);
+                    if (n) toast.success(`Leve e Pague R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em ${n} produto${n > 1 ? 's' : ''}.`, { description: 'A quantidade de cada um sai do preço unitário. Ajuste em Detalhes. Ctrl+Z desfaz.' });
+                    else toast.error('Nenhum produto com preço menor que esse valor.');
+                  };
+                  return (
+                    <>
+                      {[10, 20].map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => ligar(v)}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-200"
+                        >
+                          <Tag className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                          Ultra / Big {v} — pague R$ {v},00
+                        </button>
+                      ))}
+                      <form
+                        className="flex items-center gap-2 px-3.5 py-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const v = parseFloat(leveValor.replace(/\./g, '').replace(',', '.'));
+                          if (Number.isFinite(v) && v > 0) ligar(v);
+                        }}
+                      >
+                        <span className="text-xs text-zinc-400">Outro: R$</span>
+                        <input
+                          value={leveValor}
+                          onChange={(e) => setLeveValor(e.target.value)}
+                          inputMode="decimal"
+                          placeholder="15,00"
+                          className="w-20 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-md text-xs text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <button type="submit" className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">Aplicar</button>
+                      </form>
+                      <button
+                        onClick={() => {
+                          onLevePague(null);
+                          setLeveAberto(false);
+                          toast.success('Leve e Pague desligado — preços unitários de volta.', { description: 'Ctrl+Z desfaz.' });
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2 border-t border-zinc-800 hover:bg-zinc-800 transition-colors text-left text-xs font-semibold text-zinc-300"
+                      >
+                        <X className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                        Tirar Leve e Pague
+                      </button>
+                      <p className="px-3.5 pb-2.5 pt-1 text-[10px] text-zinc-500">
+                        Vale pra todas as páginas. Ex.: produto de R$ 2,00 vira "LEVE 5 · Pague R$ 10,00".
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>

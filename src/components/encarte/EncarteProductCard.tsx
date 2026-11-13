@@ -866,6 +866,49 @@ function PrecoEtiqueta({
   );
 }
 
+
+/**
+ * Selo "Leve e Pague" do encarte Ultra 10 / Big 10 (igual ao impresso):
+ *
+ *   ┌────────┐┌───────┐
+ *   │ LEVE 5 ││ Pague │      faixa amarela com "LEVE N" em vermelho
+ *   └────────┘│ R$ 10,00 │   caixa na cor da etiqueta com o preço do pacote
+ *             └──────────┘
+ */
+function SeloLevePague({ leve, valor, tamanho, cor }: { leve: number; valor: string; tamanho: number; cor: string }) {
+  const { inteiro, centavos } = partesPreco(valor);
+  return (
+    <span className="relative inline-flex flex-col items-start font-black uppercase leading-none" style={{ fontSize: tamanho }}>
+      <span className="relative z-10 flex items-end" style={{ marginBottom: '-0.12em' }}>
+        <span
+          className="leading-none whitespace-nowrap"
+          style={{
+            fontSize: '0.62em',
+            background: '#ffe100',
+            color: '#e3000f',
+            padding: '0.16em 0.32em 0.1em',
+            clipPath: 'polygon(0 0, 100% 0, 100% 100%, 14% 100%, 0 128%)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          LEVE {leve}
+        </span>
+      </span>
+      <span
+        className="flex flex-col items-end"
+        style={{ background: cor, color: '#ffffff', padding: '0.06em 0.22em 0.14em 0.3em', borderRadius: '0 0.22em 0.22em 0.22em', marginLeft: '0.5em', marginTop: '-0.62em' }}
+      >
+        <span className="normal-case leading-none" style={{ fontSize: '0.42em', paddingTop: '0.1em', paddingLeft: '2.6em' }}>Pague</span>
+        <span className="flex items-start leading-none whitespace-nowrap">
+          <span style={{ fontSize: '0.4em', marginTop: '0.55em', marginRight: '0.12em' }}>R$</span>
+          <span>{inteiro}</span>
+          {centavos && <span style={{ fontSize: '1em' }}>,{centavos}</span>}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 // ── Etiqueta de preço — formas + acabamentos ────────────────────────
 
 function EtiquetaPreco({
@@ -880,7 +923,9 @@ function EtiquetaPreco({
   riscarNumerosTextoProduto,
   faixaTextoProduto,
   escalaPreco = 1,
+  leve,
 }: {
+  leve?: number;
   estilo: EstiloEncarte;
   precoOferta: string;
   precoDe: string;
@@ -906,6 +951,14 @@ function EtiquetaPreco({
     ? 'inline-flex flex-col items-end gap-0.5'
     : 'inline-flex flex-col items-start gap-0.5';
   const origem = alinharDireita ? 'bottom right' : 'bottom left';
+
+  if (leve && leve >= 2) {
+    return (
+      <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta * escalaPreco})`, transformOrigin: origem }}>
+        <SeloLevePague leve={leve} valor={precoOferta} tamanho={tamanho} cor={contorno || !cor ? '#16234d' : cor} />
+      </span>
+    );
+  }
 
   // "Só preço" — sem caixa
   if (forma === 'nenhuma') {
@@ -1054,7 +1107,7 @@ function CardPadrao({
   nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}|${estilo.escalaFonte}`;
-  const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
+  const sigE = `${produto.precoOferta}|${produto.leve ?? 0}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard raio={12} cor={estilo.corFundo} />
@@ -1105,6 +1158,7 @@ function CardPadrao({
               riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
               faixaTextoProduto={produto.faixaTextoProduto}
               escalaPreco={produto.escalaPreco}
+              leve={produto.leve}
             />
           </AutoAjuste>
         </div>
@@ -1126,7 +1180,7 @@ function CardDestaque({
   nomeDescOculto,
 }: CardProps) {
   const sigT = `${produto.nome}|${produto.descricao}|${medida}|${produto.escalaNomeDestaque}|${produto.escalaDescricaoDestaque}|${estilo.escalaFonte}`;
-  const sigE = `${produto.precoOferta}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
+  const sigE = `${produto.precoOferta}|${produto.leve ?? 0}|${estilo.formaEtiqueta}|${estilo.acabamentoEtiqueta}|${estilo.escalaEtiqueta}`;
   return (
     <div className="relative flex h-32 gap-1.5">
       {fotoAjustavelNode}
@@ -1175,6 +1229,7 @@ function CardDestaque({
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
             faixaTextoProduto={produto.faixaTextoProduto}
             escalaPreco={produto.escalaPreco}
+            leve={produto.leve}
           />
         </AutoAjuste>
       </div>
@@ -1237,8 +1292,14 @@ function CardClean({
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
             style={{ transform: `scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})` }}
           >
-            <PrecoDe valor={produto.precoDe} />
-            <Preco valor={produto.precoOferta} tamanho={26} variante="texto" cor={estilo.corPreco} />
+            {produto.leve && produto.leve >= 2 ? (
+              <SeloLevePague leve={produto.leve} valor={produto.precoOferta} tamanho={26} cor={estilo.corEtiqueta || '#16234d'} />
+            ) : (
+              <>
+                <PrecoDe valor={produto.precoDe} />
+                <Preco valor={produto.precoOferta} tamanho={26} variante="texto" cor={estilo.corPreco} />
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1340,6 +1401,9 @@ function CardProdutoDestaque({
           onPointerCancel={arrastePreco?.onPointerUp}
           onDoubleClick={arrastePreco?.onDoubleClick}
         >
+          {produto.leve && produto.leve >= 2 ? (
+            <SeloLevePague leve={produto.leve} valor={produto.precoOferta} tamanho={50} cor={estilo.corEtiqueta || '#16234d'} />
+          ) : (<>
           <PrecoDe valor={produto.precoDe} />
           {/* rótulos (POR / R$ / UNI) menores, preço e centavos em evidência */}
           <PrecoEtiqueta
@@ -1355,6 +1419,7 @@ function CardProdutoDestaque({
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
             faixaTextoProduto={produto.faixaTextoProduto}
           />
+          </>)}
         </div>
       </div>
     </div>

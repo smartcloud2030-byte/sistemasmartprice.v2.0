@@ -199,7 +199,7 @@ export default function ProdutoDetalhes({
       </Campo>
 
       {/* Preço oferta */}
-      <Campo label="Preço oferta">
+      <Campo label={produto.leve && produto.leve >= 2 ? `Pague (preço das ${produto.leve})` : 'Preço oferta'}>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
           <input
@@ -216,6 +216,27 @@ export default function ProdutoDetalhes({
           value={produto.escalaPreco ?? 1}
           onChange={(escalaPreco) => onAtualizar({ escalaPreco })}
         />
+      </Campo>
+
+      {/* Leve e Pague (encarte Ultra 10 / Big 10): "LEVE N" + "Pague R$ <preço oferta>" */}
+      <Campo label="Leve e Pague">
+        <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <span>Leve</span>
+          <input
+            type="number"
+            min={2}
+            max={99}
+            placeholder="—"
+            value={produto.leve ?? ''}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              onAtualizar({ leve: Number.isFinite(n) && n >= 2 ? Math.min(n, 99) : undefined });
+            }}
+            className="w-16 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-sm font-semibold text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+          <span>unidades e pague o preço acima.</span>
+        </div>
+        <p className="mt-1 text-[10px] text-zinc-500">Vazio = preço normal. O botão "Leve e Pague" da barra liga em todos de uma vez.</p>
       </Campo>
 
       {/* Texto prod — texto livre que aparece acima do "POR", dentro da etiqueta de preço */}

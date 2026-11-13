@@ -54,6 +54,8 @@ import {
   CANVAS_W,
   trocarDestaque,
   ordenarPorPreco,
+  aplicarLevePague,
+  removerLevePague,
 } from './encarteProduto';
 import {
   EncarteSalvo,
@@ -801,6 +803,29 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const ordenarProdutosPorPreco = (ordem: 'asc' | 'desc') =>
     atualizarLado((l) => ({ produtos: ordenarPorPreco(l.produtos, ordem) }));
 
+  /** Leve e Pague (Ultra 10 / Big 10) em TODAS as páginas; `null` desliga. Devolve quantos ligou. */
+  const levePagueNoEncarte = (valor: number | null): number => {
+    // contagem pelo doc atual (o updater do setDoc pode rodar depois)
+    const total = valor == null ? 0 : paginasDoDoc(doc).reduce((acc, pg) => {
+      const l = ladoDoDoc(doc, pg);
+      return acc + (l ? aplicarLevePague(l.produtos, valor).aplicados : 0);
+    }, 0);
+    setDoc((d) => {
+      let novo = d;
+      for (const pg of paginasDoDoc(d)) {
+        const l = ladoDoDoc(novo, pg);
+        if (!l) continue;
+        if (valor == null) {
+          novo = comLado(novo, pg, { ...l, produtos: removerLevePague(l.produtos) });
+        } else {
+          novo = comLado(novo, pg, { ...l, produtos: aplicarLevePague(l.produtos, valor).produtos });
+        }
+      }
+      return novo;
+    });
+    return total;
+  };
+
   const adicionarTexto = (texto: TextoEncarte) => {
     if (!texto.auto) {
       atualizarLado((l) => ({ textos: [...(l.textos ?? []), { ...texto, z: maiorZ(l) + 1 }] }));
@@ -1267,6 +1292,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onReordenarCamada={reordenarCamada}
           onAdicionarTexto={adicionarTexto}
           onOrdenarPorPreco={ordenarProdutosPorPreco}
+          onLevePague={levePagueNoEncarte}
           onMoverTexto={moverTexto}
           onRedimensionarTexto={redimensionarTexto}
           onEditarTexto={editarTexto}
