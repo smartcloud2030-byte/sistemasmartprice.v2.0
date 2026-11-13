@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban, Strikethrough, DollarSign, Highlighter } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Type, AlignLeft, Palette, Tag, Package, Crown, Images, Ban, DollarSign } from 'lucide-react';
 import { getProxyUrl, cn } from '../../lib/utils';
 import {
   EncarteProduto,
@@ -237,83 +237,6 @@ export default function ProdutoDetalhes({
           <span>unidades e pague o preço acima.</span>
         </div>
         <p className="mt-1 text-[10px] text-zinc-500">Vazio = preço normal. O botão "Leve e Pague" da barra liga em todos de uma vez.</p>
-      </Campo>
-
-      {/* Texto prod — texto livre que aparece acima do "POR", dentro da etiqueta de preço */}
-      <Campo label="Texto prod">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder='Ex.: "Leve 3 pague 2"'
-            value={produto.textoProduto || ''}
-            onChange={(e) => onAtualizar({ textoProduto: e.target.value })}
-            className="w-full pl-3 pr-32 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-          />
-          {/* Riscar números + cor do texto, dentro do próprio campo — só relevantes depois de digitar algo */}
-          <button
-            type="button"
-            title="Riscar números do texto (ex.: preço antigo)"
-            onClick={() => onAtualizar({ riscarNumerosTextoProduto: !produto.riscarNumerosTextoProduto })}
-            className={cn(
-              'absolute right-[4.5rem] top-1/2 -translate-y-1/2 w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0',
-              produto.riscarNumerosTextoProduto
-                ? 'bg-emerald-600 border-emerald-500 text-white'
-                : 'bg-zinc-900 border-zinc-600 text-zinc-400 hover:text-zinc-200',
-            )}
-          >
-            <Strikethrough className="w-3.5 h-3.5" />
-          </button>
-          {/* Faixa colorida atrás do texto (ex.: amarela com "LEVE 2 POR") — liga/desliga + cor */}
-          <button
-            type="button"
-            title={produto.faixaTextoProduto ? 'Tirar a faixa atrás do texto' : 'Faixa colorida atrás do texto'}
-            onClick={() => onAtualizar({ faixaTextoProduto: produto.faixaTextoProduto ? undefined : '#ffed00' })}
-            className={cn(
-              'absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0',
-              produto.faixaTextoProduto
-                ? 'bg-emerald-600 border-emerald-500 text-white'
-                : 'bg-zinc-900 border-zinc-600 text-zinc-400 hover:text-zinc-200',
-            )}
-          >
-            <Highlighter className="w-3.5 h-3.5" />
-          </button>
-          <label
-            title="Cor do texto"
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md border border-zinc-600 cursor-pointer overflow-hidden flex-shrink-0"
-            style={{ backgroundColor: produto.corTextoProduto || '#ffffff' }}
-          >
-            <input
-              type="color"
-              value={produto.corTextoProduto || '#ffffff'}
-              onChange={(e) => onAtualizar({ corTextoProduto: e.target.value })}
-              className="sr-only"
-            />
-          </label>
-        </div>
-        {!!produto.faixaTextoProduto && (
-          // `relative`: o input de cor (sr-only = absoluto) fica preso aqui dentro;
-          // sem isso ele ia parar no topo do painel e, ao focar, o painel rolava/pulava.
-          <label className="relative mt-2 flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
-            <span
-              className="w-6 h-6 rounded-md border border-zinc-600 flex-shrink-0"
-              style={{ backgroundColor: produto.faixaTextoProduto }}
-            />
-            Cor da faixa
-            <input
-              type="color"
-              value={produto.faixaTextoProduto}
-              onChange={(e) => onAtualizar({ faixaTextoProduto: e.target.value })}
-              className="sr-only"
-            />
-          </label>
-        )}
-        {!!produto.textoProduto?.trim() && (
-          <SliderEscala
-            label="Tamanho"
-            value={produto.escalaTextoProduto ?? 1}
-            onChange={(escalaTextoProduto) => onAtualizar({ escalaTextoProduto })}
-          />
-        )}
       </Campo>
 
       {/* Produto em destaque */}
