@@ -10,6 +10,7 @@ import {
   ACABAMENTOS_ETIQUETA,
   SVG_ETIQUETA,
   corPrecoAtual,
+  escalaPrecoDe,
 } from './encarteProduto';
 import { Lado, NOME_LADO } from './ladosEncarte';
 
@@ -213,7 +214,7 @@ export default function ProdutoDetalhes({
         {/* só deste produto — multiplica o slider "Etiqueta" do encarte */}
         <SliderEscala
           label="Tamanho"
-          value={produto.escalaPreco ?? 1}
+          value={escalaPrecoDe(produto)}
           onChange={(escalaPreco) => onAtualizar({ escalaPreco })}
         />
       </Campo>

@@ -916,6 +916,11 @@ export const formatarPreco = (n: number) =>
  * unitário (arredondado). Produto cujo preço já passa do valor (N < 2), sem
  * preço ou oculto fica como está. O preço unitário é guardado pra voltar.
  */
+/** Tamanho do preço deste produto: o escolhido no slider ou, sem escolha, 75% no Leve e Pague (o selo é grande). */
+export function escalaPrecoDe(p: Pick<EncarteProduto, 'escalaPreco' | 'leve'>): number {
+  return p.escalaPreco ?? (p.leve && p.leve >= 2 ? 0.75 : 1);
+}
+
 export function aplicarLevePague(produtos: EncarteProduto[], valor: number): { produtos: EncarteProduto[]; aplicados: number } {
   let aplicados = 0;
   const lista = produtos.map((p) => {

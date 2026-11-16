@@ -11,6 +11,7 @@ import {
   escureceHex,
   SVG_ETIQUETA,
   AjusteFotoProduto,
+  escalaPrecoDe,
 } from './encarteProduto';
 
 interface EncarteProductCardProps {
@@ -1180,7 +1181,7 @@ function CardPadrao({
               corTextoProduto={produto.corTextoProduto}
               riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
               faixaTextoProduto={produto.faixaTextoProduto}
-              escalaPreco={produto.escalaPreco}
+              escalaPreco={escalaPrecoDe(produto)}
               leve={produto.leve}
             />
           </AutoAjuste>
@@ -1251,7 +1252,7 @@ function CardDestaque({
             corTextoProduto={produto.corTextoProduto}
             riscarNumerosTextoProduto={produto.riscarNumerosTextoProduto}
             faixaTextoProduto={produto.faixaTextoProduto}
-            escalaPreco={produto.escalaPreco}
+            escalaPreco={escalaPrecoDe(produto)}
             leve={produto.leve}
           />
         </AutoAjuste>
@@ -1313,7 +1314,7 @@ function CardClean({
           </div>
           <div
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
-            style={{ transform: `scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})` }}
+            style={{ transform: `scale(${estilo.escalaEtiqueta * escalaPrecoDe(produto)})` }}
           >
             {produto.leve && produto.leve >= 2 ? (
               <SeloLevePague leve={produto.leve} valor={produto.precoOferta} tamanho={26} cor={estilo.corEtiqueta || '#16234d'} />
@@ -1415,7 +1416,7 @@ function CardProdutoDestaque({
             arrastePreco && 'cursor-move touch-none',
           )}
           style={{
-            transform: `${produto.deslocPreco ? `translate(${produto.deslocPreco.x}px, ${produto.deslocPreco.y}px) ` : ''}scale(${estilo.escalaEtiqueta * (produto.escalaPreco ?? 1)})`,
+            transform: `${produto.deslocPreco ? `translate(${produto.deslocPreco.x}px, ${produto.deslocPreco.y}px) ` : ''}scale(${estilo.escalaEtiqueta * escalaPrecoDe(produto)})`,
           }}
           title={arrastePreco ? 'Arraste pra mover o preço (2 cliques volta pro lugar)' : undefined}
           onPointerDown={arrastePreco?.onPointerDown}
