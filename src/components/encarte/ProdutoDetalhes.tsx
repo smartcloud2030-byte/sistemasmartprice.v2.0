@@ -200,7 +200,7 @@ export default function ProdutoDetalhes({
       </Campo>
 
       {/* Preço oferta */}
-      <Campo label={produto.leve && produto.leve >= 2 ? `Pague (preço das ${produto.leve})` : 'Preço oferta'}>
+      <Campo label={produto.leve && produto.leve >= 1 ? produto.leve === 1 ? 'Pague (preço de 1)' : `Pague (preço das ${produto.leve})` : 'Preço oferta'}>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
           <input
@@ -225,13 +225,13 @@ export default function ProdutoDetalhes({
           <span>Leve</span>
           <input
             type="number"
-            min={2}
+            min={1}
             max={99}
             placeholder="—"
             value={produto.leve ?? ''}
             onChange={(e) => {
               const n = parseInt(e.target.value, 10);
-              onAtualizar({ leve: Number.isFinite(n) && n >= 2 ? Math.min(n, 99) : undefined });
+              onAtualizar({ leve: Number.isFinite(n) && n >= 1 ? Math.min(n, 99) : undefined });
             }}
             className="w-16 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-sm font-semibold text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
           />

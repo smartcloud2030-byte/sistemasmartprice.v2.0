@@ -976,7 +976,7 @@ function EtiquetaPreco({
     : 'inline-flex flex-col items-start gap-0.5';
   const origem = alinharDireita ? 'bottom right' : 'bottom left';
 
-  if (leve && leve >= 2) {
+  if (leve && leve >= 1) {
     return (
       <span className={wrapCls} style={{ transform: `scale(${estilo.escalaEtiqueta * escalaPreco})`, transformOrigin: origem }}>
         <SeloLevePague leve={leve} valor={precoOferta} tamanho={tamanho} cor={contorno || !cor ? '#16234d' : cor} />
@@ -1316,7 +1316,7 @@ function CardClean({
             className="relative z-10 flex-shrink-0 flex flex-col items-end origin-bottom-right"
             style={{ transform: `scale(${estilo.escalaEtiqueta * escalaPrecoDe(produto)})` }}
           >
-            {produto.leve && produto.leve >= 2 ? (
+            {produto.leve && produto.leve >= 1 ? (
               <SeloLevePague leve={produto.leve} valor={produto.precoOferta} tamanho={26} cor={estilo.corEtiqueta || '#16234d'} />
             ) : (
               <>
@@ -1425,7 +1425,7 @@ function CardProdutoDestaque({
           onPointerCancel={arrastePreco?.onPointerUp}
           onDoubleClick={arrastePreco?.onDoubleClick}
         >
-          {produto.leve && produto.leve >= 2 ? (
+          {produto.leve && produto.leve >= 1 ? (
             <SeloLevePague leve={produto.leve} valor={produto.precoOferta} tamanho={50} cor={estilo.corEtiqueta || '#16234d'} />
           ) : (<>
           <PrecoDe valor={produto.precoDe} />
