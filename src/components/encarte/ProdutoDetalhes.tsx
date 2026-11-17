@@ -207,7 +207,7 @@ export default function ProdutoDetalhes({
             type="text"
             inputMode="decimal"
             value={produto.precoOferta}
-            onChange={(e) => onAtualizar({ precoOferta: e.target.value })}
+            onChange={(e) => onAtualizar({ precoOferta: e.target.value.replace(/[^\d.,]/g, '') })}
             className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
           />
         </div>

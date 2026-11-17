@@ -2826,7 +2826,7 @@ export default function EncarteCanvas({
                         <span className="text-xs text-zinc-400">Outro: R$</span>
                         <input
                           value={leveValor}
-                          onChange={(e) => setLeveValor(e.target.value)}
+                          onChange={(e) => setLeveValor(e.target.value.replace(/[^\d.,]/g, ''))}
                           inputMode="decimal"
                           placeholder="15,00"
                           className="w-20 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-md text-xs text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500"
