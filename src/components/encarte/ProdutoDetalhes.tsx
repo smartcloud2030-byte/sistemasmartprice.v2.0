@@ -202,12 +202,18 @@ export default function ProdutoDetalhes({
       {/* Preço oferta */}
       <Campo label={produto.leve && produto.leve >= 1 ? produto.leve === 1 ? 'Pague (preço de 1)' : `Pague (preço das ${produto.leve})` : 'Preço oferta'}>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
+          {!/%\s*$/.test(produto.precoOferta || '') && (
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-500">R$</span>
+          )}
           <input
             type="text"
-            inputMode="decimal"
             value={produto.precoOferta}
-            onChange={(e) => onAtualizar({ precoOferta: e.target.value.replace(/[^\d.,]/g, '') })}
+            // aceita "%" (desconto, ex.: "15%"): um só, sempre no fim
+            onChange={(e) => {
+              const v = e.target.value;
+              const num = v.replace(/[^\d.,]/g, '');
+              onAtualizar({ precoOferta: v.includes('%') ? `${num}%` : num });
+            }}
             className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-emerald-500 rounded-lg text-sm font-semibold text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
           />
         </div>

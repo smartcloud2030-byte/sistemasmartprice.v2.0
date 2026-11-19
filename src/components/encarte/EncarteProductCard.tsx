@@ -655,7 +655,9 @@ function Preco({
   variante: 'etiqueta' | 'texto';
   cor?: string;
 }) {
-  const { inteiro, centavos } = partesPreco(valor);
+  // "15%": sem "R$", só o número + "%" pequeno no alto.
+  const ehPercentual = /^\d+([.,]\d+)?\s*%$/.test((valor || '').trim());
+  const { inteiro, centavos } = partesPreco(ehPercentual ? (valor || '').trim().replace(/\s*%$/, '') : valor);
   const style =
     variante === 'texto'
       ? cor
@@ -667,13 +669,20 @@ function Preco({
       className="inline-flex items-start font-black leading-none"
       style={{ fontSize: tamanho, ...style }}
     >
-      <span className="font-bold" style={{ fontSize: '0.42em', marginTop: '0.25em', marginRight: '0.1em' }}>
-        R$
-      </span>
+      {!ehPercentual && (
+        <span className="font-bold" style={{ fontSize: '0.42em', marginTop: '0.25em', marginRight: '0.1em' }}>
+          R$
+        </span>
+      )}
       <span>{inteiro}</span>
       {centavos && (
         <span className="font-bold" style={{ fontSize: '0.42em', marginTop: '0.18em' }}>
           ,{centavos}
+        </span>
+      )}
+      {ehPercentual && (
+        <span className="font-bold" style={{ fontSize: '0.5em', marginTop: '0.12em', marginLeft: '0.04em' }}>
+          %
         </span>
       )}
     </span>
