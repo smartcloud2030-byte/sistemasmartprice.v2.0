@@ -769,11 +769,13 @@ function PrecoEtiqueta({
    * Sem isso (etiqueta sem caixa retangular) a faixa fica arredondada por dentro. */
   recuoFaixa?: { top: number; left: number; right: number };
 }) {
-  const { inteiro, centavos } = partesPreco(valor);
   const temTexto = !!textoProduto?.trim();
   // "15%" (qualquer número seguido de %) no preço de oferta vira etiqueta de
-  // desconto — "POR"/"R$" saem e entra um único rótulo "COM".
+  // desconto — "POR"/"R$"/"UN" saem.
   const ehPercentual = /^\d+([.,]\d+)?\s*%$/.test((valor || '').trim());
+  // No percentual o "%" sai do número e é desenhado à parte, pequeno e no
+  // alto (igual aos centavos): "15%" → "15" grande + "%" miúdo.
+  const { inteiro, centavos } = partesPreco(ehPercentual ? (valor || '').trim().replace(/\s*%$/, '') : valor);
   // O preço encolhe uma vez, só por TER texto prod (abre espaço pra faixa
   // no topo sem a etiqueta crescer) — mas fica FIXO nesse tamanho depois
   // disso. Quem cresce/encolhe com o slider "Tamanho" é só a faixa do
@@ -841,14 +843,24 @@ function PrecoEtiqueta({
           </span>
         )}
 
-        {/* número inteiro — dominante (levemente menor no percentual, ex.: "15%") */}
-        <span className="leading-none" style={ehPercentual ? { fontSize: '0.92em' } : undefined}>{inteiro}</span>
+        {/* número inteiro — dominante */}
+        <span className="leading-none">{inteiro}</span>
 
         {/* vírgula (meio) + centavos elevados */}
         {centavos && (
           <span className="self-stretch flex leading-none" style={{ fontSize: `${escalaCentavos}em` }}>
             <span className="self-center">,</span>
             <span className="self-start">{centavos}</span>
+          </span>
+        )}
+
+        {/* "%" do percentual — pequeno e no alto, como os centavos */}
+        {ehPercentual && (
+          <span
+            className="self-start leading-none"
+            style={{ fontSize: `${escalaCentavos}em`, marginLeft: '0.04em' }}
+          >
+            %
           </span>
         )}
 
