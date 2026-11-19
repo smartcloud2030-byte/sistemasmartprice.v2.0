@@ -655,9 +655,11 @@ function Preco({
   variante: 'etiqueta' | 'texto';
   cor?: string;
 }) {
-  // "15%": sem "R$", só o número + "%" pequeno no alto.
+  // "15%": sem "R$", o texto inteiro ("15%") no mesmo tamanho, numa linha só.
   const ehPercentual = /^\d+([.,]\d+)?\s*%$/.test((valor || '').trim());
-  const { inteiro, centavos } = partesPreco(ehPercentual ? (valor || '').trim().replace(/\s*%$/, '') : valor);
+  const { inteiro, centavos } = ehPercentual
+    ? { inteiro: (valor || '').trim().replace(/\s+/g, ''), centavos: '' }
+    : partesPreco(valor);
   const style =
     variante === 'texto'
       ? cor
@@ -678,11 +680,6 @@ function Preco({
       {centavos && (
         <span className="font-bold" style={{ fontSize: '0.42em', marginTop: '0.18em' }}>
           ,{centavos}
-        </span>
-      )}
-      {ehPercentual && (
-        <span className="font-bold" style={{ fontSize: '0.5em', marginTop: '0.12em', marginLeft: '0.04em' }}>
-          %
         </span>
       )}
     </span>
@@ -782,9 +779,10 @@ function PrecoEtiqueta({
   // "15%" (qualquer número seguido de %) no preço de oferta vira etiqueta de
   // desconto — "POR"/"R$"/"UN" saem.
   const ehPercentual = /^\d+([.,]\d+)?\s*%$/.test((valor || '').trim());
-  // No percentual o "%" sai do número e é desenhado à parte, pequeno e no
-  // alto (igual aos centavos): "15%" → "15" grande + "%" miúdo.
-  const { inteiro, centavos } = partesPreco(ehPercentual ? (valor || '').trim().replace(/\s*%$/, '') : valor);
+  // No percentual vai tudo junto, no mesmo tamanho: "20%" (sem centavos/% miúdo).
+  const { inteiro, centavos } = ehPercentual
+    ? { inteiro: (valor || '').trim().replace(/\s+/g, ''), centavos: '' }
+    : partesPreco(valor);
   // O preço encolhe uma vez, só por TER texto prod (abre espaço pra faixa
   // no topo sem a etiqueta crescer) — mas fica FIXO nesse tamanho depois
   // disso. Quem cresce/encolhe com o slider "Tamanho" é só a faixa do
@@ -852,8 +850,8 @@ function PrecoEtiqueta({
           </span>
         )}
 
-        {/* número inteiro — dominante */}
-        <span className="leading-none">{inteiro}</span>
+        {/* número inteiro — dominante (no percentual, "20%" inteiro um pouco menor pra caber) */}
+        <span className="leading-none whitespace-nowrap" style={ehPercentual ? { fontSize: '0.92em' } : undefined}>{inteiro}</span>
 
         {/* vírgula (meio) + centavos elevados */}
         {centavos && (
@@ -863,15 +861,6 @@ function PrecoEtiqueta({
           </span>
         )}
 
-        {/* "%" do percentual — pequeno e no alto, como os centavos */}
-        {ehPercentual && (
-          <span
-            className="self-start leading-none"
-            style={{ fontSize: `${escalaCentavos}em`, marginLeft: '0.04em' }}
-          >
-            %
-          </span>
-        )}
 
         {/* UNI — colado na base, puxado pra esquerda (bem perto dos centavos).
             Some no percentual (ex.: "20%"): desconto não tem unidade. */}
