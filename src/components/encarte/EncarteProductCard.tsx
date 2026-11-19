@@ -750,10 +750,13 @@ function PrecoEtiqueta({
   riscarNumerosTextoProduto,
   faixaTextoProduto,
   recuoFaixa,
+  off = false,
 }: {
   valor: string;
   tamanho: number;
   cor?: string;
+  /** modelo Black: escreve "OFF" (branco) depois do percentual. */
+  off?: boolean;
   /** Preço em degradê dourado com efeito (o mesmo do preço em texto). Ignora `cor`. */
   dourado?: boolean;
   /** Multiplica o tamanho de POR / R$ / UNI. < 1 diminui os rótulos e deixa o preço em evidência. */
@@ -852,6 +855,9 @@ function PrecoEtiqueta({
 
         {/* número inteiro — dominante (no percentual, "20%" inteiro um pouco menor pra caber) */}
         <span className="leading-none whitespace-nowrap" style={ehPercentual ? { fontSize: '0.92em' } : undefined}>{inteiro}</span>
+        {ehPercentual && off && (
+          <span className="self-center leading-none" style={{ fontSize: '0.36em', color: '#ffffff', marginLeft: '0.15em' }}>OFF</span>
+        )}
 
         {/* vírgula (meio) + centavos elevados */}
         {centavos && (
@@ -973,11 +979,13 @@ function EtiquetaPreco({
   /** escala só deste produto, por cima do `estilo.escalaEtiqueta`. */
   escalaPreco?: number;
 }) {
-  const forma: FormaEtiqueta = estilo.formaEtiqueta ?? 'retangulo';
-  const acab = estilo.acabamentoEtiqueta ?? 'solida';
-  const cor = estilo.corEtiqueta;
+  // Modelo Black: preço em % ("15%") vira etiqueta preta, número dourado + "OFF".
+  const pctBlack = estilo.modeloCard === 'black' && /^\d+([.,]\d+)?\s*%$/.test((precoOferta || '').trim());
+  const forma: FormaEtiqueta = estilo.formaEtiqueta === 'nenhuma' && pctBlack ? 'retangulo' : (estilo.formaEtiqueta ?? 'retangulo');
+  const acab = pctBlack ? 'solida' : (estilo.acabamentoEtiqueta ?? 'solida');
+  const cor = pctBlack ? '#15151d' : estilo.corEtiqueta;
   const contorno = acab === 'contorno';
-  const corTexto = estilo.corPreco ?? (contorno ? cor : '#ffffff');
+  const corTexto = pctBlack ? '#f9d649' : (estilo.corPreco ?? (contorno ? cor : '#ffffff'));
   const svgPath = SVG_ETIQUETA[forma];
   const compacta = forma === 'selo' || forma === 'circulo';
 
@@ -1083,6 +1091,7 @@ function EtiquetaPreco({
             riscarNumerosTextoProduto={riscarNumerosTextoProduto}
             faixaTextoProduto={faixaTextoProduto}
             recuoFaixa={svgPath ? undefined : { top: padY, left: padLeft, right: padX }}
+            off={pctBlack}
           />
         </span>
       </span>
@@ -1148,6 +1157,10 @@ function CardPadrao({
       {fotoAjustavelNode}
       {/* sem fundo próprio — quem pinta a cor de verdade é o PNG assado
           acima (fundo + sombra assados juntos, ver nota em FundoSombraCard) */}
+      {/* modelo Black: borda dourada por cima do card */}
+      {estilo.modeloCard === 'black' && (
+        <div className="pointer-events-none absolute inset-0 rounded-xl" style={{ border: '2px solid #f2c230', zIndex: 30 }} />
+      )}
       <div className="relative rounded-xl flex h-32">
         {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
         <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">

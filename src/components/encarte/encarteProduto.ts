@@ -8,12 +8,15 @@ export const CANVAS_W = 480;
 
 export type EncarteProdutoTipo = 'simples';
 
-export type ModeloCard = 'padrao' | 'destaque' | 'clean';
+export type ModeloCard = 'padrao' | 'destaque' | 'clean' | 'black';
 
 export const MODELOS_CARD: { id: ModeloCard; nome: string; descricao: string }[] = [
   { id: 'padrao', nome: 'Padrão', descricao: 'Card branco · foto à direita · preço em etiqueta' },
   { id: 'destaque', nome: 'Tradicional', descricao: 'Sem card · nome grande · etiqueta grande com POR/UN' },
   { id: 'clean', nome: 'Clean', descricao: 'Card branco · foto à esquerda · preço em texto' },
+  // campanha de Black Friday (uso eventual): igual ao Padrão + borda dourada,
+  // e preço em % vira etiqueta preta com número dourado e "OFF".
+  { id: 'black', nome: 'Black', descricao: 'Card com borda dourada · % vira etiqueta preta "OFF"' },
 ];
 
 // ── Etiqueta de preço: formas e estilos ──────────────────────────────
