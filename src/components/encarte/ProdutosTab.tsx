@@ -18,6 +18,8 @@ interface ProdutosTabProps {
   onMarcar: (id: string | number) => void;
   onMarcarTodos: (marcar: boolean) => void;
   onAlternarOculto: (id?: string | number) => void;
+  /** muda o preço oferta direto na lista, sem abrir os Detalhes */
+  onPreco: (id: string | number | undefined, precoOferta: string) => void;
   /** todas as páginas do encarte (frente/verso/verso 2) com os produtos de cada uma */
   paginas: { lado: Lado; nome: string; produtos: EncarteProduto[] }[];
   ladoAtivo: Lado;
@@ -166,7 +168,7 @@ function OutraPagina({
   );
 }
 
-export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, paginas, ladoAtivo, onMoverPagina, onMoverMarcados, onIrPagina, onTrocar }: ProdutosTabProps) {
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, onPreco, paginas, ladoAtivo, onMoverPagina, onMoverMarcados, onIrPagina, onTrocar }: ProdutosTabProps) {
   // Arrastar um produto da lista e soltar em cima de outro troca os dois de lugar.
   const [arrastando, setArrastando] = useState<{ id: string | number | undefined; lado: Lado } | null>(null);
   const [alvo, setAlvo] = useState<string | null>(null);
@@ -408,6 +410,33 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                       </span>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0 group-hover:text-emerald-400 transition-colors" />
                     </button>
+                    {/* preço rápido: digita aqui sem abrir os Detalhes (aceita "%" no fim, como lá) */}
+                    <label
+                      className="relative flex-shrink-0"
+                      title={ep.leve ? 'Preço do pacote (Leve e Pague)' : 'Preço oferta'}
+                      draggable
+                      onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                      {!/%\s*$/.test(ep.precoOferta || '') && (
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-500 pointer-events-none">R$</span>
+                      )}
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={ep.precoOferta}
+                        placeholder="0,00"
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const num = v.replace(/[^\d.,]/g, '');
+                          onPreco(ep.product.id, v.includes('%') ? `${num}%` : num);
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        className={cn(
+                          'w-[4.5rem] py-1 pr-1.5 bg-zinc-900 border border-zinc-700 rounded-md text-xs font-semibold text-emerald-300 text-right outline-none focus:border-emerald-500',
+                          /%\s*$/.test(ep.precoOferta || '') ? 'pl-1.5' : 'pl-6',
+                        )}
+                      />
+                    </label>
                     <button
                       onClick={() => favoritar(String(ep.product.id))}
                       title={favSet.has(String(ep.product.id)) ? 'Tirar dos favoritos' : 'Favoritar'}

@@ -1212,6 +1212,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
                   ...(marcar ? lado.produtos.filter((ep) => ep.product.id != null).map((ep) => ({ tipo: 'produto' as const, id: ep.product.id! })) : []),
                 ])
               }
+              onPreco={(id, precoOferta) => atualizarProduto(id, { precoOferta }, { coalesce: `preco-${String(id)}` })}
               onAlternarOculto={(id) => {
                 const ep = lado.produtos.find((p) => p.product.id === id);
                 if (ep) atualizarProduto(id, { oculto: !ep.oculto });
