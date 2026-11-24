@@ -3,7 +3,7 @@ import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import AvisoLegalEncarte from './AvisoLegalEncarte';
-import { Lado, NOME_LADO } from './ladosEncarte';
+import { Lado, NOME_LADO, MAX_PAGINAS } from './ladosEncarte';
 import {
   Undo2, Redo2, Type, Shapes, Save, Download, Package, Plus, Tag,
   ZoomIn, ZoomOut, Loader2, LayoutGrid, ChevronDown, Check, Copy, X, Image as ImageIcon, FileText,
@@ -439,7 +439,7 @@ interface EncarteCanvasProps {
   soltarAvisoToken?: number;
   ladoAtivo: Lado;
   temVerso: boolean;
-  /** páginas que existem, na ordem (frente, verso, verso 2) */
+  /** páginas que existem, na ordem (frente, verso, verso 2… até 5) */
   paginas: Lado[];
   produtoDetalhadoId: string | number | null;
   podeDesfazer: boolean;
@@ -2610,10 +2610,10 @@ export default function EncarteCanvas({
                   {NOME_LADO[l]}
                 </button>
               ))}
-              {!tresPaginas && (
+              {paginas.length < MAX_PAGINAS && (
                 <button
                   onClick={onAdicionarVerso}
-                  title="Adicionar 2º verso (3 páginas) — leva os elementos da frente, sem os produtos"
+                  title={`Adicionar ${paginas.length}º verso (até ${MAX_PAGINAS} páginas) — leva os elementos da frente, sem os produtos`}
                   className="px-2 py-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
                 >
                   <Plus className="w-3.5 h-3.5" />

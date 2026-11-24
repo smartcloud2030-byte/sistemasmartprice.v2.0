@@ -9,7 +9,7 @@ import ProdutosTab from './ProdutosTab';
 import AjusteFundo from './AjusteFundo';
 import FormatosTab from './FormatosTab';
 import ElementosTab from './ElementosTab';
-import { Lado, NOME_LADO, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProdutos } from './ladosEncarte';
+import { Lado, NOME_LADO, ladoDoDoc, comLado, paginasDoDoc, novaPaginaSemProdutos, versosDoDoc, proximoVerso, semPagina } from './ladosEncarte';
 import EncartesTab from './EncartesTab';
 import ProdutoDetalhes from './ProdutoDetalhes';
 import TextoDetalhes from './TextoDetalhes';
@@ -129,8 +129,10 @@ interface EncarteDoc {
   formatoId: FormatoId;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;
-  /** 3ª página (verso 2) */
+  /** 3ª a 5ª página (verso 2, 3 e 4) */
   ladoVerso2?: LadoEncarte | null;
+  ladoVerso3?: LadoEncarte | null;
+  ladoVerso4?: LadoEncarte | null;
 }
 
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
@@ -156,14 +158,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   } = useHistoricoEdicao<EncarteDoc>(() => ({
     formatoId: (formatoInicial ?? FORMATO_PADRAO).id,
     ladoFrente: normalizarLado(ladoInicial ?? criarLado()),
-    ladoVerso: null,
-    ladoVerso2: null,
+    ...versosDoDoc({}),
   }));
 
   const formato = getFormato(doc.formatoId);
   const ladoFrente = doc.ladoFrente;
   const ladoVerso = doc.ladoVerso;
-  const ladoVerso2 = doc.ladoVerso ? doc.ladoVerso2 ?? null : null;
+  const versos = versosDoDoc(doc);
   const paginas = paginasDoDoc(doc);
   const todosProdutos = paginas.flatMap((l) => ladoDoDoc(doc, l)?.produtos ?? []);
 
@@ -205,8 +206,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const [tentativaCarregar, setTentativaCarregar] = useState(0); // re-tenta se o servidor falhar
 
   // Foto sempre atualizada do estado, pra salvar na hora de fechar/recarregar a aba.
-  const snapshotRef = useRef<RascunhoSemData>({ nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ladoVerso, ladoVerso2 });
-  snapshotRef.current = { nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ladoVerso, ladoVerso2 };
+  const snapshotRef = useRef<RascunhoSemData>({ nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ...versos });
+  snapshotRef.current = { nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ...versos };
 
   // Largura do painel lateral — ajustável pelo usuário arrastando a divisória.
   const PAINEL_MIN = 240;
@@ -271,8 +272,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           resetarDoc({
             formatoId: rascunho.formato as FormatoId,
             ladoFrente: normalizarLado(rascunho.ladoFrente),
-            ladoVerso: rascunho.ladoVerso ? normalizarLado(rascunho.ladoVerso) : null,
-            ladoVerso2: rascunho.ladoVerso && rascunho.ladoVerso2 ? normalizarLado(rascunho.ladoVerso2) : null,
+            ...versosDoDoc(rascunho, normalizarLado),
           });
         }
         setHistorico(hist);
@@ -306,13 +306,13 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     // esteja terminando de carregar. Assim que o usuário mexe em algo (ou
     // restauramos um rascunho), volta a salvar normalmente.
     if (!restaurouRascunho.current && ladoVazio(ladoFrente) && !ladoVerso) return;
-    const snap: RascunhoSemData = { nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ladoVerso, ladoVerso2 };
+    const snap: RascunhoSemData = { nome: nomeEncarte, salvoId, formato: doc.formatoId, ladoFrente, ...versos };
     const tLocal = setTimeout(() => gravarRascunhoLocal(cnpj, username, snap), 300);
     const tServidor = setTimeout(() => {
       salvarRascunho(cnpj, snap).catch((err) => console.error('Erro ao salvar rascunho do encarte:', err));
     }, 1000);
     return () => { clearTimeout(tLocal); clearTimeout(tServidor); };
-  }, [cnpj, username, doc, ladoFrente, ladoVerso, ladoVerso2, nomeEncarte, salvoId]);
+  }, [cnpj, username, doc, ladoFrente, ladoVerso, nomeEncarte, salvoId]);
 
   // Flush ao sair: fechar a aba, recarregar (F5) ou trocar de tela do app.
   // Grava o localStorage na hora (síncrono) e tenta o servidor com keepalive.
@@ -439,7 +439,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tarjas, ladoFrente.produtos, ladoVerso?.produtos, ladoVerso2?.produtos]);
+  }, [tarjas, todosProdutos.length, todosProdutos.map((ep) => ep.product.id).join(',')]);
 
   // Letra miúda obrigatória do lado aberto (remédio sem receita, leite, composto lácteo).
   const avisosLegais = montarAvisosLegais(
@@ -687,29 +687,26 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       ...d,
       formatoId: f.id,
       ladoFrente: regridLado(d.ladoFrente, f),
-      ladoVerso: d.ladoVerso ? regridLado(d.ladoVerso, f) : null,
-      ladoVerso2: d.ladoVerso2 ? regridLado(d.ladoVerso2, f) : null,
+      ...versosDoDoc(d, (l) => regridLado(l, f)),
     }));
   };
 
-  /** Nova página (verso, depois verso 2): copia da frente os elementos, tema e estilo, sem os produtos. */
+  /** Nova página (verso, verso 2… até 5 páginas): copia da frente os elementos, tema e estilo, sem os produtos. */
   const adicionarVerso = () => {
-    const alvo: Lado | null = !doc.ladoVerso ? 'verso' : !doc.ladoVerso2 ? 'verso2' : null;
+    const alvo = proximoVerso(doc);
     if (!alvo) return;
     setDoc((d) => comLado(d, alvo, novaPaginaSemProdutos(d.ladoFrente)));
     setLadoAtivo(alvo);
     setProdutoDetalhadoId(null);
   };
 
-  /** Remove uma página de verso. Sem o verso, o verso 2 passa a ser o verso. */
+  /** Remove uma página de verso. Os versos seguintes sobem uma posição. */
   const removerVerso = (l: Lado) => {
     if (l === 'frente') return;
-    setDoc((d) =>
-      l === 'verso2'
-        ? { ...d, ladoVerso2: null }
-        : { ...d, ladoVerso: d.ladoVerso2 ?? null, ladoVerso2: null },
-    );
-    setLadoAtivo(l === 'verso2' || doc.ladoVerso2 ? 'verso' : 'frente');
+    const i = paginas.indexOf(l);
+    setDoc((d) => semPagina(d, l));
+    // fica na mesma posição (agora com o verso seguinte) ou na anterior se era a última
+    setLadoAtivo(paginas[i + 1] ? l : paginas[i - 1] ?? 'frente');
     setProdutoDetalhadoId(null);
   };
 
@@ -945,12 +942,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         nome:
           nomeEncarte.trim() ||
           nomeAnterior ||
-          `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${ladoVerso2 ? ' (3 páginas)' : ladoVerso ? ' (frente + verso)' : ''}`,
+          `Encarte ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${paginas.length > 2 ? ` (${paginas.length} páginas)` : ladoVerso ? ' (frente + verso)' : ''}`,
         imagemPreview,
         formato: doc.formatoId,
         ladoFrente,
-        ladoVerso,
-        ladoVerso2,
+        ...versos,
       }, id).then((lista) => {
         setHistorico(lista);
         salvoIdRef.current = lista[0]?.id ?? null;
@@ -969,8 +965,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     resetarDoc({
       formatoId: entry.formato as FormatoId,
       ladoFrente: normalizarLado(entry.ladoFrente),
-      ladoVerso: entry.ladoVerso ? normalizarLado(entry.ladoVerso) : null,
-      ladoVerso2: entry.ladoVerso && entry.ladoVerso2 ? normalizarLado(entry.ladoVerso2) : null,
+      ...versosDoDoc(entry, normalizarLado),
     });
     setLadoAtivo('frente');
     setProdutoDetalhadoId(null);
@@ -987,10 +982,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
         ? {
             ...d,
             ladoFrente: semProdutos(d.ladoFrente),
-            ladoVerso: d.ladoVerso ? semProdutos(d.ladoVerso) : null,
-            ladoVerso2: d.ladoVerso2 ? semProdutos(d.ladoVerso2) : null,
+            ...versosDoDoc(d, semProdutos),
           }
-        : { formatoId: d.formatoId, ladoFrente: criarLado(), ladoVerso: null, ladoVerso2: null },
+        : { formatoId: d.formatoId, ladoFrente: criarLado(), ...versosDoDoc({}) },
     );
     // Grava o encarte novo como rascunho mesmo em branco — sem isso o
     // auto-save pula o lado vazio e um F5 traria o encarte antigo de volta.
