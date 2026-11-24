@@ -1118,9 +1118,76 @@ export default function EncarteCanvas({
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
+  // Página aberta sempre atualizada (o PDF troca de página no meio do export).
+  const ladoAtivoRef = useRef(ladoAtivo);
+  ladoAtivoRef.current = ladoAtivo;
+
+  /** Abre a página `l` no editor e espera ela desenhar (render + fotos carregadas). */
+  const abrirPaginaParaExport = async (l: Lado) => {
+    if (ladoAtivoRef.current !== l) onLadoChange(l);
+    for (let i = 0; i < 60 && ladoAtivoRef.current !== l; i++) await new Promise((r) => setTimeout(r, 50));
+    await esperarFrame();
+    const imgs = Array.from(canvasRef.current?.querySelectorAll('img') ?? []).filter((im) => !im.complete);
+    await Promise.race([
+      Promise.all(imgs.map((im) => new Promise((r) => {
+        im.addEventListener('load', r, { once: true });
+        im.addEventListener('error', r, { once: true });
+      }))),
+      new Promise((r) => setTimeout(r, 10000)),
+    ]);
+    await esperarFrame();
+  };
+
+  /** PDF com TODAS as páginas do encarte (frente + versos), uma por folha. */
+  const baixarPdfTodasPaginas = async () => {
+    const original = ladoAtivoRef.current;
+    const toastId = toast.loading(`Gerando PDF: página 1 de ${paginas.length}...`);
+    let pdf: jsPDF | null = null;
+    let tamanho: [number, number] = [0, 0];
+    let thumb = '';
+    try {
+      for (let i = 0; i < paginas.length; i++) {
+        const l = paginas[i];
+        toast.loading(`Gerando PDF: página ${i + 1} de ${paginas.length}...`, { id: toastId });
+        await abrirPaginaParaExport(l);
+        await comCanvasExport(QUALIDADES_DOWNLOAD, (canvas) => {
+          if (!pdf) {
+            // todas as folhas com o tamanho da primeira (se uma página cair pra
+            // resolução menor, a imagem só é esticada pro mesmo tamanho)
+            tamanho = [canvas.width, canvas.height];
+            pdf = new jsPDF({
+              orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
+              unit: 'px',
+              format: tamanho,
+              compress: true,
+            });
+          } else {
+            pdf.addPage(tamanho, tamanho[0] >= tamanho[1] ? 'landscape' : 'portrait');
+          }
+          pdf.addImage(canvas, 'PNG', 0, 0, tamanho[0], tamanho[1], undefined, 'FAST');
+          if (i === 0) thumb = gerarThumbnail(canvas);
+        });
+      }
+      (pdf as jsPDF | null)?.save(`encarte-${formato.id}-${paginas.length}-paginas-${Date.now()}.pdf`);
+      onExportado?.(thumb);
+      toast.success(`PDF baixado com ${paginas.length} páginas!`, { id: toastId });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Falha ao gerar PDF de todas as páginas:', err);
+      toast.error('Não foi possível gerar o PDF do encarte. Tente novamente.', { id: toastId });
+    } finally {
+      if (ladoAtivoRef.current !== original) onLadoChange(original);
+    }
+  };
+
   const baixar = async (tipo: 'png' | 'pdf') => {
     if (!canvasRef.current || exportando) return;
     setDownloadAberto(false);
+    if (tipo === 'pdf' && paginas.length > 1) {
+      setExportando(true);
+      try { await baixarPdfTodasPaginas(); } finally { setExportando(false); }
+      return;
+    }
     setExportando(true);
     try {
       const thumb = await comCanvasExport(QUALIDADES_DOWNLOAD, async (canvas) => {
