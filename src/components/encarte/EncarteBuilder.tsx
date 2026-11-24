@@ -533,7 +533,8 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       // Como no `removerProduto`: os que ficam no lado de origem não se mexem (a não ser na grade Automática).
       const tirar = (l: LadoEncarte): LadoEncarte => realinharSeAuto({ ...l, produtos: l.produtos.filter((ep) => ep.product.id !== id) }, formato);
 
-      const destino = ladoDoDoc(d, destinoLado) ?? (destinoLado === 'verso' ? criarLado() : null);
+      // página que ainda não existe: só a próxima da sequência, criada como no "+" (tema/elementos da frente, sem produtos)
+      const destino = ladoDoDoc(d, destinoLado) ?? (destinoLado === proximoVerso(d) ? novaPaginaSemProdutos(d.ladoFrente) : null);
       if (!destino) return d;
       return comLado(comLado(d, origemLado, tirar(origem)), destinoLado, inserir(destino));
     }

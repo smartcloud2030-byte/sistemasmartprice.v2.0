@@ -5,7 +5,7 @@ import ProductManager, { CadastroRapido } from '../ProductManager';
 import { Product, useStore } from '../../store';
 import { getProxyUrl, cn } from '../../lib/utils';
 import { EncarteProduto } from './encarteProduto';
-import { Lado } from './ladosEncarte';
+import { Lado, VERSOS, MAX_PAGINAS, NOME_LADO } from './ladosEncarte';
 import { lerHistorico, registrarHistorico, lerFavoritos, alternarFavorito } from './produtosRecentes';
 
 interface ProdutosTabProps {
@@ -31,6 +31,14 @@ interface ProdutosTabProps {
 }
 
 /** Props de arrastar-e-soltar de uma linha da lista (montadas no ProdutosTab). */
+/** Props pra uma página (botão/cabeçalho) receber produto arrastado. */
+type PropsAlvoPagina = (para: Lado) => {
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  'data-alvo': boolean;
+};
+
 type PropsArraste = (ep: EncarteProduto, lado: Lado) => {
   draggable: true;
   onDragStart: (e: React.DragEvent) => void;
@@ -102,9 +110,11 @@ function OutraPagina({
   onIr,
   lado,
   arraste,
+  alvoPagina,
 }: {
   lado: Lado;
   arraste: PropsArraste;
+  alvoPagina: PropsAlvoPagina;
   nome: string;
   nomeAtiva: string;
   produtos: EncarteProduto[];
@@ -114,7 +124,11 @@ function OutraPagina({
   const [aberta, setAberta] = useState(true);
   return (
     <div className="pt-2 mt-1 border-t border-zinc-800/70">
-      <div className="flex items-center justify-between gap-2">
+      <div
+        {...alvoPagina(lado)}
+        title={`Solte um produto aqui pra mandar pra ${nome}`}
+        className="flex items-center justify-between gap-2 rounded-md px-1 -mx-1 data-[alvo=true]:ring-2 data-[alvo=true]:ring-emerald-400 data-[alvo=true]:bg-emerald-500/10"
+      >
         <button
           onClick={() => setAberta((v) => !v)}
           className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
@@ -185,7 +199,33 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
       'data-arrastando': !!arrastando && chave(arrastando.id, arrastando.lado) === k,
     };
   };
+  // Soltar um produto numa página (botão do quadro "Mandar pra" ou cabeçalho
+  // "Na página: X"): se ele estava marcado, vão todos os marcados juntos.
+  const soltarEmPagina = (para: Lado) => {
+    const de = arrastando;
+    setArrastando(null);
+    setAlvo(null);
+    if (!de || de.lado === para) return;
+    if (de.lado === ladoAtivo && marcados.includes(String(de.id))) onMoverMarcados(para);
+    else onMoverPagina(de.id, de.lado, para);
+  };
+  const alvoPagina: PropsAlvoPagina = (para) => {
+    const k = `pagina:${para}`;
+    return {
+      onDragOver: (e) => {
+        if (!arrastando || arrastando.lado === para) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (alvo !== k) setAlvo(k);
+      },
+      onDragLeave: () => setAlvo((a) => (a === k ? null : a)),
+      onDrop: (e) => { e.preventDefault(); soltarEmPagina(para); },
+      'data-alvo': alvo === k,
+    };
+  };
   const outrasPaginas = paginas.filter((pg) => pg.lado !== ladoAtivo);
+  // próxima página que dá pra criar (até 5)
+  const novaPagina: Lado | null = paginas.length < MAX_PAGINAS ? VERSOS[paginas.length - 1] ?? null : null;
   const nomeAtiva = paginas.find((pg) => pg.lado === ladoAtivo)?.nome ?? 'Frente';
   // menu "Mandar pra" aberto (id do produto)
   const [moverAberto, setMoverAberto] = useState<string | null>(null);
@@ -273,7 +313,10 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
           {(selecionados.length > 0 || outrasPaginas.some((pg) => pg.produtos.length > 0)) && (
             <div className="space-y-2 pt-3 border-t border-zinc-800">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                <h3
+                  {...alvoPagina(ladoAtivo)}
+                  className="text-[10px] font-black uppercase tracking-widest text-zinc-500 rounded-md px-1 -mx-1 data-[alvo=true]:ring-2 data-[alvo=true]:ring-emerald-400 data-[alvo=true]:bg-emerald-500/10"
+                >
                   {outrasPaginas.length ? `Nesta página: ${nomeAtiva}` : 'Selecionados'} ({selecionados.length})
                 </h3>
                 <button
@@ -293,22 +336,36 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
               )}
               {(() => {
                 const n = selecionados.filter((ep) => marcadosSet.has(String(ep.product.id))).length;
-                if (!n) return null;
-                // sem verso ainda: "Verso" cria a página
-                const destinos = outrasPaginas.length ? outrasPaginas : [{ lado: 'verso' as Lado, nome: 'Verso' }];
+                const arrastandoDaqui = arrastando?.lado === ladoAtivo;
+                if (!n && !arrastandoDaqui) return null;
+                // todas as outras páginas + a próxima que ainda dá pra criar
+                const destinos = [
+                  ...outrasPaginas.map((pg) => ({ lado: pg.lado, nome: pg.nome, nova: false })),
+                  ...(novaPagina ? [{ lado: novaPagina, nome: `${NOME_LADO[novaPagina]} (nova)`, nova: true }] : []),
+                ];
+                const levaMarcados = arrastandoDaqui ? marcadosSet.has(String(arrastando!.id)) && n > 1 : n > 0;
                 return (
                   <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2 space-y-1.5">
                     <p className="text-[11px] font-semibold text-sky-200">
-                      Mandar {n === 1 ? 'o produto marcado' : `os ${n} marcados`} pra:
+                      {arrastandoDaqui
+                        ? `Solte numa página pra mandar ${levaMarcados ? `os ${n} marcados` : 'o produto'}:`
+                        : `Mandar ${n === 1 ? 'o produto marcado' : `os ${n} marcados`} pra (clique ou arraste):`}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {destinos.map((pg) => (
                         <button
                           key={pg.lado}
+                          {...alvoPagina(pg.lado)}
                           onClick={() => onMoverMarcados(pg.lado)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-zinc-600 bg-zinc-800 text-xs font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300 transition-colors"
+                          disabled={!n}
+                          className={cn(
+                            'flex items-center gap-1 px-2.5 py-1 rounded-md border bg-zinc-800 text-xs font-semibold transition-colors',
+                            'data-[alvo=true]:border-emerald-400 data-[alvo=true]:bg-emerald-500/20 data-[alvo=true]:text-emerald-200',
+                            pg.nova ? 'border-dashed border-zinc-500 text-zinc-300' : 'border-zinc-600 text-zinc-200',
+                            n > 0 && 'hover:border-emerald-500 hover:text-emerald-300',
+                          )}
                         >
-                          <ArrowRightLeft className="w-3 h-3" />
+                          {pg.nova ? <Plus className="w-3 h-3" /> : <ArrowRightLeft className="w-3 h-3" />}
                           {pg.nome}
                         </button>
                       ))}
@@ -417,6 +474,7 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                   onIr={() => onIrPagina(pg.lado)}
                   lado={pg.lado}
                   arraste={arraste}
+                  alvoPagina={alvoPagina}
                 />
               ))}
             </div>
