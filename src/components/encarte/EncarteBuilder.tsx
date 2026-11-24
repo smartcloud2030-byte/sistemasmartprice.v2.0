@@ -499,8 +499,17 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   };
 
   /** Move um produto da página ativa pra outra (cria o verso vazio se ainda não existir). */
-  const enviarProdutoParaOutroLado = (id: string | number | undefined, destinoLado: Lado, origemLado: Lado = ladoAtivo) => {
-    setDoc((d) => {
+  const enviarProdutoParaOutroLado = (id: string | number | undefined, destinoLado: Lado, origemLado: Lado = ladoAtivo) =>
+    enviarProdutosParaOutroLado([id], destinoLado, origemLado);
+
+  /** Move vários produtos de uma vez (um passo só no Ctrl+Z), na ordem da lista. */
+  const enviarProdutosParaOutroLado = (ids: (string | number | undefined)[], destinoLado: Lado, origemLado: Lado = ladoAtivo) => {
+    setDoc((d0) => ids.reduce((d, id) => moverUmProduto(d, id, destinoLado, origemLado), d0));
+    setProdutoDetalhadoId((atual) => (ids.includes(atual ?? undefined) ? null : atual));
+  };
+
+  const moverUmProduto = (d: EncarteDoc, id: string | number | undefined, destinoLado: Lado, origemLado: Lado): EncarteDoc => {
+    {
       if (destinoLado === origemLado) return d;
       const origem = ladoDoDoc(d, origemLado) ?? d.ladoFrente;
       const produto = origem.produtos.find((ep) => ep.product.id === id);
@@ -527,8 +536,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       const destino = ladoDoDoc(d, destinoLado) ?? (destinoLado === 'verso' ? criarLado() : null);
       if (!destino) return d;
       return comLado(comLado(d, origemLado, tirar(origem)), destinoLado, inserir(destino));
-    });
-    setProdutoDetalhadoId((atual) => (atual === id ? null : atual));
+    }
   };
 
   /** Troca dois produtos de lugar (na mesma página ou entre páginas): cada um
@@ -1174,6 +1182,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onMoverPagina={(id, de, para) => {
                 enviarProdutoParaOutroLado(id, para, de);
                 toast.success(`Produto mandado pra ${NOME_LADO[para]}.`, { description: 'Ctrl+Z desfaz.' });
+              }}
+              onMoverMarcados={(para) => {
+                const marcados = new Set(grupo.filter((m) => m.tipo === 'produto').map((m) => String(m.id)));
+                const ids = lado.produtos.filter((ep) => marcados.has(String(ep.product.id))).map((ep) => ep.product.id);
+                if (!ids.length) return;
+                enviarProdutosParaOutroLado(ids, para);
+                setGrupo((g) => g.filter((m) => m.tipo !== 'produto'));
+                toast.success(`${ids.length} produto${ids.length > 1 ? 's' : ''} mandado${ids.length > 1 ? 's' : ''} pra ${NOME_LADO[para]}.`, { description: 'Ctrl+Z desfaz.' });
               }}
               onIrPagina={trocarLado}
               onTrocar={trocarProdutos}

@@ -23,6 +23,8 @@ interface ProdutosTabProps {
   ladoAtivo: Lado;
   /** muda o produto de página sem apagar e adicionar de novo */
   onMoverPagina: (id: string | number | undefined, de: Lado, para: Lado) => void;
+  /** manda todos os produtos marcados (desta página) pra outra página */
+  onMoverMarcados: (para: Lado) => void;
   onIrPagina: (lado: Lado) => void;
   /** arrastou um produto da lista e soltou em cima de outro: os dois trocam de lugar (mesmo em páginas diferentes) */
   onTrocar: (a: { id: string | number | undefined; lado: Lado }, b: { id: string | number | undefined; lado: Lado }) => void;
@@ -150,7 +152,7 @@ function OutraPagina({
   );
 }
 
-export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, paginas, ladoAtivo, onMoverPagina, onIrPagina, onTrocar }: ProdutosTabProps) {
+export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onAbrirDetalhes, marcados, onMarcar, onMarcarTodos, onAlternarOculto, paginas, ladoAtivo, onMoverPagina, onMoverMarcados, onIrPagina, onTrocar }: ProdutosTabProps) {
   // Arrastar um produto da lista e soltar em cima de outro troca os dois de lugar.
   const [arrastando, setArrastando] = useState<{ id: string | number | undefined; lado: Lado } | null>(null);
   const [alvo, setAlvo] = useState<string | null>(null);
@@ -289,6 +291,31 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
                   {marcadosSet.size} marcados — arraste qualquer um deles no encarte que todos andam juntos.
                 </p>
               )}
+              {(() => {
+                const n = selecionados.filter((ep) => marcadosSet.has(String(ep.product.id))).length;
+                if (!n) return null;
+                // sem verso ainda: "Verso" cria a página
+                const destinos = outrasPaginas.length ? outrasPaginas : [{ lado: 'verso' as Lado, nome: 'Verso' }];
+                return (
+                  <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-sky-200">
+                      Mandar {n === 1 ? 'o produto marcado' : `os ${n} marcados`} pra:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {destinos.map((pg) => (
+                        <button
+                          key={pg.lado}
+                          onClick={() => onMoverMarcados(pg.lado)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-zinc-600 bg-zinc-800 text-xs font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300 transition-colors"
+                        >
+                          <ArrowRightLeft className="w-3 h-3" />
+                          {pg.nome}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="space-y-1.5">
                 {selecionados.map((ep) => {
                   const marcado = marcadosSet.has(String(ep.product.id));
