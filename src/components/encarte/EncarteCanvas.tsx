@@ -11,6 +11,7 @@ import {
   Bold, Italic, AlignLeft, AlignCenter, AlignRight, Pencil, Minus, Shuffle, SquareRoundCorner, Blend, RotateCcw,
   BringToFront, SendToBack, RotateCw, BoxSelect, Wand2, ArrowLeftRight,
   ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow,
+  Pill,
 } from 'lucide-react';
 import { getProxyUrl, cn, clamp } from '../../lib/utils';
 import EncarteProductCard from './EncarteProductCard';
@@ -458,6 +459,10 @@ interface EncarteCanvasProps {
   grupo: MembroGrupo[];
   onGrupoChange: (grupo: MembroGrupo[]) => void;
   onAjustarFotoProduto: (id: string | number | undefined, ajuste: AjusteFotoProduto | null, opcoes?: { coalesce?: string }) => void;
+  /** remédio (lista CMED)? — libera o botão da caixa genérica nas alças da foto */
+  ehMedicamento?: (p: EncarteProduto["product"]) => boolean;
+  /** troca a foto pela caixa genérica (ou volta a original) */
+  onAlternarFotoGenerica?: (id: string | number | undefined) => void;
   onMoverPrecoProduto: (id: string | number | undefined, desloc: { x: number; y: number } | null, opcoes?: { coalesce?: string }) => void;
   /** Nome/descrição soltos — livres por todo o encarte (não presos ao card, ver `AjusteNomeDescricao`). */
   onAjustarNomeDescricao: (id: string | number | undefined, ajuste: AjusteNomeDescricao | null, opcoes?: { coalesce?: string }) => void;
@@ -617,6 +622,8 @@ export default function EncarteCanvas({
   grupo,
   onGrupoChange: setGrupo,
   onAjustarFotoProduto,
+  ehMedicamento,
+  onAlternarFotoGenerica,
   onMoverPrecoProduto,
   onAjustarNomeDescricao,
   onMoverDivisor,
@@ -2364,6 +2371,20 @@ export default function EncarteCanvas({
         >
           <RotateCcw className="w-3.5 h-3.5" />
         </button>
+        {onAlternarFotoGenerica && (ep.fotoOriginal || ehMedicamento?.(ep.product)) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAlternarFotoGenerica(ep.product.id); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            title={ep.fotoOriginal ? 'Voltar a foto original do produto' : 'Trocar pela caixa de medicamento genérico'}
+            className={cn(
+              'pointer-events-auto absolute -top-8 right-16 flex items-center gap-1 h-6 px-1.5 rounded-md bg-zinc-900 border shadow-lg transition-colors text-[10px] font-bold whitespace-nowrap',
+              ep.fotoOriginal ? 'border-emerald-500/60 text-emerald-400' : 'border-zinc-700 text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50',
+            )}
+          >
+            <Pill className="w-3.5 h-3.5" />
+            {ep.fotoOriginal ? 'Foto original' : 'Genérico'}
+          </button>
+        )}
         {(['nw', 'ne', 'sw', 'se'] as Canto[]).map((canto) => (
           <div
             key={canto}

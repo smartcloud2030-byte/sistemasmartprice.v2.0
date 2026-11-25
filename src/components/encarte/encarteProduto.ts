@@ -255,8 +255,21 @@ export interface EncarteProduto {
   formatacaoNormal?: FormatacaoProduto | null;
 }
 
-/** Caixa de remédio genérica (sem marca nem texto) — só oferecida pra medicamento. */
-export const FOTO_MEDICAMENTO_GENERICO = '/encarte/medicamento-generico.png';
+/** Caixa de remédio genérica ("G Medicamento Genérico", sem marca) — só oferecida pra medicamento. */
+export const FOTO_MEDICAMENTO_GENERICO = '/encarte/medicamento-generico-g.png';
+
+/** Liga/desliga a caixa genérica no lugar da foto do cadastro (guarda a original pra voltar). */
+export function alternarFotoGenerica(ep: EncarteProduto): Partial<EncarteProduto> {
+  const { product } = ep;
+  if (ep.fotoOriginal) {
+    const o = ep.fotoOriginal;
+    return { product: { ...product, image: o.image, thumb_image: o.thumb_image ?? null }, fotoOriginal: null };
+  }
+  return {
+    product: { ...product, image: FOTO_MEDICAMENTO_GENERICO, thumb_image: FOTO_MEDICAMENTO_GENERICO },
+    fotoOriginal: { image: product.image, thumb_image: product.thumb_image ?? null },
+  };
+}
 
 /** Ajustes de tamanho/posição que zeram ao virar destaque (ver `trocarDestaque`). */
 export const CAMPOS_FORMATACAO_PRODUTO = [

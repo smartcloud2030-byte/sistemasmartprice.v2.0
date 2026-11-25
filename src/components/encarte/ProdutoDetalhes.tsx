@@ -11,7 +11,7 @@ import {
   SVG_ETIQUETA,
   corPrecoAtual,
   escalaPrecoDe,
-  FOTO_MEDICAMENTO_GENERICO,
+  alternarFotoGenerica,
 } from './encarteProduto';
 import { Lado, NOME_LADO } from './ladosEncarte';
 
@@ -42,17 +42,7 @@ export default function ProdutoDetalhes({
 }: ProdutoDetalhesProps) {
   const { product } = produto;
   const usandoGenerica = !!produto.fotoOriginal;
-  const alternarFotoGenerica = () => {
-    if (usandoGenerica) {
-      const o = produto.fotoOriginal!;
-      onAtualizar({ product: { ...product, image: o.image, thumb_image: o.thumb_image ?? null }, fotoOriginal: null });
-    } else {
-      onAtualizar({
-        product: { ...product, image: FOTO_MEDICAMENTO_GENERICO, thumb_image: FOTO_MEDICAMENTO_GENERICO },
-        fotoOriginal: { image: product.image, thumb_image: product.thumb_image ?? null },
-      });
-    }
-  };
+  const trocarFotoGenerica = () => onAtualizar(alternarFotoGenerica(produto));
 
   return (
     <div className="p-4 space-y-5">
@@ -92,7 +82,7 @@ export default function ProdutoDetalhes({
           </button>
           {(ehMedicamento || usandoGenerica) && (
             <button
-              onClick={alternarFotoGenerica}
+              onClick={trocarFotoGenerica}
               title={usandoGenerica ? 'Volta a foto do cadastro' : 'Troca pela caixa de remédio genérica, sem marca e sem texto'}
               className="mt-1.5 w-full px-2 py-1 rounded-md border border-sky-600/60 bg-sky-500/10 text-[10px] font-bold text-sky-300 hover:bg-sky-500/20 transition-colors"
             >

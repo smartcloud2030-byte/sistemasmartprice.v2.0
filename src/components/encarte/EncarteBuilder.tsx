@@ -56,6 +56,7 @@ import {
   ordenarPorPreco,
   aplicarLevePague,
   removerLevePague,
+  alternarFotoGenerica,
 } from './encarteProduto';
 import {
   EncarteSalvo,
@@ -1292,6 +1293,11 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onGrupoChange={setGrupo}
           onMoverPrecoProduto={(id, desloc, opcoes) => atualizarProduto(id, { deslocPreco: desloc }, opcoes)}
           onAjustarFotoProduto={(id, ajuste, opcoes) => atualizarProduto(id, { fotoAjuste: ajuste }, opcoes)}
+          ehMedicamento={(p) => tarjaDe(p) !== null}
+          onAlternarFotoGenerica={(id) => {
+            const ep = lado.produtos.find((p) => p.product.id === id);
+            if (ep) atualizarProduto(id, alternarFotoGenerica(ep));
+          }}
           onAjustarNomeDescricao={(id, ajuste, opcoes) => atualizarProduto(id, { nomeDescricaoAjuste: ajuste }, opcoes)}
           onMoverDivisor={moverDivisor}
           onMoverImagem={moverImagem}
