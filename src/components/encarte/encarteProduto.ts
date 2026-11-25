@@ -247,10 +247,16 @@ export interface EncarteProduto {
   leve?: number;
   /** preço unitário que estava antes de ligar o Leve e Pague — volta ao desligar. */
   precoAntesLeve?: string;
+  /** foto do cadastro guardada quando o remédio passa a usar a caixa genérica
+   * (sem marca/texto) — "Voltar foto original" devolve ela. */
+  fotoOriginal?: { image: string | null; thumb_image?: string | null } | null;
   /** Ajustes de tamanho/posição que o produto tinha como card normal, guardados
    * ao virar destaque (que entra zerado) e devolvidos ao deixar de ser. */
   formatacaoNormal?: FormatacaoProduto | null;
 }
+
+/** Caixa de remédio genérica (sem marca nem texto) — só oferecida pra medicamento. */
+export const FOTO_MEDICAMENTO_GENERICO = '/encarte/medicamento-generico.png';
 
 /** Ajustes de tamanho/posição que zeram ao virar destaque (ver `trocarDestaque`). */
 export const CAMPOS_FORMATACAO_PRODUTO = [

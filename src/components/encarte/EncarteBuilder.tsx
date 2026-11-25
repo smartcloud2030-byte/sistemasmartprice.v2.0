@@ -1132,6 +1132,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onAtualizarEstilo={atualizarEstilo}
               onEnviarParaOutroLado={(destino) => enviarProdutoParaOutroLado(produtoDetalhado.product.id, destino)}
               onVoltar={() => setProdutoDetalhadoId(null)}
+              ehMedicamento={tarjaDe(produtoDetalhado.product) !== null}
             />
           ) : avisoPainel && avisosLegais ? (
             <AvisoLegalPainel
