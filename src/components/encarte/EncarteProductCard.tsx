@@ -1154,13 +1154,15 @@ function CardPadrao({
   return (
     <div className="relative h-32" style={{ zIndex: 0 }}>
       <FundoSombraCard raio={12} cor={estilo.corFundo} />
+      {/* modelo Black: borda dourada logo acima do fundo do card e ATRÁS da
+          foto/etiqueta (z 0, antes do conteúdo no DOM) — foto que passa da
+          borda fica por cima da linha, não cortada por ela (pedido do José). */}
+      {estilo.modeloCard === 'black' && (
+        <div className="pointer-events-none absolute inset-0 rounded-xl" style={{ border: '2px solid #f2c230', zIndex: 0 }} />
+      )}
       {fotoAjustavelNode}
       {/* sem fundo próprio — quem pinta a cor de verdade é o PNG assado
           acima (fundo + sombra assados juntos, ver nota em FundoSombraCard) */}
-      {/* modelo Black: borda dourada por cima do card */}
-      {estilo.modeloCard === 'black' && (
-        <div className="pointer-events-none absolute inset-0 rounded-xl" style={{ border: '2px solid #f2c230', zIndex: 30 }} />
-      )}
       <div className="relative rounded-xl flex h-32">
         {/* z-10: a etiqueta ampliada passa por cima da foto (irmã posterior no DOM) */}
         <div className="relative z-10 flex-1 min-w-0 p-2.5 flex flex-col gap-1">
