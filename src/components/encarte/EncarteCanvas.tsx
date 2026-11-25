@@ -18,6 +18,7 @@ import FontePicker from './FontePicker';
 import EnderecoPicker from './EnderecoPicker';
 import { useProporcaoImagem, caixaDoFundo, POSICAO_FUNDO_PADRAO } from './AjusteFundo';
 import ValidadePicker from './ValidadePicker';
+import LimitePicker from './LimitePicker';
 import { textoComIcones } from './iconesTexto';
 import { carregarFontesEncarte } from './fontes';
 import { Formato } from './formatos';
@@ -2936,6 +2937,36 @@ export default function EncarteCanvas({
                 auto: 'validade',
                 xPct: 4,
                 yPct: Math.max(0, 100 - ((reservaEndereco + alturaPx) / hPx) * 100),
+                wPct: 92,
+                tamanho,
+                cor: '#ffffff',
+                negrito: true,
+                alinhamento: 'center',
+              };
+              onAdicionarTexto(t);
+              setTextoSelecionadoId(t.id);
+              setFormaSelecionadaId(null);
+              setImagemSelecionadaId(null);
+              setProdutoSelecionadoId(null);
+              setFotoSelecionadaId(null);
+            }}
+          />
+
+          {/* Limite por cliente (quantidade máxima → frase no rodapé, acima da validade) */}
+          <LimitePicker
+            compacto={tbCompacta}
+            onLimite={(frase) => {
+              const tamanho = 11;
+              const hPx = CANVAS_W / formato.ratio;
+              // Fica acima da validade (1 linha de 11px) e do endereço (2 linhas de 12px).
+              const reserva = 2 * 12 * 1.15 + 10 + (11 * 1.15 + 4);
+              const alturaPx = tamanho * 1.15 + 4;
+              const t: TextoEncarte = {
+                ...criarTexto('Montserrat'),
+                texto: frase,
+                auto: 'limite',
+                xPct: 4,
+                yPct: Math.max(0, 100 - ((reserva + alturaPx) / hPx) * 100),
                 wPct: 92,
                 tamanho,
                 cor: '#ffffff',
