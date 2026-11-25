@@ -18,7 +18,7 @@ import {
 import type { Server } from 'socket.io';
 import { minioClient, BUCKET } from './src/gallery';
 import { getBrazilDateString } from './src/lib/cosmosUsage';
-import { buscarFontesGratuitas, fotoCosmosCdn, divulgacaoCmed } from './src/lib/barcodeFontes';
+import { buscarFontesGratuitas, fotoCosmosCdn, divulgacaoCmed, medicamentoPorNome } from './src/lib/barcodeFontes';
 import { chaveListaPV, podeAcessarListaPV } from './src/lib/acessoListaPV';
 
 const router = Router();
@@ -522,6 +522,15 @@ router.post('/divulgacao/tarjas', exigirSessaoValida(), (req: Request, res: Resp
     const gtin = String(c ?? '').replace(/\D/g, '');
     if (gtin) resposta[gtin] = divulgacaoCmed(gtin);
   }
+  res.json(resposta);
+});
+
+// Remédio pelo nome (quando o código de barras não bate com a CMED) — o Encarte
+// usa pra liberar a "foto genérica" de medicamento.
+router.post('/divulgacao/medicamento-por-nome', exigirSessaoValida(), (req: Request, res: Response) => {
+  const nomes: string[] = Array.isArray(req.body?.nomes) ? req.body.nomes.slice(0, 200) : [];
+  const resposta: Record<string, ReturnType<typeof medicamentoPorNome>> = {};
+  for (const n of nomes) if (typeof n === 'string' && n.trim()) resposta[n] = medicamentoPorNome(n);
   res.json(resposta);
 });
 

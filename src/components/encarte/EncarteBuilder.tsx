@@ -419,6 +419,30 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const restricaoDe = (ep: { product: Product; nome?: string; descricao?: string }, mapa = tarjas) =>
     avaliarProduto({ nome: `${ep.product.name || ''} ${ep.nome || ''}`, descricao: ep.descricao ?? ep.product.description ?? '' }, tarjaDe(ep.product, mapa));
 
+  // Remédio pelo NOME — quando o código de barras do cadastro não bate com a
+  // CMED (ex.: Torsilax sem código). Só libera a "foto genérica" nos Detalhes.
+  const [remedioPorNome, setRemedioPorNome] = useState<Record<string, boolean>>({});
+  const nomeParaRemedio = (ep: { product: Product; nome?: string }) => (ep.product.name || ep.nome || '').trim();
+  const nomeDetalhadoSemTarja = (() => {
+    const ep = produtoDetalhadoId != null ? todosProdutos.find((p) => p.product.id === produtoDetalhadoId) : undefined;
+    if (!ep || tarjaDe(ep.product) !== null) return '';
+    return nomeParaRemedio(ep);
+  })();
+  useEffect(() => {
+    const nome = nomeDetalhadoSemTarja;
+    if (!nome || nome in remedioPorNome) return;
+    fetch('/api/divulgacao/medicamento-por-nome', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nomes: [nome] }),
+      signal: AbortSignal.timeout(5000),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j) setRemedioPorNome((m) => ({ ...m, [nome]: !!j[nome] })); })
+      .catch(() => { /* tenta de novo ao abrir de novo */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nomeDetalhadoSemTarja]);
+
   // Produtos que já estavam no encarte (rascunho/encarte salvo): consulta a tarja deles também.
   const codigosNoEncarte = todosProdutos.flatMap((ep) => codigosDe(ep.product));
   const chaveCodigos = [...new Set(codigosNoEncarte)].sort().join(',');
@@ -1133,7 +1157,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
               onAtualizarEstilo={atualizarEstilo}
               onEnviarParaOutroLado={(destino) => enviarProdutoParaOutroLado(produtoDetalhado.product.id, destino)}
               onVoltar={() => setProdutoDetalhadoId(null)}
-              ehMedicamento={tarjaDe(produtoDetalhado.product) !== null}
+              ehMedicamento={tarjaDe(produtoDetalhado.product) !== null || !!remedioPorNome[nomeParaRemedio(produtoDetalhado)]}
             />
           ) : avisoPainel && avisosLegais ? (
             <AvisoLegalPainel

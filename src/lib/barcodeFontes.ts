@@ -69,6 +69,41 @@ export function divulgacaoCmed(gtin: string): { tarja: 'V' | 'P' | 'L' | ''; reg
   return null;
 }
 
+// Índice "marca/nome do remédio" → tarja, pra quando o código de barras do
+// cadastro não bate com a CMED (sem código, código interno, código antigo).
+// Tarja da marca = a mais restritiva entre as apresentações (P > V > '' > L).
+let cmedPorMarca: Map<string, 'V' | 'P' | 'L' | ''> | null = null;
+const PESO_TARJA: Record<string, number> = { P: 3, V: 2, '': 1, L: 0 };
+const normalizarNome = (t: string) =>
+  t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+
+/** Remédio pelo NOME do produto: o nome começa com a marca/nome de algum remédio
+ * da CMED (ex.: "TORSILAX C/ 12CP" → TORSILAX). null = não achou. */
+export function medicamentoPorNome(nome: string): { tarja: 'V' | 'P' | 'L' | ''; marca: string } | null {
+  const base = carregarCmed();
+  if (!base) return null;
+  if (!cmedPorMarca) {
+    cmedPorMarca = new Map();
+    for (const item of Object.values(base.itens)) {
+      const marca = normalizarNome(item[0] ?? '');
+      if (marca.length < 4) continue;
+      const tarja = ((item[4] as any) ?? '') as 'V' | 'P' | 'L' | '';
+      const atual = cmedPorMarca.get(marca);
+      if (atual === undefined || PESO_TARJA[tarja] > PESO_TARJA[atual]) cmedPorMarca.set(marca, tarja);
+    }
+  }
+  const n = normalizarNome(nome);
+  if (!n) return null;
+  // tenta do prefixo mais longo pro mais curto (palavra a palavra)
+  const palavras = n.split(' ');
+  for (let k = Math.min(palavras.length, 6); k >= 1; k--) {
+    const prefixo = palavras.slice(0, k).join(' ');
+    const tarja = cmedPorMarca.get(prefixo);
+    if (tarja !== undefined) return { tarja, marca: prefixo };
+  }
+  return null;
+}
+
 const OPEN_FACTS = [
   { host: 'world.openfoodfacts.org', nome: 'Open Food Facts' },
   { host: 'world.openbeautyfacts.org', nome: 'Open Beauty Facts' },
