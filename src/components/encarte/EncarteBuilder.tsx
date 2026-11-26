@@ -131,10 +131,13 @@ interface EncarteDoc {
   formatoId: FormatoId;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;
-  /** 3ª a 5ª página (verso 2, 3 e 4) */
+  /** 3ª a 8ª página (verso 2 a 7) */
   ladoVerso2?: LadoEncarte | null;
   ladoVerso3?: LadoEncarte | null;
   ladoVerso4?: LadoEncarte | null;
+  ladoVerso5?: LadoEncarte | null;
+  ladoVerso6?: LadoEncarte | null;
+  ladoVerso7?: LadoEncarte | null;
 }
 
 export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicial }: EncarteBuilderProps = {}) {
@@ -726,7 +729,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     }));
   };
 
-  /** Nova página (verso, verso 2… até 5 páginas): copia da frente os elementos, tema e estilo, sem os produtos. */
+  /** Nova página (verso, verso 2… até 8 páginas): copia da frente os elementos, tema e estilo, sem os produtos. */
   const adicionarVerso = () => {
     const alvo = proximoVerso(doc);
     if (!alvo) return;

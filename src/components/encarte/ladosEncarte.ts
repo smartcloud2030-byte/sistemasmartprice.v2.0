@@ -1,14 +1,15 @@
-// Páginas do encarte: frente + até 4 versos (verso, verso 2, 3 e 4) — até 5 páginas.
+// Páginas do encarte: frente + até 7 versos (verso, verso 2 … verso 7) — até 8 páginas.
 import { LadoEncarte, clonarLado } from './encarteProduto';
 
-export type Lado = 'frente' | 'verso' | 'verso2' | 'verso3' | 'verso4';
+export type Lado = 'frente' | 'verso' | 'verso2' | 'verso3' | 'verso4' | 'verso5' | 'verso6' | 'verso7';
 
 /** Versos na ordem — cada um só existe se o anterior existir. */
-export const VERSOS: Exclude<Lado, 'frente'>[] = ['verso', 'verso2', 'verso3', 'verso4'];
+export const VERSOS: Exclude<Lado, 'frente'>[] = ['verso', 'verso2', 'verso3', 'verso4', 'verso5', 'verso6', 'verso7'];
 export const MAX_PAGINAS = 1 + VERSOS.length;
 
 export const NOME_LADO: Record<Lado, string> = {
   frente: 'Frente', verso: 'Verso', verso2: 'Verso 2', verso3: 'Verso 3', verso4: 'Verso 4',
+  verso5: 'Verso 5', verso6: 'Verso 6', verso7: 'Verso 7',
 };
 
 /** Os campos do documento do encarte que guardam cada página. */
@@ -18,6 +19,9 @@ export interface PaginasEncarte {
   ladoVerso2?: LadoEncarte | null;
   ladoVerso3?: LadoEncarte | null;
   ladoVerso4?: LadoEncarte | null;
+  ladoVerso5?: LadoEncarte | null;
+  ladoVerso6?: LadoEncarte | null;
+  ladoVerso7?: LadoEncarte | null;
 }
 
 /** Só os versos (o que vai além da frente). */
@@ -25,6 +29,7 @@ export type VersosEncarte = Omit<PaginasEncarte, 'ladoFrente'>;
 
 const CHAVE: Record<Lado, keyof PaginasEncarte> = {
   frente: 'ladoFrente', verso: 'ladoVerso', verso2: 'ladoVerso2', verso3: 'ladoVerso3', verso4: 'ladoVerso4',
+  verso5: 'ladoVerso5', verso6: 'ladoVerso6', verso7: 'ladoVerso7',
 };
 
 export function ladoDoDoc(d: PaginasEncarte, l: Lado): LadoEncarte | null {
@@ -53,7 +58,9 @@ export function versosDoDoc(
   d: Partial<PaginasEncarte>,
   f: (l: LadoEncarte) => LadoEncarte = (l) => l,
 ): VersosEncarte {
-  const out: VersosEncarte = { ladoVerso: null, ladoVerso2: null, ladoVerso3: null, ladoVerso4: null };
+  const out: VersosEncarte = { ladoVerso: null, ladoVerso2: null, ladoVerso3: null, ladoVerso4: null,
+    ladoVerso5: null, ladoVerso6: null, ladoVerso7: null,
+  };
   for (const v of VERSOS) {
     const l = d[CHAVE[v]] as LadoEncarte | null | undefined;
     if (!l) break;
@@ -62,7 +69,7 @@ export function versosDoDoc(
   return out;
 }
 
-/** Próximo verso a criar (null = já tem as 5 páginas). */
+/** Próximo verso a criar (null = já tem as 8 páginas). */
 export function proximoVerso(d: PaginasEncarte): Lado | null {
   return VERSOS.find((v) => !ladoDoDoc(d, v)) ?? null;
 }

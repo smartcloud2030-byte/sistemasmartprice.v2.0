@@ -441,7 +441,7 @@ interface EncarteCanvasProps {
   soltarAvisoToken?: number;
   ladoAtivo: Lado;
   temVerso: boolean;
-  /** páginas que existem, na ordem (frente, verso, verso 2… até 5) */
+  /** páginas que existem, na ordem (frente, verso, verso 2… até 8) */
   paginas: Lado[];
   produtoDetalhadoId: string | number | null;
   podeDesfazer: boolean;

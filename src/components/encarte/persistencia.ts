@@ -84,10 +84,13 @@ export interface EncarteSalvo {
   formato: string;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;
-  /** 3ª a 5ª página (opcionais; encartes antigos não têm) */
+  /** 3ª a 8ª página (opcionais; encartes antigos não têm) */
   ladoVerso2?: LadoEncarte | null;
   ladoVerso3?: LadoEncarte | null;
   ladoVerso4?: LadoEncarte | null;
+  ladoVerso5?: LadoEncarte | null;
+  ladoVerso6?: LadoEncarte | null;
+  ladoVerso7?: LadoEncarte | null;
   createdAt: string;
 }
 
@@ -222,10 +225,13 @@ export interface RascunhoEncarte {
   formato: string;
   ladoFrente: LadoEncarte;
   ladoVerso: LadoEncarte | null;
-  /** 3ª a 5ª página (opcionais; encartes antigos não têm) */
+  /** 3ª a 8ª página (opcionais; encartes antigos não têm) */
   ladoVerso2?: LadoEncarte | null;
   ladoVerso3?: LadoEncarte | null;
   ladoVerso4?: LadoEncarte | null;
+  ladoVerso5?: LadoEncarte | null;
+  ladoVerso6?: LadoEncarte | null;
+  ladoVerso7?: LadoEncarte | null;
   updatedAt: string;
 }
 

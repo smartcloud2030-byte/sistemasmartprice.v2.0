@@ -226,7 +226,7 @@ export default function ProdutosTab({ selecionados, onSelecionar, onRemover, onA
     };
   };
   const outrasPaginas = paginas.filter((pg) => pg.lado !== ladoAtivo);
-  // próxima página que dá pra criar (até 5)
+  // próxima página que dá pra criar (até 8)
   const novaPagina: Lado | null = paginas.length < MAX_PAGINAS ? VERSOS[paginas.length - 1] ?? null : null;
   const nomeAtiva = paginas.find((pg) => pg.lado === ladoAtivo)?.nome ?? 'Frente';
   // menu "Mandar pra" aberto (id do produto)
