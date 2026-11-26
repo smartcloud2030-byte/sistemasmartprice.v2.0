@@ -832,7 +832,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
     atualizarLado((l) => ({ imagens: [...l.imagens, { ...imagem, z: maiorZ(l) + 1 }] }));
 
   const ordenarProdutosPorPreco = (ordem: 'asc' | 'desc') =>
-    atualizarLado((l) => ({ produtos: ordenarPorPreco(l.produtos, ordem) }));
+    atualizarLado((l) => ({
+      produtos: ordenarPorPreco(l.produtos, ordem, ((CARD_H * (l.estilo.escalaCard || 1)) / (CANVAS_W / formato.ratio)) * 100),
+    }));
 
   /** Leve e Pague (Ultra 10 / Big 10) em TODAS as páginas; `null` desliga. Devolve quantos ligou. */
   const levePagueNoEncarte = (valor: number | null): number => {

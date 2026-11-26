@@ -984,11 +984,18 @@ export function precoNumero(v: string): number | null {
  * Card em destaque só troca com destaque (tamanho diferente). Produto oculto
  * e produto sem preço não se mexem / vão pro fim.
  */
-export function ordenarPorPreco(produtos: EncarteProduto[], ordem: 'asc' | 'desc'): EncarteProduto[] {
-  const TOL = 2; // % — cards com yPct até 2% de diferença estão na mesma linha
-  const leitura = (a: { xPct: number; yPct: number }, b: { xPct: number; yPct: number }) =>
-    Math.abs(a.yPct - b.yPct) < TOL ? a.xPct - b.xPct : a.yPct - b.yPct;
+export function ordenarPorPreco(produtos: EncarteProduto[], ordem: 'asc' | 'desc', alturaLinhaPct = 4): EncarteProduto[] {
+  // Mesma linha = topo a menos de meia altura do card (como na grade Automática).
+  // Antes era 2% fixo: card arrastado um pouco pra cima/baixo virava "outra
+  // linha" e a ordem saía trocada.
+  // Desconto em % (ex.: "20%") não é preço em R$: vai depois dos preços, entre si por %.
+  const ehPct = (p: EncarteProduto) => /%\s*$/.test(p.precoOferta || '');
   const comparaPreco = (a: EncarteProduto, b: EncarteProduto) => {
+    if (ehPct(a) !== ehPct(b)) {
+      const semPreco = (p: EncarteProduto) => precoNumero(p.precoOferta) == null;
+      if (semPreco(a) || semPreco(b)) return semPreco(a) ? 1 : -1;
+      return ehPct(a) ? 1 : -1;
+    }
     const pa = precoNumero(a.precoOferta);
     const pb = precoNumero(b.precoOferta);
     if (pa == null && pb == null) return 0;
@@ -1003,11 +1010,21 @@ export function ordenarPorPreco(produtos: EncarteProduto[], ordem: 'asc' | 'desc
       .map((p, i) => ({ p, i }))
       .filter(({ p }) => !p.oculto && !!p.emDestaque === destaque);
     if (idx.length < 2) continue;
-    const lugares = idx.map(({ p }) => ({ xPct: p.xPct, yPct: p.yPct })).sort(leitura);
+    const lugares = ordenarPorLeitura(idx.map(({ p }) => ({ xPct: p.xPct, yPct: p.yPct })), alturaLinhaPct);
     const ordenados = idx.map(({ p }) => p).sort(comparaPreco);
     // reescreve nas mesmas posições do array (mantém a lista "Selecionados")
     const slotsArray = idx.map(({ i }) => i);
-    const porLugar = ordenados.map((p, k) => ({ ...p, xPct: lugares[k].xPct, yPct: lugares[k].yPct }));
+    const porLugar = ordenados.map((p, k) => {
+      const { xPct, yPct } = lugares[k];
+      // nome/descrição solto (em % do canvas) anda junto com o card
+      const nd = p.nomeDescricaoAjuste;
+      return {
+        ...p,
+        xPct,
+        yPct,
+        nomeDescricaoAjuste: nd ? { ...nd, xPct: nd.xPct + (xPct - p.xPct), yPct: nd.yPct + (yPct - p.yPct) } : nd,
+      };
+    });
     // a ordem do array segue a ordem de leitura nova
     slotsArray.sort((a, b) => a - b).forEach((pos, k) => { resultado[pos] = porLugar[k]; });
   }
