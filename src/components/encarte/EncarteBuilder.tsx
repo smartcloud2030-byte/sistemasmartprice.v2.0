@@ -976,8 +976,14 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
   const gravarEncarte = (imagemPreview: string): Promise<void> => {
     if (!cnpj) return Promise.reject(new Error('Sessão sem usuário identificado — não dá pra salvar o encarte.'));
     const gravar = filaGravacao.current.catch(() => null).then(() => {
-      const id = salvoIdRef.current;
-      const nomeAnterior = id ? historico.find((e) => e.id === id)?.nome : undefined;
+      const aberto = salvoIdRef.current;
+      const nomeAnterior = aberto ? historico.find((e) => e.id === aberto)?.nome : undefined;
+      // Trocou o nome = encarte NOVO ("salvar como"), o de antes fica intacto.
+      // Antes gravava por cima: abriram o "SRN Black", fizeram o da CDB em
+      // cima, salvaram como "CDB black" e o SRN sumiu (26/11).
+      const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+      const trocouNome = !!nomeAnterior && !!nomeEncarte.trim() && norm(nomeEncarte) !== norm(nomeAnterior);
+      const id = trocouNome ? null : aberto;
       return salvarNoHistorico(chaveHist, {
         nome:
           nomeEncarte.trim() ||
