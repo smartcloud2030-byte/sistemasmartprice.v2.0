@@ -613,6 +613,136 @@ async function buscarImagemExterna(inicial: URL): Promise<globalThis.Response | 
   return null;
 }
 
+// ── Importar produtos por código de barras (só admin) ──────────────────
+// O admin cola até 150 códigos; pra cada um o sistema procura nome e foto
+// (Anvisa/CMED → Open Facts → Google pelo próprio número) e devolve
+// SUGESTÕES pra ele conferir antes de cadastrar. A Cosmos não entra (parou).
+
+const variantesGtin = (g: string) => {
+  const semZero = g.replace(/^0+/, '');
+  return [...new Set([g, semZero, semZero.padStart(13, '0'), semZero.padStart(14, '0')])].filter(Boolean);
+};
+
+/** Busca de imagens no Google (mesmo CSE do Encarte). null = sem chave/erro; `limite` = cota do dia acabou. */
+async function googleImagens(q: string, num: number): Promise<{ itens: { titulo: string; url: string; site: string }[] } | { limite: true } | null> {
+  const key = process.env.GOOGLE_CSE_KEY;
+  const cx = process.env.GOOGLE_CSE_ID;
+  if (!key || !cx) return null;
+  try {
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.searchParams.set('key', key);
+    url.searchParams.set('cx', cx);
+    url.searchParams.set('q', q);
+    url.searchParams.set('searchType', 'image');
+    url.searchParams.set('num', String(num));
+    url.searchParams.set('safe', 'active');
+    const r = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
+    const json: any = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const motivo = json?.error?.errors?.[0]?.reason;
+      if (r.status === 429 || motivo === 'dailyLimitExceeded' || motivo === 'rateLimitExceeded') return { limite: true };
+      return null;
+    }
+    return {
+      itens: (json.items || []).map((it: any) => ({
+        titulo: String(it.title || ''),
+        url: `/api/encarte/image-proxy?url=${encodeURIComponent(it.link)}`,
+        site: String(it.displayLink || ''),
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Limpa o título de página do Google pra virar nome de produto. */
+function nomeDoTitulo(t: string): string {
+  return t
+    .split(/\s[|–—-]\s/)[0]
+    .replace(/\b\d{8,14}\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+    .slice(0, 80);
+}
+
+router.post('/produtos/codigos-existentes', exigirAdmin, async (req: Request, res: Response) => {
+  const codigos: string[] = (Array.isArray(req.body?.codigos) ? req.body.codigos : [])
+    .slice(0, 300)
+    .map((c: unknown) => String(c ?? '').replace(/\D/g, ''))
+    .filter(Boolean);
+  if (!codigos.length) return res.json({ existentes: {} });
+  const todas = [...new Set(codigos.flatMap(variantesGtin))];
+  try {
+    const r = await pool.query(
+      `SELECT name, barcode, barcode2 FROM products WHERE barcode = ANY($1) OR barcode2 = ANY($1)`,
+      [todas],
+    );
+    const existentes: Record<string, string> = {};
+    for (const c of codigos) {
+      const vs = variantesGtin(c);
+      const achou = r.rows.find((row: any) => vs.includes(String(row.barcode || '')) || vs.includes(String(row.barcode2 || '')));
+      if (achou) existentes[c] = achou.name;
+    }
+    res.json({ existentes });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/produtos/importar-codigo/:gtin', exigirAdmin, async (req: Request, res: Response) => {
+  const gtin = req.params.gtin.replace(/\D/g, '');
+  if (gtin.length < 8 || gtin.length > 14) return res.status(400).json({ error: 'Código inválido' });
+
+  const base = await buscarFontesGratuitas(gtin).catch(() => null);
+  const fotos: { url: string; origem: string }[] = [];
+  if (base?.thumbnail) fotos.push({ url: base.thumbnail, origem: base.fonte.includes('foto ') ? base.fonte.split('foto ')[1] : base.fonte });
+
+  let nome = base?.description ? base.description.toUpperCase() : '';
+  let fonte = base?.fonte || '';
+  let googleLimite = false;
+  const titulos: string[] = [];
+
+  // Sem nome: procura o próprio número no Google (sites de farmácia/mercado
+  // costumam pôr o código na página). Sem foto: procura pelo nome.
+  if (!nome || fotos.length === 0) {
+    const g = await googleImagens(nome ? nome : gtin, 6);
+    if (g && !('itens' in g)) googleLimite = true;
+    if (g && 'itens' in g) {
+      for (const it of g.itens) {
+        fotos.push({ url: it.url, origem: it.site || 'Google' });
+        const t = nomeDoTitulo(it.titulo);
+        if (t.length >= 4 && !titulos.includes(t)) titulos.push(t);
+      }
+      if (!nome && titulos.length) {
+        nome = titulos[0];
+        fonte = 'Google (confira o nome)';
+      }
+    }
+  }
+
+  res.json({
+    gtin,
+    encontrado: !!nome,
+    nome,
+    marca: base?.brand || null,
+    fonte,
+    fotos: fotos.slice(0, 7),
+    sugestoesNome: titulos.filter((t) => t !== nome).slice(0, 4),
+    googleLimite,
+  });
+});
+
+/** Mais fotos pra um produto (botão "Outras fotos" na conferência). */
+router.get('/produtos/importar-fotos', exigirAdmin, async (req: Request, res: Response) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 120) : '';
+  if (!q) return res.status(400).json({ error: 'Informe o nome' });
+  const g = await googleImagens(q, 8);
+  if (!g) return res.status(502).json({ error: 'Busca de fotos indisponível' });
+  if (!('itens' in g)) return res.status(429).json({ error: 'Acabou a cota diária de buscas de foto do Google. Tente amanhã.' });
+  res.json({ fotos: g.itens.map((it) => ({ url: it.url, origem: it.site || 'Google' })) });
+});
+
 router.get('/encarte/image-search', exigirSessaoValida(), exigirPermissao('hasEncarteAccess'), async (req: Request, res: Response) => {
   const key = process.env.GOOGLE_CSE_KEY;
   const cx = process.env.GOOGLE_CSE_ID;

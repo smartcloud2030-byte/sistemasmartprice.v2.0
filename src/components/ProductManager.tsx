@@ -3,9 +3,10 @@ import { normalizarImagem, ACCEPT_IMAGENS } from '../lib/normalizarImagem';
 import { useStore, Product } from '../store';
 import { findDuplicateProduct } from '../lib/duplicateProductMatch';
 import { getUsageState, COSMOS_DAILY_LIMIT, CosmosUsageState, getBrazilDateString } from '../lib/cosmosUsage';
-import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Package, RefreshCw, AlertTriangle, AlertCircle, Upload, Image, Loader2, Barcode } from 'lucide-react';
 import { isValidImageUrl, getProxyUrl, cn } from '../lib/utils';
 import { toast } from 'sonner';
+import ImportarPorCodigo from './ImportarPorCodigo';
 
 
 const CATEGORY_FOLDER: Record<string, string> = {
@@ -96,6 +97,8 @@ export interface CadastroRapido {
 
 const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
   const { products, fetchProducts, currentUser } = useStore();
+  const ehAdmin = useStore((s) => s.userRole === 'admin');
+  const [importarCodigosAberto, setImportarCodigosAberto] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -522,6 +525,11 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {ehAdmin && (
+            <button onClick={() => setImportarCodigosAberto(true)} className="border border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
+              <Barcode className="w-4 h-4" /> Importar por código
+            </button>
+          )}
           <button onClick={() => { setMultiFormData(initialMultiFormData); setBulkPendingFiles({}); setBulkDefaultCategory(''); setBulkDuplicates([]); setIsMultiRegisterModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold">
             <Upload className="w-4 h-4" /> Cadastrar em massa
           </button>
@@ -770,6 +778,15 @@ const ProductManager = ({ rapido }: { rapido?: CadastroRapido } = {}) => {
             </form>
           </div>
         </div>
+      )}
+
+      {importarCodigosAberto && (
+        <ImportarPorCodigo
+          categorias={categories}
+          enviarFoto={(arq, cat, nome, tirarFundo) => uploadToMinio(arq, cat, nome, false, tirarFundo)}
+          onFechar={() => setImportarCodigosAberto(false)}
+          onCadastrados={() => { fetchProducts().catch(() => {}); fetchProductCount(); }}
+        />
       )}
 
       {/* Modal Cadastrar Vários */}
