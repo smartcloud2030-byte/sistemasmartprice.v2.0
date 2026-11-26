@@ -54,6 +54,7 @@ import {
   CANVAS_W,
   trocarDestaque,
   ordenarPorPreco,
+  centralizarProdutosNaLargura,
   aplicarLevePague,
   removerLevePague,
   alternarFotoGenerica,
@@ -836,6 +837,9 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
       produtos: ordenarPorPreco(l.produtos, ordem, ((CARD_H * (l.estilo.escalaCard || 1)) / (CANVAS_W / formato.ratio)) * 100),
     }));
 
+  const centralizarProdutos = () =>
+    atualizarLado((l) => ({ produtos: centralizarProdutosNaLargura(l.produtos, l.estilo.escalaCard || 1) }));
+
   /** Leve e Pague (Ultra 10 / Big 10) em TODAS as páginas; `null` desliga. Devolve quantos ligou. */
   const levePagueNoEncarte = (valor: number | null): number => {
     // contagem pelo doc atual (o updater do setDoc pode rodar depois)
@@ -1337,6 +1341,7 @@ export default function EncarteBuilder({ ladoInicial, formatoInicial, menuInicia
           onReordenarCamada={reordenarCamada}
           onAdicionarTexto={adicionarTexto}
           onOrdenarPorPreco={ordenarProdutosPorPreco}
+          onCentralizarProdutos={centralizarProdutos}
           onLevePague={levePagueNoEncarte}
           onMoverTexto={moverTexto}
           onRedimensionarTexto={redimensionarTexto}

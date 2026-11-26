@@ -1031,6 +1031,27 @@ export function ordenarPorPreco(produtos: EncarteProduto[], ordem: 'asc' | 'desc
   return resultado;
 }
 
+/**
+ * Centraliza o BLOCO de produtos na largura da folha: mede de onde começa o
+ * card mais à esquerda até onde termina o mais à direita e empurra todos
+ * juntos (a mesma distância) pra sobrar o mesmo espaço dos dois lados.
+ * Ninguém muda de lugar em relação aos outros. Produto oculto não conta.
+ */
+export function centralizarProdutosNaLargura(produtos: EncarteProduto[], escalaCard: number): EncarteProduto[] {
+  const vis = produtos.filter((p) => !p.oculto);
+  if (!vis.length) return produtos;
+  const base = ((CARD_W * (escalaCard || 1)) / CANVAS_W) * 100;
+  const largura = (p: EncarteProduto) => (p.emDestaque ? base * 2.2 : base) * (p.escalaCardProprio ?? 1);
+  const esq = Math.min(...vis.map((p) => p.xPct));
+  const dir = Math.max(...vis.map((p) => p.xPct + largura(p)));
+  const dx = 50 - (esq + dir) / 2;
+  if (Math.abs(dx) < 0.05) return produtos;
+  return produtos.map((p) => {
+    const nd = p.nomeDescricaoAjuste;
+    return { ...p, xPct: p.xPct + dx, nomeDescricaoAjuste: nd ? { ...nd, xPct: nd.xPct + dx } : nd };
+  });
+}
+
 // ── Ordem de leitura ──────────────────────────────────────────────────
 
 /**

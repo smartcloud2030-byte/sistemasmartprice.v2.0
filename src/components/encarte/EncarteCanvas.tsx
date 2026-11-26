@@ -487,6 +487,8 @@ interface EncarteCanvasProps {
   soltarTextoToken?: number;
   /** troca os produtos de lugar entre si pelo preço (layout fica igual) */
   onOrdenarPorPreco: (ordem: 'asc' | 'desc') => void;
+  /** Empurra todos os produtos juntos pra ficarem no meio da folha (esq = dir). */
+  onCentralizarProdutos: () => void;
   /** Leve e Pague (Ultra 10 / Big 10) em todo o encarte; `null` desliga. Devolve quantos produtos ligou. */
   onLevePague: (valor: number | null) => number;
   onMoverTexto: (id: string, xPct: number, yPct: number) => void;
@@ -639,6 +641,7 @@ export default function EncarteCanvas({
   onReordenarCamada,
   onAdicionarTexto,
   onOrdenarPorPreco,
+  onCentralizarProdutos,
   onLevePague,
   onMoverTexto,
   onRedimensionarTexto,
@@ -2864,6 +2867,22 @@ export default function EncarteCanvas({
               </div>
             )}
           </div>
+
+          {/* Centralizar o bloco de produtos na largura da folha */}
+          <button
+            onClick={() => {
+              onCentralizarProdutos();
+              toast.success('Produtos centralizados na folha.', { description: 'Ctrl+Z desfaz.' });
+            }}
+            title="Deixar os produtos no meio da folha (mesmo espaço na esquerda e na direita)"
+            className={cn(
+              'whitespace-nowrap flex items-center gap-1.5 py-1.5 rounded-lg transition-colors text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+              tbCompacta ? 'px-2' : 'px-3',
+            )}
+          >
+            <AlignCenter className="w-3.5 h-3.5" />
+            Centralizar
+          </button>
 
           {/* Leve e Pague — encarte Ultra 10 / Big 10 ("LEVE 5 · Pague R$ 10,00") */}
           <div className="relative">

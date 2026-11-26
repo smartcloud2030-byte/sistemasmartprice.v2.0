@@ -31,3 +31,15 @@ const de = (r: EncarteProduto[], id: number) => r.find((x) => x.product.id === i
   assert.deepStrictEqual(ordem, ['9,99', '45,99', '20%']);
 }
 console.log('ordenarPorPreco: ok');
+
+// centralizar: bloco torto pra esquerda vai pro meio, nome solto junto
+{
+  const { centralizarProdutosNaLargura, CARD_W, CANVAS_W } = await import('./encarteProduto');
+  const w = (CARD_W / CANVAS_W) * 100;
+  const r = centralizarProdutosNaLargura([p(1, '1', 2, 0, { xPct: 3, yPct: 0 }), p(2, '1', 40, 0)], 1);
+  const esq = de(r, 1).xPct;
+  const dir = de(r, 2).xPct + w;
+  assert.ok(Math.abs(esq - (100 - dir)) < 1e-9);
+  assert.ok(Math.abs(de(r, 1).nomeDescricaoAjuste!.xPct - (esq + 1)) < 1e-9);
+  console.log('centralizarProdutosNaLargura: ok');
+}
