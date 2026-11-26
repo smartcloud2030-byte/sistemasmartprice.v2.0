@@ -60,10 +60,21 @@ async function uploadToMinio(file: File, category: string, productName: string, 
   formData.append('name', productName || '');
   formData.append('duplicate', duplicate ? 'true' : 'false');
   formData.append('removeBg', removeBg ? 'true' : 'false');
-  const res = await fetch(`/gallery/upload-nobg2/${folder}`, {
-    method: 'POST',
-    body: formData,
-  });
+  // Sem resposta em 90s = internet travou no envio: avisa em vez de ficar
+  // parado em "Quase pronto... 80%" pra sempre.
+  let res: Response;
+  try {
+    res = await fetch(`/gallery/upload-nobg2/${folder}`, {
+      method: 'POST',
+      body: formData,
+      signal: AbortSignal.timeout(90_000),
+    });
+  } catch (e: any) {
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+      throw new Error('a foto demorou demais pra subir (internet lenta?). Tente de novo.');
+    }
+    throw new Error('não consegui enviar a foto (sem conexão?). Tente de novo.');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Falha no upload');
